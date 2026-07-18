@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Identity Runtime</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      width: 320px;
+      min-height: 400px;
+      background: #0f0f1e;
+      color: #e0e0ff;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      font-size: 13px;
+    }
+
+    header {
+      background: #1a1a3e;
+      padding: 12px 16px;
+      border-bottom: 1px solid #333366;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    header .logo { font-size: 18px; }
+
+    header h1 {
+      font-size: 14px;
+      font-weight: 600;
+      color: #aaaaff;
+      letter-spacing: 0.5px;
+    }
+
+    header .status-dot {
+      margin-left: auto;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #444;
+    }
+    header .status-dot.online { background: #44ff88; }
+
+    section { padding: 12px 16px; }
+
+    .section-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #6666aa;
+      margin-bottom: 8px;
+    }
+
+    #identity-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    #identity-list li {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      border-radius: 6px;
+      background: #1a1a2e;
+      border: 1px solid #2a2a55;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+    }
+
+    #identity-list li:hover { border-color: #5555cc; background: #22224a; }
+
+    #identity-list li.active {
+      border-color: #7777ff;
+      background: #25255a;
+    }
+
+    .identity-icon { font-size: 16px; }
+
+    .identity-info { flex: 1; overflow: hidden; }
+
+    .identity-name {
+      font-weight: 600;
+      color: #ccccff;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .identity-model {
+      font-size: 11px;
+      color: #7777aa;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .active-badge {
+      font-size: 10px;
+      background: #44446a;
+      color: #aaaaff;
+      border-radius: 4px;
+      padding: 2px 6px;
+    }
+
+    #no-identities {
+      color: #555577;
+      text-align: center;
+      padding: 20px 0;
+      font-size: 12px;
+    }
+
+    .divider {
+      height: 1px;
+      background: #22224a;
+      margin: 0 16px;
+    }
+
+    .actions {
+      padding: 10px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    button {
+      width: 100%;
+      padding: 8px 12px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+      transition: opacity 0.15s;
+    }
+    button:hover { opacity: 0.85; }
+
+    #btn-new-identity {
+      background: #5555cc;
+      color: #fff;
+    }
+
+    #btn-open-dashboard {
+      background: #22224a;
+      color: #aaaaff;
+      border: 1px solid #3333aa;
+    }
+
+    #btn-disconnect {
+      background: #331133;
+      color: #ff88aa;
+      border: 1px solid #661133;
+      display: none;
+    }
+
+    footer {
+      padding: 8px 16px;
+      font-size: 10px;
+      color: #444466;
+      text-align: center;
+      border-top: 1px solid #1a1a33;
+    }
+
+    #runtime-url-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+
+    #runtime-url {
+      flex: 1;
+      background: #11112a;
+      border: 1px solid #2a2a55;
+      border-radius: 4px;
+      color: #aaaaff;
+      padding: 4px 8px;
+      font-size: 12px;
+      font-family: monospace;
+    }
+
+    #btn-save-url {
+      background: #3333aa;
+      color: #fff;
+      width: auto;
+      padding: 4px 10px;
+      font-size: 11px;
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border: 2px solid #333366;
+      border-top-color: #7777ff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      margin-right: 4px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+  <header>
+    <span class="logo">⬡</span>
+    <h1>Identity Runtime</h1>
+    <span class="status-dot" id="status-dot"></span>
+  </header>
+
+  <section>
+    <div class="section-label">Runtime URL</div>
+    <div id="runtime-url-row">
+      <input id="runtime-url" type="text" value="http://localhost:8765" />
+      <button id="btn-save-url">Save</button>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <section>
+    <div class="section-label">Identities</div>
+    <ul id="identity-list">
+      <li id="no-identities"><span class="spinner"></span> Loading...</li>
+    </ul>
+  </section>
+
+  <div class="divider"></div>
+
+  <div class="actions">
+    <button id="btn-new-identity">+ New Identity</button>
+    <button id="btn-open-dashboard">Open Dashboard</button>
+    <button id="btn-disconnect">Disconnect Identity</button>
+  </div>
+
+  <footer>Identity Runtime Bridge v0.1.0</footer>
+
+  <script src="popup.js"></script>
+</body>
+</html>
