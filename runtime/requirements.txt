@@ -1,0 +1,20 @@
+# Identity Runtime - Python Dependencies
+# Install with: pip install -r requirements.txt
+
+# Core API framework
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+pydantic>=2.4.0
+
+# HTTP client (for Ollama embeddings integration)
+httpx>=0.25.0
+
+# Optional: Use real vector search with these
+# pip install sentence-transformers  # for local embeddings
+# pip install pgvector                # for Postgres vector store
+# pip install pinecone-client         # for Pinecone vector store
+
+# Development
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+httpx>=0.25.0  # also used for test client
