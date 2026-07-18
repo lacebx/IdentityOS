@@ -1,116 +1,187 @@
-# identity-runtime
+# IdentityOS — identity-runtime
 
-> The infrastructure for persistent AI identities that work across models and eventually devices.
-> *Inspired by the anime Pluto — where every robot had its own unique AI soul.*
+> An operating system for persistent, portable AI identities.
 
----
-
-## What is this?
-
-Today, AI models like ChatGPT, Claude, and Grok are powerful but stateless. Every conversation starts fresh. Every model has a different "personality." Users are locked into one provider's memory system. Developers can't build consistent AI agents that persist across tools.
-
-**identity-runtime** is the missing layer: a portable identity and memory engine that sits between users/developers and any LLM. Think of it as the operating system for AI personalities.
+> *Inspired by the anime Pluto — where every robot had its own unique soul.*
 
 ---
 
-## The North Star
+## Vision
 
-> **Identity portability across models — so developers and users are never locked into one provider.**
+IdentityOS is not a prompt wrapper. It is a **microkernel architecture** for AI entities that persist across sessions, evolve over time, and maintain coherent identity regardless of which client or model they run on.
 
-Just like Docker made apps portable across servers, identity-runtime makes AI identities portable across reasoning engines.
+An identity in this system is not a character definition. It is a **living entity** with:
+- A kernel (who it is)
+- Memory (what it knows from experience)
+- Knowledge (what it was taught)
+- Skills (what it can do)
+- Goals (what it is trying to accomplish)
+- Relationships (who it knows and trusts)
+- Policies (what it will and will not do)
+- An Evaluation Engine (how it measures itself)
 
 ---
 
-## Repository Structure
+## Architecture
 
 ```
 identity-runtime/
-├── README.md                  # This file
-├── docs/
-│   ├── 01-north-star.md       # The guiding vision
-│   ├── 02-problem.md          # Problem statement
-│   ├── 03-vision.md           # Full vision & ecosystem
-│   ├── 04-architecture.md     # Technical architecture
-│   ├── 05-mvp.md              # MVP scope & plan
-│   ├── 06-roadmap.md          # Development roadmap
-│   └── 07-identity-spec.md    # Identity spec format
-├── extension/                 # Chrome extension (MVP client)
-├── runtime/                   # Core identity runtime service
-├── sdk/                       # Developer SDK
-└── registry/                  # Identity registry / marketplace
+├── core/                    # Bounded modules — the kernel components
+│   ├── identity.py          # Identity definition, traits, versioning
+│   ├── memory.py            # Memory tiers (episodic, semantic, procedural)
+│   ├── knowledge.py         # Knowledge packs with dependency resolution
+│   ├── skills.py            # Executable skills and registry
+│   ├── relationships.py     # Identity Graph — trust, edges, decay
+│   ├── goals.py             # Goal engine with milestones and priority
+│   ├── policies.py          # Behavioral policies (allow/deny/transform)
+│   ├── evaluation.py        # Evaluation engine with growth tracking
+│   └── context_composer.py  # Assembles all modules into a prompt context
+├── runtime/
+│   └── orchestrator.py      # The microkernel — routes the full pipeline
+├── adapters/
+│   ├── base.py              # Abstract adapter interface
+│   └── openai_adapter.py    # OpenAI, Anthropic, Ollama adapters
+├── sdk/
+│   └── identity_object.py   # Developer-facing identity interface
+├── docs/                    # Architecture docs and specs
+├── examples/                # Usage examples
+└── extension/               # VSCode extension (thin client)
 ```
 
 ---
 
-## Quick Concept
+## Core Design Principles
 
-```
-User types message
-       ↓
-Extension intercepts
-       ↓
-Runtime pulls relevant memories + identity context
-       ↓
-Context prepended to prompt
-       ↓
-Sent to ChatGPT / Claude / Grok
-       ↓
-Response returned
-       ↓
-Runtime evaluates what's worth remembering
-       ↓
-Memory store updated
-```
-
-The user sees the familiar ChatGPT/Grok interface. Underneath, the identity layer is shaping every conversation.
-
----
-
-## Ecosystem Vision
-
-| Layer | Description |
+| Principle | Description |
 |---|---|
-| **Identity Runtime** | Core engine: memory, identity spec, evaluation |
-| **Extension (Bridge)** | Chrome extension — first client, injects context into existing AI UIs |
-| **SDK** | For developers to load identities into their own apps |
-| **Registry / Marketplace** | Where creators publish identities, others subscribe |
-| **Studio** | Creator tools: build, test, version identities |
+| **Identity is the Kernel** | Everything else (Memory, Skills, etc.) is a loadable module |
+| **Modularity** | Clean boundaries between modules. No cross-module coupling |
+| **Runtime Orchestration** | The Runtime routes interactions. Modules have no orchestration logic |
+| **Adapters are Dumb** | Adapters translate and call. No business logic |
+| **SDK feels Human** | Interact with identities like individuals, not APIs |
+| **Evaluation drives Evolution** | Every interaction is scored. Identity improves over time |
 
 ---
 
-## Key Principles
+## Quick Start
 
-1. **We own the identity layer, not the model.** Models are CPU. We are the OS.
-2. **Don't compete with ChatGPT.** Be the layer that makes ChatGPT better for every user.
-3. **Identity = personality + memory + values + history.** Not just a system prompt.
-4. **Modular.** Identity + knowledge pack + memory + model. Mix like Lego pieces.
-5. **Portable.** Same identity, different model — continuity is the product.
+```python
+from core.identity import Identity
+from runtime.orchestrator import IdentityRuntime
+from adapters.openai_adapter import OpenAIAdapter
+from sdk.identity_object import load_identity
+
+# 1. Configure adapter
+adapter = OpenAIAdapter(model="gpt-4o", api_key="sk-...")
+
+# 2. Boot the runtime
+runtime = IdentityRuntime(adapter=adapter)
+
+# 3. Define an identity
+mentor = Identity(
+    name="Mentor",
+    role="Senior Engineer & Advisor",
+    persona="Direct, insightful, challenges assumptions",
+    core_values=["clarity", "growth", "honesty"],
+    communication_style="Concise, structured, Socratic",
+)
+runtime.register(mentor)
+
+# 4. Interact via SDK
+identity = load_identity(runtime, mentor.id)
+identity.begin_session()
+
+response = identity.chat("What should I prioritize today?")
+print(response)
+
+identity.remember("User is building an IdentityOS project")
+identity.pursue("Help user ship Architecture v1.0")
+print(identity.describe())
+```
+
+---
+
+## Interaction Pipeline
+
+```
+User Input
+    ↓
+[Policy: INPUT]       ← Block/transform harmful inputs
+    ↓
+[ContextComposer]     ← Assemble identity + memory + knowledge + goals
+    ↓
+[Adapter]             ← Call LLM (OpenAI / Anthropic / Ollama / ...)
+    ↓
+[Policy: OUTPUT]      ← Block/transform harmful outputs
+    ↓
+[EvaluationEngine]    ← Score: consistency, alignment, quality, policy
+    ↓
+[MemoryStore]         ← Store interaction as episodic memory
+    ↓
+Response
+```
+
+---
+
+## Module Responsibilities
+
+### `core/identity.py`
+Defines **who the identity is**. Traits, persona, values, communication style, system prompt. Includes `IdentityVersion` for branching/evolution tracking.
+
+### `core/memory.py`
+Three-tier memory: **Episodic** (events), **Semantic** (facts), **Procedural** (how-to). Supports keyword search and recency retrieval.
+
+### `core/knowledge.py`
+Knowledge Packs with tier classification (CORE / DOMAIN / CONTEXT / TEMP) and dependency resolution. Identities load packs like modules.
+
+### `core/skills.py`
+Executable capabilities. Skills have typed parameters, handlers, and usage tracking. `SkillRegistry` exposes a prompt manifest.
+
+### `core/relationships.py`
+The **Identity Graph** — directed edges with type, trust level, strength, and decay. Models the social fabric between identities.
+
+### `core/goals.py`
+Goals with priority, scope, milestones, and nested sub-goals. `GoalEngine` provides a top-priority queue and prompt-ready summaries.
+
+### `core/policies.py`
+Behavioral guardrails. Policies evaluate data at INPUT, OUTPUT, MEMORY, SKILL, or RELATIONSHIP scope with ALLOW / DENY / TRANSFORM effects.
+
+### `core/evaluation.py`
+The **Evaluation Engine** — scores interactions across dimensions (consistency, alignment, quality, policy, growth, empathy). Powers identity evolution.
+
+### `core/context_composer.py`
+Assembles all active modules into a single `ComposedContext` for injection into LLM prompts. Token-budget aware.
+
+### `runtime/orchestrator.py`
+The **microkernel**. Owns the full interaction pipeline. Orchestrates all modules. Exposes clean `process()` and session management APIs.
+
+### `adapters/`
+Thin LLM translation layer. `BaseAdapter` defines the interface. Included: `OpenAIAdapter`, `AnthropicAdapter`, `OllamaAdapter`.
+
+### `sdk/identity_object.py`
+The developer-facing API. Interact with identities as individuals: `.chat()`, `.remember()`, `.recall()`, `.pursue()`, `.can()`, `.do()`.
 
 ---
 
 ## Milestones
 
-- **M1** — Identity Runtime Core (web app demo: one identity, two models)
-- **M2** — Identity Spec v1 (JSON schema, like Docker Compose for who the agent is)
-- **M3** — Developer SDK alpha
-- **M4** — Chrome Extension MVP (Bridge client for ChatGPT/Grok)
-- **M5** — Identity Registry (public identity publishing)
-- **M6** — Identity Marketplace (monetization, subscriptions)
-
-See [`docs/06-roadmap.md`](docs/06-roadmap.md) for full details.
-
----
-
-## Status
-
-> Pre-MVP. Concept validated. Building starts now.
+| Milestone | Status | Description |
+|---|---|---|
+| **M1: Architecture v1.0** | ✅ In Progress | Bounded modules with clean interfaces |
+| **M2: Persistence Layer** | ⏳ Planned | SQLite/JSON serialization for all stores |
+| **M3: Identity Evolution** | ⏳ Planned | Git-style versioning and branching for identities |
+| **M4: CLI Client** | ⏳ Planned | `identity run mentor` — thin CLI adapter |
+| **M5: VSCode Extension** | ⏳ Planned | Thin client over the runtime |
+| **M6: Identity Marketplace** | ⏳ Planned | Shareable identity packs + knowledge packs |
 
 ---
 
-## Inspiration
+## Philosophy
 
-Watching *Pluto* (2023 Netflix anime) raised a question: in the show, each robot has its own AI — Officer Gesicht's AI is distinct from Atom's, Hercules', or Brando's. They reference each other as individuals, not as instances of the same model.
+> This is not about better prompts. This is about persistent entities that grow, remember, and relate — across any model, any client, any session.
 
-In our world, we have ChatGPT, Claude, Grok — one big model each. But when you build chatbots or agents, you give them a system prompt and call it a personality. Is that real individuality? Or just a costume over the same base model?
+IdentityOS treats identity as a **first-class primitive** in AI systems. The goal is to make it as natural to work with a persistent AI identity as it is to work with a Git repository: version it, branch it, share it, load it anywhere.
 
-This project explores what it would take to make AI identities *real* — persistent, portable, and owned.
+---
+
+*Built by [@lacebx](https://github.com/lacebx)*
