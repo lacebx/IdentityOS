@@ -117,15 +117,60 @@ def cmd_create(args: argparse.Namespace) -> int:
 
 def cmd_inspect(args: argparse.Namespace) -> int:
     """
-    Print the latest snapshot of an identity as JSON.
+    Print the current persisted state of an identity.
+
+    Reads all live namespaces (identity, timeline, relationships, goals,
+    memories) directly from the storage backend, not from snapshots.
     """
     storage = _get_storage(args)
-    manager = _get_snapshot_manager(storage, args.id)
-    snap = manager.latest()
-    if snap is None:
-        print(f"No snapshots found for identity '{args.id}'.", file=sys.stderr)
+    identity_id = args.id
+
+    identity_data = storage.load(identity_id, "latest_snapshot")
+    if not identity_data:
+        print(f"Identity '{identity_id}' not found.", file=sys.stderr)
         return 1
-    _print_json(snap.to_dict())
+
+    identity_spec = identity_data.get("modules", {}).get("identity", identity_data)
+
+    timeline_data = storage.load(identity_id, "timeline") or {"events": []}
+    relationships_data = storage.load(identity_id, "relationships") or {"edges": []}
+    goals_data = storage.load(identity_id, "goals") or {"goals": []}
+    memories_data = storage.load_memories(identity_id) or []
+
+    state = {
+        "identity": identity_spec,
+        "timeline": {
+            "event_count": len(timeline_data.get("events", [])),
+            "events": [
+                {"title": e.get("title"), "event_type": e.get("event_type"), "occurred_at": e.get("occurred_at")}
+                for e in timeline_data.get("events", [])
+            ],
+        },
+        "relationships": {
+            "edge_count": len(relationships_data.get("edges", [])),
+            "edges": [
+                {"source": e.get("source_id"), "target": e.get("target_id"),
+                 "type": e.get("edge_type"), "strength": e.get("strength")}
+                for e in relationships_data.get("edges", [])
+            ],
+        },
+        "goals": {
+            "goal_count": len(goals_data.get("goals", [])),
+            "goals": [
+                {"title": g.get("title"), "status": g.get("status"), "priority": g.get("priority"),
+                 "progress": g.get("progress")}
+                for g in goals_data.get("goals", [])
+            ],
+        },
+        "memories": {
+            "total": len(memories_data),
+            "recent": [
+                {"content": m.get("content", "")[:120], "type": m.get("memory_type"), "tags": m.get("tags")}
+                for m in memories_data[-5:]
+            ],
+        },
+    }
+    _print_json(state)
     return 0
 
 
@@ -294,16 +339,6 @@ def build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_BACKEND,
         help="Storage backend (default: json)",
     )
-    parser.add_argument(
-        "--adapter",
-        default="",
-        help="LLM adapter type: openai, anthropic, ollama, openrouter (default: none)",
-    )
-    parser.add_argument(
-        "--adapter-config",
-        default="{}",
-        help="JSON string with adapter config (e.g. '{\"api_key\":\"...\",\"base_url\":\"...\"}')",
-    )
 
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -340,6 +375,8 @@ def build_parser() -> argparse.ArgumentParser:
     # chat
     p_chat = sub.add_parser("chat", help="Start an interactive chat session with an identity")
     p_chat.add_argument("--id", required=True, help="Identity id")
+    p_chat.add_argument("--adapter", default="", help="LLM adapter type: openai, anthropic, ollama, openrouter")
+    p_chat.add_argument("--adapter-config", default="{}", help="JSON string with adapter config")
     p_chat.add_argument("--model", default="gpt-4o", help="Model adapter to use")
 
     return parser

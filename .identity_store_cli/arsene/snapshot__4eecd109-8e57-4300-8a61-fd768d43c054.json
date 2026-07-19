@@ -1,0 +1,40 @@
+{
+  "snapshot_id": "4eecd109-8e57-4300-8a61-fd768d43c054",
+  "identity_id": "arsene",
+  "captured_at": 1784480419.45805,
+  "label": "initial",
+  "schema_version": "1.0.0",
+  "modules": {
+    "identity": {
+      "id": "arsene",
+      "name": "Arsene",
+      "identity_class": "agent",
+      "version": "1.0.0",
+      "created_at": "2026-07-19T17:00:19.457882+00:00",
+      "updated_at": "2026-07-19T17:00:19.457899+00:00",
+      "status": "active",
+      "avatar": "\u2b21",
+      "tagline": "",
+      "origin_story": "",
+      "role": "",
+      "persona": "",
+      "communication_style": "",
+      "system_prompt": "",
+      "core_values": [],
+      "traits": [],
+      "memory_store_id": "mem:arsene",
+      "knowledge_pack_ids": [],
+      "skill_pack_ids": [],
+      "policy_set_id": "policy:arsene",
+      "relationship_graph_id": "graph:arsene",
+      "goal_set_id": "goals:arsene",
+      "preferred_adapter": "openai",
+      "preferred_model": "gpt-4o",
+      "adapter_overrides": {},
+      "fidelity_baseline": null,
+      "tags": [],
+      "extra": {}
+    }
+  },
+  "meta": {}
+}

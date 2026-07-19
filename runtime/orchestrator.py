@@ -236,6 +236,8 @@ class IdentityRuntime:
             from datetime import datetime
             timeline = self.timeline_registry.get_or_create(identity_id)
             for ed in data.get("events", []):
+                if ed.get("event_type") == "creation":
+                    continue
                 event = LifeEvent(
                     id=ed["id"],
                     identity_id=ed["identity_id"],
