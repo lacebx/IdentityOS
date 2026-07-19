@@ -14,6 +14,7 @@ from pydantic import BaseModel
 
 from core.evaluation import register_default_criteria
 from runtime.orchestrator import IdentityRuntime, InteractionRequest, InteractionResponse
+from runtime.persistence import JSONFileBackend
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -31,9 +32,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize the runtime orchestrator
-runtime = IdentityRuntime()
+# Initialize the runtime orchestrator with persistence
+storage = JSONFileBackend(root_dir=".identity_store")
+runtime = IdentityRuntime(storage=storage)
 register_default_criteria(runtime.evaluation_engine)
+loaded = runtime.load_persisted()
+if loaded:
+    logger.info(f"Loaded {loaded} persisted identity/ies from .identity_store/")
 
 
 # --- Request / Response Models ---
@@ -167,6 +172,9 @@ async def evaluate(req: EvaluateRequest):
     """
     Evaluate an exchange (user message + LLM response) and decide
     what's worth remembering. Called after every LLM response.
+
+    Uses the same classification and storage pipeline as process()
+    via IdentityRuntime._extract_and_store_semantic_memory().
     """
     identity = runtime.load(req.identity_id)
     if not identity:
@@ -181,20 +189,15 @@ async def evaluate(req: EvaluateRequest):
         output_data=req.response,
     )
 
-    from core.evaluation import classify_memory_type, is_worth_remembering
+    stored = runtime._extract_and_store_semantic_memory(
+        user_input=req.message,
+        output=req.response,
+        identity_id=req.identity_id,
+        session_id=session_id,
+    )
 
-    memorable = is_worth_remembering(req.message, req.response)
-    if memorable:
-        mem_type = classify_memory_type(req.message, req.response)
-        from core.memory import MemoryFragment, MemoryType
-        memory = MemoryFragment(
-            identity_id=req.identity_id,
-            content=f"User: {req.message}",
-            memory_type=MemoryType.SEMANTIC if mem_type != "general" else MemoryType.EPISODIC,
-            session_id=session_id,
-            tags=[mem_type],
-        )
-        runtime.memory_store.add(memory)
+    if stored:
+        mem_type = stored.tags[-1] if len(stored.tags) > 1 else "general"
         logger.info(f"Stored {mem_type} memory for {req.identity_id}: {req.message[:60]}")
         return EvaluateResponse(
             memories_stored=1,
@@ -221,8 +224,8 @@ def get_identity(identity_id: str):
 @app.get("/identity")
 def list_identities():
     """List all available identity IDs."""
-    ids = list(runtime.identity_store._identities.keys())
-    return {"identities": ids}
+    specs = runtime.list_identities()
+    return {"identities": [s.id for s in specs]}
 
 
 @app.get("/memories/{user_id}/{identity_id}", response_model=MemoriesResponse)

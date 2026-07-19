@@ -73,6 +73,34 @@ class StorageBackend(abc.ABC):
     def delete(self, identity_id: str, namespace: str) -> None:
         """Remove a namespace blob for the given identity."""
 
+    @abc.abstractmethod
+    def list_identities(self) -> list[str]:
+        """Return all identity IDs stored in this backend."""
+
+    # ------------------------------------------------------------------
+    # Memory persistence (optional — not all backends need implement)
+    # ------------------------------------------------------------------
+
+    def save_memory(self, identity_id: str, memory: dict[str, Any]) -> None:
+        """Persist a single memory fragment for an identity.
+
+        Default implementation is a no-op. Backends that support memory
+        persistence should override this.
+        """
+
+    def load_memories(self, identity_id: str) -> list[dict[str, Any]]:
+        """Load all persisted memories for an identity.
+
+        Default returns an empty list.
+        """
+        return []
+
+    def delete_memories(self, identity_id: str) -> None:
+        """Delete all persisted memories for an identity.
+
+        Default implementation is a no-op.
+        """
+
     # ------------------------------------------------------------------
     # Convenience helpers (built on top of the abstract primitives)
     # ------------------------------------------------------------------
@@ -168,6 +196,43 @@ class JSONFileBackend(StorageBackend):
         if path.exists():
             path.unlink()
 
+    def list_identities(self) -> list[str]:
+        if not self.root.exists():
+            return []
+        return sorted(
+            d.name for d in self.root.iterdir() if d.is_dir() and not d.name.startswith(".")
+        )
+
+    # ------------------------------------------------------------------
+    # Memory persistence — stored as a single JSON file per identity
+    # ------------------------------------------------------------------
+
+    def _memories_path(self, identity_id: str) -> Path:
+        id_dir = self.root / identity_id
+        id_dir.mkdir(parents=True, exist_ok=True)
+        return id_dir / "__memories__.json"
+
+    def save_memory(self, identity_id: str, memory: dict[str, Any]) -> None:
+        path = self._memories_path(identity_id)
+        memories: list[dict[str, Any]] = []
+        if path.exists():
+            memories = json.loads(path.read_text(encoding="utf-8"))
+        memories.append(memory)
+        tmp = path.with_suffix(".tmp")
+        tmp.write_text(json.dumps(memories, indent=2, default=str), encoding="utf-8")
+        tmp.replace(path)
+
+    def load_memories(self, identity_id: str) -> list[dict[str, Any]]:
+        path = self._memories_path(identity_id)
+        if not path.exists():
+            return []
+        return json.loads(path.read_text(encoding="utf-8"))
+
+    def delete_memories(self, identity_id: str) -> None:
+        path = self._memories_path(identity_id)
+        if path.exists():
+            path.unlink()
+
 
 # ---------------------------------------------------------------------------
 # SQLite backend
@@ -244,6 +309,13 @@ class SQLiteBackend(StorageBackend):
             )
             conn.commit()
 
+    def list_identities(self) -> list[str]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT DISTINCT identity_id FROM identity_store ORDER BY identity_id"
+            ).fetchall()
+        return [r["identity_id"] for r in rows]
+
 
 # ---------------------------------------------------------------------------
 # Remote backend stub
@@ -279,6 +351,10 @@ class RemoteBackend(StorageBackend):
 
     def delete(self, identity_id: str, namespace: str) -> None:
         self._request("DELETE", f"/identities/{identity_id}/{namespace}")
+
+    def list_identities(self) -> list[str]:
+        result = self._request("GET", "/identities")
+        return result if isinstance(result, list) else []
 
 
 # ---------------------------------------------------------------------------

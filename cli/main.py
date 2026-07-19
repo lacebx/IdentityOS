@@ -209,14 +209,16 @@ def cmd_chat(args: argparse.Namespace) -> int:
     print("Type 'exit' or Ctrl-C to quit. Type ':snapshot' to checkpoint.")
     print("-" * 60)
 
-    # Lazy-import the orchestrator so the CLI stays light when not chatting
+    # Lazy-import the orchestrator
     try:
-        from runtime.orchestrator import IdentityRuntime
-        runtime = IdentityRuntime(identity_id=args.id, storage=storage)
+        from runtime.orchestrator import IdentityRuntime, InteractionRequest
+        runtime = IdentityRuntime(storage=storage)
+        runtime.load(args.id)
+        session_id = runtime.start_session(args.id)
+        runtime_ok = True
     except Exception as e:
-        # Graceful degradation: run as a bare echo loop if runtime unavailable
-        print(f"[warn] Could not load runtime ({e}). Running in echo mode.")
-        runtime = None
+        print(f"[warn] Could not initialize runtime ({e}). Running in echo mode.")
+        runtime_ok = False
 
     session_turns = 0
     while True:
@@ -243,10 +245,15 @@ def cmd_chat(args: argparse.Namespace) -> int:
                 print(f"  {snap.summary()}")
             continue
 
-        if runtime is not None:
+        if runtime_ok:
             try:
-                response = runtime.chat(user_input)
-                print(f"{identity_name}> {response}")
+                req = InteractionRequest(
+                    identity_id=args.id,
+                    user_input=user_input,
+                    session_id=session_id,
+                )
+                resp = runtime.process(req)
+                print(f"{identity_name}> {resp.output}")
             except Exception as e:
                 print(f"[runtime error] {e}")
         else:

@@ -196,7 +196,8 @@ class EvaluationEngine:
 
 PREFERENCE_SIGNALS = [
     r"i prefer", r"i like", r"i don't like", r"i hate",
-    r"i love", r"i always", r"i never", r"my favorite",
+    r"i love", r"i enjoy", r"i always", r"i never",
+    r"my favorite", r"my favourite",
     r"i tend to", r"i usually", r"i want", r"i need",
     r"my style", r"my approach", r"i'm a", r"i am a",
 ]

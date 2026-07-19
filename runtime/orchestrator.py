@@ -3,19 +3,22 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from core.cognitive_engine import ComposedContext, ContextComposer
-from core.evaluation import EvaluationEngine
-from core.experience import ExperienceStore
+from core.evaluation import (
+    EvaluationEngine,
+    classify_memory_type,
+    is_worth_remembering,
+)
 from core.goals import GoalEngine
 from core.identity import IdentitySpec, IdentityStore
 from core.memory import MemoryFragment, MemoryStore, MemoryType
 from core.motivations import MotivationEngine
 from core.policies import PolicyEngine, PolicyScope
-from core.relationships import IdentityGraph
+from core.relationships import EdgeType, IdentityGraph
 from core.skills import SkillRegistry
-from core.timeline import TimelineRegistry
+from core.timeline import LifeEvent, LifeEventType, TimelineRegistry
 from runtime.event_bus import EventBus, EventType
 
 
@@ -67,8 +70,6 @@ class IdentityRuntime:
     ):
         self.identity_store = IdentityStore()
         self.memory_store = MemoryStore()
-        self.experience_store = ExperienceStore()
-        self.knowledge_base = SkillRegistry()  # used as KnowledgeBase placeholder
         self.skill_registry = SkillRegistry()
         self.goal_engine = GoalEngine()
         self.identity_graph = IdentityGraph()
@@ -109,18 +110,121 @@ class IdentityRuntime:
     # ------------------------------------------------------------------
 
     def load(self, identity_id: str) -> Optional[IdentitySpec]:
-        """Load an identity by ID."""
-        return self.identity_store.get(identity_id)
+        """Load an identity by ID. Falls back to the persistence backend."""
+        cached = self.identity_store.get(identity_id)
+        if cached:
+            return cached
+        if self._storage:
+            snapshot = self._storage.load(identity_id, "latest_snapshot")
+            if not snapshot:
+                snapshot = self._storage.load_latest(identity_id)
+            if snapshot:
+                identity_data = snapshot.get("modules", {}).get("identity", snapshot)
+                # CLI snapshots store created_at as a Unix timestamp;
+                # convert to ISO 8601 string for IdentitySpec.from_dict
+                if isinstance(identity_data.get("created_at"), (int, float)):
+                    from datetime import datetime, timezone
+                    identity_data["created_at"] = (
+                        datetime.fromtimestamp(identity_data["created_at"], tz=timezone.utc)
+                        .isoformat()
+                    )
+                spec = IdentitySpec.from_dict(identity_data)
+                self.identity_store.save(spec)
+                self.timeline_registry.create(spec.id)
+                return spec
+        return None
 
     def register(self, identity: IdentitySpec) -> None:
-        """Register a new identity with the runtime."""
+        """Register a new identity with the runtime and persist."""
         self.identity_store.save(identity)
         self.timeline_registry.create(identity.id)
+        if self._storage:
+            snapshot_data = identity.to_dict()
+            self._storage.save(identity.id, "identity_spec", snapshot_data)
+            self._storage.save(
+                identity.id,
+                "latest_snapshot",
+                {"modules": {"identity": snapshot_data}},
+            )
         self._emit(
             EventType.IDENTITY_LOADED,
             identity_id=identity.id,
             name=identity.name,
         )
+
+    def load_persisted(self) -> int:
+        """Load all identities from the persistence backend into the in-memory store.
+
+        Also loads persisted memories for each identity.
+
+        Returns the number of identities loaded.
+        """
+        if not self._storage:
+            return 0
+        ids = self._storage.list_identities()
+        count = 0
+        for identity_id in ids:
+            if self.load(identity_id):
+                self._load_persisted_memories(identity_id)
+                count += 1
+        return count
+
+    def _load_persisted_memories(self, identity_id: str) -> int:
+        """Load persisted memories for an identity into the in-memory store."""
+        if not self._storage:
+            return 0
+        mem_dicts = self._storage.load_memories(identity_id)
+        count = 0
+        for d in mem_dicts:
+            try:
+                frag = MemoryFragment.from_dict(d)
+                self.memory_store.add(frag)
+                count += 1
+            except Exception:
+                continue
+        return count
+
+    def _persist_memory(self, memory: MemoryFragment) -> None:
+        """Persist a single memory fragment to the storage backend."""
+        if not self._storage:
+            return
+        try:
+            self._storage.save_memory(memory.identity_id, memory.to_dict())
+        except Exception:
+            pass
+
+    def _extract_and_store_semantic_memory(
+        self,
+        user_input: str,
+        output: str,
+        identity_id: str,
+        session_id: Optional[str] = None,
+    ) -> Optional[MemoryFragment]:
+        """Classify user input and store a SEMANTIC memory if warranted.
+
+        Shared between process() and the /evaluate endpoint so both paths
+        produce identical classification and storage behavior.
+        """
+        if not is_worth_remembering(user_input, output):
+            return None
+        mem_type_str = classify_memory_type(user_input, output)
+        if mem_type_str == "general":
+            return None
+        semantic = MemoryFragment(
+            identity_id=identity_id,
+            content=user_input,
+            memory_type=MemoryType.SEMANTIC,
+            source="extraction",
+            session_id=session_id,
+            importance=0.7,
+            tags=["semantic", mem_type_str],
+        )
+        self.memory_store.add(semantic)
+        self._persist_memory(semantic)
+        return semantic
+
+    def list_identities(self) -> List[IdentitySpec]:
+        return self.identity_store.list_all()
 
     def unload(self, identity_id: str) -> bool:
         """Remove an identity from the runtime."""
@@ -298,21 +402,58 @@ class IdentityRuntime:
         )
 
         # Stage 7: Store interaction in memory
-        memory = MemoryFragment(
+        # 7a: Always store the raw interaction as an EPISODIC memory
+        episodic = MemoryFragment(
             identity_id=identity.id,
             content=f"User: {sanitized_input}\nAssistant: {final_output}",
             memory_type=MemoryType.EPISODIC,
             session_id=request.session_id,
             tags=["interaction"],
         )
-        self.memory_store.add(memory)
+        self.memory_store.add(episodic)
+        self._persist_memory(episodic)
 
         self._emit(
             EventType.EXPERIENCE_RECORDED,
             identity_id=identity.id,
             session_id=request.session_id,
-            memory_id=memory.id,
-            memory_type=memory.memory_type.value,
+            memory_id=episodic.id,
+            memory_type=episodic.memory_type.value,
+        )
+
+        # 7b: Extract and store semantic memories (preferences, decisions, etc.)
+        self._extract_and_store_semantic_memory(
+            user_input=sanitized_input,
+            output=final_output,
+            identity_id=identity.id,
+            session_id=request.session_id,
+        )
+
+        # Stage 8: Record timeline life event
+        self.timeline_registry.record_event(
+            identity.id,
+            LifeEvent(
+                identity_id=identity.id,
+                event_type=LifeEventType.MILESTONE,
+                title="Interaction",
+                description=f"User said: {sanitized_input[:100]}",
+                significance=2,
+                metadata={"session_id": request.session_id, "eval_score": eval_report.overall_score},
+            ),
+        )
+        self._emit(
+            EventType.LIFE_EVENT_RECORDED,
+            identity_id=identity.id,
+            session_id=request.session_id,
+            description="interaction recorded",
+        )
+
+        # Stage 9: Update relationship graph
+        self.identity_graph.connect(
+            source_id=identity.id,
+            target_id=request.session_id or "user",
+            edge_type=EdgeType.PEER,
+            bidirectional=False,
         )
 
         return InteractionResponse(

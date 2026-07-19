@@ -157,12 +157,13 @@ class ContextComposer:
         top_k: int,
     ) -> str:
         if query:
+            all_frags = store.by_identity(identity_id) if identity_id else store.all()
             items = [
-                f for f in store.all()
+                f for f in all_frags
                 if query.lower() in f.content.lower()
             ][:top_k]
         else:
-            items = store.recent(n=top_k)
+            items = store.recent(identity_id=identity_id, n=top_k)
         if not items:
             return ""
         lines = ["## Relevant Memory"]
