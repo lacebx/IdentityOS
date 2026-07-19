@@ -13,12 +13,10 @@ Design principle: Identity is the kernel. Everything else is a loadable module.
 from __future__ import annotations
 
 import hashlib
-import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional
-
 
 # ─── Enums ────────────────────────────────────────────────────────────────────
 
@@ -207,9 +205,12 @@ class IdentitySpec:
         """
         major, minor, patch = map(int, self.version.split("."))
         if level == "major":
-            major += 1; minor = 0; patch = 0
+            major += 1
+            minor = 0
+            patch = 0
         elif level == "minor":
-            minor += 1; patch = 0
+            minor += 1
+            patch = 0
         else:
             patch += 1
         self.version = f"{major}.{minor}.{patch}"
@@ -232,7 +233,10 @@ class IdentitySpec:
         fork.version_history = []
         fork.status = IdentityStatus.ACTIVE
         # Record the branch origin in the fork's first snapshot
-        fork.snapshot(changelog=f"Branched from {self.id}@{self.version}. {changelog}", branch=branch_name)
+        fork.snapshot(
+            changelog=f"Branched from {self.id}@{self.version}. {changelog}",
+            branch=branch_name,
+        )
         return fork
 
     def get_trait(self, name: str) -> Optional[Trait]:
@@ -304,8 +308,16 @@ class IdentitySpec:
             name=data["name"],
             identity_class=IdentityClass(data.get("identity_class", "agent")),
             version=data.get("version", "1.0.0"),
-            created_at=datetime.fromisoformat(data["created_at"]) if "created_at" in data else datetime.now(timezone.utc),
-            updated_at=datetime.fromisoformat(data["updated_at"]) if "updated_at" in data else datetime.now(timezone.utc),
+            created_at=(
+                datetime.fromisoformat(data["created_at"])
+                if "created_at" in data
+                else datetime.now(timezone.utc)
+            ),
+            updated_at=(
+                datetime.fromisoformat(data["updated_at"])
+                if "updated_at" in data
+                else datetime.now(timezone.utc)
+            ),
             status=IdentityStatus(data.get("status", "active")),
             role=data.get("role", ""),
             persona=data.get("persona", ""),

@@ -1,10 +1,10 @@
 from __future__ import annotations
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
-from enum import Enum
-import uuid
-from datetime import datetime
 
+import uuid
+from dataclasses import dataclass, field
+from datetime import datetime
+from enum import Enum
+from typing import Any, Dict, List, Optional
 
 # ---------------------------------------------------------------------------
 # Experience Engine
@@ -183,7 +183,7 @@ class ExperienceStore:
         if not experiences:
             return {"total": 0}
 
-        by_type = {}
+        by_type: Dict[str, int] = {}
         for exp in experiences:
             key = exp.experience_type.value
             by_type[key] = by_type.get(key, 0) + 1

@@ -1,10 +1,10 @@
 from __future__ import annotations
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
-from enum import Enum
-import uuid
-from datetime import datetime, timedelta
 
+import uuid
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta
+from enum import Enum
+from typing import Any, Dict, List, Optional
 
 # ---------------------------------------------------------------------------
 # Timeline — identities have history, not just state
@@ -134,7 +134,9 @@ class IdentityTimeline:
             years = days // 365
             remaining_months = (days % 365) // 30
             if remaining_months:
-                return f"{years} year{'s' if years > 1 else ''}, {remaining_months} month{'s' if remaining_months > 1 else ''}"
+                plural_y = "s" if years > 1 else ""
+                plural_m = "s" if remaining_months > 1 else ""
+                return f"{years} year{plural_y}, {remaining_months} month{plural_m}"
             return f"{years} year{'s' if years > 1 else ''}"
 
     def record(self, event: LifeEvent) -> None:

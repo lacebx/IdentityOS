@@ -15,9 +15,9 @@ Use identity_graph.graph directly for new code.
 """
 
 from identity_graph.graph import (
-    IdentityGraph,
-    GraphEdge,
     EdgeType,
+    GraphEdge,
+    IdentityGraph,
     TrustLevel,
 )
 

@@ -1,7 +1,8 @@
 from __future__ import annotations
-from typing import Any, List, Optional
 
-from .base import BaseAdapter, AdapterMessage
+from typing import Any, Optional
+
+from .base import BaseAdapter
 
 
 class OpenAIAdapter(BaseAdapter):

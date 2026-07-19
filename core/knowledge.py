@@ -29,7 +29,6 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set
 
-
 # ─── Enums ────────────────────────────────────────────────────────────────────
 
 class KnowledgeFormat(str, Enum):
@@ -232,7 +231,6 @@ class KnowledgeRegistry:
         Resolve and return KnowledgePacks for a given list of IDs,
         including their transitive dependencies (simple BFS).
         """
-        to_load: Set[str] = set(pack_ids)
         loaded: List[KnowledgePack] = []
         visited: Set[str] = set()
         queue = list(pack_ids)

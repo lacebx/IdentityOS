@@ -1,10 +1,14 @@
 """Tests for core.evaluation module."""
 
-import pytest
 from core.evaluation import (
-    EvaluationEngine, EvalCriterion, EvalDimension, EvalOutcome,
-    classify_memory_type, compute_relevance, is_worth_remembering,
-    heuristic_memory_scorer, register_default_criteria,
+    EvalCriterion,
+    EvalOutcome,
+    EvaluationEngine,
+    classify_memory_type,
+    compute_relevance,
+    heuristic_memory_scorer,
+    is_worth_remembering,
+    register_default_criteria,
 )
 
 

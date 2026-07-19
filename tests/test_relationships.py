@@ -1,8 +1,7 @@
 """Tests for identity_graph.graph and core.relationships."""
 
-import pytest
-from identity_graph.graph import IdentityGraph, GraphEdge, EdgeType, TrustLevel
 from core.relationships import IdentityGraph as CoreIdentityGraph
+from identity_graph.graph import EdgeType, GraphEdge, IdentityGraph, TrustLevel
 
 
 class TestIdentityGraph:

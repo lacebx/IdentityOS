@@ -1,13 +1,14 @@
 from __future__ import annotations
+
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
 if TYPE_CHECKING:
+    from .goals import GoalEngine
     from .identity import IdentitySpec
     from .memory import MemoryStore
-    from .skills import SkillRegistry
-    from .goals import GoalEngine
     from .relationships import IdentityGraph
+    from .skills import SkillRegistry
 
 
 @dataclass
@@ -161,7 +162,7 @@ class ContextComposer:
                 if query.lower() in f.content.lower()
             ][:top_k]
         else:
-            items = store.recent(top_k)
+            items = store.recent(n=top_k)
         if not items:
             return ""
         lines = ["## Relevant Memory"]
@@ -178,7 +179,7 @@ class ContextComposer:
         lines = ["## Relationships"]
         for e in edges:
             lines.append(
-                f"  -> {e.target_id} [{e.relationship_type.value}] "
+                f"  -> {e.target_id} [{e.edge_type.value}] "
                 f"trust={e.trust_level.name} strength={e.strength:.2f}"
             )
         return "\n".join(lines)

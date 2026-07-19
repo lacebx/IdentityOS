@@ -23,7 +23,7 @@ import sys
 # Add project root to path so we can import the SDK without installing it
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from sdk.identity_client import IdentityClient, IdentityClientError
+from sdk.identity_client import IdentityClient
 
 # ─── 1. Connect to the local runtime ─────────────────────────────────────────
 
@@ -33,7 +33,11 @@ try:
     health = client.health()
     print(f"[+] Runtime healthy: {health}")
 except Exception as e:
-    print(f"[-] Cannot reach Identity Runtime at localhost:8765.\n    Start it with: uvicorn runtime.main:app --port 8765\n    Error: {e}")
+    print(
+        "[-] Cannot reach Identity Runtime at localhost:8765.\n"
+        "    Start it with: uvicorn runtime.main:app --port 8765\n"
+        f"    Error: {e}"
+    )
     sys.exit(1)
 
 # ─── 2. Create the "Pluto" identity ──────────────────────────────────────────

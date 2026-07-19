@@ -1,13 +1,12 @@
 from __future__ import annotations
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+
+from typing import TYPE_CHECKING, Any, List, Optional
 
 if TYPE_CHECKING:
-    from runtime.orchestrator import IdentityRuntime
-    from core.identity import IdentitySpec
-    from core.memory import MemoryFragment
     from core.goals import Goal
+    from core.identity import IdentitySpec
     from core.knowledge import KnowledgePack
-    from core.skills import Skill
+    from runtime.orchestrator import IdentityRuntime
 
 
 class IdentityObject:

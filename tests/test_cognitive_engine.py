@@ -1,12 +1,9 @@
 """Tests for core.cognitive_engine module."""
 
-import pytest
+from core.cognitive_engine import ComposedContext, ContextComposer
 from core.identity import IdentitySpec
-from core.memory import MemoryStore, MemoryFragment, MemoryType
-from core.skills import SkillRegistry
-from core.goals import GoalEngine
+from core.memory import MemoryFragment, MemoryStore, MemoryType
 from core.relationships import IdentityGraph
-from core.cognitive_engine import ContextComposer, ComposedContext
 
 
 class TestComposedContext:

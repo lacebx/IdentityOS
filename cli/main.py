@@ -28,7 +28,6 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -74,7 +73,8 @@ def cmd_create(args: argparse.Namespace) -> int:
     """
     Create a new identity and persist its initial snapshot.
     """
-    import uuid, time
+    import time
+    import uuid
 
     identity_id = args.id or str(uuid.uuid4())[:8]
     storage = _get_storage(args)
@@ -97,7 +97,7 @@ def cmd_create(args: argparse.Namespace) -> int:
     }
 
     snap_id = manager.capture(initial_state, label="initial")
-    print(f"Identity created.")
+    print("Identity created.")
     print(f"  id          : {identity_id}")
     print(f"  name        : {args.name}")
     print(f"  persona     : {args.persona}")
@@ -206,7 +206,7 @@ def cmd_chat(args: argparse.Namespace) -> int:
 
     identity_name = latest.modules.get("identity", {}).get("name", args.id)
     print(f"IdentityOS Chat - talking to: {identity_name}")
-    print(f"Type 'exit' or Ctrl-C to quit. Type ':snapshot' to checkpoint.")
+    print("Type 'exit' or Ctrl-C to quit. Type ':snapshot' to checkpoint.")
     print("-" * 60)
 
     # Lazy-import the orchestrator so the CLI stays light when not chatting

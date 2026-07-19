@@ -1,10 +1,11 @@
 from __future__ import annotations
-from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional
-from enum import Enum
+
 import re
 import uuid
+from dataclasses import dataclass, field
 from datetime import datetime
+from enum import Enum
+from typing import Any, Callable, Dict, List, Optional
 
 
 class EvalDimension(Enum):
@@ -226,7 +227,6 @@ def _matches_any(text: str, patterns: List[str]) -> bool:
 
 def classify_memory_type(message: str, response: str) -> str:
     """Classify what type of memory an exchange represents using heuristics."""
-    combined = f"{message} {response}".lower()
     if _matches_any(message, CORRECTION_SIGNALS):
         return "correction"
     if _matches_any(message, MILESTONE_SIGNALS):
@@ -290,7 +290,10 @@ def register_default_criteria(engine: EvaluationEngine) -> None:
     engine.add_criterion(EvalCriterion(
         name="heuristic_memory_classifier",
         dimension=EvalDimension.QUALITY,
-        description="Heuristic detection of memorable content (preferences, decisions, corrections, milestones)",
+        description=(
+            "Heuristic detection of memorable content "
+            "(preferences, decisions, corrections, milestones)"
+        ),
         scorer=heuristic_memory_scorer,
         weight=1.0,
         threshold=0.5,

@@ -4,15 +4,16 @@ Routes all interactions through the IdentityRuntime orchestrator,
 which runs the full pipeline: policy → context → LLM → evaluate → store.
 """
 
+import logging
+from typing import List, Optional
+
+import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import Optional, List
-import uvicorn
-import logging
 
-from runtime.orchestrator import IdentityRuntime, InteractionRequest, InteractionResponse
 from core.evaluation import register_default_criteria
+from runtime.orchestrator import IdentityRuntime, InteractionRequest, InteractionResponse
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -149,12 +150,14 @@ async def get_context(req: ContextRequest):
         query=req.message,
     )
 
-    logger.info(f"Context built for identity={req.identity_id} user={req.user_id} memories={len(ctx.memories)}")
+    memories_used = ctx.memory_block.count("\n  [") if ctx.memory_block else 0
+
+    logger.info(f"Context built for identity={req.identity_id} user={req.user_id} memories={memories_used}")
 
     return ContextResponse(
         augmented_context=ctx.render(),
         identity_name=identity.name,
-        memories_used=len(ctx.memories),
+        memories_used=memories_used,
         session_id=session_id,
     )
 
@@ -178,12 +181,11 @@ async def evaluate(req: EvaluateRequest):
         output_data=req.response,
     )
 
-    from core.evaluation import classify_memory_type, compute_relevance, is_worth_remembering
+    from core.evaluation import classify_memory_type, is_worth_remembering
 
     memorable = is_worth_remembering(req.message, req.response)
     if memorable:
         mem_type = classify_memory_type(req.message, req.response)
-        relevance = compute_relevance(memory_type=mem_type)
         from core.memory import MemoryFragment, MemoryType
         memory = MemoryFragment(
             identity_id=req.identity_id,
@@ -238,12 +240,7 @@ def get_memories(user_id: str, identity_id: str, limit: int = 50):
 @app.delete("/memories/{user_id}/{identity_id}")
 def clear_memories(user_id: str, identity_id: str):
     """Clear all memories for an identity."""
-    count_before = len(runtime.memory_store)
-    runtime.memory_store._fragments = [
-        m for m in runtime.memory_store._fragments
-        if m.identity_id != identity_id
-    ]
-    deleted = count_before - len(runtime.memory_store)
+    deleted = runtime.memory_store.clear_identity(identity_id)
     return {"deleted": deleted, "message": "Memories cleared."}
 
 

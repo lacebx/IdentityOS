@@ -1,10 +1,10 @@
 from __future__ import annotations
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
-from enum import Enum
-import uuid
-from datetime import datetime
 
+import uuid
+from dataclasses import dataclass, field
+from datetime import datetime
+from enum import Enum
+from typing import Any, Dict, List, Optional
 
 # ---------------------------------------------------------------------------
 # Motivations — the distinction that makes identities feel real
@@ -130,7 +130,7 @@ class MotivationEngine:
         Detect pairs of motivations that list each other as conflicting.
         Returns list of (Motivation, Motivation) pairs.
         """
-        conflicts = []
+        conflicts: List[tuple] = []
         motivations = list(self._motivations.values())
         for i, m in enumerate(motivations):
             for conflict_id in m.conflicts_with:

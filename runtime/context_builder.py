@@ -10,7 +10,7 @@ skills, goals, relationships, and more.
 Use core.cognitive_engine.ContextComposer for new code.
 """
 
-from core.cognitive_engine import ContextComposer, ComposedContext
+from core.cognitive_engine import ComposedContext, ContextComposer
 
 __all__ = [
     "ContextComposer",

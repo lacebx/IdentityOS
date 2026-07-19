@@ -10,7 +10,7 @@ that was formerly in this module.
 Use core.memory.PersistentMemoryStore or core.memory.MemoryStore for new code.
 """
 
-from core.memory import MemoryStore, PersistentMemoryStore, MemoryFragment, MemoryType
+from core.memory import MemoryFragment, MemoryStore, MemoryType, PersistentMemoryStore
 
 MemoryEngine = PersistentMemoryStore
 

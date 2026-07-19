@@ -1,8 +1,10 @@
 """Tests for core.memory module."""
 
-import pytest
 from core.memory import (
-    MemoryStore, MemoryFragment, MemoryType, MemoryConfidence,
+    MemoryConfidence,
+    MemoryFragment,
+    MemoryStore,
+    MemoryType,
     make_memory,
 )
 

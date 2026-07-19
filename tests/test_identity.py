@@ -1,6 +1,5 @@
 """Tests for core.identity module."""
 
-import pytest
 from core.identity import IdentitySpec, IdentityStore
 
 

@@ -8,11 +8,11 @@ New code should use core.identity.IdentityStore for in-memory management
 or direct JSON deserialization with IdentitySpec.from_dict().
 """
 
-import json
-import os
 import glob
-from typing import Optional, List, Dict, Any
+import json
 import logging
+import os
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 

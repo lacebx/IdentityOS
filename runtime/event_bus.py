@@ -1,11 +1,11 @@
 from __future__ import annotations
-from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Type
-from enum import Enum
-import uuid
-from datetime import datetime
-from collections import defaultdict
 
+import uuid
+from collections import defaultdict
+from dataclasses import dataclass, field
+from datetime import datetime
+from enum import Enum
+from typing import Any, Callable, Dict, List, Optional
 
 # ---------------------------------------------------------------------------
 # Event Bus — the path toward a truly reactive IdentityOS
@@ -52,6 +52,8 @@ class EventType(Enum):
     MESSAGE_RECEIVED = "message.received"     # Raw user input arrived
     MESSAGE_SANITIZED = "message.sanitized"   # After input policy
     CONTEXT_COMPOSED = "context.composed"     # Cognitive engine finished
+    MODEL_REQUESTED = "model.requested"       # Adapter call initiated
+    MODEL_RESPONDED = "model.responded"       # Adapter call completed
     RESPONSE_GENERATED = "response.generated" # Adapter returned output
     RESPONSE_DELIVERED = "response.delivered" # After output policy, sent
 
@@ -194,7 +196,7 @@ class EventBus:
             try:
                 handler(event)
                 count += 1
-            except Exception as e:
+            except Exception:
                 # Handlers should not crash the bus
                 pass
 

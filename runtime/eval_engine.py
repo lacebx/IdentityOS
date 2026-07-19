@@ -14,16 +14,16 @@ New code should import directly from core.evaluation.
 """
 
 from core.evaluation import (
-    EvaluationEngine,
     EvalCriterion,
+    EvalDimension,
+    EvalOutcome,
     EvalRecord,
     EvalReport,
-    EvalOutcome,
-    EvalDimension,
+    EvaluationEngine,
     classify_memory_type,
     compute_relevance,
-    is_worth_remembering,
     heuristic_memory_scorer,
+    is_worth_remembering,
     register_default_criteria,
 )
 

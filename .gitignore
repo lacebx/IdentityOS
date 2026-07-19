@@ -11,3 +11,5 @@ build/
 .mypy_cache/
 .ruff_cache/
 .DS_Store
+.coverage
+identity_runtime.db

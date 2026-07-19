@@ -19,12 +19,15 @@ embeddings, search, and consolidation.
 
 from __future__ import annotations
 
+import json
+import math
+import os
+import sqlite3
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
-
+from typing import Any, Dict, List, Optional
 
 # ─── Enums ────────────────────────────────────────────────────────────────────
 
@@ -228,9 +231,9 @@ class MemoryStore:
 
     def recent(self, identity_id: str = "", n: int = 10) -> List[MemoryFragment]:
         """Return the n most recently created fragments, optionally filtered by identity."""
-        frags = self._fragments.values()
+        frags = list(self._fragments.values())
         if identity_id:
-            frags = (f for f in frags if f.identity_id == identity_id)
+            frags = [f for f in frags if f.identity_id == identity_id]
         sorted_frags = sorted(
             frags,
             key=lambda f: f.created_at,
@@ -240,9 +243,9 @@ class MemoryStore:
 
     def most_important(self, identity_id: str = "", n: int = 10) -> List[MemoryFragment]:
         """Return the n most important fragments, optionally filtered by identity."""
-        frags = self._fragments.values()
+        frags = list(self._fragments.values())
         if identity_id:
-            frags = (f for f in frags if f.identity_id == identity_id)
+            frags = [f for f in frags if f.identity_id == identity_id]
         sorted_frags = sorted(
             frags,
             key=lambda f: f.importance,
@@ -250,12 +253,14 @@ class MemoryStore:
         )
         return sorted_frags[:n]
 
-    def search_keywords(self, query: str, identity_id: str = "", limit: int = 10) -> List[MemoryFragment]:
+    def search_keywords(
+        self, query: str, identity_id: str = "", limit: int = 10
+    ) -> List[MemoryFragment]:
         """Simple keyword search over fragment content."""
         q = query.lower()
-        frags = self._fragments.values()
+        frags = list(self._fragments.values())
         if identity_id:
-            frags = (f for f in frags if f.identity_id == identity_id)
+            frags = [f for f in frags if f.identity_id == identity_id]
         results = [
             f for f in frags
             if q in f.content.lower() or any(q in t.lower() for t in f.tags)
@@ -263,6 +268,15 @@ class MemoryStore:
         return sorted(results, key=lambda f: f.importance, reverse=True)[:limit]
 
     # ── Stats ─────────────────────────────────────────────────────────────────
+
+    def clear_identity(self, identity_id: str) -> int:
+        """Delete all memories for an identity. Returns count of deleted."""
+        before = len(self._fragments)
+        self._fragments = {
+            k: v for k, v in self._fragments.items()
+            if v.identity_id != identity_id
+        }
+        return before - len(self._fragments)
 
     def stats(self, identity_id: str = "") -> MemoryStats:
         frags = list(self._fragments.values())
@@ -335,13 +349,6 @@ MemoryTier = MemoryType
 # use PersistentMemoryStore — a drop-in replacement with SQLite storage.
 # In production, swap to pgvector or Pinecone.
 # ──────────────────────────────────────────────────────────────────────────────
-
-import json
-import math
-import os
-import sqlite3
-import time
-
 
 _DB_PATH = os.environ.get("MEMORY_DB_PATH", "./identity_runtime.db")
 

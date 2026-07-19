@@ -1,10 +1,10 @@
 from __future__ import annotations
-from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Set
-from enum import Enum
-import uuid
-from datetime import datetime
 
+import uuid
+from dataclasses import dataclass, field
+from datetime import datetime
+from enum import Enum
+from typing import Any, Dict, List, Optional, Set
 
 # ---------------------------------------------------------------------------
 # Identity Graph — a first-class subsystem
