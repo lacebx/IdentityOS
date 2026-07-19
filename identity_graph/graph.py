@@ -78,6 +78,14 @@ class GraphEdge:
     interaction_count: int = 0
     metadata: Dict[str, Any] = field(default_factory=dict)
 
+    def __post_init__(self) -> None:
+        if isinstance(self.edge_type, str):
+            self.edge_type = EdgeType(self.edge_type)
+        if isinstance(self.trust_level, str):
+            self.trust_level = TrustLevel[self.trust_level.upper()]
+        elif isinstance(self.trust_level, int):
+            self.trust_level = TrustLevel(self.trust_level)
+
     def interact(self) -> None:
         self.last_interaction = datetime.utcnow()
         self.interaction_count += 1
