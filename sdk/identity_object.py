@@ -2,9 +2,9 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from ..runtime.orchestrator import IdentityRuntime, InteractionResponse
-    from ..core.identity import Identity
-    from ..core.memory import MemoryItem
+    from ..runtime.orchestrator import IdentityRuntime
+    from ..core.identity import IdentitySpec
+    from ..core.memory import MemoryFragment
     from ..core.goals import Goal
     from ..core.knowledge import KnowledgePack
     from ..core.skills import Skill
@@ -38,7 +38,7 @@ class IdentityObject:
     # ------------------------------------------------------------------
 
     @property
-    def identity(self) -> Optional["Identity"]:
+    def identity(self) -> Optional["IdentitySpec"]:
         return self._runtime.identity_store.get(self._identity_id)
 
     @property
@@ -75,12 +75,6 @@ class IdentityObject:
         """
         Send a message to this identity and get a response.
         This is the primary interaction method.
-
-        Args:
-            message: The user's input.
-
-        Returns:
-            The identity's response as a string.
         """
         from ..runtime.orchestrator import InteractionRequest
         request = InteractionRequest(
@@ -107,16 +101,12 @@ class IdentityObject:
     def remember(self, content: str, tags: Optional[List[str]] = None) -> None:
         """
         Store a memory for this identity.
-
-        Args:
-            content: The information to remember.
-            tags: Optional tags for retrieval.
         """
-        from ..core.memory import MemoryItem, MemoryTier
-        self._runtime.memory_store.add(MemoryItem(
+        from ..core.memory import MemoryFragment, MemoryType
+        self._runtime.memory_store.add(MemoryFragment(
             identity_id=self._identity_id,
             content=content,
-            tier=MemoryTier.SEMANTIC,
+            memory_type=MemoryType.SEMANTIC,
             session_id=self._session_id,
             tags=tags or [],
         ))
@@ -124,18 +114,15 @@ class IdentityObject:
     def recall(self, query: str, limit: int = 5) -> List[str]:
         """
         Retrieve memories relevant to a query.
-
-        Returns:
-            List of memory content strings.
         """
-        items = self._runtime.memory_store.search(
+        items = self._runtime.memory_store.search_keywords(
             query, identity_id=self._identity_id, limit=limit
         )
         return [item.content for item in items]
 
     def forget(self, memory_id: str) -> bool:
         """Remove a specific memory by ID."""
-        return self._runtime.memory_store.delete(memory_id)
+        return self._runtime.memory_store.remove(memory_id)
 
     # ------------------------------------------------------------------
     # Goals Interface
@@ -144,11 +131,8 @@ class IdentityObject:
     def pursue(self, title: str, description: str = "", **kwargs) -> "Goal":
         """
         Add a goal for this identity to pursue.
-
-        Returns:
-            The created Goal object.
         """
-        from ..core.goals import Goal, GoalPriority, GoalScope
+        from ..core.goals import Goal
         goal = Goal(
             title=title,
             description=description,
@@ -184,9 +168,6 @@ class IdentityObject:
     def do(self, skill_name: str, **kwargs) -> Any:
         """
         Invoke a skill by name.
-
-        Returns:
-            The skill's output or raises on failure.
         """
         result = self._runtime.skill_registry.invoke(skill_name, **kwargs)
         if not result.success:
@@ -204,7 +185,7 @@ class IdentityObject:
             return f"Identity '{self._identity_id}' not found."
         goals = self._runtime.goal_engine.active()
         memories = self._runtime.memory_store.recent(
-            identity_id=self._identity_id, limit=3
+            identity_id=self._identity_id, n=3
         )
         lines = [
             f"Identity: {id_obj.name}",
@@ -224,10 +205,6 @@ class IdentityObject:
 def load_identity(runtime: "IdentityRuntime", identity_id: str) -> IdentityObject:
     """
     Convenience function to load an identity from a runtime.
-
-    Usage:
-        mentor = load_identity(runtime, "mentor-id")
-        mentor.chat("What should I work on today?")
     """
     identity = runtime.identity_store.get(identity_id)
     if not identity:

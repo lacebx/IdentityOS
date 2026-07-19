@@ -172,24 +172,22 @@ class MemoryStats:
 
 class MemoryStore:
     """
-    In-memory store of MemoryFragments for a single identity.
+    In-memory store of MemoryFragments across identities.
 
     This is the domain object — it has NO knowledge of databases or embeddings.
-    Persistence and vector search are handled by runtime/memory_engine.py.
+    Persistence and vector search are handled by the runtime layer.
     The MemoryStore gives the Runtime a clean API to work with memory in memory.
 
-    Think of it as a mailbox. The MemoryEngine is the postal system.
+    Think of it as a mailbox. The persistence layer is the postal system.
     """
 
-    def __init__(self, identity_id: str) -> None:
-        self.identity_id = identity_id
+    def __init__(self) -> None:
         self._fragments: Dict[str, MemoryFragment] = {}
 
     # ── CRUD ──────────────────────────────────────────────────────────────────
 
     def add(self, fragment: MemoryFragment) -> MemoryFragment:
-        """Add a memory fragment. Ensures it belongs to this identity."""
-        fragment.identity_id = self.identity_id
+        """Add a memory fragment."""
         if not fragment.id:
             fragment.id = str(uuid.uuid4())
         self._fragments[fragment.id] = fragment
@@ -224,22 +222,45 @@ class MemoryStore:
     def core_memories(self) -> List[MemoryFragment]:
         return self.by_type(MemoryType.CORE)
 
-    def recent(self, n: int = 10) -> List[MemoryFragment]:
-        """Return the n most recently created fragments."""
+    def by_identity(self, identity_id: str) -> List[MemoryFragment]:
+        """Return all fragments for a given identity."""
+        return [f for f in self._fragments.values() if f.identity_id == identity_id]
+
+    def recent(self, identity_id: str = "", n: int = 10) -> List[MemoryFragment]:
+        """Return the n most recently created fragments, optionally filtered by identity."""
+        frags = self._fragments.values()
+        if identity_id:
+            frags = (f for f in frags if f.identity_id == identity_id)
         sorted_frags = sorted(
-            self._fragments.values(),
+            frags,
             key=lambda f: f.created_at,
             reverse=True,
         )
         return sorted_frags[:n]
 
-    def most_important(self, n: int = 10) -> List[MemoryFragment]:
+    def most_important(self, identity_id: str = "", n: int = 10) -> List[MemoryFragment]:
+        """Return the n most important fragments, optionally filtered by identity."""
+        frags = self._fragments.values()
+        if identity_id:
+            frags = (f for f in frags if f.identity_id == identity_id)
         sorted_frags = sorted(
-            self._fragments.values(),
+            frags,
             key=lambda f: f.importance,
             reverse=True,
         )
         return sorted_frags[:n]
+
+    def search_keywords(self, query: str, identity_id: str = "", limit: int = 10) -> List[MemoryFragment]:
+        """Simple keyword search over fragment content."""
+        q = query.lower()
+        frags = self._fragments.values()
+        if identity_id:
+            frags = (f for f in frags if f.identity_id == identity_id)
+        results = [
+            f for f in frags
+            if q in f.content.lower() or any(q in t.lower() for t in f.tags)
+        ]
+        return sorted(results, key=lambda f: f.importance, reverse=True)[:limit]
 
     # ── Stats ─────────────────────────────────────────────────────────────────
 
@@ -294,3 +315,10 @@ def make_memory(
         tags=tags or [],
         extra=extra,
     )
+
+
+# ─── Backward-compatible aliases ─────────────────────────────────────────────
+# These ensure consumers written against older type names continue to work.
+
+MemoryItem = MemoryFragment
+MemoryTier = MemoryType

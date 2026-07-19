@@ -3,9 +3,8 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 if TYPE_CHECKING:
-    from .identity import Identity
+    from .identity import IdentitySpec
     from .memory import MemoryStore
-    from .knowledge import KnowledgeBase
     from .skills import SkillRegistry
     from .goals import GoalEngine
     from .relationships import IdentityGraph
@@ -19,10 +18,11 @@ class ComposedContext:
     """
     identity_block: str = ""
     memory_block: str = ""
-    knowledge_block: str = ""
     skills_block: str = ""
     goals_block: str = ""
     relationships_block: str = ""
+    motivations_block: str = ""
+    timeline_block: str = ""
     custom_blocks: Dict[str, str] = field(default_factory=dict)
 
     def render(self, separator: str = "\n\n") -> str:
@@ -35,14 +35,16 @@ class ComposedContext:
             sections.append(self.identity_block)
         if self.memory_block:
             sections.append(self.memory_block)
-        if self.knowledge_block:
-            sections.append(self.knowledge_block)
         if self.skills_block:
             sections.append(self.skills_block)
         if self.goals_block:
             sections.append(self.goals_block)
         if self.relationships_block:
             sections.append(self.relationships_block)
+        if self.motivations_block:
+            sections.append(self.motivations_block)
+        if self.timeline_block:
+            sections.append(self.timeline_block)
         for block in self.custom_blocks.values():
             if block:
                 sections.append(block)
@@ -61,9 +63,6 @@ class ContextComposer:
     (Identity, Memory, Knowledge, Skills, Goals, Relationships)
     and the LLM adapter layer. It does not call any LLM itself —
     it produces a ComposedContext that adapters inject into prompts.
-
-    Design principle: composability over rigidity.
-    Each section is independently controlled and weighted.
     """
 
     def __init__(
@@ -71,87 +70,78 @@ class ContextComposer:
         max_tokens: int = 4000,
         include_identity: bool = True,
         include_memory: bool = True,
-        include_knowledge: bool = True,
         include_skills: bool = True,
         include_goals: bool = True,
         include_relationships: bool = False,
+        include_motivations: bool = False,
+        include_timeline: bool = False,
     ):
         self.max_tokens = max_tokens
         self.include_identity = include_identity
         self.include_memory = include_memory
-        self.include_knowledge = include_knowledge
         self.include_skills = include_skills
         self.include_goals = include_goals
         self.include_relationships = include_relationships
+        self.include_motivations = include_motivations
+        self.include_timeline = include_timeline
 
     def compose(
         self,
-        identity: "Identity",
+        identity: "IdentitySpec",
         memory_store: Optional["MemoryStore"] = None,
-        knowledge_base: Optional["KnowledgeBase"] = None,
         skill_registry: Optional["SkillRegistry"] = None,
         goal_engine: Optional["GoalEngine"] = None,
         identity_graph: Optional["IdentityGraph"] = None,
+        motivation_engine: Optional[Any] = None,
+        timeline_registry: Optional[Any] = None,
         query: Optional[str] = None,
         top_k_memories: int = 5,
     ) -> ComposedContext:
         """
         Compose a full runtime context for the given identity.
-
-        Args:
-            identity: The active identity.
-            memory_store: Optional memory store to pull relevant memories from.
-            knowledge_base: Optional knowledge base for loaded packs.
-            skill_registry: Optional skill registry for available skills.
-            goal_engine: Optional goal engine for active goals.
-            identity_graph: Optional graph for relationship context.
-            query: The current user input (used for memory relevance).
-            top_k_memories: How many memory items to include.
-
-        Returns:
-            ComposedContext ready to be rendered into a prompt.
         """
         ctx = ComposedContext()
 
-        # --- Identity Block ---
         if self.include_identity:
             ctx.identity_block = self._render_identity(identity)
 
-        # --- Memory Block ---
         if self.include_memory and memory_store:
             ctx.memory_block = self._render_memory(
                 memory_store, identity.id, query, top_k_memories
             )
 
-        # --- Knowledge Block ---
-        if self.include_knowledge and knowledge_base:
-            ctx.knowledge_block = self._render_knowledge(knowledge_base)
-
-        # --- Skills Block ---
         if self.include_skills and skill_registry:
             ctx.skills_block = skill_registry.to_prompt_manifest()
 
-        # --- Goals Block ---
         if self.include_goals and goal_engine:
             ctx.goals_block = goal_engine.to_prompt_summary()
 
-        # --- Relationships Block ---
         if self.include_relationships and identity_graph:
-            ctx.relationships_block = self._render_relationships(
-                identity_graph, identity.id
-            )
+            ctx.relationships_block = identity_graph.to_prompt_block(identity.id)
+
+        if self.include_motivations and motivation_engine:
+            ctx.motivations_block = motivation_engine.to_prompt_block()
+
+        if self.include_timeline and timeline_registry:
+            timeline = timeline_registry.get(identity.id)
+            if timeline:
+                ctx.timeline_block = timeline.narrative()
 
         return ctx
 
-    def _render_identity(self, identity: "Identity") -> str:
+    def _render_identity(self, identity: "IdentitySpec") -> str:
         lines = [
             f"## Identity: {identity.name}",
-            f"Role: {identity.role}",
         ]
+        if identity.role:
+            lines.append(f"Role: {identity.role}")
         if identity.persona:
             lines.append(f"Persona: {identity.persona}")
         if identity.core_values:
-            lines.append(f"Core Values: {', '.join(identity.core_values)}")
+            values_str = ", ".join(
+                cv.name if hasattr(cv, 'name') else str(cv) for cv in identity.core_values
+            )
+            lines.append(f"Core Values: {values_str}")
         if identity.communication_style:
             lines.append(f"Style: {identity.communication_style}")
         if identity.system_prompt:
@@ -163,28 +153,20 @@ class ContextComposer:
         store: "MemoryStore",
         identity_id: str,
         query: Optional[str],
-        top_k: int
+        top_k: int,
     ) -> str:
-        from .memory import MemoryTier
         if query:
-            items = store.search(query, identity_id=identity_id, limit=top_k)
+            items = [
+                f for f in store.all()
+                if query.lower() in f.content.lower()
+            ][:top_k]
         else:
-            items = store.recent(identity_id=identity_id, limit=top_k)
+            items = store.recent(top_k)
         if not items:
             return ""
         lines = ["## Relevant Memory"]
         for item in items:
-            tier_label = item.tier.value.upper()
-            lines.append(f"  [{tier_label}] {item.content}")
-        return "\n".join(lines)
-
-    def _render_knowledge(self, kb: "KnowledgeBase") -> str:
-        packs = kb.loaded_packs()
-        if not packs:
-            return ""
-        lines = ["## Active Knowledge"]
-        for pack in packs:
-            lines.append(f"  - [{pack.tier.value}] {pack.name}: {pack.description}")
+            lines.append(f"  [{item.memory_type.value.upper()}] {item.content}")
         return "\n".join(lines)
 
     def _render_relationships(
