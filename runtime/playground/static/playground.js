@@ -466,6 +466,34 @@ function timeAgo(iso) {
   return d.toLocaleTimeString();
 }
 
+/* Model suggestions per adapter */
+const MODEL_SUGGESTIONS = {
+  openai: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-3.5-turbo'],
+  anthropic: ['claude-3-5-sonnet-20241022', 'claude-3-opus-20240229', 'claude-3-haiku-20240307'],
+  ollama: ['llama3.2', 'llama3.1', 'mistral', 'codellama', 'mixtral'],
+  openrouter: [
+    'openai/gpt-4o',
+    'openai/gpt-4o-mini',
+    'openai/gpt-4-turbo',
+    'anthropic/claude-3.5-sonnet',
+    'google/gemini-2.0-flash-001',
+    'google/gemini-2.0-flash-lite-001',
+    'meta-llama/llama-3.2-3b-instruct',
+    'meta-llama/llama-3.1-8b-instruct',
+    'deepseek/deepseek-chat',
+    'mistralai/mistral-7b-instruct',
+    'xai/grok-2-20241218',
+    'xai/grok-beta',
+  ],
+};
+
+function updateModelSuggestions() {
+  const adapter = document.getElementById('cfg-adapter').value;
+  const datalist = document.getElementById('model-suggestions');
+  const models = MODEL_SUGGESTIONS[adapter] || [];
+  datalist.innerHTML = models.map(m => `<option value="${m}">`).join('');
+}
+
 /* Adapter configure modal */
 function showAdapterModal() {
   const overlay = document.createElement('div');
@@ -478,15 +506,16 @@ function showAdapterModal() {
         Also reads from env: IDENTITY_ADAPTER, IDENTITY_ADAPTER_CONFIG, OPENAI_API_KEY, ANTHROPIC_API_KEY
       </p>
       <label>Adapter</label>
-      <select id="cfg-adapter" style="width:100%;background:var(--bg);color:var(--text);border:1px solid var(--border);padding:6px 8px;border-radius:4px;margin-bottom:10px">
+      <select id="cfg-adapter" style="width:100%;background:var(--bg);color:var(--text);border:1px solid var(--border);padding:6px 8px;border-radius:4px;margin-bottom:10px" onchange="updateModelSuggestions()">
         <option value="">None (no LLM)</option>
         <option value="openai">OpenAI</option>
         <option value="anthropic">Anthropic</option>
         <option value="ollama">Ollama (local)</option>
         <option value="openrouter">OpenRouter</option>
       </select>
-      <label>Model (optional)</label>
-      <input id="cfg-model" placeholder="e.g. gpt-4o" />
+      <label>Model (select or type custom)</label>
+      <input id="cfg-model" list="model-suggestions" placeholder="e.g. gpt-4o" />
+      <datalist id="model-suggestions"></datalist>
       <label>API Key (optional)</label>
       <input id="cfg-api-key" type="password" placeholder="sk-... or leave blank for env var" />
       <label>Base URL (optional — for custom endpoints)</label>
@@ -535,6 +564,13 @@ function submitAdapterConfig() {
   .catch(err => alert('Failed: ' + err.message));
 }
 
+function updateCreateModelSuggestions() {
+  const adapter = document.getElementById('create-adapter').value;
+  const datalist = document.getElementById('create-model-suggestions');
+  const models = MODEL_SUGGESTIONS[adapter] || [];
+  datalist.innerHTML = models.map(m => `<option value="${m}">`).join('');
+}
+
 /* Create identity modal */
 function showCreateModal() {
   const overlay = document.createElement('div');
@@ -552,15 +588,16 @@ function showCreateModal() {
       <label>System Prompt (optional)</label>
       <textarea id="create-prompt" placeholder="Custom system prompt..."></textarea>
       <label>Adapter</label>
-      <select id="create-adapter" style="width:100%;background:var(--bg);color:var(--text);border:1px solid var(--border);padding:6px 8px;border-radius:4px;margin-bottom:10px">
+      <select id="create-adapter" style="width:100%;background:var(--bg);color:var(--text);border:1px solid var(--border);padding:6px 8px;border-radius:4px;margin-bottom:10px" onchange="updateCreateModelSuggestions()">
         <option value="">None (no LLM)</option>
         <option value="openai">OpenAI</option>
         <option value="anthropic">Anthropic</option>
         <option value="ollama">Ollama (local)</option>
         <option value="openrouter">OpenRouter</option>
       </select>
-      <label>Model (optional)</label>
-      <input id="create-model" placeholder="e.g. gpt-4o" />
+      <label>Model (select or type custom)</label>
+      <input id="create-model" list="create-model-suggestions" placeholder="e.g. gpt-4o" />
+      <datalist id="create-model-suggestions"></datalist>
       <label>API Key (optional — also reads OPENAI_API_KEY / ANTHROPIC_API_KEY env)</label>
       <input id="create-api-key" type="password" placeholder="sk-..." />
       <div class="modal-actions">

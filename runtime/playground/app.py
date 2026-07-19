@@ -218,11 +218,13 @@ class RuntimeManager:
             try:
                 from adapters import get_adapter
                 kwargs = dict(self._adapter_kwargs)
-                if self._adapter_model and "model" not in kwargs:
-                    kwargs["model"] = self._adapter_model
+                model = self._adapter_model or kwargs.get("model")
+                if model:
+                    kwargs["model"] = model
                 rt.adapter = get_adapter(self._adapter_name, **kwargs)
-            except Exception:
-                pass
+            except Exception as exc:
+                import sys
+                print(f"[playground] adapter config failed: {exc}", file=sys.stderr)
 
     def get_identity_data(self, identity_id: str) -> dict:
         rt = self.get_or_create_runtime()
@@ -500,19 +502,24 @@ async def api_configure_adapter(body: dict):
     if not adapter_type:
         return JSONResponse({"error": "adapter type is required"}, status_code=400)
 
+    model = body.get("model") or ""
     manager._adapter_name = adapter_type
-    manager._adapter_model = body.get("model")
+    manager._adapter_model = model
     manager._adapter_kwargs = {
         k: v for k, v in body.items()
         if k in ("api_key", "base_url", "organization", "temperature", "max_tokens", "model")
         and v is not None
     }
+    # Ensure model is always set
+    if model and "model" not in manager._adapter_kwargs:
+        manager._adapter_kwargs["model"] = model
 
     rt = manager.get_or_create_runtime()
     rt.adapter = None
     manager._maybe_configure_adapter(rt)
 
     configured = rt.adapter is not None
+    actual_model = getattr(rt.adapter, "model", None) if rt.adapter else model or "default"
     msg = "ok"
     if not configured:
         msg = (
@@ -523,7 +530,7 @@ async def api_configure_adapter(body: dict):
     return JSONResponse({
         "configured": configured,
         "adapter": adapter_type,
-        "model": manager._adapter_model or "default",
+        "model": actual_model,
         "message": msg,
     })
 

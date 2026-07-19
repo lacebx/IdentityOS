@@ -79,14 +79,21 @@ class OpenAIAdapter(BaseAdapter):
             {"role": "system", "content": context},
             {"role": "user", "content": user_input},
         ]
-        response = client.chat.completions.create(
-            model=self.model,
-            messages=messages,
-            temperature=temperature or self.temperature,
-            max_tokens=max_tokens or self.max_tokens,
-            **kwargs
-        )
-        return response.choices[0].message.content or ""
+        model = self.model or "gpt-4o"
+        try:
+            response = client.chat.completions.create(
+                model=model,
+                messages=messages,
+                temperature=temperature or self.temperature,
+                max_tokens=max_tokens or self.max_tokens,
+                **kwargs
+            )
+            return response.choices[0].message.content or ""
+        except Exception as exc:
+            msg = str(exc)
+            raise RuntimeError(
+                f"Adapter error (model={model!r}, base_url={self.base_url!r}): {msg}"
+            ) from exc
 
     def health_check(self) -> bool:
         """Verify connectivity by listing available models."""
@@ -142,14 +149,20 @@ class AnthropicAdapter(BaseAdapter):
         **kwargs
     ) -> str:
         client = self._get_client()
-        response = client.messages.create(
-            model=self.model,
-            max_tokens=self.max_tokens,
-            system=context,
-            messages=[{"role": "user", "content": user_input}],
-            **kwargs
-        )
-        return response.content[0].text if response.content else ""
+        model = self.model or "claude-3-5-sonnet-20241022"
+        try:
+            response = client.messages.create(
+                model=model,
+                max_tokens=self.max_tokens,
+                system=context,
+                messages=[{"role": "user", "content": user_input}],
+                **kwargs
+            )
+            return response.content[0].text if response.content else ""
+        except Exception as exc:
+            raise RuntimeError(
+                f"Adapter error (model={model!r}): {exc}"
+            ) from exc
 
 
 class OllamaAdapter(BaseAdapter):
