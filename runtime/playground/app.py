@@ -25,11 +25,47 @@ import os
 from runtime.orchestrator import IdentityRuntime, InteractionRequest
 from runtime.persistence import JSONFileBackend
 from runtime.event_bus import EventType, Event
+from core.cognitive_engine import ComposedContext
 from core.identity import create_identity, IdentitySpec
 from core.evaluation import register_default_criteria
 from core.goals import Goal, GoalPriority, GoalScope
 
 HERE = str(Path(__file__).parent)
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _context_sections(ctx: ComposedContext) -> list[dict]:
+    """Extract structured sections from a composed context."""
+    sections = []
+    blocks = [
+        ("Identity", ctx.identity_block, "#58a6ff"),
+        ("Memory", ctx.memory_block, "#bc8cff"),
+        ("Skills", ctx.skills_block, "#d29922"),
+        ("Goals", ctx.goals_block, "#3fb950"),
+        ("Relationships", ctx.relationships_block, "#f0883e"),
+        ("Motivations", ctx.motivations_block, "#f85149"),
+        ("Timeline", ctx.timeline_block, "#58a6ff"),
+    ]
+    for name, content, color in blocks:
+        if content:
+            sections.append({
+                "name": name,
+                "content": content,
+                "color": color,
+                "chars": len(content),
+            })
+    for key, content in ctx.custom_blocks.items():
+        if content:
+            sections.append({
+                "name": key,
+                "content": content,
+                "color": "#8b949e",
+                "chars": len(content),
+            })
+    return sections
+
 
 # ---------------------------------------------------------------------------
 # Pipeline event capture
@@ -56,13 +92,13 @@ STAGE_MAP: dict[EventType, PipelineEvent] = {
 
 def _capture_pipeline_events(
     runtime: IdentityRuntime, request: InteractionRequest
-) -> tuple[List[PipelineEvent], Optional[str]]:
+) -> tuple[List[PipelineEvent], Optional[str], Optional[ComposedContext]]:
     """Run process() and capture all EventBus events as PipelineEvents."""
     events_queue: queue.Queue[Event] = queue.Queue()
     done_event = threading.Event()
     captured: List[PipelineEvent] = []
     output: Optional[str] = None
-    context_text: Optional[str] = None
+    context_used: Optional[ComposedContext] = None
 
     def handler(event: Event) -> None:
         events_queue.put(event)
@@ -70,12 +106,11 @@ def _capture_pipeline_events(
     runtime.event_bus.subscribe_all(handler)
 
     def run() -> None:
-        nonlocal output, context_text
+        nonlocal output, context_used
         try:
             resp = runtime.process(request)
             output = resp.output
-            if resp.context_used:
-                context_text = resp.context_used.render()
+            context_used = resp.context_used
         except Exception as e:
             output = f"[Runtime Error] {e}"
         finally:
@@ -113,29 +148,71 @@ def _capture_pipeline_events(
             data["policies"] = payload.get("policies_applied", [])
         elif event.event_type == EventType.CONTEXT_COMPOSED:
             data["token_estimate"] = payload.get("token_estimate", 0)
+            data["section_count"] = 0
+            data["sections"] = []
         elif event.event_type == EventType.MODEL_REQUESTED:
             data["model"] = payload.get("model", "unknown")
         elif event.event_type == EventType.MODEL_RESPONDED:
             data["response_length"] = payload.get("response_length", 0)
+            data["latency_ms"] = payload.get("latency_ms", 0)
         elif event.event_type == EventType.EVALUATION_COMPLETED:
             data["score"] = payload.get("overall_score", 0.0)
             data["passed"] = payload.get("passed", True)
+            data["criteria_count"] = payload.get("criteria_count", 0)
         elif event.event_type == EventType.EXPERIENCE_RECORDED:
             data["memory_type"] = payload.get("memory_type", "episodic")
+            data["memory_id"] = str(payload.get("memory_id", ""))[:8]
+            data["memory_content"] = str(payload.get("content", ""))[:60]
         elif event.event_type == EventType.LIFE_EVENT_RECORDED:
             data["description"] = str(payload.get("description", ""))[:60]
+            data["title"] = str(payload.get("title", ""))[:40]
 
         captured.append(PipelineEvent(stage=pe.stage, label=pe.label, data=data))
 
-    # Add synthetic stages for relationship update and persistence
-    captured.append(PipelineEvent("relationship", "Relationship Update", {}))
-    captured.append(PipelineEvent("persist", "Persistence", {}))
+    # Post-process: enrich compose event with section info from context_used
+    if context_used:
+        sections = _context_sections(context_used)
+        for pe in captured:
+            if pe.stage == "compose":
+                pe.data["sections"] = [s["name"] for s in sections]
+                pe.data["section_count"] = len(sections)
+                break
+
+    # Enrich memory events with content from context_used
+    if context_used:
+        mem_block = context_used.memory_block
+        if mem_block:
+            for pe in captured:
+                if pe.stage == "memory":
+                    pe.data["memory_retrieved"] = True
+                    mem_lines = [l.strip() for l in mem_block.split('\n') if l.strip()]
+                    pe.data["memory_block_snippets"] = [l[:80] for l in mem_lines[:5]]
+
+    # Add synthetic stages with runtime data
+    identity_id = request.identity_id
+    rel_count = len(runtime.identity_graph.get_relationships(identity_id)) if identity_id else 0
+    captured.append(PipelineEvent("relationship", "Relationship Update", {
+        "edge_count": rel_count,
+    }))
+
+    persist_ns = []
+    if hasattr(runtime, '_storage') and runtime._storage:
+        try:
+            persist_ns = runtime._storage.list_namespaces(identity_id) if identity_id else []
+        except Exception:
+            pass
+    captured.append(PipelineEvent("persist", "Persistence", {
+        "namespaces": len(persist_ns),
+    }))
 
     # Ensure we have a response event
     if output is not None:
-        captured.append(PipelineEvent("response", "Response", {"output": output[:120]}))
+        captured.append(PipelineEvent("response", "Response", {
+            "output": output[:120],
+            "output_length": len(output),
+        }))
 
-    return captured, output, context_text
+    return captured, output, context_used
 
 
 # ---------------------------------------------------------------------------
@@ -302,10 +379,12 @@ class RuntimeManager:
                 "streaming": getattr(rt.adapter, "streaming", False),
             }
 
-        # Current context
+        # Current context (structured)
         current_context = ""
+        context_sections = []
         if spec:
             try:
+                from core.cognitive_engine import ComposedContext as CC
                 ctx = rt.context_composer.compose(
                     identity=spec,
                     memory_store=rt.memory_store,
@@ -318,6 +397,7 @@ class RuntimeManager:
                     top_k_memories=5,
                 )
                 current_context = ctx.render()
+                context_sections = _context_sections(ctx)
             except Exception:
                 current_context = "(error composing context)"
 
@@ -356,6 +436,7 @@ class RuntimeManager:
             "evaluation": last_eval,
             "persistence": persist_files,
             "context": current_context,
+            "context_sections": context_sections,
         }
 
     def process_message(self, identity_id: str, user_input: str) -> dict:
@@ -388,12 +469,19 @@ class RuntimeManager:
             user_input=user_input,
             session_id=session_id,
         )
-        events, output, context_text = _capture_pipeline_events(rt, request)
+        events, output, context_used = _capture_pipeline_events(rt, request)
+
+        context_text = ""
+        context_sections = []
+        if context_used:
+            context_text = context_used.render()
+            context_sections = _context_sections(context_used)
 
         return {
             "output": output or "",
             "events": [{"stage": e.stage, "label": e.label, "data": e.data} for e in events],
             "context": context_text or "",
+            "context_sections": context_sections,
         }
 
     def restart_identity(self, identity_id: str) -> dict:

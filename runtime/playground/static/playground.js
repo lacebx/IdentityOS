@@ -59,7 +59,7 @@ function loadIdentity(id) {
       renderAdapter(data.adapter);
       renderEvaluation(data.evaluation);
       renderPersistence(data.persistence);
-      renderContext(data.context);
+      renderContext(data.context_sections || null, data.context);
     });
 }
 
@@ -326,24 +326,41 @@ function renderAdapter(adapter) {
   `;
 }
 
-function renderContext(contextText) {
+function renderContext(sections, fallbackText) {
   const el = document.getElementById('panel-context-body');
-  if (!contextText) { el.innerHTML = '<div class="empty">No context yet. Send a message.</div>'; return; }
-  const sections = contextText.split(/\n\n+/);
+  if ((!sections || sections.length === 0) && !fallbackText) {
+    el.innerHTML = '<div class="empty">No context yet. Send a message.</div>';
+    return;
+  }
+  if (!sections || sections.length === 0) {
+    // Fallback: render as raw text
+    el.innerHTML = `<pre>${esc(fallbackText)}</pre>`;
+    return;
+  }
   let html = '';
   sections.forEach(s => {
-    const lines = s.split('\n');
-    const header = lines[0];
-    const body = lines.slice(1).join('\n');
-    if (header && header.startsWith('##')) {
-      html += `<div class="context-section"><div class="context-section-header">${esc(header.replace(/^##\s*/,''))}</div>`;
-      if (body) html += `<div class="context-section-body">${esc(body)}</div>`;
-      html += '</div>';
-    } else {
-      html += `<pre>${esc(s)}</pre>`;
-    }
+    const chars = s.chars || 0;
+    const tokens = Math.round(chars / 4);
+    html += `<div class="ctx-section">
+      <div class="ctx-section-header" style="border-left:3px solid ${esc(s.color)}">
+        <span class="ctx-section-badge" style="background:${esc(s.color)}20;color:${esc(s.color)}">${esc(s.name)}</span>
+        <span class="ctx-section-meta">${chars}B / ~${tokens} tok</span>
+        <span class="ctx-toggle">&#x25BC;</span>
+      </div>
+      <div class="ctx-section-body"><pre>${esc(s.content)}</pre></div>
+    </div>`;
   });
   el.innerHTML = html;
+
+  // Toggle section expand/collapse
+  el.querySelectorAll('.ctx-section-header').forEach(hdr => {
+    hdr.addEventListener('click', () => {
+      const body = hdr.nextElementSibling;
+      const toggle = hdr.querySelector('.ctx-toggle');
+      body.classList.toggle('collapsed');
+      toggle.textContent = body.classList.contains('collapsed') ? '\u25B6' : '\u25BC';
+    });
+  });
 }
 
 function renderEvaluation(evalData) {
@@ -411,11 +428,11 @@ function onChatSubmit(e) {
     // Show response
     setTimeout(() => {
       addChatMessage('assistant', data.output || '[Empty response]');
-      // Update context panel
-      if (data.context) renderContext(data.context);
+      // Update context panel with structured sections
+      renderContext(data.context_sections || null, data.context);
       // Refresh all panels
       loadIdentity(currentIdentity);
-    }, data.events ? Math.min(data.events.length * 200, 2000) : 200);
+    }, data.events ? Math.min(data.events.length * 250, 2500) : 200);
   })
   .catch(err => {
     removePendingMessage(pendingId);
@@ -468,13 +485,47 @@ function resetPipeline() {
   document.querySelectorAll('.stage-arrow').forEach(a => a.className = 'stage-arrow');
 }
 
+function formatStageDiagnostic(stage, data) {
+  if (!data || Object.keys(data).length === 0) return '';
+  switch (stage) {
+    case 'receive':
+      return data.content ? `${data.content.length}B` : '';
+    case 'policy_in':
+    case 'policy_out':
+      if (data.allowed === false) return 'BLOCKED';
+      const n = data.policies ? data.policies.length : 0;
+      return `${n} policies`;
+    case 'compose':
+      return `${data.section_count || '?'} sections / ${data.token_estimate || '?'} tok`;
+    case 'adapter':
+      if (data.model && data.latency_ms) return `${data.model} ${data.latency_ms}ms`;
+      if (data.model) return data.model;
+      if (data.response_length) return `${data.response_length}B`;
+      return '';
+    case 'evaluate':
+      if (data.passed === false) return 'FAIL';
+      return data.score != null ? (data.score * 100).toFixed(0) + '%' : '';
+    case 'memory':
+      return data.memory_type || '';
+    case 'timeline':
+      return data.title || '';
+    case 'relationship':
+      return data.edge_count ? `${data.edge_count} edges` : '';
+    case 'persist':
+      return data.namespaces ? `${data.namespaces} ns` : '';
+    case 'response':
+      return data.output_length ? `${data.output_length}B` : '';
+    default:
+      return '';
+  }
+}
+
 function playPipeline(events) {
   resetPipeline();
   pipelineStages = events;
   let idx = 0;
   function showNext() {
     if (idx >= pipelineStages.length) {
-      // mark all remaining as done
       return;
     }
     const evt = pipelineStages[idx];
@@ -483,18 +534,42 @@ function playPipeline(events) {
     if (badge) {
       badge.className = 'stage-badge active';
       badge.textContent = evt.label || stageName.replace('_',' ');
+      badge.title = '';
     }
+    // Show diagnostic text in a sub-label
+    const diag = formatStageDiagnostic(stageName, evt.data);
+    if (diag) {
+      badge.title = diag;
+      // Insert as sub-element
+      let sub = badge.querySelector('.stage-diag');
+      if (!sub) {
+        sub = document.createElement('span');
+        sub.className = 'stage-diag';
+        badge.appendChild(sub);
+      }
+      sub.textContent = diag;
+    }
+
     // Activate arrow
     const arrow = document.getElementById(`arrow-${stageName}`);
     if (arrow) arrow.className = 'stage-arrow active';
 
-    // After a delay, mark done and advance
-    const delay = pipelineStages.length === idx + 1 ? 400 : 200;
+    const delay = pipelineStages.length === idx + 1 ? 500 : 250;
     pipelinePlayTimeout = setTimeout(() => {
       if (badge) {
         badge.className = 'stage-badge done';
-        // Show checkmark
-        badge.textContent = badge.textContent ? '\u2713 ' + (evt.label || stageName.replace('_',' ')) : '';
+        badge.textContent = evt.label || stageName.replace('_',' ');
+        // Show sub-label on done
+        const diagFinal = formatStageDiagnostic(stageName, evt.data);
+        if (diagFinal) {
+          let sub = badge.querySelector('.stage-diag');
+          if (!sub) {
+            sub = document.createElement('span');
+            sub.className = 'stage-diag';
+            badge.appendChild(sub);
+          }
+          sub.textContent = diagFinal;
+        }
       }
       idx++;
       showNext();

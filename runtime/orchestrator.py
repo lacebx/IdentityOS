@@ -563,17 +563,21 @@ class IdentityRuntime:
                 session_id=request.session_id,
                 model=self.adapter.model,
             )
+            import time as _time
+            _t0 = _time.monotonic()
             raw_output = self.adapter.generate(
                 context=context.render(),
                 user_input=sanitized_input,
                 identity=identity,
             )
+            _latency = _time.monotonic() - _t0
             self._emit(
                 EventType.MODEL_RESPONDED,
                 identity_id=identity.id,
                 session_id=request.session_id,
                 model=self.adapter.model,
                 response_length=len(raw_output),
+                latency_ms=round(_latency * 1000),
             )
         else:
             raw_output = f"[No adapter configured. Context prepared for {identity.name}]"
@@ -612,6 +616,7 @@ class IdentityRuntime:
             session_id=request.session_id,
             overall_score=eval_report.overall_score,
             passed=eval_report.passed,
+            criteria_count=len(eval_report.records),
         )
 
         # Stage 7: Store interaction in memory
@@ -632,6 +637,7 @@ class IdentityRuntime:
             session_id=request.session_id,
             memory_id=episodic.id,
             memory_type=episodic.memory_type.value,
+            content=episodic.content[:200],
         )
 
         # 7b: Extract and store semantic memories (preferences, decisions, etc.)
