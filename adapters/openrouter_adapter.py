@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from typing import Any, Optional
 
 from .openai_adapter import OpenAIAdapter
@@ -9,7 +10,7 @@ class OpenRouterAdapter(OpenAIAdapter):
     """
     Adapter for OpenRouter — a unified API gateway to many LLM providers.
 
-    OpenRouter exposes an OpenAI-compatible API at api.openrouter.ai/v1
+    OpenRouter exposes an OpenAI-compatible API at openrouter.ai/api/v1
     and supports seamless model switching across providers.
 
     Usage:
@@ -20,7 +21,7 @@ class OpenRouterAdapter(OpenAIAdapter):
         runtime = IdentityRuntime(adapter=adapter)
 
     Environment variables:
-        OPENROUTER_API_KEY  — your OpenRouter API key
+        OPENROUTER_API_KEY  — your OpenRouter API key (fallback if api_key not passed)
         OPENROUTER_BASE_URL — optional custom base URL (default: https://openrouter.ai/api/v1)
     """
 
@@ -33,6 +34,12 @@ class OpenRouterAdapter(OpenAIAdapter):
         site_name: Optional[str] = None,
         **kwargs: Any,
     ):
+        # Fall back to OPENROUTER_API_KEY env var if no explicit api_key
+        if api_key is None:
+            api_key = os.environ.get("OPENROUTER_API_KEY")
+        # Fall back to OPENROUTER_BASE_URL env var
+        base_url = os.environ.get("OPENROUTER_BASE_URL", base_url)
+
         super().__init__(
             model=model,
             api_key=api_key,

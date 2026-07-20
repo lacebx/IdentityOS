@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IdentityOS Playground</title>
+<script src="https://unpkg.com/htmx.org@1.9.12"></script>
+<link rel="stylesheet" href="/playground/static/playground.css">
+</head>
+<body>
+<div class="header">
+  <h1>&#x25B6; IdentityOS Playground</h1>
+  <div class="identity-chooser">
+    <select id="identity-select">
+      <option value="">-- Select identity --</option>
+    </select>
+    <button class="btn btn-sm" id="btn-create">+ New</button>
+    <button class="btn btn-sm" id="btn-configure-adapter">&#x2699; Adapter</button>
+    <button class="btn btn-sm btn-danger" id="btn-restart">&#x21bb; Restart</button>
+  </div>
+</div>
+
+<div class="layout">
+  <!-- Left column: Conversation -->
+  <div class="col-left">
+    <div class="chat-area">
+      <div class="chat-messages" id="chat-messages">
+        <div id="help-text" class="chat-msg assistant" style="max-width:100%;background:transparent;border:none;color:var(--text2);font-size:12px;text-align:center;padding:20px">
+          Select or create an identity above to start.<br>
+          The Playground visualizes every stage of the IdentityOS runtime.
+        </div>
+      </div>
+      <form class="chat-input-area" id="chat-form">
+        <textarea id="chat-input" placeholder="Type a message..." rows="1"></textarea>
+        <button class="btn btn-primary" type="submit" id="chat-send">Send</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Right column: Runtime State -->
+  <div class="col-right" id="right-col">
+    <!-- Pipeline Flow -->
+    <div class="pipeline-flow">
+      <div class="pipeline-label">Pipeline</div>
+      <div class="pipeline-stages" id="pipeline-stages">
+        <div class="stage-node"><span class="stage-badge pending" id="stage-receive">receive</span></div>
+        <span class="stage-arrow" id="arrow-receive">&#x25B6;</span>
+        <div class="stage-node"><span class="stage-badge pending" id="stage-policy_in">policy in</span></div>
+        <span class="stage-arrow" id="arrow-policy_in">&#x25B6;</span>
+        <div class="stage-node"><span class="stage-badge pending" id="stage-compose">compose</span></div>
+        <span class="stage-arrow" id="arrow-compose">&#x25B6;</span>
+        <div class="stage-node"><span class="stage-badge pending" id="stage-adapter">adapter</span></div>
+        <span class="stage-arrow" id="arrow-adapter">&#x25B6;</span>
+        <div class="stage-node"><span class="stage-badge pending" id="stage-policy_out">policy out</span></div>
+        <span class="stage-arrow" id="arrow-policy_out">&#x25B6;</span>
+        <div class="stage-node"><span class="stage-badge pending" id="stage-evaluate">evaluate</span></div>
+        <span class="stage-arrow" id="arrow-evaluate">&#x25B6;</span>
+        <div class="stage-node"><span class="stage-badge pending" id="stage-memory">memory</span></div>
+        <span class="stage-arrow" id="arrow-memory">&#x25B6;</span>
+        <div class="stage-node"><span class="stage-badge pending" id="stage-timeline">timeline</span></div>
+        <span class="stage-arrow" id="arrow-timeline">&#x25B6;</span>
+        <div class="stage-node"><span class="stage-badge pending" id="stage-relationship">rel graph</span></div>
+        <span class="stage-arrow" id="arrow-relationship">&#x25B6;</span>
+        <div class="stage-node"><span class="stage-badge pending" id="stage-persist">persist</span></div>
+        <span class="stage-arrow" id="arrow-persist">&#x25B6;</span>
+        <div class="stage-node"><span class="stage-badge pending" id="stage-response">response</span></div>
+      </div>
+    </div>
+
+    <!-- Architecture Flow -->
+    <div class="arch-flow">
+      <div class="flow-row">
+        <div class="flow-box" id="flow-user">User</div>
+        <span class="flow-arrow" id="flow-arr0">&#x25B6;</span>
+        <div class="flow-box" id="flow-identity">Identity</div>
+        <span class="flow-arrow" id="flow-arr1">&#x25B6;</span>
+        <div class="flow-box" id="flow-policy">Policy</div>
+        <span class="flow-arrow" id="flow-arr2">&#x25B6;</span>
+        <div class="flow-box" id="flow-context">Context</div>
+        <span class="flow-arrow" id="flow-arr3">&#x25B6;</span>
+        <div class="flow-box" id="flow-adapter">Adapter</div>
+        <span class="flow-arrow" id="flow-arr4">&#x25B6;</span>
+        <div class="flow-box" id="flow-eval">Eval</div>
+        <span class="flow-arrow" id="flow-arr5">&#x25B6;</span>
+        <div class="flow-box" id="flow-memory">Memory</div>
+        <span class="flow-arrow" id="flow-arr6">&#x25B6;</span>
+        <div class="flow-box" id="flow-persist">Persist</div>
+        <span class="flow-arrow" id="flow-arr7">&#x25B6;</span>
+        <div class="flow-box" id="flow-response">Response</div>
+      </div>
+    </div>
+
+    <!-- Panels -->
+    <div class="panel identity-panel">
+      <div class="panel-header" onclick="togglePanel(this)">Identity <span>&#x25BC;</span></div>
+      <div class="panel-body" id="panel-identity-body"><div class="empty">Select an identity to begin.</div></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header" onclick="togglePanel(this)">Memories <span>&#x25BC;</span></div>
+      <div class="panel-body" id="panel-memories-body"><div class="empty">Select an identity to begin.</div></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header" onclick="togglePanel(this)">Timeline <span>&#x25BC;</span></div>
+      <div class="panel-body" id="panel-timeline-body"><div class="empty">Select an identity to begin.</div></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header" onclick="togglePanel(this)">Goals <span>&#x25BC;</span></div>
+      <div class="panel-body" id="panel-goals-body"><div class="empty">Select an identity to begin.</div></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header" onclick="togglePanel(this)">Relationships <span>&#x25BC;</span></div>
+      <div class="panel-body" id="panel-relationships-body"><div class="empty">Select an identity to begin.</div></div>
+    </div>
+
+    <div class="panel context-panel">
+      <div class="panel-header" onclick="togglePanel(this)">Context Sent to Adapter <span>&#x25BC;</span></div>
+      <div class="panel-body" id="panel-context-body"><div class="empty">Send a message to see the composed context.</div></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header" onclick="togglePanel(this)">Adapter <span>&#x25BC;</span></div>
+      <div class="panel-body" id="panel-adapter-body"><div class="empty">No adapter configured.</div></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header" onclick="togglePanel(this)">Evaluation <span>&#x25BC;</span></div>
+      <div class="panel-body" id="panel-evaluation-body"><div class="empty">No evaluations yet.</div></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header" onclick="togglePanel(this)">Persistence Events <span>&#x25BC;</span></div>
+      <div class="panel-body" id="panel-persistence-body"><div class="empty">No persistence events yet.</div></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header" onclick="togglePanel(this)">Runtime Log <span>&#x25BC;</span></div>
+      <div class="panel-body" id="panel-log-body" style="max-height:200px"><div class="empty">Runtime log will appear here.</div></div>
+    </div>
+  </div>
+</div>
+
+<script src="/playground/static/playground.js"></script>
+<script>
+function togglePanel(header) {
+  const body = header.nextElementSibling;
+  const arrow = header.querySelector('span');
+  body.classList.toggle('collapsed');
+  arrow.textContent = body.classList.contains('collapsed') ? '\u25B6' : '\u25BC';
+}
+</script>
+</body>
+</html>

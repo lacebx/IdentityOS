@@ -8,8 +8,9 @@ any identity without writing a single line of code.
 Usage:
     python -m cli.main --help
     python -m cli.main create --name "Mentor" --persona mentor
-    python -m cli.main chat   --id mentor-01
-    python -m cli.main inspect --id mentor-01
+    python -m cli.main chat        --id mentor-01
+    python -m cli.main playground  --port 8000
+    python -m cli.main inspect     --id mentor-01
     python -m cli.main snapshot --id mentor-01 --label "after-session-3"
     python -m cli.main history  --id mentor-01
     python -m cli.main rollback --id mentor-01 --snap <snapshot_id>
@@ -244,6 +245,22 @@ def cmd_diff(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_playground(args: argparse.Namespace) -> int:
+    """Launch the IdentityOS Playground web UI."""
+    try:
+        import uvicorn
+        from runtime.playground.app import app
+        print("  \u25B6 IdentityOS Playground")
+        print("  \u2500" * 40)
+        print(f"  Open http://localhost:{args.port}/playground")
+        print()
+        uvicorn.run(app, host=args.host, port=args.port, log_level="warning")
+    except ImportError:
+        print("Install uvicorn: pip install uvicorn", file=sys.stderr)
+        return 1
+    return 0
+
+
 def cmd_chat(args: argparse.Namespace) -> int:
     """
     Start an interactive REPL with a loaded identity.
@@ -379,6 +396,20 @@ def build_parser() -> argparse.ArgumentParser:
     p_chat.add_argument("--adapter-config", default="{}", help="JSON string with adapter config")
     p_chat.add_argument("--model", default="gpt-4o", help="Model adapter to use")
 
+    # playground
+    p_play = sub.add_parser(
+        "playground",
+        help="Launch the IdentityOS Playground (web UI)",
+    )
+    p_play.add_argument(
+        "--port", type=int, default=8000,
+        help="Port to serve on (default: 8000)",
+    )
+    p_play.add_argument(
+        "--host", default="0.0.0.0",
+        help="Host to bind (default: 0.0.0.0)",
+    )
+
     return parser
 
 
@@ -394,6 +425,7 @@ COMMAND_MAP = {
     "rollback": cmd_rollback,
     "diff": cmd_diff,
     "chat": cmd_chat,
+    "playground": cmd_playground,
 }
 
 
