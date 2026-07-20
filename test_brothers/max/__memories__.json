@@ -1,0 +1,123 @@
+[
+  {
+    "id": "161c678c-a305-4a8f-b5ae-57a72e034af4",
+    "identity_id": "max",
+    "content": "User: I'm Max, the youngest of three brothers.\nAssistant: [No adapter configured. Context prepared for Maxwell]",
+    "memory_type": "episodic",
+    "confidence": "medium",
+    "source": "unknown",
+    "session_id": "47072254-4c2e-44df-a1a1-7d6afb510af8",
+    "created_at": "2026-07-20T19:50:48.028178+00:00",
+    "last_accessed": null,
+    "importance": 0.5,
+    "access_count": 0,
+    "decay_factor": 1.0,
+    "embedding_id": null,
+    "related_memory_ids": [],
+    "tags": [
+      "interaction"
+    ],
+    "extra": {}
+  },
+  {
+    "id": "45198be9-ddde-42f4-acc3-e51f170212d8",
+    "identity_id": "max",
+    "content": "User: Hector is my oldest brother, he looks out for me.\nAssistant: [No adapter configured. Context prepared for Maxwell]",
+    "memory_type": "episodic",
+    "confidence": "medium",
+    "source": "unknown",
+    "session_id": "47072254-4c2e-44df-a1a1-7d6afb510af8",
+    "created_at": "2026-07-20T19:50:48.030465+00:00",
+    "last_accessed": null,
+    "importance": 0.5,
+    "access_count": 0,
+    "decay_factor": 1.0,
+    "embedding_id": null,
+    "related_memory_ids": [],
+    "tags": [
+      "interaction"
+    ],
+    "extra": {}
+  },
+  {
+    "id": "ae57904a-5d50-4a9d-83f6-fc514f7afe70",
+    "identity_id": "max",
+    "content": "User: Leo is the middle brother, he's really smart.\nAssistant: [No adapter configured. Context prepared for Maxwell]",
+    "memory_type": "episodic",
+    "confidence": "medium",
+    "source": "unknown",
+    "session_id": "47072254-4c2e-44df-a1a1-7d6afb510af8",
+    "created_at": "2026-07-20T19:50:48.038084+00:00",
+    "last_accessed": null,
+    "importance": 0.5,
+    "access_count": 0,
+    "decay_factor": 1.0,
+    "embedding_id": null,
+    "related_memory_ids": [],
+    "tags": [
+      "interaction"
+    ],
+    "extra": {}
+  },
+  {
+    "id": "1308618b-09d7-4476-89f6-c76e3d304ca4",
+    "identity_id": "max",
+    "content": "User: I love exploring new places, my brothers always watch my back.\nAssistant: [No adapter configured. Context prepared for Maxwell]",
+    "memory_type": "episodic",
+    "confidence": "medium",
+    "source": "unknown",
+    "session_id": "47072254-4c2e-44df-a1a1-7d6afb510af8",
+    "created_at": "2026-07-20T19:50:48.062762+00:00",
+    "last_accessed": null,
+    "importance": 0.5,
+    "access_count": 0,
+    "decay_factor": 1.0,
+    "embedding_id": null,
+    "related_memory_ids": [],
+    "tags": [
+      "interaction"
+    ],
+    "extra": {}
+  },
+  {
+    "id": "baad4188-0fb9-423a-8cc4-6f27978dc926",
+    "identity_id": "max",
+    "content": "I love exploring new places, my brothers always watch my back.",
+    "memory_type": "semantic",
+    "confidence": "medium",
+    "source": "extraction",
+    "session_id": "47072254-4c2e-44df-a1a1-7d6afb510af8",
+    "created_at": "2026-07-20T19:50:48.064405+00:00",
+    "last_accessed": null,
+    "importance": 0.7,
+    "access_count": 0,
+    "decay_factor": 1.0,
+    "embedding_id": null,
+    "related_memory_ids": [],
+    "tags": [
+      "semantic",
+      "preference"
+    ],
+    "extra": {}
+  },
+  {
+    "id": "0297e274-2f3d-41f7-aea1-6882c910a554",
+    "identity_id": "max",
+    "content": "User: Being the youngest means I get away with more than they did!\nAssistant: [No adapter configured. Context prepared for Maxwell]",
+    "memory_type": "episodic",
+    "confidence": "medium",
+    "source": "unknown",
+    "session_id": "47072254-4c2e-44df-a1a1-7d6afb510af8",
+    "created_at": "2026-07-20T19:50:48.072278+00:00",
+    "last_accessed": null,
+    "importance": 0.5,
+    "access_count": 0,
+    "decay_factor": 1.0,
+    "embedding_id": null,
+    "related_memory_ids": [],
+    "tags": [
+      "interaction"
+    ],
+    "extra": {}
+  }
+]

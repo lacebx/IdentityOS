@@ -428,7 +428,7 @@ class RuntimeManager:
             ns = self._storage.list_namespaces(identity_id) if identity_id else []
             persist_files = sorted(ns)
 
-        # Evolution metrics
+        # Evolution metrics + identity mutation data
         evolution = {
             "interaction_count": len([e for e in tl_events if e.get("event_type") in ("milestone", "creation")]) if tl_events else 0,
             "memory_count": len(mem_dicts),
@@ -446,6 +446,18 @@ class RuntimeManager:
             except Exception:
                 pass
 
+        # Identity evolution data from spec
+        identity_evolution = {
+            "preferences": identity_dict.get("preferences", {}),
+            "beliefs": identity_dict.get("beliefs", {}),
+            "likes": identity_dict.get("likes", []),
+            "dislikes": identity_dict.get("dislikes", []),
+            "habits": identity_dict.get("habits", []),
+            "communication_tendencies": identity_dict.get("communication_tendencies", {}),
+            "mutation_history": identity_dict.get("mutation_history", []),
+            "traits": identity_dict.get("traits", []),
+        }
+
         return {
             "identity": identity_dict,
             "memories": mem_dicts,
@@ -458,6 +470,7 @@ class RuntimeManager:
             "context": current_context,
             "context_sections": context_sections,
             "evolution": evolution,
+            "identity_evolution": identity_evolution,
         }
 
     def process_message(self, identity_id: str, user_input: str) -> dict:

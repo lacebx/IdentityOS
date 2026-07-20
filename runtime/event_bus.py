@@ -80,6 +80,10 @@ class EventType(Enum):
     # Evaluation / Evolution
     EVALUATION_COMPLETED = "evaluation.completed"
     IDENTITY_EVOLVED = "identity.evolved"
+    IDENTITY_MUTATION_PROPOSED = "identity.mutation_proposed"
+    IDENTITY_MUTATION_ACCEPTED = "identity.mutation_accepted"
+    IDENTITY_MUTATION_REJECTED = "identity.mutation_rejected"
+    IDENTITY_MUTATION_CONFLICT = "identity.mutation_conflict"
 
     # Policy
     POLICY_TRIGGERED = "policy.triggered"

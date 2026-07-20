@@ -245,6 +245,63 @@ def cmd_diff(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_get(args: argparse.Namespace) -> int:
+    """
+    List all identities ranked by experience (interactions + memories + timeline events).
+    Shows stats for each identity and sorts by total experience descending.
+    """
+    storage = _get_storage(args)
+    ids = storage.list_identities()
+    if not ids:
+        print("No identities found.")
+        return 0
+
+    rows = []
+    for identity_id in ids:
+        identity_data = storage.load(identity_id, "latest_snapshot") or {}
+        identity_spec = identity_data.get("modules", {}).get("identity", identity_data)
+        name = identity_spec.get("name", identity_id)
+        persona = identity_spec.get("persona") or ""
+
+        timeline_data = storage.load(identity_id, "timeline") or {"events": []}
+        rel_data = storage.load(identity_id, "relationships") or {"edges": []}
+        mems = storage.load_memories(identity_id) or []
+        goals_data = storage.load(identity_id, "goals") or {"goals": []}
+
+        timeline_count = len(timeline_data.get("events", []))
+        edges = rel_data.get("edges", [])
+        interaction_count = sum(e.get("interaction_count", 0) for e in edges)
+        memory_count = len(mems)
+        goal_count = len(goals_data.get("goals", []))
+        edge_count = len(edges)
+
+        total_experience = interaction_count + timeline_count + memory_count
+
+        rows.append({
+            "id": identity_id,
+            "name": name,
+            "persona": persona,
+            "experience": {
+                "total": total_experience,
+                "interactions": interaction_count,
+                "timeline_events": timeline_count,
+                "memories": memory_count,
+                "relationships": edge_count,
+                "goals": goal_count,
+            },
+        })
+
+    rows.sort(key=lambda r: r["experience"]["total"], reverse=True)
+
+    print(f"{'Rank':<5} {'ID':<18} {'Name':<18} {'Persona':<18} {'Exp':<5} {'Ints':<5} {'TL':<4} {'Mem':<4} {'Rel':<4}")
+    print("-" * 85)
+    for i, r in enumerate(rows, 1):
+        e = r["experience"]
+        print(f"{i:<5} {r['id']:<18} {r['name']:<18} {r['persona']:<18} {e['total']:<5} {e['interactions']:<5} {e['timeline_events']:<4} {e['memories']:<4} {e['relationships']:<4}")
+    print(f"\n{len(rows)} identities total.")
+    return 0
+
+
 def cmd_playground(args: argparse.Namespace) -> int:
     """Launch the IdentityOS Playground web UI."""
     try:
@@ -396,6 +453,10 @@ def build_parser() -> argparse.ArgumentParser:
     p_chat.add_argument("--adapter-config", default="{}", help="JSON string with adapter config")
     p_chat.add_argument("--model", default="gpt-4o", help="Model adapter to use")
 
+    # get
+    p_get = sub.add_parser("get", help="List all identities ranked by experience")
+    p_get.add_argument("--limit", type=int, default=0, help="Limit rows (0 = unlimited)")
+
     # playground
     p_play = sub.add_parser(
         "playground",
@@ -426,6 +487,7 @@ COMMAND_MAP = {
     "diff": cmd_diff,
     "chat": cmd_chat,
     "playground": cmd_playground,
+    "get": cmd_get,
 }
 
 

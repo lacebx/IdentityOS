@@ -61,6 +61,7 @@ function loadIdentity(id) {
       if (data.error) { return; }
       renderIdentity(data.identity);
       renderEvolution(data.evolution);
+      renderIdentityEvolution(data.identity_evolution);
       renderMemories(data.memories);
       renderTimeline(data.timeline);
       renderGoals(data.goals);
@@ -150,6 +151,85 @@ function renderIdentity(identity) {
 }
 
 let _knownMemoryIds = new Set();
+
+function renderIdentityEvolution(evo) {
+  const el = document.getElementById('panel-evolution-body');
+  if (!evo) { el.innerHTML = '<div class="empty">No evolution data.</div>'; return; }
+  let html = '';
+
+  // Preferences
+  const prefs = evo.preferences || {};
+  const prefKeys = Object.keys(prefs);
+  if (prefKeys.length) {
+    html += '<div style="margin-bottom:8px"><div class="ctx-section-header" style="border-left:3px solid var(--accent);padding:4px 6px;font-size:11px;font-weight:600;color:var(--accent);cursor:pointer" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Preferences (Evolved) <span style="float:right">&#x25BC;</span></div><div class="ctx-section-body" style="padding:4px 8px">';
+    prefKeys.forEach(k => {
+      const label = k.replace(/_/g, ' ').replace(/\./g, ' \u2192 ');
+      html += `<div style="display:flex;justify-content:space-between;padding:2px 0;border-bottom:1px solid var(--surface2)"><span style="color:var(--text2);font-size:11px">${esc(label)}</span><span style="font-size:12px;font-weight:500">${esc(String(prefs[k]))}</span></div>`;
+    });
+    html += '</div></div>';
+  }
+
+  // Beliefs
+  const beliefs = evo.beliefs || {};
+  const beliefKeys = Object.keys(beliefs);
+  if (beliefKeys.length) {
+    html += '<div style="margin-bottom:8px"><div class="ctx-section-header" style="border-left:3px solid var(--purple);padding:4px 6px;font-size:11px;font-weight:600;color:var(--purple);cursor:pointer" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Beliefs <span style="float:right">&#x25BC;</span></div><div class="ctx-section-body" style="padding:4px 8px">';
+    beliefKeys.forEach(k => {
+      html += `<div style="padding:2px 0;font-size:11px;border-bottom:1px solid var(--surface2)">${esc(beliefs[k])}</div>`;
+    });
+    html += '</div></div>';
+  }
+
+  // Traits
+  const traits = evo.traits || [];
+  if (traits.length) {
+    html += '<div style="margin-bottom:8px"><div class="ctx-section-header" style="border-left:3px solid var(--green);padding:4px 6px;font-size:11px;font-weight:600;color:var(--green);cursor:pointer" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Traits <span style="float:right">&#x25BC;</span></div><div class="ctx-section-body" style="padding:4px 8px">';
+    traits.forEach(t => {
+      const pct = Math.round((t.score || 0) * 100);
+      html += `<div style="display:flex;justify-content:space-between;padding:2px 0;border-bottom:1px solid var(--surface2)"><span style="font-size:11px">${esc(t.name)}</span><span style="font-size:11px">${pct}%</span></div>`;
+    });
+    html += '</div></div>';
+  }
+
+  // Like / Dislike
+  const likes = evo.likes || [];
+  const dislikes = evo.dislikes || [];
+  if (likes.length || dislikes.length) {
+    html += '<div style="margin-bottom:8px"><div class="ctx-section-header" style="border-left:3px solid var(--yellow);padding:4px 6px;font-size:11px;font-weight:600;color:var(--yellow);cursor:pointer" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Likes / Dislikes <span style="float:right">&#x25BC;</span></div><div class="ctx-section-body" style="padding:4px 8px">';
+    if (likes.length) html += `<div style="font-size:11px;color:var(--green)">Likes: ${likes.map(l => esc(l)).join(', ')}</div>`;
+    if (dislikes.length) html += `<div style="font-size:11px;color:var(--red)">Dislikes: ${dislikes.map(d => esc(d)).join(', ')}</div>`;
+    html += '</div></div>';
+  }
+
+  // Mutation history
+  const mutations = evo.mutation_history || [];
+  if (mutations.length) {
+    html += '<div style="margin-bottom:8px"><div class="ctx-section-header" style="border-left:3px solid var(--orange);padding:4px 6px;font-size:11px;font-weight:600;color:var(--orange);cursor:pointer" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Mutation History <span style="float:right">&#x25BC;</span></div><div class="ctx-section-body" style="padding:4px 8px">';
+    [...mutations].reverse().forEach(m => {
+      const status = m.status || 'unknown';
+      const statusColor = status === 'accepted' ? 'var(--green)' : status === 'conflict' ? 'var(--orange)' : 'var(--red)';
+      const field = m.field || '';
+      const label = field.split('.').pop().replace(/_/g, ' ');
+      const oldVal = m.old_value != null ? esc(String(m.old_value)) : '<em>none</em>';
+      const newVal = m.new_value != null ? esc(String(m.new_value)) : '<em>none</em>';
+      html += `<div style="padding:4px 0;border-bottom:1px solid var(--surface2);font-size:11px">
+        <div style="display:flex;justify-content:space-between">
+          <span style="font-weight:500">${esc(label)}</span>
+          <span style="color:${statusColor};font-weight:600">${esc(status)}</span>
+        </div>
+        <div style="color:var(--text2);font-size:10px">${oldVal} \u2192 ${newVal}</div>
+        <div style="color:var(--text2);font-size:10px">${esc(m.reason||'')}</div>
+      </div>`;
+    });
+    html += '</div></div>';
+  }
+
+  if (!html) {
+    el.innerHTML = '<div class="empty">No evolved attributes yet. Chat with the identity to begin the evolution process.</div>';
+    return;
+  }
+  el.innerHTML = html;
+}
 
 function renderMemories(memories) {
   const el = document.getElementById('panel-memories-body');

@@ -119,7 +119,7 @@ class IdentityClient:
 
     def list_identities(self) -> List[str]:
         """Return a list of all identity IDs."""
-        data = self._get("/identities")
+        data = self._get("/identity")
         return data.get("identities", [])
 
     def get_identity(self, identity_id: str) -> Dict[str, Any]:

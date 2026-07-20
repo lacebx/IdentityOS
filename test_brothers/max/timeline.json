@@ -1,0 +1,88 @@
+{
+  "events": [
+    {
+      "id": "261dd146-e0ed-4f39-b64e-e42699350b83",
+      "identity_id": "max",
+      "event_type": "creation",
+      "title": "Identity Created",
+      "description": "This identity came into existence.",
+      "significance": 5,
+      "linked_entity_id": null,
+      "occurred_at": "2026-07-20T19:50:47.982985",
+      "metadata": {}
+    },
+    {
+      "id": "1285bcb0-7cd3-4295-9aaa-586545b73b35",
+      "identity_id": "max",
+      "event_type": "milestone",
+      "title": "Interaction",
+      "description": "User said: I'm Max, the youngest of three brothers.",
+      "significance": 2,
+      "linked_entity_id": null,
+      "occurred_at": "2026-07-20T19:50:48.028758",
+      "metadata": {
+        "session_id": "47072254-4c2e-44df-a1a1-7d6afb510af8",
+        "eval_score": 0.5333333333333333
+      }
+    },
+    {
+      "id": "912c4f8f-0ece-4c2a-952d-dea781e9f713",
+      "identity_id": "max",
+      "event_type": "milestone",
+      "title": "Interaction",
+      "description": "User said: Hector is my oldest brother, he looks out for me.",
+      "significance": 2,
+      "linked_entity_id": null,
+      "occurred_at": "2026-07-20T19:50:48.033604",
+      "metadata": {
+        "session_id": "47072254-4c2e-44df-a1a1-7d6afb510af8",
+        "eval_score": 0.5333333333333333
+      }
+    },
+    {
+      "id": "cbdce65b-08a6-43ee-9471-7bac575edffd",
+      "identity_id": "max",
+      "event_type": "milestone",
+      "title": "Interaction",
+      "description": "User said: Leo is the middle brother, he's really smart.",
+      "significance": 2,
+      "linked_entity_id": null,
+      "occurred_at": "2026-07-20T19:50:48.039418",
+      "metadata": {
+        "session_id": "47072254-4c2e-44df-a1a1-7d6afb510af8",
+        "eval_score": 0.5333333333333333
+      }
+    },
+    {
+      "id": "c8fa91e9-4057-41f8-94bc-e6ce8f6573ef",
+      "identity_id": "max",
+      "event_type": "milestone",
+      "title": "Learned preference",
+      "description": "I love exploring new places, my brothers always watch my back.",
+      "significance": 2,
+      "linked_entity_id": null,
+      "occurred_at": "2026-07-20T19:50:48.067219",
+      "metadata": {
+        "session_id": "47072254-4c2e-44df-a1a1-7d6afb510af8",
+        "eval_score": 0.8666666666666667,
+        "memory_id": "baad4188-0fb9-423a-8cc4-6f27978dc926",
+        "memory_type": "semantic"
+      }
+    },
+    {
+      "id": "fc8c928a-cd54-4693-8410-350201187eec",
+      "identity_id": "max",
+      "event_type": "milestone",
+      "title": "Interaction",
+      "description": "User said: Being the youngest means I get away with more than they did!",
+      "significance": 2,
+      "linked_entity_id": null,
+      "occurred_at": "2026-07-20T19:50:48.074667",
+      "metadata": {
+        "session_id": "47072254-4c2e-44df-a1a1-7d6afb510af8",
+        "eval_score": 0.5333333333333333
+      }
+    }
+  ],
+  "created_at": "2026-07-20T19:50:47.982985"
+}

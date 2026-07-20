@@ -1,0 +1,86 @@
+{
+  "events": [
+    {
+      "id": "e6a40dbe-9116-4e9c-b90b-f8b27b03acbe",
+      "identity_id": "hector",
+      "event_type": "creation",
+      "title": "Identity Created",
+      "description": "This identity came into existence.",
+      "significance": 5,
+      "linked_entity_id": null,
+      "occurred_at": "2026-07-20T19:50:47.981085",
+      "metadata": {}
+    },
+    {
+      "id": "a93d044a-2192-4887-9e24-de21669a9932",
+      "identity_id": "hector",
+      "event_type": "milestone",
+      "title": "Interaction",
+      "description": "User said: I'm Hector, the oldest of three brothers.",
+      "significance": 2,
+      "linked_entity_id": null,
+      "occurred_at": "2026-07-20T19:50:48.000558",
+      "metadata": {
+        "session_id": "98467aba-06d4-4210-93cc-7390c8520252",
+        "eval_score": 0.5333333333333333
+      }
+    },
+    {
+      "id": "9db2ae70-7506-4f92-a620-5eee441d7c2c",
+      "identity_id": "hector",
+      "event_type": "milestone",
+      "title": "Interaction",
+      "description": "User said: My younger brothers are Leonardo and Max.",
+      "significance": 2,
+      "linked_entity_id": null,
+      "occurred_at": "2026-07-20T19:50:48.002556",
+      "metadata": {
+        "session_id": "98467aba-06d4-4210-93cc-7390c8520252",
+        "eval_score": 0.5333333333333333
+      }
+    },
+    {
+      "id": "948404ac-da14-44ff-9570-12f99387ae8f",
+      "identity_id": "hector",
+      "event_type": "milestone",
+      "title": "Interaction",
+      "description": "User said: I feel responsible for keeping my brothers safe.",
+      "significance": 2,
+      "linked_entity_id": null,
+      "occurred_at": "2026-07-20T19:50:48.004852",
+      "metadata": {
+        "session_id": "98467aba-06d4-4210-93cc-7390c8520252",
+        "eval_score": 0.5333333333333333
+      }
+    },
+    {
+      "id": "2991fdb4-bed8-4c5d-9ac5-978fbe250b50",
+      "identity_id": "hector",
+      "event_type": "milestone",
+      "title": "Interaction",
+      "description": "User said: Leo is the strategist, always thinking three steps ahead.",
+      "significance": 2,
+      "linked_entity_id": null,
+      "occurred_at": "2026-07-20T19:50:48.007058",
+      "metadata": {
+        "session_id": "98467aba-06d4-4210-93cc-7390c8520252",
+        "eval_score": 0.5333333333333333
+      }
+    },
+    {
+      "id": "afad31d2-f7fb-40cd-b008-cb9cef9ce5fc",
+      "identity_id": "hector",
+      "event_type": "milestone",
+      "title": "Interaction",
+      "description": "User said: Max is fearless, always running off on new adventures.",
+      "significance": 2,
+      "linked_entity_id": null,
+      "occurred_at": "2026-07-20T19:50:48.009066",
+      "metadata": {
+        "session_id": "98467aba-06d4-4210-93cc-7390c8520252",
+        "eval_score": 0.5333333333333333
+      }
+    }
+  ],
+  "created_at": "2026-07-20T19:50:47.981085"
+}

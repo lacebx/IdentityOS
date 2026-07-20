@@ -1,0 +1,33 @@
+{
+  "snapshot_id": "ac6be73f-5673-46fe-9e36-879085ddf930",
+  "identity_id": "hector",
+  "captured_at": 1784577047.5194707,
+  "label": "initial",
+  "schema_version": "1.0.0",
+  "modules": {
+    "identity": {
+      "id": "hector",
+      "name": "Hector",
+      "persona": "oldest brother, protective leader",
+      "created_at": 1784577047.5194337,
+      "version": "0.1.0"
+    },
+    "experience": {
+      "entries": []
+    },
+    "knowledge": {
+      "packs": []
+    },
+    "motivations": {
+      "active": []
+    },
+    "timeline": {
+      "events": []
+    },
+    "relationships": {
+      "nodes": [],
+      "edges": []
+    }
+  },
+  "meta": {}
+}

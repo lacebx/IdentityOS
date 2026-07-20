@@ -1,0 +1,20 @@
+{
+  "edges": [
+    {
+      "id": "0880e756-98e5-4aec-8185-114c3c66d1ec",
+      "source_id": "max",
+      "target_id": "47072254-4c2e-44df-a1a1-7d6afb510af8",
+      "edge_type": "peer",
+      "trust_level": 2,
+      "strength": 1.0,
+      "bidirectional": false,
+      "context": "",
+      "permissions": [],
+      "labels": [],
+      "established_at": "2026-07-20T19:50:48.029227",
+      "last_interaction": "2026-07-20T19:50:48.075915",
+      "interaction_count": 5,
+      "metadata": {}
+    }
+  ]
+}

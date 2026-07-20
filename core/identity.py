@@ -16,7 +16,10 @@ import hashlib
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
+
+if TYPE_CHECKING:
+    from .identity_facts import FactDomain, FactStatus, FactStore, IdentityFact
 
 # ─── Enums ────────────────────────────────────────────────────────────────────
 
@@ -161,6 +164,17 @@ class IdentitySpec:
     # ── Version history ──────────────────────────────────────────────────────
     version_history: List[IdentityVersion] = field(default_factory=list)
 
+    # ── Evolved identity fields (updated by IdentityMutationEngine) ──────────
+    preferences: Dict[str, Any] = field(default_factory=dict)
+    beliefs: Dict[str, Any] = field(default_factory=dict)
+    likes: List[str] = field(default_factory=list)
+    dislikes: List[str] = field(default_factory=list)
+    habits: List[str] = field(default_factory=list)
+    communication_tendencies: Dict[str, Any] = field(default_factory=dict)
+
+    # ── Mutation audit trail ──────────────────────────────────────────────────
+    mutation_history: List[Dict[str, Any]] = field(default_factory=list)
+
     # ── Evaluation baseline ──────────────────────────────────────────────────
     # Set by the Evaluation module after first comprehensive eval
     fidelity_baseline: Optional[float] = None
@@ -245,6 +259,92 @@ class IdentitySpec:
                 return t
         return None
 
+    # ── FactStore-backed query methods ──────────────────────────────────
+    # These query the canonical FactStore when available, falling back to
+    # legacy IdentitySpec fields for backwards compatibility.
+
+    def get_facts(
+        self, field: str = "", fact_store: Optional["FactStore"] = None,
+    ) -> List["IdentityFact"]:
+        """Return all canonical facts, optionally filtered by field."""
+        if fact_store is not None:
+            if field:
+                return fact_store.by_field(field)
+            return fact_store.all()
+        return []
+
+    def get_preferences(
+        self, fact_store: Optional["FactStore"] = None,
+    ) -> Dict[str, Any]:
+        """Return preferences, preferring FactStore canonical facts."""
+        if fact_store is not None:
+            active = [f for f in fact_store.by_domain(FactDomain.PREFERENCE)
+                      if f.status == FactStatus.ACTIVE]
+            if active:
+                return {f.field.split(".")[-1]: f.value for f in active}
+        return dict(self.preferences)
+
+    def get_beliefs(
+        self, fact_store: Optional["FactStore"] = None,
+    ) -> Dict[str, Any]:
+        if fact_store is not None:
+            active = [f for f in fact_store.by_domain(FactDomain.BELIEF)
+                      if f.status == FactStatus.ACTIVE]
+            if active:
+                return {f.field.split(".")[-1]: f.value for f in active}
+        return dict(self.beliefs)
+
+    def get_traits_from_facts(
+        self, fact_store: Optional["FactStore"] = None,
+    ) -> List[Dict[str, Any]]:
+        """Return canonical trait facts as structured dicts."""
+        if fact_store is not None:
+            trait_facts = [f for f in fact_store.by_domain(FactDomain.TRAIT)
+                           if f.status == FactStatus.ACTIVE]
+            if trait_facts:
+                return [
+                    {"name": f.field.split(".")[-1], "score": f.value.get("score", 0.5),
+                     "description": f.value.get("description", "")}
+                    if isinstance(f.value, dict) else
+                    {"name": f.field.split(".")[-1], "score": 0.5, "description": str(f.value)}
+                    for f in trait_facts
+                ]
+        return [{"name": t.name, "score": t.score, "description": t.description}
+                for t in self.traits]
+
+    def explain_fact(
+        self, field: str, fact_store: Optional["FactStore"] = None,
+    ) -> Dict[str, Any]:
+        """
+        Return a complete explanation of a fact: current value, confidence,
+        evidence, version history, and any superseded versions.
+        """
+        if fact_store is None:
+            return {"field": field, "error": "No FactStore available"}
+        current = fact_store.find(field)
+        versions = fact_store.all_versions_for_field(field)
+        return {
+            "field": field,
+            "current": {
+                "value": current.value if current else None,
+                "confidence": current.confidence if current else None,
+                "status": current.status.value if current else None,
+                "times_reinforced": current.times_reinforced if current else 0,
+                "last_confirmed": current.last_confirmed if current else None,
+                "reasons": current.reasons if current else [],
+                "evidence_ids": current.evidence_ids if current else [],
+            } if current else None,
+            "version_count": len(versions),
+            "versions": [
+                {"value": v.value, "confidence": v.confidence,
+                 "status": v.status.value, "first_seen": v.first_seen,
+                 "last_confirmed": v.last_confirmed,
+                 "times_reinforced": v.times_reinforced,
+                 "version_log": v.version_history}
+                for v in versions
+            ],
+        }
+
     def to_dict(self) -> Dict[str, Any]:
         """Serialize to a plain dict for storage/transport."""
         return {
@@ -279,6 +379,13 @@ class IdentitySpec:
             "preferred_adapter": self.preferred_adapter,
             "preferred_model": self.preferred_model,
             "adapter_overrides": self.adapter_overrides,
+            "preferences": self.preferences,
+            "beliefs": self.beliefs,
+            "likes": self.likes,
+            "dislikes": self.dislikes,
+            "habits": self.habits,
+            "communication_tendencies": self.communication_tendencies,
+            "mutation_history": self.mutation_history,
             "fidelity_baseline": self.fidelity_baseline,
             "tags": self.tags,
             "extra": self.extra,
@@ -337,6 +444,13 @@ class IdentitySpec:
             preferred_adapter=data.get("preferred_adapter", "openai"),
             preferred_model=data.get("preferred_model", "gpt-4o"),
             adapter_overrides=data.get("adapter_overrides", {}),
+            preferences=data.get("preferences", {}),
+            beliefs=data.get("beliefs", {}),
+            likes=data.get("likes", []),
+            dislikes=data.get("dislikes", []),
+            habits=data.get("habits", []),
+            communication_tendencies=data.get("communication_tendencies", {}),
+            mutation_history=data.get("mutation_history", []),
             fidelity_baseline=data.get("fidelity_baseline"),
             tags=data.get("tags", []),
             extra=data.get("extra", {}),

@@ -1,0 +1,102 @@
+[
+  {
+    "id": "37cd3c08-0035-4173-a29c-73540067cad5",
+    "identity_id": "leo",
+    "content": "User: I'm Leonardo, the middle brother.\nAssistant: [No adapter configured. Context prepared for Leonardo]",
+    "memory_type": "episodic",
+    "confidence": "medium",
+    "source": "unknown",
+    "session_id": "5fcb6fbb-60ad-4534-8dce-f130937f33cb",
+    "created_at": "2026-07-20T19:50:48.010434+00:00",
+    "last_accessed": null,
+    "importance": 0.5,
+    "access_count": 0,
+    "decay_factor": 1.0,
+    "embedding_id": null,
+    "related_memory_ids": [],
+    "tags": [
+      "interaction"
+    ],
+    "extra": {}
+  },
+  {
+    "id": "e01b0a2c-aad9-4b3d-a987-826f433e78f5",
+    "identity_id": "leo",
+    "content": "User: My older brother is Hector, my younger is Max.\nAssistant: [No adapter configured. Context prepared for Leonardo]",
+    "memory_type": "episodic",
+    "confidence": "medium",
+    "source": "unknown",
+    "session_id": "5fcb6fbb-60ad-4534-8dce-f130937f33cb",
+    "created_at": "2026-07-20T19:50:48.012651+00:00",
+    "last_accessed": null,
+    "importance": 0.5,
+    "access_count": 0,
+    "decay_factor": 1.0,
+    "embedding_id": null,
+    "related_memory_ids": [],
+    "tags": [
+      "interaction"
+    ],
+    "extra": {}
+  },
+  {
+    "id": "cebf8d9c-bc44-4a1c-b5b8-680abdcbcf3f",
+    "identity_id": "leo",
+    "content": "User: Hector is strong and protective, I handle the planning.\nAssistant: [No adapter configured. Context prepared for Leonardo]",
+    "memory_type": "episodic",
+    "confidence": "medium",
+    "source": "unknown",
+    "session_id": "5fcb6fbb-60ad-4534-8dce-f130937f33cb",
+    "created_at": "2026-07-20T19:50:48.020552+00:00",
+    "last_accessed": null,
+    "importance": 0.5,
+    "access_count": 0,
+    "decay_factor": 1.0,
+    "embedding_id": null,
+    "related_memory_ids": [],
+    "tags": [
+      "interaction"
+    ],
+    "extra": {}
+  },
+  {
+    "id": "639743fa-6ccf-46b7-a65a-179115fdd046",
+    "identity_id": "leo",
+    "content": "User: Max is the youngest and wildest of us three.\nAssistant: [No adapter configured. Context prepared for Leonardo]",
+    "memory_type": "episodic",
+    "confidence": "medium",
+    "source": "unknown",
+    "session_id": "5fcb6fbb-60ad-4534-8dce-f130937f33cb",
+    "created_at": "2026-07-20T19:50:48.023085+00:00",
+    "last_accessed": null,
+    "importance": 0.5,
+    "access_count": 0,
+    "decay_factor": 1.0,
+    "embedding_id": null,
+    "related_memory_ids": [],
+    "tags": [
+      "interaction"
+    ],
+    "extra": {}
+  },
+  {
+    "id": "5e46049c-0173-4354-8c89-e058d917ec12",
+    "identity_id": "leo",
+    "content": "User: Together we make a great team.\nAssistant: [No adapter configured. Context prepared for Leonardo]",
+    "memory_type": "episodic",
+    "confidence": "medium",
+    "source": "unknown",
+    "session_id": "5fcb6fbb-60ad-4534-8dce-f130937f33cb",
+    "created_at": "2026-07-20T19:50:48.025601+00:00",
+    "last_accessed": null,
+    "importance": 0.5,
+    "access_count": 0,
+    "decay_factor": 1.0,
+    "embedding_id": null,
+    "related_memory_ids": [],
+    "tags": [
+      "interaction"
+    ],
+    "extra": {}
+  }
+]

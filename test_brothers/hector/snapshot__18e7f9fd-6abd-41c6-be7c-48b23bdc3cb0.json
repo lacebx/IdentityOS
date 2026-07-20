@@ -1,0 +1,33 @@
+{
+  "snapshot_id": "18e7f9fd-6abd-41c6-be7c-48b23bdc3cb0",
+  "identity_id": "hector",
+  "captured_at": 1784577048.1812272,
+  "label": "after-chat",
+  "schema_version": "1.0.0",
+  "modules": {
+    "identity": {
+      "id": "hector",
+      "name": "Hector",
+      "persona": "oldest brother, protective leader",
+      "created_at": 1784577047.5194337,
+      "version": "0.1.0"
+    },
+    "experience": {
+      "entries": []
+    },
+    "knowledge": {
+      "packs": []
+    },
+    "motivations": {
+      "active": []
+    },
+    "timeline": {
+      "events": []
+    },
+    "relationships": {
+      "nodes": [],
+      "edges": []
+    }
+  },
+  "meta": {}
+}

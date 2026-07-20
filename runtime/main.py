@@ -240,9 +240,11 @@ def get_identity(identity_id: str):
 
 @app.get("/identity")
 def list_identities():
-    """List all available identity IDs."""
-    specs = runtime.list_identities()
-    return {"identities": [s.id for s in specs]}
+    """List all available identity IDs (loaded + stored)."""
+    loaded = {s.id for s in runtime.list_identities()}
+    stored = set(storage.list_identities())
+    all_ids = sorted(loaded | stored)
+    return {"identities": all_ids}
 
 
 @app.get("/memories/{user_id}/{identity_id}", response_model=MemoriesResponse)
@@ -265,4 +267,4 @@ def clear_memories(user_id: str, identity_id: str):
 
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("runtime.main:app", host="0.0.0.0", port=8765, reload=False)

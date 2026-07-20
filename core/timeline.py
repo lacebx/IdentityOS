@@ -35,6 +35,12 @@ class LifeEventType(Enum):
     FAILURE = "failure"               # Significant failure or setback
     PROMOTION = "promotion"           # Identity version upgraded
     TRANSFORMATION = "transformation" # Core identity change
+    PREFERENCE_LEARNED = "preference_learned"
+    BELIEF_ADOPTED = "belief_adopted"
+    TRAIT_CHANGED = "trait_changed"
+    TRUST_CHANGED = "trust_changed"
+    COMMUNICATION_CHANGED = "communication_changed"
+    CONTRADICTION_RESOLVED = "contradiction_resolved"
     DORMANCY = "dormancy"             # Extended period of inactivity
     REACTIVATION = "reactivation"     # Return after dormancy
 

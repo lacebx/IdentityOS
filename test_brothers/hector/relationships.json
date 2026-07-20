@@ -1,0 +1,20 @@
+{
+  "edges": [
+    {
+      "id": "3a2f0270-482d-4790-a7ad-5be5ca5b0ce7",
+      "source_id": "hector",
+      "target_id": "98467aba-06d4-4210-93cc-7390c8520252",
+      "edge_type": "peer",
+      "trust_level": 2,
+      "strength": 1.0,
+      "bidirectional": false,
+      "context": "",
+      "permissions": [],
+      "labels": [],
+      "established_at": "2026-07-20T19:50:48.001066",
+      "last_interaction": "2026-07-20T19:50:48.009477",
+      "interaction_count": 5,
+      "metadata": {}
+    }
+  ]
+}

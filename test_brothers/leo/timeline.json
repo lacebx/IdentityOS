@@ -1,0 +1,86 @@
+{
+  "events": [
+    {
+      "id": "37cc84c0-9c08-4950-a487-9f72efb77ebf",
+      "identity_id": "leo",
+      "event_type": "creation",
+      "title": "Identity Created",
+      "description": "This identity came into existence.",
+      "significance": 5,
+      "linked_entity_id": null,
+      "occurred_at": "2026-07-20T19:50:47.981954",
+      "metadata": {}
+    },
+    {
+      "id": "bfa14306-8298-4f1d-a59c-771d4e09f716",
+      "identity_id": "leo",
+      "event_type": "milestone",
+      "title": "Interaction",
+      "description": "User said: I'm Leonardo, the middle brother.",
+      "significance": 2,
+      "linked_entity_id": null,
+      "occurred_at": "2026-07-20T19:50:48.010876",
+      "metadata": {
+        "session_id": "5fcb6fbb-60ad-4534-8dce-f130937f33cb",
+        "eval_score": 0.5333333333333333
+      }
+    },
+    {
+      "id": "32dcea9a-c0dc-4342-90bb-387fda9d7bdd",
+      "identity_id": "leo",
+      "event_type": "milestone",
+      "title": "Interaction",
+      "description": "User said: My older brother is Hector, my younger is Max.",
+      "significance": 2,
+      "linked_entity_id": null,
+      "occurred_at": "2026-07-20T19:50:48.014180",
+      "metadata": {
+        "session_id": "5fcb6fbb-60ad-4534-8dce-f130937f33cb",
+        "eval_score": 0.5333333333333333
+      }
+    },
+    {
+      "id": "f97f9116-067f-455d-bb9e-d94f218dc2ef",
+      "identity_id": "leo",
+      "event_type": "milestone",
+      "title": "Interaction",
+      "description": "User said: Hector is strong and protective, I handle the planning.",
+      "significance": 2,
+      "linked_entity_id": null,
+      "occurred_at": "2026-07-20T19:50:48.021322",
+      "metadata": {
+        "session_id": "5fcb6fbb-60ad-4534-8dce-f130937f33cb",
+        "eval_score": 0.5333333333333333
+      }
+    },
+    {
+      "id": "53c14698-aebf-428d-baa4-b303936cd97e",
+      "identity_id": "leo",
+      "event_type": "milestone",
+      "title": "Interaction",
+      "description": "User said: Max is the youngest and wildest of us three.",
+      "significance": 2,
+      "linked_entity_id": null,
+      "occurred_at": "2026-07-20T19:50:48.023812",
+      "metadata": {
+        "session_id": "5fcb6fbb-60ad-4534-8dce-f130937f33cb",
+        "eval_score": 0.5333333333333333
+      }
+    },
+    {
+      "id": "3fa19c8d-5695-454f-a625-d47de37f7ef4",
+      "identity_id": "leo",
+      "event_type": "milestone",
+      "title": "Interaction",
+      "description": "User said: Together we make a great team.",
+      "significance": 2,
+      "linked_entity_id": null,
+      "occurred_at": "2026-07-20T19:50:48.026303",
+      "metadata": {
+        "session_id": "5fcb6fbb-60ad-4534-8dce-f130937f33cb",
+        "eval_score": 0.5333333333333333
+      }
+    }
+  ],
+  "created_at": "2026-07-20T19:50:47.981954"
+}

@@ -747,3 +747,11 @@ body {
   padding-top: 4px;
   border-top: 1px solid var(--border);
 }
+
+/* Timeline evolution event type colors */
+.tl-type.preference_learned { color: var(--orange); }
+.tl-type.belief_adopted { color: var(--purple); }
+.tl-type.trait_changed { color: var(--green); }
+.tl-type.trust_changed { color: var(--yellow); }
+.tl-type.communication_changed { color: var(--accent); }
+.tl-type.contradiction_resolved { color: var(--red); }
