@@ -387,6 +387,16 @@ class IdentitySpec:
             "tags": self.tags,
             "extra": self.extra,
             "mutability": {k: v.value for k, v in self.mutability.items()},
+            "version_history": [
+                {
+                    "version": vh.version,
+                    "created_at": vh.created_at.isoformat(),
+                    "fingerprint": vh.fingerprint,
+                    "changelog": vh.changelog,
+                    "branch": vh.branch,
+                }
+                for vh in self.version_history
+            ],
         }
 
     @classmethod
@@ -460,6 +470,16 @@ class IdentitySpec:
                 "persona": MutabilityLevel.MUTABLE,
                 "communication_style": MutabilityLevel.MUTABLE,
             },
+            version_history=[
+                IdentityVersion(
+                    version=v["version"],
+                    created_at=datetime.fromisoformat(v["created_at"]),
+                    fingerprint=v["fingerprint"],
+                    changelog=v.get("changelog", ""),
+                    branch=v.get("branch"),
+                )
+                for v in data.get("version_history", [])
+            ],
         )
 
 

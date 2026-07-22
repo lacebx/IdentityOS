@@ -111,13 +111,14 @@ class UserProfile:
             return 0.3
         unique_values = len(set(str(e.value) for e in evidence))
         if unique_values > 1:
-            # Contradiction detected — reduce confidence
-            return max(0.1, 0.7 - (0.2 * (unique_values - 1)))
+            decay = 0.15 * (unique_values - 1)
+            return max(0.1, 0.7 - decay)
         # Reinforcement: each additional confirmation increases confidence
-        return min(1.0, 0.6 + (0.05 * n))
+        # First evidence starts at 0.7, each reinforcement adds 0.05
+        return min(1.0, 0.65 + (0.05 * n))
 
     def add_or_update(self, field: str, value: Any,
-                      source: str = "", confidence: float = 0.7) -> UserFact:
+                      source: str = "", confidence: Optional[float] = None) -> UserFact:
         existing = self._facts.get(field)
         now = datetime.now(timezone.utc).isoformat()
         evidence_record = EvidenceRecord(
@@ -134,7 +135,6 @@ class UserProfile:
             if len(unique_values) > 1:
                 existing.contradictions += 1
                 existing.uncertain = True
-                # Don't overwrite value — mark as uncertain
                 existing.confidence = self._compute_confidence(existing.evidence)
                 if source:
                     existing.source_conversation = source
@@ -146,11 +146,12 @@ class UserProfile:
             if source:
                 existing.source_conversation = source
             return existing
+        computed = self._compute_confidence([evidence_record])
         fact = UserFact(
             fact_id=str(uuid.uuid4()),
             field=field,
             value=value,
-            confidence=confidence,
+            confidence=confidence if confidence is not None else computed,
             source_conversation=source,
             evidence=[evidence_record],
         )

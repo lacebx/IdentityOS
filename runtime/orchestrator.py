@@ -89,7 +89,7 @@ _EMOTION_PATTERNS: Dict[str, List[str]] = {
     "angry": ["angry", "furious", "mad", "annoyed", "frustrated", "irritated", "rage", "livid"],
     "anxious": ["anxious", "worried", "nervous", "fearful", "scared", "terrified", "panicked", "stressed"],
     "grateful": ["grateful", "thankful", "appreciative", "blessed", "fortunate"],
-    "confused": ["confused", "unsure", "uncertain", "perplexed", "baffled", "puzzled"],
+    "confused": ["confused", "confusing", "unsure", "uncertain", "perplexed", "baffled", "puzzled"],
     "hurt": ["hurt", "offended", "insulted", "betrayed", "wounded", "pained"],
     "proud": ["proud", "accomplished", "achieved", "triumph", "victory"],
 }
@@ -146,8 +146,8 @@ def detect_identity_rename_attempt(user_input: str) -> Optional[str]:
 # Session mode detection patterns
 _ROLEPLAY_TRIGGERS = re.compile(
     r"(?:let'?s\s+role\s*play|pretend(?:\s+that)?|act\s+as)"
-    r"(?:\s+(?:you\s+are|you'?re))?"
-    r"(?:\s+(?:a|an|the))?\s+(.+?)(?=[.,!?]|$)",
+    r"(?:[.\s]*(?:you\s+are|you'?re))?"
+    r"(?:[.\s]*(?:a|an|the))?\s+(.+?)(?=[.,!?]|$)",
     re.IGNORECASE,
 )
 
@@ -1386,6 +1386,15 @@ class IdentityRuntime:
                         field=proposal.field,
                         reason=proposal.rejection_reason,
                     )
+
+            # Bump identity version if any mutations were accepted
+            accepted_count = sum(1 for p in validated if p.status == MutationStatus.ACCEPTED)
+            if accepted_count > 0 and session_mode == SessionMode.NORMAL:
+                fields_changed = [p.field for p in validated if p.status == MutationStatus.ACCEPTED]
+                identity.bump_version(
+                    level="patch",
+                    changelog=f"Mutated: {', '.join(fields_changed[:3])}",
+                )
 
             # Persist the appropriate fact store
             if session_mode == SessionMode.NORMAL:

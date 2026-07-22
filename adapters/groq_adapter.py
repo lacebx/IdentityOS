@@ -40,7 +40,7 @@ class GroqAdapter(OpenAIAdapter):
         self._keys: List[str] = api_keys or []
         if not self._keys:
             seen = set()
-            for env_var in ("GROQ_API_KEY", "GROQ_API_KEY_2", "GROQ_API_KEY_3", "GROQ_API_KEY_4"):
+            for env_var in ("GROQ_API_KEY", "GROQ_API_KEY_2", "GROQ_API_KEY_3", "GROQ_API_KEY_4", "GROQ_API_KEY_5", "GROQ_API_KEY_6"):
                 val = os.environ.get(env_var)
                 if val and val.strip() and "PLACEHOLDER" not in val and val not in seen:
                     seen.add(val)
