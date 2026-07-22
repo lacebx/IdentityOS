@@ -20,6 +20,7 @@ from core.evaluation import (
     is_worth_remembering,
 )
 from core.goals import GoalEngine
+from core.intentions import IntentionEngine
 from core.identity import IdentitySpec, IdentityStore, MutabilityLevel
 from core.identity_facts import FactStore
 from core.identity_mutation import (
@@ -263,6 +264,7 @@ class IdentityRuntime:
         self.memory_store = MemoryStore()
         self.skill_registry = SkillRegistry()
         self.goal_engine = GoalEngine()
+        self.intention_engine = IntentionEngine()
         self.identity_graph = IdentityGraph()
         self.policy_engine = PolicyEngine()
         self.evaluation_engine = EvaluationEngine()
@@ -1213,6 +1215,7 @@ class IdentityRuntime:
             memory_store=self.memory_store,
             skill_registry=self.skill_registry,
             goal_engine=self.goal_engine,
+            intention_engine=self.intention_engine,
             identity_graph=self.identity_graph,
             motivation_engine=self.motivation_engine,
             timeline_registry=self.timeline_registry,

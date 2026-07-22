@@ -45,6 +45,7 @@ class ComposedContext:
     memory_block: str = ""
     skills_block: str = ""
     goals_block: str = ""
+    intentions_block: str = ""
     relationships_block: str = ""
     motivations_block: str = ""
     timeline_block: str = ""
@@ -74,6 +75,8 @@ class ComposedContext:
             sections.append(self.skills_block)
         if self.goals_block:
             sections.append(self.goals_block)
+        if self.intentions_block:
+            sections.append(self.intentions_block)
         if self.relationships_block:
             sections.append(self.relationships_block)
         if self.motivations_block:
@@ -128,6 +131,7 @@ class ContextComposer:
         memory_store: Optional["MemoryStore"] = None,
         skill_registry: Optional["SkillRegistry"] = None,
         goal_engine: Optional["GoalEngine"] = None,
+        intention_engine: Optional[Any] = None,
         identity_graph: Optional["IdentityGraph"] = None,
         motivation_engine: Optional[Any] = None,
         timeline_registry: Optional[Any] = None,
@@ -216,6 +220,9 @@ class ContextComposer:
 
         if self.include_goals and goal_engine:
             ctx.goals_block = goal_engine.to_prompt_summary()
+
+        if intention_engine:
+            ctx.intentions_block = intention_engine.to_prompt_summary()
 
         if self.include_relationships and identity_graph:
             ctx.relationships_block = identity_graph.to_prompt_block(identity.id)
