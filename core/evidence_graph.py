@@ -15,6 +15,8 @@ Every identity fact knows why it exists:
   Contradictions: 0
 
 This graph replaces flat belief storage with inspectable provenance.
+It is entity-ID-agnostic — any knowledge object (fact, goal, intention,
+memory, relationship) can be linked to evidence.
 """
 
 from __future__ import annotations
@@ -24,6 +26,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional
+
+from .confidence import ConfidenceScorer
 
 
 class EvidenceType(str, Enum):
@@ -161,16 +165,31 @@ class EvidenceGraph:
         - All evidence nodes
         - All edges
         - Summary of how many evidence items, types, etc.
+        - Computed confidence score
         """
         nodes = self.evidence_for(fact_id)
         edges = [e for e in self._edges.values() if e.fact_id == fact_id]
+        values = [n.source_text or n.description for n in nodes]
+        confidence = self.confidence_for(fact_id)
         return {
             "fact_id": fact_id,
             "evidence_count": len(nodes),
+            "confidence": confidence,
+            "confidence_label": ConfidenceScorer.label(confidence),
             "evidence": [n.to_dict() for n in nodes],
             "edges": [e.to_dict() for e in edges],
             "evidence_types": list(set(n.evidence_type.value for n in nodes)),
         }
+
+    def confidence_for(self, entity_id: str) -> float:
+        """Compute confidence score for an entity based on its evidence.
+        Uses the evidence node description as the stable claim value.
+        """
+        nodes = self.evidence_for(entity_id)
+        if not nodes:
+            return 0.65
+        values = [n.description or n.source_text for n in nodes]
+        return ConfidenceScorer.compute_from_values(values)
 
     def add_conversation_evidence(
         self, fact_id: str, conversation_text: str,

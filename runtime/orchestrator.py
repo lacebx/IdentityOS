@@ -8,6 +8,12 @@ from enum import Enum
 from typing import Any, Dict, List, Optional
 
 from core.cognitive_engine import ComposedContext, ContextComposer
+from core.migrations import (
+    MigrationManager,
+    MigrationRegistry,
+    CURRENT_SCHEMA_VERSION,
+    register_core_migrations,
+)
 from core.evaluation import (
     EvaluationEngine,
     classify_memory_type,
@@ -274,6 +280,13 @@ class IdentityRuntime:
         self._session_fact_stores: Dict[str, FactStore] = {}
         self._storage = storage
 
+        # Migration framework — upgrades persisted data on load
+        self._migration_registry = MigrationRegistry()
+        register_core_migrations(self._migration_registry)
+        self._migration_manager = MigrationManager(
+            self._migration_registry, storage=self._storage,
+        )
+
         # Event Bus — wired into the pipeline but subscribers are opt-in
         self.event_bus = EventBus()
 
@@ -317,6 +330,9 @@ class IdentityRuntime:
                         datetime.fromtimestamp(identity_data["created_at"], tz=timezone.utc)
                         .isoformat()
                     )
+                identity_data = self._migration_manager.migrate_blob_in_place(
+                    identity_data, identity_id=identity_id, namespace="identity_spec",
+                )
                 spec = IdentitySpec.from_dict(identity_data)
                 self.identity_store.save(spec)
                 self.timeline_registry.create(spec.id)
@@ -324,6 +340,7 @@ class IdentityRuntime:
                 self._load_relationships(spec.id)
                 self._load_goals(spec.id)
                 self._load_fact_store(spec.id)
+                self._load_persisted_memories(spec.id)
                 return spec
         return None
 
@@ -350,21 +367,24 @@ class IdentityRuntime:
         """Load all identities from the persistence backend into the in-memory store.
 
         Also loads persisted memories for each identity.
+        Runs any pending schema migrations on persisted data.
 
         Returns the number of identities loaded.
         """
         if not self._storage:
             return 0
+        self._migration_manager.migrate_all()
         ids = self._storage.list_identities()
         count = 0
         for identity_id in ids:
             if self.load(identity_id):
-                self._load_persisted_memories(identity_id)
                 count += 1
         return count
 
     def _load_persisted_memories(self, identity_id: str) -> int:
-        """Load persisted memories for an identity into the in-memory store."""
+        """Load persisted memories for an identity into the in-memory store.
+        Skips duplicates (by fragment ID) to prevent memory duplication on reload.
+        """
         if not self._storage:
             return 0
         mem_dicts = self._storage.load_memories(identity_id)
@@ -372,6 +392,8 @@ class IdentityRuntime:
         for d in mem_dicts:
             try:
                 frag = MemoryFragment.from_dict(d)
+                if self.memory_store.get(frag.id):
+                    continue
                 self.memory_store.add(frag)
                 count += 1
             except Exception:
@@ -503,27 +525,7 @@ class IdentityRuntime:
         if not self._storage:
             return
         try:
-            goals_data = []
-            for g in self.goal_engine.active():
-                goals_data.append({
-                    "id": g.id,
-                    "title": g.title,
-                    "description": g.description,
-                    "status": g.status.value,
-                    "priority": g.priority.value,
-                    "scope": g.scope.value,
-                    "parent_id": g.parent_id,
-                    "progress": g.progress,
-                    "created_at": g.created_at.isoformat(),
-                    "updated_at": g.updated_at.isoformat(),
-                    "deadline": g.deadline.isoformat() if g.deadline else None,
-                    "tags": g.tags,
-                    "metadata": g.metadata,
-                    "success_criteria": g.success_criteria,
-                    "required_skills": g.required_skills,
-                    "required_knowledge": g.required_knowledge,
-                })
-            self._storage.save(identity_id, "goals", {"goals": goals_data})
+            self._storage.save(identity_id, "goals", self.goal_engine.to_dict())
         except Exception:
             pass
 
@@ -612,28 +614,10 @@ class IdentityRuntime:
             data = self._storage.load(identity_id, "goals")
             if not data:
                 return
-            from datetime import datetime
-            from core.goals import Goal, GoalStatus, GoalPriority, GoalScope
-            for gd in data.get("goals", []):
-                goal = Goal(
-                    id=gd["id"],
-                    title=gd["title"],
-                    description=gd.get("description", ""),
-                    status=GoalStatus(gd["status"]),
-                    priority=GoalPriority(gd["priority"]),
-                    scope=GoalScope(gd.get("scope", "persistent")),
-                    parent_id=gd.get("parent_id"),
-                    progress=gd.get("progress", 0.0),
-                    created_at=datetime.fromisoformat(gd["created_at"]),
-                    updated_at=datetime.fromisoformat(gd["updated_at"]),
-                    deadline=datetime.fromisoformat(gd["deadline"]) if gd.get("deadline") else None,
-                    tags=gd.get("tags", []),
-                    metadata=gd.get("metadata", {}),
-                    success_criteria=gd.get("success_criteria", ""),
-                    required_skills=gd.get("required_skills", []),
-                    required_knowledge=gd.get("required_knowledge", []),
-                )
-                self.goal_engine.add(goal)
+            from core.goals import GoalEngine
+            loaded = GoalEngine.from_dict(data)
+            for g in loaded.all():
+                self.goal_engine.add(g)
         except Exception:
             pass
 
