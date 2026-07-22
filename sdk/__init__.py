@@ -1,23 +1,9 @@
 """
-IdentityOS SDK — the primary developer interface for IdentityOS.
+IdentityOS SDK — legacy compatibility shim.
 
-Usage:
-    from sdk import Identity
-
-    # Load an existing identity
-    lace = Identity.load("lace")
-    reply = lace.chat("Hello!")
-    print(reply)
-
-    # Create a new identity
-    mentor = Identity.create("Mentor", persona="mentor")
-    mentor.chat("What is your purpose?")
-
-    # Import/export
-    lace.export("lace.json")
-    restored = Identity.from_file("lace.json")
+New code should use:
+    from identityos import Identity
 """
-
-from .identity_object import Identity, IdentityObject
+from sdk.identity_object import Identity, IdentityObject
 
 __all__ = ["Identity", "IdentityObject"]

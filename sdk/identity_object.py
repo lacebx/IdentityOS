@@ -84,20 +84,41 @@ class Identity:
         cls,
         name: str,
         identity_id: Optional[str] = None,
+        identity_class: str = "agent",
         persona: str = "",
         role: str = "",
         storage_path: str = ".identity_store",
     ) -> IdentityObject:
-        """Create a new identity and register it with the runtime."""
+        """Create a new identity and register it with the runtime.
+
+        Args:
+            name: Display name for the identity
+            identity_id: Optional unique ID (auto-generated if omitted)
+            identity_class: "agent", "assistant", "user", "system", etc.
+            persona: Personality descriptor
+            role: Functional role description
+            storage_path: Directory for persistent storage
+        """
         from runtime.persistence import JSONFileBackend
         from runtime.orchestrator import IdentityRuntime
-        from core.identity import create_identity
+        from core.identity import create_identity, IdentityClass
+
+        ic_map = {
+            "agent": IdentityClass.AGENT,
+            "person": IdentityClass.PERSON,
+            "robot": IdentityClass.ROBOT,
+            "organization": IdentityClass.ORGANIZATION,
+            "concept": IdentityClass.CONCEPT,
+            "custom": IdentityClass.CUSTOM,
+        }
+        identity_class_enum = ic_map.get(identity_class, IdentityClass.AGENT)
 
         storage = JSONFileBackend(root_dir=storage_path)
         runtime = IdentityRuntime(storage=storage)
         spec = create_identity(
             name=name,
             identity_id=identity_id,
+            identity_class=identity_class_enum,
             persona=persona,
             role=role,
         )
