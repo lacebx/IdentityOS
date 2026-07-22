@@ -6,254 +6,65 @@
 
 ---
 
-## What is this?
+IdentityOS is a standard for **portable, versionable, persistent digital identities in AI systems**.
 
-IdentityOS is **not another AI wrapper**.
-
-It's an **open standard** for portable, versionable, persistent digital identities in AI systems.
-
-Just as HTTP enabled the web and Docker enabled containers, **IdentityOS aims to enable a world where:**
-
-- ✅ Identities are **portable** (run on any compliant runtime)
-- ✅ Vendors compete on **execution**, not **lock-in**
-- ✅ Users **own** their AI relationships
-- ✅ Innovation happens at the **runtime layer**, not the **format layer**
+Just as HTTP enabled the web and Docker enabled containers, IdentityOS enables a world where:
+- **Identities are portable** — run on any compliant runtime
+- **Vendors compete on execution**, not lock-in
+- **Users own** their AI relationships
+- **Innovation happens at the runtime layer**, not the format layer
 
 ---
 
-## The Problem
+## Current Status: Foundation Complete, Ecosystem Building
 
-Today's AI systems couple identity with execution:
+**IdentityOS Architecture Foundation v1 is complete.**
 
-- ChatGPT conversations exist only in ChatGPT
-- Claude Projects live only in Claude  
-- Custom GPTs are locked to OpenAI's infrastructure
+The constitution, laws, amendment system, migration framework, goal engine, intention engine, evidence graph, and confidence system have all been implemented and verified.
 
-This creates:
-- **Vendor lock-in**: You cannot take "your AI" elsewhere
-- **Fragmentation**: Every provider reinvents identity from scratch  
-- **No continuity**: Conversations reset, context is lost
+**The architecture is now intentionally stable.** Future architectural work should arise from lessons learned while building real applications.
 
----
+### What We're Building Now: [Runtime v2 — Real Agents](https://github.com/lacebx/IdentityOS/milestone/7)
 
-## The Solution
+| Project | Priority |
+|---------|----------|
+| Identity Chat | High |
+| IdentityOS SDK | High |
+| Public REST API | High |
+| Identity Debugger | High |
+| Browser Extension | High |
+| Discord Agent | Medium |
+| VSCode Extension | Medium |
+| Identity Replay | Medium |
+| Long-running Benchmark | Medium |
+| Developer Examples | Medium |
 
-### Define identity as a portable data structure, separate from any runtime.
-
-An identity conforming to OIS (Open Identity Specification) is:
-
-- **Portable**: Runs on any compliant runtime  
-- **Versionable**: Can be snapshotted, diffed, and rolled back  
-- **Persistent**: Survives model changes, infrastructure migrations  
-- **Composable**: Can be transferred, forked, merged
+Full roadmap: [docs/ROADMAP.md](docs/ROADMAP.md)
 
 ---
 
 ## Architecture
 
-IdentityOS organizes identity state into **12 bounded modules**:
+IdentityOS organizes identity state into **governed modules**, each with a constitutional foundation:
 
-| Module | Purpose |
-|---|---|
-| **Identity** | Core metadata (id, name, persona) |
-| **Timeline** | Chronological biography (Git history for identities) |
-| **Experience** | Accumulated interactions and memories |
-| **Knowledge** | Domain-specific declarative knowledge |
-| **Skills** | Executable capabilities (tools, APIs) |
-| **Capabilities** | Physical/environmental affordances (vision, speech, locomotion) |
-| **Permissions** | Authorization scopes (what the identity is *allowed* to do) |
-| **Motivations** | Goals, drives, priorities |
-| **Policies** | Behavioral constraints and rules |
-| **Relationships** | Graph of connections to other identities/entities |
-| **Health** | Observable metrics (saturation, stability, drift) |
-| **Evaluation** | Performance reports and feedback |
+| Module | Constitution Article | Description |
+|--------|-------------------|-------------|
+| **Identity** | Article I | Core immutable properties (name, id, values) |
+| **Truth** | Article II | Evidence-based fact model |
+| **Memory** | Article III | Episodic and semantic memory with importance scoring |
+| **Evidence** | Article IV | Immutable evidence chains with full provenance |
+| **Evolution** | Article V | Mutation engine with FactStore-backed growth |
+| **Preferences** | Article VI | Evidence-backed preference tracking |
+| **Relationships** | Article VII | Trust-based relationship graph |
+| **Goals** | Article VIII | Long-term objectives with lifecycle management |
+| **Intentions** | Article IX | Short-term commitments with auto-expiry |
+| **Timeline** | Article X | Append-only identity life story |
+| **Sessions** | Article XI | Mode-detected session isolation |
+| **Canonical Facts** | Article XII | FactStore as single source of truth |
+| **Confidence** | Article XIII | Deterministic evidence-chain confidence |
+| **Amendments** | Article XIV | Constitutional governance mechanism |
 
-### Each module is:
-- **Self-contained**: Clean interfaces, no hidden dependencies
-- **Spec-compliant**: Conforms to `spec/identity.schema.json`  
-- **Portable**: Can be serialized/deserialized to JSON
-
----
-
-## This is a Standard, Not a Product
-
-**IdentityOS** is structured in three layers:
-
-```
-┌─────────────────────────────────────────┐
-│  spec/  — The Open Identity Specification │  ← The Standard (JSON Schema)
-├─────────────────────────────────────────┤
-│  core/ runtime/ — Reference Runtime      │  ← Proof that the spec works
-├─────────────────────────────────────────┤
-│  cli/ adapters/ — Applications           │  ← How humans interact
-└─────────────────────────────────────────┘
-```
-
-### The Specification (`spec/`) can exist without the runtime.
-
-Someone can build:
-- **Microsoft Runtime**  
-- **Google Runtime**  
-- **OpenAI Runtime**  
-- **Local Runtime**
-
-...all implementing the same **Identity Specification**.
-
-That's how ecosystems emerge.
-
----
-
-## Key Concepts
-
-### 1. Identity as Infrastructure
-
-Identities are not features of chat apps.  
-Chat is a feature of identities.
-
-### 2. Capabilities vs Skills
-
-- **Skills** are *declared*: "This identity can search the web"  
-- **Capabilities** are *discovered*: "This identity has access to a camera"
-
-A robot identity discovers:
-- `walking` (if deployed on a mobile chassis)  
-- `vision` (if cameras are connected)  
-- `manipulation` (if equipped with arms)
-
-A cloud identity discovers:
-- `internet` (always available)  
-- `file_system` (if sandbox permits)
-
-Capabilities decouple identity from physical embodiment.
-
-### 3. Permissions vs Policies
-
-- **Policies** describe *behavior*: "Never reveal PII"  
-- **Permissions** describe *authority*: "Allowed to read:records, denied delete:evidence"
-
-Example:
-
-**Officer Maya**
-- **Allowed**: `read:records`, `write:logs`, `use:vehicle`  
-- **Denied**: `delete:evidence`, `approve:warrants`
-
-Runtimes **enforce** permissions at execution time.
-
-### 4. Identity Health
-
-Monitor identity stability over time:
-
-```
-Identity Health Report
-  Memory Saturation    : 92%  ⚠️
-  Knowledge Freshness  : 67%
-  Relationship Drift   : 4%
-  Goal Completion      : 81%
-  Identity Stability   : 98%  ✅
-  Policy Violations    : 0     ✅
-```
-
-Health metrics trigger automatic maintenance (pruning, refresh, etc.).
-
----
-
-## Specification Format
-
-OIS identities are serialized as **JSON** conforming to JSON Schema Draft 2020-12.
-
-**Canonical schema:**  
-`spec/identity.schema.json`
-
-**Minimal valid identity:**
-
-```json
-{
-  "spec_version": "1.0",
-  "identity": {
-    "id": "mentor-01",
-    "name": "Mentor AI",
-    "persona": "mentor"
-  },
-  "created_at": 1689724800.0,
-  "timeline": {"events": []},
-  "experience": {"entries": []},
-  "knowledge": {"packs": []},
-  "skills": {"available": []},
-  "capabilities": {"available": []},
-  "permissions": {"allowed": [], "denied": []},
-  "motivations": {"active": []},
-  "policies": {"rules": []},
-  "relationships": {"nodes": [], "edges": []},
-  "health": {},
-  "evaluation": {"reports": []}
-}
-```
-
-Full specification: [spec/SPEC.md](spec/SPEC.md)
-
----
-
-## Runtime Conformance
-
-A compliant runtime MUST:
-1. **Load** identities from OIS JSON format  
-2. **Execute** sessions that modify identity state  
-3. **Save** state changes back to OIS format  
-4. **Export** identities without data loss
-
-A compliant runtime MAY:
-- Support multiple storage backends (JSON, SQLite, cloud)  
-- Provide snapshot/rollback features  
-- Implement health monitoring  
-- Offer multi-identity orchestration
-
-Extensions MUST NOT:
-- Break schema validation  
-- Prevent portability to other runtimes
-
----
-
-## Getting Started
-
-### 1. Install
-
-```bash
-git clone https://github.com/lacebx/IdentityOS.git
-cd IdentityOS
-pip install -r runtime/requirements.txt
-```
-
-### 2. Create an identity
-
-```bash
-python -m cli.main create --name "Mentor" --persona mentor --id mentor-01
-```
-
-### 3. Start a session
-
-```bash
-python -m cli.main session --id mentor-01
-```
-
-### 4. Inspect the identity
-
-```bash
-python -m cli.main inspect --id mentor-01
-```
-
-### 5. View snapshot history
-
-```bash
-python -m cli.main history --id mentor-01
-```
-
-### 6. Rollback to a prior version
-
-```bash
-python -m cli.main rollback --id mentor-01 --snap <snapshot_id>
-```
-
-Full CLI documentation: [cli/README.md](cli/README.md)
+Full constitution: [docs/constitution/constitution-v1.md](docs/constitution/constitution-v1.md)
 
 ---
 
@@ -261,136 +72,146 @@ Full CLI documentation: [cli/README.md](cli/README.md)
 
 ```
 IdentityOS/
-├── spec/                    ← The Open Identity Specification
-│   ├── identity.schema.json  ← Canonical portable identity format
-│   └── SPEC.md               ← Human-readable specification document
+├── docs/                    ← Governance & planning
+│   ├── constitution/        ← 14-article Identity Constitution
+│   ├── laws/                ← 10 modular Identity Laws
+│   ├── amendments/          ← Amendment records
+│   ├── adr/                 ← Architecture Decision Records
+│   └── ROADMAP.md           ← Current roadmap
 │
-├── core/                    ← Identity modules (OIS-compliant)
-│   ├── identity.py
-│   ├── timeline.py
-│   ├── experience.py
-│   ├── knowledge.py
-│   ├── skills.py
-│   ├── capabilities.py      ← NEW: Runtime-discovered affordances
-│   ├── permissions.py       ← NEW: RBAC authorization system
-│   ├── motivations.py
-│   ├── policies.py
-│   ├── relationships.py
-│   ├── health.py            ← NEW: Identity health monitoring
-│   ├── evaluation.py
-│   ├── cognitive_engine.py
-│   └── snapshot.py          ← Versioning & rollback
+├── core/                    ← Identity modules (constitution-compliant)
+│   ├── identity.py          ← Identity core (immutable + mutable fields)
+│   ├── memory.py            ← Memory store with importance scoring
+│   ├── identity_facts.py    ← FactStore with evidence chains
+│   ├── identity_mutation.py ← Evolution engine
+│   ├── user_profile.py      ← User knowledge with confidence
+│   ├── goals.py             ← Goal engine with lifecycle
+│   ├── intentions/          ← Intention engine with auto-expiry
+│   ├── evidence_graph.py    ← Evidence graph with provenance
+│   ├── confidence/          ← Generalized confidence scorer
+│   ├── relationships.py     ← Identity graph (trust networks)
+│   ├── timeline.py          ← Append-only timeline
+│   ├── migrations/          ← Schema migration framework
+│   └── ...                  ← Other subsystems
 │
-├── runtime/                 ← Reference runtime implementation
+├── runtime/                 ← IdentityOS runtime
 │   ├── orchestrator.py      ← Identity lifecycle management
 │   ├── persistence.py       ← Storage backends (JSON, SQLite, remote)
-│   ├── event_bus.py         ← Pub/sub event system
-│   └── main.py              ← FastAPI service
+│   └── event_bus.py         ← Pub/sub event system
 │
-├── adapters/                ← Model adapters (dumb translation layers)
-│   ├── base.py
-│   ├── openai_adapter.py
-│   ├── anthropic_adapter.py
-│   └── ollama_adapter.py
-│
+├── adapters/                ← Model adapters (Groq, OpenAI, Anthropic, Ollama)
+├── sdk/                     ← Developer SDK (coming soon)
 ├── cli/                     ← Command-line interface
-│   └── main.py              ← create, session, inspect, snapshot, history, rollback, diff
-│
-├── identity_graph/          ← Relationship network (multi-identity)
-│   └── graph.py
-│
-└── sdk/                     ← Python SDK for developers
-    └── identity_object.py
+└── tests/                   ← Test suite
+```
+
+---
+
+## Getting Started
+
+### Prerequisites
+
+- Python 3.10+
+- Git
+
+### Setup
+
+```bash
+git clone https://github.com/lacebx/IdentityOS.git
+cd IdentityOS
+pip install -r runtime/requirements.txt
+```
+
+### CLI Quickstart
+
+```bash
+# Create an identity
+python -m cli.main create --name "Lace" --persona mentor
+
+# Start a session
+python -m cli.main session --id lace
+
+# Inspect identity state
+python -m cli.main inspect --id lace
+```
+
+Full CLI documentation: [cli/README.md](cli/README.md)
+
+### SDK Quickstart (Coming Soon)
+
+```python
+identity = Identity.load("lace")
+
+response = identity.chat("Hello, how are you?")
+goal = identity.goal(description="Learn Python", priority="high")
+rel = identity.relationship("user-123", trust_level=0.8)
+events = identity.timeline(limit=10)
+identity.export("lace-portable.json")
 ```
 
 ---
 
 ## Roadmap
 
-### M1: Core Architecture ✅ **COMPLETE**
-- [x] Modular subsystems (Identity, Experience, Knowledge, Skills, Motivations, Policies, Evaluation)
-- [x] Event-driven orchestration
-- [x] Model-agnostic adapters
-- [x] Timeline subsystem
-- [x] Identity Graph (relationships)
+| Phase | Theme | Status |
+|-------|-------|--------|
+| **Phase 1** | Architecture Foundation | ✅ Complete |
+| **Phase 2** | Runtime Ecosystem | 🔄 Active |
+| **Phase 3** | Ecosystem Expansion | 📋 Planned |
 
-### M2: Persistence Layer ✅ **COMPLETE**
-- [x] StorageBackend interface
-- [x] JSONFileBackend (local dev)
-- [x] SQLiteBackend (lightweight production)
-- [x] RemoteBackend stub (cloud-ready)
-
-### M3: Identity Evolution ✅ **COMPLETE**
-- [x] SnapshotManager (capture, restore, rollback)
-- [x] Diff computation (field-level change tracking)
-- [x] Non-destructive versioning
-- [x] Audit trail
-
-### M4: New Subsystems ✅ **COMPLETE**
-- [x] Capabilities (runtime-discovered affordances)
-- [x] Permissions (RBAC authorization)
-- [x] Health (identity stability monitoring)
-
-### M5: Open Specification ✅ **COMPLETE**
-- [x] JSON Schema (`spec/identity.schema.json`)
-- [x] Specification document (`spec/SPEC.md`)
-- [x] README transformation (standard-first positioning)
-
-### M6: Production Hardening 🔄 **IN PROGRESS**
-- [ ] Authentication & API keys
-- [ ] Rate limiting
-- [ ] Observability (logging, metrics, tracing)
-- [ ] Deployment guides (Docker, K8s)
-- [ ] Performance benchmarks
-
-### M7: Ecosystem Expansion 📋 **PLANNED**
-- [ ] Additional schema definitions (snapshot, capability, permission, health)
-- [ ] Compliance test suite for runtimes
-- [ ] Registry for Knowledge Packs
-- [ ] Multi-runtime transfer examples
-- [ ] Community governance (Open Identity Foundation)
-
----
-
-## Philosophy
-
-### This is not about better prompts.
-
-This is about **persistent entities that grow, remember, and relate** — across any model, any runtime, any session.
-
-### The specification becomes sacred.
-
-`identity.json` is more important than `runtime.py`.
-
-The companies that end up becoming foundational—whether it's Docker, HashiCorp, Stripe, or Kubernetes—tend to win not because they own every implementation, but because they **define clean interfaces** that other people adopt.
-
-If IdentityOS succeeds, the long-term value may come less from "having the best runtime" and more from being the project that **defines how persistent digital identities are represented, versioned, evaluated, transferred, and deployed** across the AI ecosystem.
+Full roadmap: [docs/ROADMAP.md](docs/ROADMAP.md)
 
 ---
 
 ## Contributing
 
-IdentityOS is an open standard. Contributions welcome.
+IdentityOS is an open standard. Contributions welcome in all forms.
 
-### How to contribute:
+### How to Contribute
 
-1. **Fork** the repository  
-2. Create a **feature branch** (`git checkout -b feature/amazing-feature`)  
-3. **Commit** your changes (`git commit -m 'Add amazing feature'`)  
-4. **Push** to the branch (`git push origin feature/amazing-feature`)  
+1. **Fork** the repository
+2. Create a **feature branch** (`git checkout -b feature/amazing-feature`)
+3. **Commit** your changes
+4. **Push** to the branch
 5. Open a **Pull Request**
 
-### Contribution areas:
+### What to Contribute
 
-- **Specification** (`spec/`): Propose new modules, schemas, or clarifications  
-- **Core modules** (`core/`): Improve existing subsystems  
-- **Runtimes**: Build alternative runtime implementations  
-- **Adapters**: Add support for new LLM providers  
-- **Documentation**: Improve examples, tutorials, guides
+- **Applications** — Build on IdentityOS (Chat, Discord, VSCode, Browser)
+- **SDK** — Help build the developer API
+- **Documentation** — Examples, tutorials, guides
+- **Tests** — Improve coverage
+- **Adapters** — New LLM providers
+- **Examples** — Demo projects
 
-| Module | Description |
-|---|---|
-| `identity_object.py` | High-level developer API for creating/managing identities |
+Full contributing guide: [CONTRIBUTING.md](CONTRIBUTING.md)
+
+---
+
+## Governance
+
+IdentityOS uses a **constitutional governance model**:
+
+- **Constitution** — 14 articles defining fundamental principles
+- **Laws** — 10 domain-specific laws with implementation requirements
+- **Amendments** — Formal process for evolving the constitution
+- **ADRs** — Architecture decision records for technical decisions
+
+Changes to the architecture go through a formal amendment process. See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
+
+---
+
+## Future Vision
+
+### Marketplace
+
+A future marketplace for identity components — constitutions, law packs, knowledge packs, skill packs, behavior packs, and more. Inclusion earned through demonstrated production usefulness. See [docs/future/MARKETPLACE_VISION.md](docs/future/MARKETPLACE_VISION.md) for the design document.
+
+### Open Identity Foundation
+
+Future community governance through an **Open Identity Foundation** — ensuring the specification remains vendor-neutral and community-driven.
+
+---
 
 ## License
 
@@ -398,45 +219,21 @@ MIT License — see [LICENSE](LICENSE) for details.
 
 The Open Identity Specification is free to implement. No licensing fees.
 
-## Testing
-
-## Acknowledgments
-
-- Inspired by **Pluto** (anime) — where every robot deserves its own soul  
-- Built on principles from **HTTP**, **Docker Image Spec**, **OpenAPI**, and **OAuth**  
-- Powered by the belief that **identities are infrastructure**
-
 ---
 
 ## Questions?
 
 **Q: Is this just a wrapper around ChatGPT?**  
-No. IdentityOS defines a **standard**, not a product. Any runtime can implement it.
+No. IdentityOS defines a **standard** for portable AI identities. Any runtime can implement it.
 
-**Q: Why JSON? Why not protobuf/YAML/etc.?**  
-JSON is universal, human-readable, and schema-validatable. OIS may define alternate serializations in future versions.
-
-**Q: Can I use this in production today?**  
-OIS v1.0 is in draft. Early adopters are encouraged. Breaking changes are possible before 1.0 final.
+**Q: Can I use this in production?**  
+The architecture foundation is complete. Real-world validation through applications is the current focus.
 
 **Q: Who controls the spec?**  
-The community. Proposed governance: **Open Identity Foundation** (to be established).
+The community. Proposed governance: Open Identity Foundation (to be established).
 
-1. **Resolve** — load identity spec
-2. **Input Policy** — gate input content
-3. **Compose Context** — assemble identity + memory + skills + goals
-4. **Adapter** — invoke LLM (via pluggable adapter)
-5. **Output Policy** — gate output content
-6. **Evaluate** — score quality, detect memorable content
-7. **Store** — persist interaction in memory
-8. **Respond** — return result to caller
-
-## Learn More
-
-- **Full Specification**: [spec/SPEC.md](spec/SPEC.md)  
-- **JSON Schema**: [spec/identity.schema.json](spec/identity.schema.json)  
-- **CLI Documentation**: [cli/README.md](cli/README.md)  
-- **API Reference**: [runtime/API.md](runtime/API.md)
+**Q: How is this different from OpenAI's GPTs or Claude Projects?**  
+Those are vendor-specific. IdentityOS identities are **portable** — they can run on any compliant runtime.
 
 ---
 
