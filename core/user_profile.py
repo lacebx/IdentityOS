@@ -22,6 +22,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
+from .confidence import ConfidenceScorer
+
 
 @dataclass
 class EvidenceRecord:
@@ -105,17 +107,9 @@ class UserProfile:
         self._facts: Dict[str, UserFact] = {}
 
     def _compute_confidence(self, evidence: List[EvidenceRecord]) -> float:
-        """Bayesian-ish: evidence weight increases confidence, contradictions reduce it."""
-        n = len(evidence)
-        if n == 0:
-            return 0.3
-        unique_values = len(set(str(e.value) for e in evidence))
-        if unique_values > 1:
-            decay = 0.15 * (unique_values - 1)
-            return max(0.1, 0.7 - decay)
-        # Reinforcement: each additional confirmation increases confidence
-        # First evidence starts at 0.7, each reinforcement adds 0.05
-        return min(1.0, 0.65 + (0.05 * n))
+        return ConfidenceScorer.compute_from_evidence_records(
+            evidence, value_attr="value",
+        )
 
     def add_or_update(self, field: str, value: Any,
                       source: str = "", confidence: Optional[float] = None) -> UserFact:

@@ -199,6 +199,9 @@ class IdentitySpec:
         "communication_style": MutabilityLevel.MUTABLE,
     })
 
+    # ── Schema version (for migration tracking) ──────────────────────────────
+    schema_version: str = "1.0.0"
+
     # ── Metadata ─────────────────────────────────────────────────────────────
     tags: List[str] = field(default_factory=list)
     extra: Dict[str, Any] = field(default_factory=dict)
@@ -386,6 +389,7 @@ class IdentitySpec:
             "fidelity_baseline": self.fidelity_baseline,
             "tags": self.tags,
             "extra": self.extra,
+            "schema_version": self.schema_version,
             "mutability": {k: v.value for k, v in self.mutability.items()},
             "version_history": [
                 {
@@ -455,6 +459,7 @@ class IdentitySpec:
             preferred_adapter=data.get("preferred_adapter", "openai"),
             preferred_model=data.get("preferred_model", "gpt-4o"),
             adapter_overrides=data.get("adapter_overrides", {}),
+            schema_version=data.get("schema_version", "0.0.0"),
             fidelity_baseline=data.get("fidelity_baseline"),
             tags=data.get("tags", []),
             extra=data.get("extra", {}),
