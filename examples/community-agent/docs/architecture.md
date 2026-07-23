@@ -41,7 +41,7 @@
 The Community Agent treats IdentityOS exactly like a third-party package. The only import is:
 
 ```python
-from sdk import Identity
+from identityos import Identity
 ```
 
 Every feature — conversation, intention detection, meeting tracking, reminders, summaries, evidence, relationships — goes through a single `IdentityObject` instance.

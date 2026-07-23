@@ -84,7 +84,7 @@
 | 6 | "What are we behind on?" → reasoned from goals/intentions/timeline/evidence | ✅ PASS |
 | 7 | "Why?" → evidence shown | ✅ PASS |
 | 8 | Restart → everything persists | ✅ PASS |
-| 9 | No internal imports (`from sdk import Identity` only) | ✅ PASS |
+| 9 | No internal imports (`from identityos import Identity` only) | ✅ PASS |
 | 10 | Survives 100+ conversations without crashing | ✅ PASS |
 
 ---
@@ -164,6 +164,6 @@ Additionally, `_intention_to_dict()` was updated to include `metadata`, enabling
 
 **The IdentityOS SDK is now sufficient for third-party developers to build production applications.**
 
-The Community Agent demonstrates that a real, useful Discord bot can be built using only `from sdk import Identity` — without importing any internal `runtime/`, `core/`, or other internal modules.
+The Community Agent demonstrates that a real, useful Discord bot can be built using only `from identityos import Identity` — without importing any internal `runtime/`, `core/`, or other internal modules.
 
 The 5 SDK improvements identified during development were added to the SDK itself, not hacked around. Every acceptance criterion passes. Every test suite passes. The architecture is clean, explainable, and persistent.

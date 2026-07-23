@@ -2,7 +2,7 @@
 
 A Discord bot powered entirely by the IdentityOS SDK — the first reference application for the IdentityOS platform.
 
-> **No internal modules are imported.** The only IdentityOS import is `from sdk import Identity`.
+> **No internal modules are imported.** The only IdentityOS import is `from identityos import Identity`.
 
 ## Features
 
@@ -186,7 +186,7 @@ The Community Agent exposed these gaps, which were filled by adding to the SDK (
 - `digest()` — period-based summaries
 - `metadata` support in intentions
 
-The result: a real production application built entirely on `from sdk import Identity`.
+The result: a real production application built entirely on `from identityos import Identity`.
 
 ## Future Roadmap
 

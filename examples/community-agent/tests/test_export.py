@@ -44,7 +44,7 @@ class TestExportImport:
 
     def test_from_file_roundtrip(self):
         import tempfile, os
-        from sdk import Identity
+        from identityos import Identity
 
         agent = make_agent("roundtrip")
         agent.intention("Survive export", hours=48)

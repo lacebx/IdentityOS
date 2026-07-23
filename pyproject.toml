@@ -1,15 +1,35 @@
 [build-system]
-requires = ["setuptools>=64.0"]
-build-backend = "setuptools.backends._legacy:_Backend"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [project]
-name = "identity-runtime"
+name = "identityos"
 version = "2.0.0"
-description = "Portable AI identity layer"
+description = "Portable AI identity layer — persistent, composable AI identities for LLM applications."
+readme = "README.md"
+license = {text = "MIT"}
 authors = [
     {name = "IdentityOS Contributors"},
 ]
+
 requires-python = ">=3.11"
+dependencies = [
+    "httpx",
+]
+
+[project.urls]
+Homepage = "https://github.com/lacebx/IdentityOS"
+Repository = "https://github.com/lacebx/IdentityOS"
+
+[tool.hatch.build]
+include = [
+    "identityos/**",
+    "core/**",
+    "runtime/**",
+    "adapters/**",
+    "identity_graph/**",
+    "cli/**",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

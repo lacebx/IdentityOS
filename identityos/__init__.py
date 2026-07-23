@@ -15,6 +15,7 @@ Or create a new identity:
     mentor.chat("What is your purpose?")
 """
 
-from sdk.identity_object import Identity, IdentityObject
+from identityos.identity import Identity, IdentityObject
+from identityos.client import IdentityClient
 
-__all__ = ["Identity", "IdentityObject"]
+__all__ = ["Identity", "IdentityObject", "IdentityClient"]
