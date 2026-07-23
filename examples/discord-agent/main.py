@@ -14,13 +14,37 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 from threading import Thread
 from typing import Optional
 
+# Ensure the agent directory is on sys.path
+_AGENT_DIR = os.path.dirname(os.path.abspath(__file__))
+_REPO_ROOT = os.path.dirname(os.path.dirname(_AGENT_DIR))
+for p in (_AGENT_DIR, _REPO_ROOT):
+    if p not in sys.path:
+        sys.path.insert(0, p)
+
 import discord
 from discord.ext import commands
 
 from config import config
-from services.identity import load_or_create_identity
+from services import load_or_create_identity
 
 logger = logging.getLogger(__name__)
+
+
+def _create_adapter():
+    """Create a Groq adapter with automatic API key rotation."""
+    try:
+        from adapters.groq_adapter import GroqAdapter
+        adapter = GroqAdapter(
+            model=os.environ.get("LLM_MODEL", "llama-3.3-70b-versatile"),
+        )
+        if adapter._keys:
+            logger.info("Groq adapter created with %d API key(s)", len(adapter._keys))
+        else:
+            logger.warning("No Groq API keys found — chat will be disabled")
+        return adapter
+    except Exception as exc:
+        logger.warning("Failed to create Groq adapter: %s", exc)
+        return None
 
 
 class HealthHandler(BaseHTTPRequestHandler):
@@ -55,11 +79,13 @@ class DiscordAgent(commands.Bot):
         )
 
         self.config = config
+        self.adapter = _create_adapter()
         self.identity = load_or_create_identity(
             identity_id=config.identity_id,
             identity_name=config.identity_name,
             identity_class=config.identity_class,
             storage_path=config.identity_storage_path,
+            adapter=self.adapter,
         )
         self._health_server: Optional[HTTPServer] = None
         self._running = True

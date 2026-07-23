@@ -23,7 +23,7 @@ COPY examples/discord-agent/ /app/examples/discord-agent/
 
 # Install dependencies
 RUN pip install --no-cache-dir -e /app && \
-    pip install --no-cache-dir discord.py python-dotenv
+    pip install --no-cache-dir discord.py python-dotenv openai
 
 WORKDIR /app/examples/discord-agent
 
