@@ -310,7 +310,7 @@ class TestEndToEnd:
         """Restart bot → Everything persists. Nothing lost."""
         import tempfile
         import os
-        from sdk import Identity
+        from identityos import Identity
 
         storage = os.path.join(tempfile.gettempdir(), "persist-test")
         os.makedirs(storage, exist_ok=True)
@@ -384,8 +384,8 @@ class TestEndToEnd:
             if os.path.basename(v.split(":")[0]) not in allowed_files
         ]
 
-        # Exclude sdk imports (allowed)
-        violations = [v for v in violations if "from sdk import" not in v]
+        # Exclude SDK imports (allowed)
+        violations = [v for v in violations if "from identityos import" not in v and "from sdk import" not in v]
 
         assert len(violations) == 0, (
             f"Internal imports found ({len(violations)}):\n" + "\n".join(violations)

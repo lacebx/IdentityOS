@@ -22,8 +22,12 @@ logger = logging.getLogger(__name__)
 # ── Pattern constants ──────────────────────────────────────────────────────────
 
 _FINISHED_RE = re.compile(
-    r"^(?:I\s+)?(?:finished|done|completed|all\s+done|wrapped\s+(?:up|it)|"
-    r"it'?s?\s+done|just\s+finished|resolved|fixed|deployed|shipped)\b",
+    r"\bI(?:'ve|'m|\s+(?:have|am))?\s+(?:just\s+)?(?:finished|done|completed|all\s+done|wrapped\s+(?:up|it)|"
+    r"resolved|fixed|deployed|shipped)\b"
+    r"|"
+    r"^(?:just\s+)?(?:finished|done|all\s+done|deployed|fixed|resolved|shipped|completed|wrapped\s+(?:up|it))\b"
+    r"|"
+    r"\bit(?:\s+is|'?s?)\s+(?:just\s+)?(?:done|finished)\b",
     re.IGNORECASE,
 )
 
@@ -88,7 +92,7 @@ def step_detect_completion(
     channel_id: str,
 ) -> Optional[dict]:
     """Detect 'I finished' and complete the author's most recent intention."""
-    if not _FINISHED_RE.match(content):
+    if not _FINISHED_RE.search(content):
         return None
     intentions = identity.intentions(status="active")
     author_ints = [

@@ -3,7 +3,7 @@
 IdentityOS Community Agent — Discord Bot
 
 A reference application demonstrating how to build on the IdentityOS SDK.
-The entire bot uses ONLY `from sdk import Identity` — no internal modules.
+The entire bot uses ONLY `from identityos import Identity` — no internal modules.
 """
 
 import logging

@@ -23,7 +23,7 @@ import sys
 # Add project root to path so we can import the SDK without installing it
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from sdk.identity_client import IdentityClient
+from identityos.client import IdentityClient
 
 # ─── 1. Connect to the local runtime ─────────────────────────────────────────
 

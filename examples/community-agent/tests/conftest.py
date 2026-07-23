@@ -1,7 +1,7 @@
 """
 Tests for the IdentityOS Community Agent.
 
-All tests use ONLY `from sdk import Identity` — no internal modules.
+All tests use ONLY `from identityos import Identity` — no internal modules.
 """
 import os
 import sys
@@ -11,7 +11,7 @@ _AGENT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _AGENT_DIR not in sys.path:
     sys.path.insert(0, _AGENT_DIR)
 
-from sdk import Identity
+from identityos import Identity
 
 
 def make_agent(name: str = "test-agent"):

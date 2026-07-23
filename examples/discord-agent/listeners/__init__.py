@@ -4,7 +4,6 @@ import discord
 from discord.ext import commands
 
 from pipeline import run_pipeline, generate_team_status
-from pipeline import step_detect_evidence_question, step_detect_status_question
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +27,21 @@ def setup(bot: commands.Bot) -> None:
             session_id = f"discord:{message.guild.id}:thread:{message.channel.id}"
         else:
             session_id = f"discord:{message.guild.id}:channel:{channel_id}"
+
+        # Only reply and run chat when @mentioned
+        bot_mentioned = bot.user in message.mentions
+
+        if not bot_mentioned:
+            # Silent tracking only — no chat response
+            from pipeline import step_detect_intentions, step_detect_meetings, \
+                step_detect_completion, step_detect_meeting_outcome
+
+            step_detect_intentions(identity, content, author_id, channel_id)
+            step_detect_meetings(identity, content, author_id, channel_id)
+            step_detect_completion(identity, content, author_id, channel_id)
+            step_detect_meeting_outcome(identity, content, author_id, channel_id)
+            return
+            return
 
         # Show typing indicator
         async with message.channel.typing():

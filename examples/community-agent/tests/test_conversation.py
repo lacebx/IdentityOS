@@ -2,7 +2,7 @@
 Test conversation handling — chat, observe, session isolation.
 """
 
-from sdk import IdentityObject
+from identityos import IdentityObject
 from .conftest import make_agent
 
 

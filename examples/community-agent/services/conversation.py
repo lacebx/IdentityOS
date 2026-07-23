@@ -1,6 +1,6 @@
 import logging
 from typing import Optional
-from sdk import IdentityObject
+from identityos import IdentityObject
 
 logger = logging.getLogger(__name__)
 
