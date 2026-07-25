@@ -160,6 +160,20 @@ No API key required for identity features (facts, goals, relationships, memory, 
 
 ---
 
+## Verified Capabilities
+
+Each claim below is backed by a repeatable, automated test with a real LLM (no mocks). Run them yourself to verify.
+
+| # | Claim | Proof | How to Run |
+|---|-------|-------|------------|
+| 1 | **Identity survives provider switch** — memories created with one LLM provider are recalled when the same identity runs on a different provider | `tests/test_portability.py` creates identity with **OpenRouter (gpt-4o)**, shares a personal fact, destroys runtime, loads with **Groq (llama-3.3-70b-versatile)**, asks continuity question — response references the prior fact | `pytest tests/test_portability.py -v --timeout=120` (requires `OPENROUTER_API_KEY` + `GROQ_API_KEY` in `.env`) |
+| 2 | **SDK works in 5 lines** — `Identity.create()` → observe facts → set goals → build relationships → export portable JSON, no API key required | SDK Quickstart code block below | `pip install identityos && python` then paste the 5-line example |
+| 3 | *(coming — restart continuity with real LLM)* | | |
+| 4 | *(coming — Chrome extension ChatGPT→Grok continuity)* | | |
+| 5 | *(coming — hosted demo, curl-able from anywhere)* | | |
+
+---
+
 ## Roadmap
 
 | Phase | Theme | Status |
