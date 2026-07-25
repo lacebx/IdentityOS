@@ -160,6 +160,40 @@ No API key required for identity features (facts, goals, relationships, memory, 
 
 ---
 
+## Try It Now
+
+Start the runtime server, then copy-paste these curl commands to see identity context injection in action:
+
+```bash
+# Terminal 1: Start the runtime server
+source /tmp/identityos-venv/bin/activate
+setsid python -m runtime.main > /tmp/runtime-server.log 2>&1 &
+
+# Terminal 2: Create an identity
+curl -s -X POST http://localhost:8000/identity \
+  -H "Content-Type: application/json" \
+  -d '{"identity_id":"pluto","name":"Pluto","persona":"A loyal robot companion"}'
+
+# Get augmented context for prompt injection (inject into ChatGPT/Grok)
+curl -s -X POST http://localhost:8000/context \
+  -H "Content-Type: application/json" \
+  -d '{"message":"Hello!","identity_id":"pluto","user_id":"me"}'
+
+# Store a memory from an exchange
+curl -s -X POST http://localhost:8000/evaluate \
+  -H "Content-Type: application/json" \
+  -d '{"message":"My name is Alice","response":"Nice to meet you Alice!","identity_id":"pluto","user_id":"me"}'
+
+# Get context again — see accumulated memories
+curl -s -X POST http://localhost:8000/context \
+  -H "Content-Type: application/json" \
+  -d '{"message":"What do you know about me?","identity_id":"pluto","user_id":"me"}'
+```
+
+Or run the full demo: `bash demo.sh`
+
+---
+
 ## Verified Capabilities
 
 Each claim below is backed by a repeatable, automated test with a real LLM (no mocks). Run them yourself to verify.
@@ -170,7 +204,7 @@ Each claim below is backed by a repeatable, automated test with a real LLM (no m
 | 2 | **SDK works in 5 lines** — `Identity.create()` → observe facts → set goals → build relationships → export portable JSON, no API key required | SDK Quickstart code block below | `pip install identityos && python` then paste the 5-line example |
 | 3 | **Identity survives full restart** — after a multi-turn conversation building personal context, the runtime is destroyed, a fresh runtime loads the same identity from storage, and a continuity question is answered correctly | `tests/test_restart_continuity.py` runs 3-turn conversation (name, trip plan, excitement details) with **Groq (llama-3.3-70b)**, destroys runtime, loads fresh, asks recall question — response references **Alice, Japan, Tokyo food** | `pytest tests/test_restart_continuity.py -v --timeout=180` (requires `GROQ_API_KEY` in `.env`) |
 | 4 | **Chrome extension API works** — all endpoints the extension calls (health, list, create, get identity, context, evaluate) are tested end-to-end against a live server | `tests/test_extension_api.py` — starts runtime server, validates all 6 extension endpoints return correct responses | `pytest tests/test_extension_api.py -v --timeout=30` (requires running server or uses module-scoped fixture to start one) |
-| 5 | *(coming — hosted demo, curl-able from anywhere)* | | |
+| 5 | **Full local demo via curl** — create identity, inject context into any chat UI, store memories, verify recall — all from a single `bash demo.sh` script | `demo.sh` runs 7 curl commands against the live runtime server, showing identity creation, context injection, memory storage, and accumulated recall | `bash demo.sh` (requires runtime server on localhost:8000 — run `setsid python -m runtime.main` first) |
 
 ---
 
