@@ -963,6 +963,112 @@ class IdentityObject:
         return session_list
 
     # ═══════════════════════════════════════════════════════════════════
+    # Capabilities — installable behavior packages
+    # ═══════════════════════════════════════════════════════════════════
+
+    def install(self, cap_id: str, config: Optional[dict] = None) -> Dict[str, Any]:
+        """Install a capability package.
+
+        After installation, new skills become available via ``skills()``
+        and ``can()``.
+        """
+        cap = self._runtime.capability_registry.install(
+            self._identity_id, cap_id, config=config,
+        )
+        return cap.to_dict()
+
+    def uninstall(self, cap_id: str) -> None:
+        """Remove a previously installed capability."""
+        self._runtime.capability_registry.uninstall(self._identity_id, cap_id)
+
+    def capabilities(self) -> List[Dict[str, Any]]:
+        """List all installed capabilities with metadata."""
+        return [c.to_dict() for c in self._runtime.capability_registry.list(self._identity_id)]
+
+    def capability(self, cap_id: str) -> Optional[Dict[str, Any]]:
+        """Get metadata for a single installed capability."""
+        cap = self._runtime.capability_registry.get(self._identity_id, cap_id)
+        return cap.to_dict() if cap else None
+
+    def skills(self) -> List[Dict[str, Any]]:
+        """All skills available — both built-in and from installed capabilities."""
+        built_in = [
+            {
+                "name": s.name,
+                "description": getattr(s, "description", ""),
+                "version": getattr(s, "version", ""),
+                "source": "built-in",
+            }
+            for s in self._runtime.skill_registry.list_active()
+        ]
+        cap_skills = [
+            {
+                "name": s.name,
+                "description": s.description,
+                "permission": s.permission,
+                "source": s.name.split(".")[0] if "." in s.name else "capability",
+            }
+            for s in self._runtime.capability_registry.all_skills(self._identity_id)
+        ]
+        return built_in + cap_skills
+
+    def can(self, skill_name: str) -> Dict[str, Any]:
+        """Check whether a skill is available.
+
+        Checks both the built-in skill registry and installed capabilities.
+        Returns ``{"available": True}`` or ``{"available": False, "reason": "..."}``.
+        """
+        # Check built-in skills first
+        if self._runtime.skill_registry.get_by_name(skill_name) is not None:
+            return {"available": True}
+        # Then check capability-provided skills
+        ok, reason = self._runtime.capability_registry.can(self._identity_id, skill_name)
+        if ok:
+            return {"available": True}
+        return {"available": False, "reason": reason}
+
+    def call(self, skill_name: str, **params: Any) -> Any:
+        """Invoke a skill.
+
+        Routes to built-in skills or capability-provided skills as appropriate.
+        """
+        # Prefer capability-provided skills (they're namespaced like "github.*")
+        if "." in skill_name:
+            return self._runtime.capability_registry.call(
+                self._identity_id, skill_name, **params
+            )
+        # Fall back to built-in skill registry
+        result = self._runtime.skill_registry.invoke(skill_name, **params)
+        if not result.success:
+            raise RuntimeError(f"Skill '{skill_name}' failed: {result.error}")
+        return result.output
+
+    @property
+    def runtime_info(self) -> Dict[str, Any]:
+        """Inspect the runtime configuration and loaded state."""
+        return self._describe_runtime()
+
+    def describe_runtime(self) -> Dict[str, Any]:
+        """Inspect the full runtime state as a structured dict."""
+        return self._describe_runtime()
+
+    def _describe_runtime(self) -> Dict[str, Any]:
+        rt = self._runtime
+        cap_ids = [c.id for c in rt.capability_registry.list(self._identity_id)]
+        adapter_name = type(rt.adapter).__name__ if rt.adapter else "none"
+        spec = self._spec
+        return {
+            "identity": spec.name if spec else "Unknown",
+            "identity_id": self._identity_id,
+            "capabilities": cap_ids,
+            "skills": [s["name"] for s in self.skills()],
+            "adapter": adapter_name,
+            "memory_engine": type(rt.memory_store).__name__,
+            "goal_engine": type(rt.goal_engine).__name__,
+            "has_storage": rt._storage is not None,
+        }
+
+    # ═══════════════════════════════════════════════════════════════════
     # Export / Import
     # ═══════════════════════════════════════════════════════════════════
 
@@ -1099,32 +1205,6 @@ class IdentityObject:
         if hasattr(profile, "_facts"):
             return [f.to_dict() for f in profile._facts.values()]
         return []
-
-    # ═══════════════════════════════════════════════════════════════════
-    # Skills
-    # ═══════════════════════════════════════════════════════════════════
-
-    def can(self, skill_name: str) -> bool:
-        """Check if this identity has a registered skill."""
-        return self._runtime.skill_registry.get_by_name(skill_name) is not None
-
-    def do(self, skill_name: str, **kwargs: Any) -> Any:
-        """Invoke a skill by name."""
-        result = self._runtime.skill_registry.invoke(skill_name, **kwargs)
-        if not result.success:
-            raise RuntimeError(f"Skill '{skill_name}' failed: {result.error}")
-        return result.output
-
-    def skills(self) -> List[Dict[str, Any]]:
-        """List all registered skills."""
-        return [
-            {
-                "name": s.name,
-                "description": getattr(s, "description", ""),
-                "version": getattr(s, "version", ""),
-            }
-            for s in self._runtime.skill_registry.list_active()
-        ]
 
     # ═══════════════════════════════════════════════════════════════════
     # Natural Language Understanding — Intention, Meeting, Deadline
