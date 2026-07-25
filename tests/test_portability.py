@@ -5,7 +5,7 @@ Core vision claim: An identity created with one LLM provider retains
 its memories and continuity when used with a different provider.
 
 Test flow:
-  1. Create identity with OpenRouter (gpt-4o), share a personal fact
+  1. Create identity with SambaNova (DeepSeek-V3.1), share a personal fact
   2. Destroy the runtime entirely
   3. Load the same identity with Groq (llama-3.3-70b-versatile)
   4. Ask a continuity question — verify it remembers the fact
@@ -24,8 +24,8 @@ from runtime.orchestrator import IdentityRuntime, InteractionRequest
 from runtime.persistence import JSONFileBackend
 
 pytestmark = pytest.mark.skipif(
-    not os.environ.get("OPENROUTER_API_KEY") or not os.environ.get("GROQ_API_KEY"),
-    reason="Requires OPENROUTER_API_KEY and GROQ_API_KEY",
+    not os.environ.get("SAMBANOVA_API_KEY") or not os.environ.get("GROQ_API_KEY"),
+    reason="Requires SAMBANOVA_API_KEY and GROQ_API_KEY",
 )
 
 
@@ -35,11 +35,11 @@ def store_dir():
         yield td
 
 
-def _make_runtime(store_dir, adapter_type="openrouter"):
+def _make_runtime(store_dir, adapter_type="sambanova"):
     storage = JSONFileBackend(root_dir=store_dir)
-    if adapter_type == "openrouter":
-        from adapters.openrouter_adapter import OpenRouterAdapter
-        adapter = OpenRouterAdapter(model="openai/gpt-4o", max_tokens=50)
+    if adapter_type == "sambanova":
+        from adapters.sambanova_adapter import SambaNovaAdapter
+        adapter = SambaNovaAdapter(model="DeepSeek-V3.1", max_tokens=100)
     elif adapter_type == "groq":
         from adapters.groq_adapter import GroqAdapter
         adapter = GroqAdapter(model="llama-3.3-70b-versatile", max_tokens=256)
@@ -55,8 +55,8 @@ class TestProviderPortability:
     """An identity's memories survive a provider switch."""
 
     def test_memory_survives_provider_switch(self, store_dir):
-        # ── Phase 1: Chat with OpenRouter (Provider A) ──────────────
-        rt_a = _make_runtime(store_dir, "openrouter")
+        # ── Phase 1: Chat with SambaNova (Provider A) ──────────────
+        rt_a = _make_runtime(store_dir, "sambanova")
         spec = create_identity(
             name="PortableBot",
             identity_id="portable-bot",
