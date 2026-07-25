@@ -1,19 +1,12 @@
-/**
- * popup.js
- * Drives the Identity Runtime extension popup UI.
- * Connects to the local runtime API to list/switch identities.
- */
-
 (function () {
   'use strict';
 
-  const DEFAULT_RUNTIME_URL = 'http://localhost:8765';
+  const DEFAULT_RUNTIME_URL = 'http://localhost:8000';
 
   let runtimeUrl = DEFAULT_RUNTIME_URL;
   let activeIdentityId = null;
   let identities = [];
 
-  // ─── DOM refs ────────────────────────────────────────────────────────────────
   const statusDot = document.getElementById('status-dot');
   const runtimeUrlInput = document.getElementById('runtime-url');
   const btnSaveUrl = document.getElementById('btn-save-url');
@@ -22,19 +15,14 @@
   const btnOpenDashboard = document.getElementById('btn-open-dashboard');
   const btnDisconnect = document.getElementById('btn-disconnect');
 
-  // ─── Init ────────────────────────────────────────────────────────────────────
-
   async function init() {
     const config = await loadConfig();
     runtimeUrl = config.runtimeUrl || DEFAULT_RUNTIME_URL;
-    activeIdentityId = config.activeIdentityId || null;
+    activeIdentityId = config.activeIdentityId || config.identityId || null;
     runtimeUrlInput.value = runtimeUrl;
-
     await checkRuntimeHealth();
     await loadIdentities();
   }
-
-  // ─── Config helpers ──────────────────────────────────────────────────────────
 
   function loadConfig() {
     return new Promise((resolve) => {
@@ -52,8 +40,6 @@
     });
   }
 
-  // ─── Health check ────────────────────────────────────────────────────────────
-
   async function checkRuntimeHealth() {
     try {
       const res = await fetch(`${runtimeUrl}/health`, { signal: AbortSignal.timeout(2000) });
@@ -66,12 +52,10 @@
     return false;
   }
 
-  // ─── Identity list ───────────────────────────────────────────────────────────
-
   async function loadIdentities() {
     identityList.innerHTML = '<li id="no-identities"><span class="spinner"></span> Loading...</li>';
     try {
-      const res = await fetch(`${runtimeUrl}/identities`);
+      const res = await fetch(`${runtimeUrl}/identity`);
       const data = await res.json();
       identities = data.identities || [];
       renderIdentities();
@@ -97,7 +81,7 @@
 
       const icon = document.createElement('span');
       icon.className = 'identity-icon';
-      icon.textContent = identity.avatar || '⬡';
+      icon.textContent = '⬡';
 
       const info = document.createElement('div');
       info.className = 'identity-info';
@@ -106,12 +90,7 @@
       name.className = 'identity-name';
       name.textContent = identity.name || identity.id;
 
-      const model = document.createElement('div');
-      model.className = 'identity-model';
-      model.textContent = identity.base_model || 'model-agnostic';
-
       info.appendChild(name);
-      info.appendChild(model);
       li.appendChild(icon);
       li.appendChild(info);
 
@@ -132,21 +111,14 @@
     activeIdentityId = identityId;
     await saveConfig({ activeIdentityId: identityId });
 
-    // Notify all content scripts about the identity change
     const tabs = await chrome.tabs.query({ active: true });
     for (const tab of tabs) {
       try {
-        chrome.tabs.sendMessage(tab.id, {
-          type: 'IDENTITY_CHANGED',
-          identityId,
-        });
+        chrome.tabs.sendMessage(tab.id, { type: 'IDENTITY_CHANGED', identityId });
       } catch (_) {}
     }
-
     renderIdentities();
   }
-
-  // ─── URL save ────────────────────────────────────────────────────────────────
 
   btnSaveUrl.addEventListener('click', async () => {
     const newUrl = runtimeUrlInput.value.trim().replace(/\/$/, '');
@@ -157,29 +129,19 @@
     if (healthy) await loadIdentities();
   });
 
-  // ─── New identity ────────────────────────────────────────────────────────────
-
   btnNewIdentity.addEventListener('click', () => {
     const name = prompt('Identity name (e.g., "Pluto"):');
     if (!name) return;
-    const model = prompt('Base model (e.g., "gpt-4o", or leave blank):') || 'model-agnostic';
-    createIdentity(name.trim(), model.trim());
+    createIdentity(name.trim());
   });
 
-  async function createIdentity(name, baseModel) {
+  async function createIdentity(name) {
     try {
       const id = name.toLowerCase().replace(/\s+/g, '-');
-      await fetch(`${runtimeUrl}/identity/${id}`, {
+      await fetch(`${runtimeUrl}/identity`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id,
-          name,
-          base_model: baseModel,
-          traits: [],
-          memory_enabled: true,
-          eval_hooks: [],
-        }),
+        body: JSON.stringify({ identity_id: id, name }),
       });
       await loadIdentities();
     } catch (e) {
@@ -187,21 +149,15 @@
     }
   }
 
-  // ─── Disconnect ───────────────────────────────────────────────────────────────
+  btnOpenDashboard.addEventListener('click', () => {
+    chrome.tabs.create({ url: `${runtimeUrl}/docs` });
+  });
 
   btnDisconnect.addEventListener('click', async () => {
     activeIdentityId = null;
     await saveConfig({ activeIdentityId: null });
     renderIdentities();
   });
-
-  // ─── Open dashboard ──────────────────────────────────────────────────────────
-
-  btnOpenDashboard.addEventListener('click', () => {
-    chrome.tabs.create({ url: `${runtimeUrl}/docs` });
-  });
-
-  // ─── Start ───────────────────────────────────────────────────────────────────
 
   init();
 })();

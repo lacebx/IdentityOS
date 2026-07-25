@@ -164,6 +164,24 @@ class Identity:
             except Exception:
                 pass
 
+        # Restore relationships
+        for rd in data.get("relationships", []):
+            from identity_graph.graph import EdgeType, TrustLevel
+            try:
+                tl_val = rd.get("trust_level", 2)
+                if isinstance(tl_val, str):
+                    from identity_graph.graph import TrustLevel as TL
+                    tl_val = TL[tl_val.upper()].value
+                runtime.identity_graph.connect(
+                    source_id=rd.get("source_id", spec.id),
+                    target_id=rd.get("target_id", ""),
+                    edge_type=EdgeType(rd.get("edge_type", "peer")),
+                    trust_level=TrustLevel(tl_val),
+                    context=rd.get("context", ""),
+                )
+            except Exception:
+                pass
+
         # Restore timeline
         tl_data = data.get("timeline")
         if tl_data:
@@ -990,6 +1008,15 @@ class IdentityObject:
         if profile:
             profile_data = profile.to_dict()
 
+        # Gather relationships
+        from dataclasses import asdict
+        relationships_data = []
+        for edge in self._runtime.identity_graph.get_relationships(self._identity_id):
+            ed = asdict(edge)
+            ed["edge_type"] = edge.edge_type.value if hasattr(edge.edge_type, "value") else str(edge.edge_type)
+            ed["trust_level"] = edge.trust_level.value if hasattr(edge.trust_level, "value") else str(edge.trust_level)
+            relationships_data.append(ed)
+
         portable = {
             "export_version": "1.0.0",
             "exported_at": datetime.now(timezone.utc).isoformat(),
@@ -1002,6 +1029,7 @@ class IdentityObject:
             "timeline": timeline_data,
             "fact_store": fact_store_data,
             "user_profile": profile_data,
+            "relationships": relationships_data,
         }
 
         if path:

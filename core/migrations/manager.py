@@ -33,8 +33,10 @@ class MigrationManager:
         self._registry = registry
         self._storage = storage
 
-    def get_data_version(self, data: Dict[str, Any]) -> str:
+    def get_data_version(self, data: Any) -> str:
         """Extract schema_version from a data blob, defaulting to '0.0.0'."""
+        if not isinstance(data, dict):
+            return "0.0.0"
         return data.get("schema_version", "0.0.0")
 
     def set_data_version(self, data: Dict[str, Any], version: str) -> None:
@@ -42,14 +44,17 @@ class MigrationManager:
 
     def migrate_blob(
         self,
-        data: Dict[str, Any],
+        data: Any,
         identity_id: str,
         namespace: str = "identity_spec",
-    ) -> Dict[str, Any]:
+    ) -> Any:
         """
         Run all pending migrations on a single data blob.
         Returns the migrated data (modifies in place).
+        Non-dict blobs (e.g. list-format memories) are returned as-is.
         """
+        if not isinstance(data, dict):
+            return data
         current_version = self.get_data_version(data)
         pending = self._registry.get_pending(current_version)
 
