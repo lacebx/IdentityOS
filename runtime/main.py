@@ -134,6 +134,13 @@ class MemoriesResponse(BaseModel):
     memories: List[dict]
     total: int
 
+class CreateIdentityRequest(BaseModel):
+    identity_id: str
+    name: str
+    identity_class: str = "agent"
+    persona: str = ""
+    role: str = ""
+
 class ProcessRequest(BaseModel):
     message: str
     identity_id: str
@@ -275,6 +282,22 @@ async def evaluate(req: EvaluateRequest):
     )
 
 
+@app.post("/identity")
+def create_identity(req: CreateIdentityRequest):
+    """Create a new identity."""
+    from identityos import Identity
+    identity = Identity.create(
+        name=req.name,
+        identity_id=req.identity_id,
+        identity_class=req.identity_class,
+        persona=req.persona,
+        role=req.role,
+        storage_path=".identity_store",
+    )
+    logger.info(f"Identity created via API: {req.identity_id} ({req.name})")
+    return {"id": identity.id, "name": identity.name, "status": "created"}
+
+
 @app.get("/identity/{identity_id}")
 def get_identity(identity_id: str):
     """Get a loaded identity spec by ID."""
@@ -326,4 +349,4 @@ def get_session(session_id: str):
 
 
 if __name__ == "__main__":
-    uvicorn.run("runtime.main:app", host="0.0.0.0", port=8765, reload=False)
+    uvicorn.run("runtime.main:app", host="0.0.0.0", port=8000, reload=False)
