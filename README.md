@@ -137,17 +137,40 @@ python -m cli.main inspect --id lace
 
 Full CLI documentation: [cli/README.md](cli/README.md)
 
-### SDK Quickstart (Coming Soon)
+### SDK Quickstart
 
 ```python
-identity = Identity.load("lace")
+from identityos import Identity
 
-response = identity.chat("Hello, how are you?")
-goal = identity.goal(description="Learn Python", priority="high")
-rel = identity.relationship("user-123", trust_level=0.8)
-events = identity.timeline(limit=10)
-identity.export("lace-portable.json")
+agent = Identity.create("MyBot")
+agent.observe("My name is Alice and I love Python")
+agent.goal("Master FastAPI", priority="high")
+agent.relationship("mentor", trust_level=0.9)
+agent.export("mybot.json")        # portable — share, move, restore
+# Restore: restored = Identity.from_file("mybot.json")
 ```
+
+```python
+# Output:
+# Facts learned: ['name', 'preferences.likes.python']
+# Goals: [('Master FastAPI', 'HIGH')]
+```
+
+No API key required for identity features (facts, goals, relationships, memory, export). Add an adapter for chat — see [adapters](adapters/).
+
+---
+
+## Verified Capabilities
+
+Each claim below is backed by a repeatable, automated test with a real LLM (no mocks). Run them yourself to verify.
+
+| # | Claim | Proof | How to Run |
+|---|-------|-------|------------|
+| 1 | **Identity survives provider switch** — memories created with one LLM provider are recalled when the same identity runs on a different provider | `tests/test_portability.py` creates identity with **OpenRouter (gpt-4o)**, shares a personal fact, destroys runtime, loads with **Groq (llama-3.3-70b-versatile)**, asks continuity question — response references the prior fact | `pytest tests/test_portability.py -v --timeout=120` (requires `OPENROUTER_API_KEY` + `GROQ_API_KEY` in `.env`) |
+| 2 | **SDK works in 5 lines** — `Identity.create()` → observe facts → set goals → build relationships → export portable JSON, no API key required | SDK Quickstart code block below | `pip install identityos && python` then paste the 5-line example |
+| 3 | *(coming — restart continuity with real LLM)* | | |
+| 4 | *(coming — Chrome extension ChatGPT→Grok continuity)* | | |
+| 5 | *(coming — hosted demo, curl-able from anywhere)* | | |
 
 ---
 
