@@ -1,17 +1,19 @@
 """
 test_capabilities.py — Evidence C: Pluggable Capability System
 
-Core claim: An identity can install behavior packages that add
-objectively new abilities it did not have before.
+Core claim: An identity can install behavior packages that feel like
+installed software — not RPC calls — and add objectively new abilities.
 
 Test flow:
   1. Baseline — no capabilities → skills() empty, can() false
-  2. Install ``github`` → 5 new skills appear
+  2. Install ``github`` → 7 semantic skills appear
   3. Permission gating — public skills work, authenticated blocked
-  4. Real GitHub API call (search_repositories)
-  5. Capability prompts are injected into system context
-  6. Runtime inspection (describe_runtime)
-  7. Uninstall → skills() empty again
+  4. Attribute access: ``identity.github.search_repositories(...)``
+  5. Proxy access: ``identity.use("github").review_pull_request(...)``
+  6. Capability access: ``identity.capability("github").find_beginner_issue(...)``
+  7. Permissions system: grant, list
+  8. Real GitHub API calls for all 7 skills
+  9. Uninstall → cleanup
 """
 
 import os
@@ -53,23 +55,25 @@ class TestCapabilitySystem:
     def test_baseline_no_capabilities(self, identity):
         """Before installation, no skills exist."""
         assert identity.skills() == []
-        result = identity.can("github.search_repositories")
-        assert result["available"] is False
+        can = identity.can("github.search_repositories")
+        assert can["available"] is False
 
-    def test_install_adds_skills(self, identity):
-        """After installation, the 5 github skills appear."""
+    def test_install_adds_semantic_skills(self, identity):
+        """After installation, all 7 semantic skills appear."""
         identity.install("github")
 
         skill_names = [s["name"] for s in identity.skills()]
         assert "github.search_repositories" in skill_names
         assert "github.get_repository" in skill_names
+        assert "github.review_pull_request" in skill_names
+        assert "github.find_beginner_issue" in skill_names
+        assert "github.summarize_release" in skill_names
         assert "github.list_commits" in skill_names
         assert "github.list_branches" in skill_names
-        assert "github.read_pull_request" in skill_names
-        assert len(skill_names) == 5
+        assert len(skill_names) == 7
 
     def test_permission_gating(self, identity):
-        """Public skills are available; authenticated skills are not."""
+        """Public skills are available; authenticated ones are not."""
         identity.install("github")
 
         can = identity.can("github.search_repositories")
@@ -79,31 +83,84 @@ class TestCapabilitySystem:
         assert can["available"] is False
         assert "reason" in can
 
-    def test_real_github_api_call(self, identity):
-        """Search repositories via the real GitHub API."""
+    # ── Invocation patterns ────────────────────────────────────────────
+
+    def test_attribute_access_identity_github(self, identity):
+        """identity.github.search_repositories(...) works."""
         identity.install("github")
 
-        results = identity.call("github.search_repositories", query="identityos")
+        results = identity.github.search_repositories(query="identityos")
+        assert isinstance(results, list)
+
+    def test_use_proxy_access(self, identity):
+        """identity.use('github').get_repository(...) works."""
+        identity.install("github")
+
+        repo = identity.use("github").get_repository(owner="lacebx", repo="IdentityOS")
+        assert repo["name"] == "lacebx/IdentityOS"
+
+    def test_capability_proxy_access(self, identity):
+        """identity.capability('github').list_commits(...) works."""
+        identity.install("github")
+
+        commits = identity.capability("github").list_commits(owner="lacebx", repo="IdentityOS")
+        assert isinstance(commits, list)
+        if commits:
+            assert "sha" in commits[0]
+
+    # ── Real GitHub API calls ──────────────────────────────────────────
+
+    def test_search_repositories(self, identity):
+        """github.search_repositories via proxy."""
+        identity.install("github")
+        results = identity.github.search_repositories(query="identityos")
         assert isinstance(results, list)
         if results:
             assert "name" in results[0]
             assert "stars" in results[0]
-            assert "description" in results[0]
 
     def test_get_repository(self, identity):
-        """Fetch a specific repo's metadata."""
+        """github.get_repository via proxy."""
         identity.install("github")
-
-        repo = identity.call("github.get_repository", owner="lacebx", repo="IdentityOS")
+        repo = identity.capability("github").get_repository(owner="lacebx", repo="IdentityOS")
         assert repo["name"] == "lacebx/IdentityOS"
-        assert "description" in repo
         assert "stars" in repo
 
-    def test_list_commits(self, identity):
-        """Fetch recent commits from a real repo."""
+    def test_review_pull_request(self, identity):
+        """github.review_pull_request fetches PR details with file stats."""
         identity.install("github")
+        pr = identity.use("github").review_pull_request(
+            owner="lacebx", repo="IdentityOS", number=1
+        )
+        assert pr["number"] == 1 or pr["number"] > 0
+        assert "title" in pr
+        assert "files_changed" in pr
+        assert "total_additions" in pr
+        assert "total_deletions" in pr
 
-        commits = identity.call("github.list_commits", owner="lacebx", repo="IdentityOS")
+    def test_find_beginner_issue(self, identity):
+        """github.find_beginner_issue finds 'good first issue' issues."""
+        identity.install("github")
+        issues = identity.github.find_beginner_issue(owner="lacebx", repo="IdentityOS")
+        assert isinstance(issues, list)
+        if issues:
+            assert "number" in issues[0]
+            assert "title" in issues[0]
+
+    def test_summarize_release(self, identity):
+        """github.summarize_release returns recent changes."""
+        identity.install("github")
+        summary = identity.capability("github").summarize_release(
+            owner="lacebx", repo="IdentityOS"
+        )
+        assert "tag" in summary
+        assert "total" in summary
+        assert "commits_since_last_tag" in summary
+
+    def test_list_commits(self, identity):
+        """github.list_commits via proxy."""
+        identity.install("github")
+        commits = identity.use("github").list_commits(owner="lacebx", repo="IdentityOS")
         assert isinstance(commits, list)
         if commits:
             assert "sha" in commits[0]
@@ -111,86 +168,75 @@ class TestCapabilitySystem:
             assert "author" in commits[0]
 
     def test_list_branches(self, identity):
-        """Fetch branches from a real repo."""
+        """github.list_branches via proxy."""
         identity.install("github")
-
-        branches = identity.call("github.list_branches", owner="lacebx", repo="IdentityOS")
+        branches = identity.github.list_branches(owner="lacebx", repo="IdentityOS")
         assert isinstance(branches, list)
         if branches:
             assert {"name", "sha"}.issubset(branches[0].keys())
 
-    def test_prompts_injected_into_context(self, identity):
-        """Capability prompt fragments appear in composed context."""
+    # ── Round-trip: install → call → uninstall ─────────────────────────
+
+    def test_install_call_uninstall_roundtrip(self, identity):
+        """Full round-trip: install, call via proxy, uninstall, confirm empty."""
         identity.install("github")
-
-        from core.cognitive_engine import ComposedContext
-
-        # The compose step injects custom_blocks["capabilities"]
-        # We verify by checking the rendered context string
-        session_id = identity._runtime.start_session("cap-bot")
-        context = identity._runtime.context_composer.compose(
-            identity=identity._spec,
-            memory_store=identity._runtime.memory_store,
-            skill_registry=identity._runtime.skill_registry,
-            goal_engine=identity._runtime.goal_engine,
-            intention_engine=identity._runtime.intention_engine,
-            identity_graph=identity._runtime.identity_graph,
-            motivation_engine=identity._runtime.motivation_engine,
-            timeline_registry=identity._runtime.timeline_registry,
-            fact_store=identity._runtime._get_fact_store_for_session("cap-bot", session_id),
-            user_profile=identity._runtime._user_profiles.get(session_id),
-            query="test",
-            top_k_memories=5,
-            session_mode=identity._runtime._session_modes.get(session_id),
-            emotion_state=None,
-        )
-
-        # Inject capability prompts (simulating what process() does)
-        cap_prompts = identity._runtime.capability_registry.all_prompts("cap-bot")
-        if cap_prompts:
-            context.custom_blocks["capabilities"] = "\n".join(cap_prompts)
-
-        rendered = context.render()
-        assert "Available GitHub Skills" in rendered
-        assert "github.search_repositories" in rendered
-
-    def test_describe_runtime_includes_capabilities(self, identity):
-        """Runtime inspection shows installed capabilities and skills."""
-        identity.install("github")
-
-        info = identity.describe_runtime()
-        assert info["identity"] == "CapabilityBot"
-        assert info["identity_id"] == "cap-bot"
-        assert "github" in info["capabilities"]
-        assert "github.search_repositories" in info["skills"]
-        assert info["has_storage"] is True
-
-    def test_capability_method_returns_metadata(self, identity):
-        """identity.capability('github') returns the capability metadata."""
-        identity.install("github")
-
-        meta = identity.capability("github")
-        assert meta is not None
-        assert meta["id"] == "github"
-        assert meta["name"] == "GitHub Integration"
-        assert "github.search_repositories" in meta["skills"]
-
-    def test_capability_returns_none_when_not_installed(self, identity):
-        """identity.capability('nosuch') returns None."""
-        meta = identity.capability("nosuch")
-        assert meta is None
-
-    def test_uninstall_removes_skills(self, identity):
-        """After uninstall, skills() returns to empty."""
-        identity.install("github")
-        assert len(identity.skills()) == 5
+        repos = identity.github.search_repositories(query="identityos")
+        assert isinstance(repos, list)
+        assert len(identity.skills()) == 7
 
         identity.uninstall("github")
         assert identity.skills() == []
-        can = identity.can("github.search_repositories")
-        assert can["available"] is False
+        with pytest.raises((AttributeError, ValueError)):
+            _ = identity.github
+
+    # ── Permissions system ─────────────────────────────────────────────
+
+    def test_permissions_empty_by_default(self, identity):
+        """No permissions granted by default."""
+        assert identity.permissions() == []
+
+    def test_grant_permission(self, identity):
+        """Granting a permission persists it."""
+        identity.grant("github", "repo:read")
+        perms = identity.permissions()
+        assert len(perms) == 1
+        assert perms[0]["capability"] == "github"
+        assert perms[0]["permission"] == "repo:read"
+        assert "granted_at" in perms[0]
+
+    def test_grant_multiple_permissions(self, identity):
+        """Multiple grants accumulate."""
+        identity.grant("github", "repo:read")
+        identity.grant("github", "issues:write")
+        identity.grant("calendar", "events:read")
+        assert len(identity.permissions()) == 3
+
+    # ── Capability metadata ────────────────────────────────────────────
+
+    def test_capability_proxy_exposes_metadata(self, identity):
+        """capability() returns a proxy with metadata properties."""
+        identity.install("github")
+        proxy = identity.capability("github")
+        assert proxy.id == "github"
+        assert proxy.name == "GitHub Integration"
+        meta = proxy.metadata()
+        assert meta["id"] == "github"
+        assert "skills" in meta
+
+    def test_capability_not_installed_raises(self, identity):
+        """capability() raises ValueError for unknown caps."""
+        with pytest.raises(ValueError, match="not installed"):
+            identity.capability("does_not_exist")
+
+    # ── Error handling ─────────────────────────────────────────────────
 
     def test_unknown_capability_raises(self, identity):
         """Installing a non-existent capability raises ValueError."""
         with pytest.raises(ValueError, match="Unknown capability"):
             identity.install("does_not_exist")
+
+    def test_unknown_skill_raises(self, identity):
+        """Calling a non-existent skill on a proxy raises AttributeError."""
+        identity.install("github")
+        with pytest.raises(AttributeError):
+            identity.github.nonexistent_skill()

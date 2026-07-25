@@ -966,6 +966,23 @@ class IdentityObject:
     # Capabilities — installable behavior packages
     # ═══════════════════════════════════════════════════════════════════
 
+    # ── Attribute-based access ─────────────────────────────────────────
+
+    def __getattr__(self, name: str) -> Any:
+        """Support ``identity.github.search_repositories(...)`` access."""
+        if name.startswith("_"):
+            raise AttributeError(name)
+        from core.capabilities import CapabilityProxy
+        cap = self._runtime.capability_registry.get(self._identity_id, name)
+        if cap is None:
+            raise AttributeError(
+                f"'{type(self).__name__}' object has no attribute '{name}' "
+                f"and no capability '{name}' is installed"
+            )
+        return CapabilityProxy(cap)
+
+    # ── Lifecycle ──────────────────────────────────────────────────────
+
     def install(self, cap_id: str, config: Optional[dict] = None) -> Dict[str, Any]:
         """Install a capability package.
 
@@ -985,10 +1002,59 @@ class IdentityObject:
         """List all installed capabilities with metadata."""
         return [c.to_dict() for c in self._runtime.capability_registry.list(self._identity_id)]
 
-    def capability(self, cap_id: str) -> Optional[Dict[str, Any]]:
-        """Get metadata for a single installed capability."""
+    def capability(self, cap_id: str) -> Any:
+        """Access an installed capability directly.
+
+        Returns a proxy that exposes skills as callable attributes::
+
+            github = identity.capability("github")
+            github.search_repositories(query="identityos")
+            github.review_pull_request(owner="lacebx", repo="IdentityOS", number=1)
+
+        Raises ``ValueError`` if the capability is not installed.
+        """
+        from core.capabilities import CapabilityProxy
         cap = self._runtime.capability_registry.get(self._identity_id, cap_id)
-        return cap.to_dict() if cap else None
+        if cap is None:
+            raise ValueError(
+                f"Capability '{cap_id}' is not installed. "
+                f"Installed: {[c.id for c in self._runtime.capability_registry.list(self._identity_id)]}"
+            )
+        return CapabilityProxy(cap)
+
+    def use(self, cap_id: str) -> Any:
+        """Explicitly select a capability to invoke skills on.
+
+        Alias for ``capability()``::
+
+            identity.use("github").search_repositories(query="identityos")
+        """
+        return self.capability(cap_id)
+
+    # ── Permissions ────────────────────────────────────────────────────
+
+    def permissions(self) -> List[Dict[str, Any]]:
+        """List all granted permissions."""
+        raw = self._runtime._storage.load(self._identity_id, "capability.permissions")
+        return raw.get("grants", []) if raw else []
+
+    def grant(self, capability: str, permission: str) -> None:
+        """Grant a permission to a capability.
+
+        Args:
+            capability: capability id (e.g. ``"github"``)
+            permission: permission string (e.g. ``"repo:read"``, ``"issues:write"``)
+        """
+        import time
+        raw = self._runtime._storage.load(self._identity_id, "capability.permissions") or {}
+        grants = raw.get("grants", [])
+        grants.append({
+            "capability": capability,
+            "permission": permission,
+            "granted_at": time.time(),
+        })
+        raw["grants"] = grants
+        self._runtime._storage.save(self._identity_id, "capability.permissions", raw)
 
     def skills(self) -> List[Dict[str, Any]]:
         """All skills available — both built-in and from installed capabilities."""

@@ -18,7 +18,7 @@ class GithubCapability(Capability):
     author = "IdentityOS"
     license = "MIT"
     homepage = "https://github.com/lacebx/IdentityOS"
-    description = "Search repositories, read code, list commits and branches, inspect pull requests"
+    description = "Search repositories, review code, find beginner issues, summarize releases"
     permissions = ["public"]
 
     _client: httpx.Client
@@ -47,9 +47,8 @@ class GithubCapability(Capability):
     def prompts(self, identity_id: str) -> list[str]:
         return [
             "## Available GitHub Skills",
-            "You can search for repositories, read repository details, "
-            "list commits and branches, and inspect pull requests.",
-            'Use the `call` function to invoke a skill, e.g. `call("github.search_repositories", query="my project")`.',
+            "You can search repositories, review pull requests, find beginner-friendly issues, "
+            "summarize releases, list commits and branches, and get repository details.",
         ]
 
     # ── Skills ─────────────────────────────────────────────────────────
@@ -66,6 +65,21 @@ class GithubCapability(Capability):
             permission="public",
         ),
         Skill(
+            name="github.review_pull_request",
+            description="Review a pull request — fetches details, diff summary, and status",
+            permission="public",
+        ),
+        Skill(
+            name="github.find_beginner_issue",
+            description="Find beginner-friendly issues (tagged 'good first issue')",
+            permission="public",
+        ),
+        Skill(
+            name="github.summarize_release",
+            description="Summarize recent changes since the latest release tag",
+            permission="public",
+        ),
+        Skill(
             name="github.list_commits",
             description="List recent commits for a repository",
             permission="public",
@@ -73,11 +87,6 @@ class GithubCapability(Capability):
         Skill(
             name="github.list_branches",
             description="List all branches in a repository",
-            permission="public",
-        ),
-        Skill(
-            name="github.read_pull_request",
-            description="Get details of a pull request",
             permission="public",
         ),
     ]
@@ -91,14 +100,18 @@ class GithubCapability(Capability):
         dispatch = {
             "github.search_repositories": self._search_repos,
             "github.get_repository": self._get_repo,
+            "github.review_pull_request": self._review_pr,
+            "github.find_beginner_issue": self._find_beginner_issue,
+            "github.summarize_release": self._summarize_release,
             "github.list_commits": self._list_commits,
             "github.list_branches": self._list_branches,
-            "github.read_pull_request": self._read_pr,
         }
         handler = dispatch.get(skill_name)
         if handler is None:
             raise ValueError(f"Unknown skill: {skill_name}")
         return handler(**params)
+
+    # ── Core API methods ───────────────────────────────────────────────
 
     def _search_repos(self, query: str = "", **kwargs: Any) -> list[dict[str, Any]]:
         resp = self._client.get("/search/repositories", params={"q": query, "per_page": 5})
@@ -127,6 +140,75 @@ class GithubCapability(Capability):
             "url": d["html_url"],
         }
 
+    def _review_pr(self, owner: str = "", repo: str = "", number: int = 0, **kwargs: Any) -> dict[str, Any]:
+        resp = self._client.get(f"/repos/{owner}/{repo}/pulls/{number}")
+        resp.raise_for_status()
+        d = resp.json()
+        files_resp = self._client.get(f"/repos/{owner}/{repo}/pulls/{number}/files", params={"per_page": 10})
+        files = []
+        if files_resp.status_code == 200:
+            files = [
+                {"filename": f["filename"], "additions": f["additions"], "deletions": f["deletions"], "status": f["status"]}
+                for f in files_resp.json()
+            ]
+        total_additions = sum(f.get("additions", 0) for f in files)
+        total_deletions = sum(f.get("deletions", 0) for f in files)
+        return {
+            "number": d["number"],
+            "title": d["title"],
+            "state": d["state"],
+            "author": d["user"]["login"],
+            "body": (d.get("body") or "")[:500],
+            "files_changed": len(files),
+            "total_additions": total_additions,
+            "total_deletions": total_deletions,
+            "url": d["html_url"],
+        }
+
+    def _find_beginner_issue(self, owner: str = "", repo: str = "", **kwargs: Any) -> list[dict[str, Any]]:
+        resp = self._client.get(
+            f"/repos/{owner}/{repo}/issues",
+            params={"labels": "good first issue", "state": "open", "per_page": 5},
+        )
+        resp.raise_for_status()
+        return [
+            {
+                "number": i["number"],
+                "title": i["title"],
+                "body": (i.get("body") or "")[:300],
+                "url": i["html_url"],
+            }
+            for i in resp.json()
+        ]
+
+    def _summarize_release(self, owner: str = "", repo: str = "", **kwargs: Any) -> dict[str, Any]:
+        tags_resp = self._client.get(f"/repos/{owner}/{repo}/tags", params={"per_page": 5})
+        tags = tags_resp.json() if tags_resp.status_code == 200 else []
+        if not tags:
+            commits_resp = self._client.get(f"/repos/{owner}/{repo}/commits", params={"per_page": 5})
+            commits_resp.raise_for_status()
+            recent = [
+                {"sha": c["sha"][:7], "message": c["commit"]["message"].split("\n")[0], "author": c["commit"]["author"]["name"]}
+                for c in commits_resp.json()
+            ]
+            return {"tag": None, "commits_since_last_tag": recent, "total": len(recent)}
+        latest_tag = tags[0]["name"]
+        compare_resp = self._client.get(
+            f"/repos/{owner}/{repo}/compare/{latest_tag}...HEAD"
+        )
+        commits = []
+        if compare_resp.status_code == 200:
+            data = compare_resp.json()
+            commits = [
+                {"sha": c["sha"][:7], "message": c["commit"]["message"].split("\n")[0], "author": c["commit"]["author"]["name"]}
+                for c in data.get("commits", [])
+            ]
+        return {
+            "tag": latest_tag,
+            "commits_since_last_tag": commits,
+            "total": len(commits),
+        }
+
     def _list_commits(self, owner: str = "", repo: str = "", **kwargs: Any) -> list[dict[str, Any]]:
         resp = self._client.get(f"/repos/{owner}/{repo}/commits", params={"per_page": 5})
         resp.raise_for_status()
@@ -147,16 +229,3 @@ class GithubCapability(Capability):
             {"name": b["name"], "sha": b["commit"]["sha"][:7]}
             for b in resp.json()
         ]
-
-    def _read_pr(self, owner: str = "", repo: str = "", number: int = 0, **kwargs: Any) -> dict[str, Any]:
-        resp = self._client.get(f"/repos/{owner}/{repo}/pulls/{number}")
-        resp.raise_for_status()
-        d = resp.json()
-        return {
-            "number": d["number"],
-            "title": d["title"],
-            "state": d["state"],
-            "author": d["user"]["login"],
-            "body": d.get("body", "")[:500],
-            "url": d["html_url"],
-        }
