@@ -137,17 +137,26 @@ python -m cli.main inspect --id lace
 
 Full CLI documentation: [cli/README.md](cli/README.md)
 
-### SDK Quickstart (Coming Soon)
+### SDK Quickstart
 
 ```python
-identity = Identity.load("lace")
+from identityos import Identity
 
-response = identity.chat("Hello, how are you?")
-goal = identity.goal(description="Learn Python", priority="high")
-rel = identity.relationship("user-123", trust_level=0.8)
-events = identity.timeline(limit=10)
-identity.export("lace-portable.json")
+agent = Identity.create("MyBot")
+agent.observe("My name is Alice and I love Python")
+agent.goal("Master FastAPI", priority="high")
+agent.relationship("mentor", trust_level=0.9)
+agent.export("mybot.json")        # portable — share, move, restore
+# Restore: restored = Identity.from_file("mybot.json")
 ```
+
+```python
+# Output:
+# Facts learned: ['name', 'preferences.likes.python']
+# Goals: [('Master FastAPI', 'HIGH')]
+```
+
+No API key required for identity features (facts, goals, relationships, memory, export). Add an adapter for chat — see [adapters](adapters/).
 
 ---
 
