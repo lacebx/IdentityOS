@@ -33,6 +33,7 @@ from core.memory import MemoryFragment, MemoryStore, MemoryType
 from core.motivations import MotivationEngine
 from core.policies import PolicyEngine, PolicyScope
 from core.relationships import EdgeType, IdentityGraph, TrustLevel
+from core.capabilities import CapabilityRegistry as PluginRegistry
 from core.skills import SkillRegistry
 from core.timeline import LifeEvent, LifeEventType, TimelineRegistry
 from core.user_profile import UserProfile, extract_user_facts
@@ -288,6 +289,9 @@ class IdentityRuntime:
         self._migration_manager = MigrationManager(
             self._migration_registry, storage=self._storage,
         )
+
+        # Pluggable Capability System — installed per identity
+        self.capability_registry = PluginRegistry(storage=self._storage)
 
         # Event Bus — wired into the pipeline but subscribers are opt-in
         self.event_bus = EventBus()
@@ -1234,6 +1238,11 @@ class IdentityRuntime:
             token_estimate=context.token_estimate(),
             session_mode=session_mode.value,
         )
+
+        # Inject capability prompts into context
+        cap_prompts = self.capability_registry.all_prompts(identity.id)
+        if cap_prompts:
+            context.custom_blocks["capabilities"] = "\n".join(cap_prompts)
 
         # Stage 4: Adapter call
         if self.adapter:
