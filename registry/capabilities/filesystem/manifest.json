@@ -1,0 +1,35 @@
+{
+  "id": "filesystem",
+  "name": "FileSystem",
+  "version": "1.0.0",
+  "author": "IdentityOS",
+  "license": "MIT",
+  "homepage": "https://github.com/lacebx/IdentityOS",
+  "description": "List directory contents, read text files, and inspect file metadata.",
+  "provider": "core.capabilities.filesystem.FileSystemCapability",
+  "config_schema": {
+    "type": "object",
+    "properties": {}
+  },
+  "permissions": {
+    "network": false,
+    "filesystem": true
+  },
+  "skills": [
+    {
+      "name": "filesystem.list_dir",
+      "description": "List files and directories at a path",
+      "permission": "public"
+    },
+    {
+      "name": "filesystem.read_file",
+      "description": "Read the contents of a text file",
+      "permission": "public"
+    },
+    {
+      "name": "filesystem.file_info",
+      "description": "Get metadata about a file or directory",
+      "permission": "public"
+    }
+  ]
+}

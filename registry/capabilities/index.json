@@ -11,6 +11,66 @@
       "skills": 7,
       "permissions": ["public"],
       "url": "github/manifest.json"
+    },
+    {
+      "id": "weather",
+      "name": "Weather",
+      "version": "1.0.0",
+      "description": "Get current weather and multi-day forecasts for any location",
+      "author": "IdentityOS",
+      "skills": 2,
+      "permissions": ["public"],
+      "url": "weather/manifest.json"
+    },
+    {
+      "id": "calc",
+      "name": "Calculator",
+      "version": "1.0.0",
+      "description": "Evaluate math expressions and convert between units",
+      "author": "IdentityOS",
+      "skills": 3,
+      "permissions": ["public"],
+      "url": "calc/manifest.json"
+    },
+    {
+      "id": "datetime",
+      "name": "DateTime",
+      "version": "1.0.0",
+      "description": "Timezone conversion, date math, current time",
+      "author": "IdentityOS",
+      "skills": 4,
+      "permissions": ["public"],
+      "url": "datetime/manifest.json"
+    },
+    {
+      "id": "web",
+      "name": "Web",
+      "version": "1.0.0",
+      "description": "Fetch web pages and extract text from URLs",
+      "author": "IdentityOS",
+      "skills": 2,
+      "permissions": ["public"],
+      "url": "web/manifest.json"
+    },
+    {
+      "id": "filesystem",
+      "name": "FileSystem",
+      "version": "1.0.0",
+      "description": "List directories, read files, inspect metadata",
+      "author": "IdentityOS",
+      "skills": 3,
+      "permissions": ["public"],
+      "url": "filesystem/manifest.json"
+    },
+    {
+      "id": "text",
+      "name": "Text Processing",
+      "version": "1.0.0",
+      "description": "Count words, extract keywords, detect patterns, split text",
+      "author": "IdentityOS",
+      "skills": 4,
+      "permissions": ["public"],
+      "url": "text/manifest.json"
     }
   ]
 }

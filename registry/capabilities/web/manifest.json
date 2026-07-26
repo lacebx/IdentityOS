@@ -1,0 +1,30 @@
+{
+  "id": "web",
+  "name": "Web",
+  "version": "1.0.0",
+  "author": "IdentityOS",
+  "license": "MIT",
+  "homepage": "https://github.com/lacebx/IdentityOS",
+  "description": "Fetch web pages by URL and extract human-readable text from HTML.",
+  "provider": "core.capabilities.web.WebCapability",
+  "config_schema": {
+    "type": "object",
+    "properties": {}
+  },
+  "permissions": {
+    "network": true,
+    "filesystem": false
+  },
+  "skills": [
+    {
+      "name": "web.fetch",
+      "description": "Fetch a URL and return its raw content",
+      "permission": "public"
+    },
+    {
+      "name": "web.extract",
+      "description": "Fetch a URL and extract clean text (strip HTML tags)",
+      "permission": "public"
+    }
+  ]
+}

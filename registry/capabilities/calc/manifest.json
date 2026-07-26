@@ -1,0 +1,35 @@
+{
+  "id": "calc",
+  "name": "Calculator",
+  "version": "1.0.0",
+  "author": "IdentityOS",
+  "license": "MIT",
+  "homepage": "https://github.com/lacebx/IdentityOS",
+  "description": "Evaluate mathematical expressions and convert between units (km/miles, C/F, kg/lbs, m/ft, L/gal).",
+  "provider": "core.capabilities.calc.CalcCapability",
+  "config_schema": {
+    "type": "object",
+    "properties": {}
+  },
+  "permissions": {
+    "network": false,
+    "filesystem": false
+  },
+  "skills": [
+    {
+      "name": "calc.evaluate",
+      "description": "Evaluate a mathematical expression safely",
+      "permission": "public"
+    },
+    {
+      "name": "calc.convert",
+      "description": "Convert between supported units",
+      "permission": "public"
+    },
+    {
+      "name": "calc.conversions",
+      "description": "List all available unit conversions",
+      "permission": "public"
+    }
+  ]
+}

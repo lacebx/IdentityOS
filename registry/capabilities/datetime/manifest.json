@@ -1,0 +1,40 @@
+{
+  "id": "datetime",
+  "name": "DateTime",
+  "version": "1.0.0",
+  "author": "IdentityOS",
+  "license": "MIT",
+  "homepage": "https://github.com/lacebx/IdentityOS",
+  "description": "Get current time in any timezone, convert between zones, calculate date differences.",
+  "provider": "core.capabilities.datetime.DateTimeCapability",
+  "config_schema": {
+    "type": "object",
+    "properties": {}
+  },
+  "permissions": {
+    "network": false,
+    "filesystem": false
+  },
+  "skills": [
+    {
+      "name": "datetime.now",
+      "description": "Get current date and time in a timezone",
+      "permission": "public"
+    },
+    {
+      "name": "datetime.convert",
+      "description": "Convert a time between timezones",
+      "permission": "public"
+    },
+    {
+      "name": "datetime.diff",
+      "description": "Calculate days between two dates",
+      "permission": "public"
+    },
+    {
+      "name": "datetime.zones",
+      "description": "List all supported timezone codes",
+      "permission": "public"
+    }
+  ]
+}
