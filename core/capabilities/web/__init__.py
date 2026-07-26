@@ -76,8 +76,8 @@ class WebCapability(Capability):
         resp = self._client.get(url)
         resp.raise_for_status()
         text = resp.text
-        text = re.sub(r"<script[^>]*>.*?</script>", "", text, flags=re.DOTALL | re.IGNORECASE)
-        text = re.sub(r"<style[^>]*>.*?</style>", "", text, flags=re.DOTALL | re.IGNORECASE)
+        text = re.sub(r"<script\b[^>]*>.*?</script\b[^>]*>", "", text, flags=re.DOTALL | re.IGNORECASE)
+        text = re.sub(r"<style\b[^>]*>.*?</style\b[^>]*>", "", text, flags=re.DOTALL | re.IGNORECASE)
         text = re.sub(r"<[^>]+>", " ", text)
         text = re.sub(r"\s+", " ", text).strip()
         text = text[:5000]
