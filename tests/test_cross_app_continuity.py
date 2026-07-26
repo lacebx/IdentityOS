@@ -43,6 +43,15 @@ def runtime_server():
     Forces Groq adapter so LLM calls work reliably.
     """
     repo_root = Path(__file__).resolve().parent.parent
+    # Clean isolated state before starting
+    store_dir = repo_root / ".identity_store"
+    if store_dir.exists():
+        import shutil
+        for p in list(store_dir.iterdir()):
+            if p.is_file():
+                p.unlink()
+            elif p.is_dir():
+                shutil.rmtree(p, ignore_errors=True)
     env = os.environ.copy()
     # Force Groq adapter — the server auto-detection might pick
     # OpenRouter (no credits) or no adapter at all.
@@ -79,6 +88,7 @@ def runtime_server():
 
     proc.kill()
     proc.wait()
+    time.sleep(1)  # let OS release port
 
 
 def _req(method, path, data=None):
