@@ -8,6 +8,11 @@ Usage:
     python tools/identity show <identity_id>
     python tools/identity install <identity_id>
     python tools/identity publish <path-to-spec>
+    python tools/identity cap list
+    python tools/identity cap show <cap_id>
+    python tools/identity cap install <cap_id> --identity <identity_id>
+    python tools/identity cap search <query>
+    python tools/identity cap installed <identity_id>
 """
 
 import json
@@ -244,6 +249,126 @@ def cmd_explain(identity_id: str, question: str):
     print("\n".join(lines))
 
 
+# ── Capability marketplace ──────────────────────────────────────────────
+
+CAP_REGISTRY_BASE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "registry", "capabilities")
+
+
+def _load_cap_registry() -> dict:
+    path = os.path.join(CAP_REGISTRY_BASE, "index.json")
+    if not os.path.exists(path):
+        print("  Capability registry not found locally.")
+        sys.exit(1)
+    with open(path) as f:
+        return json.load(f)
+
+
+def _find_capability(cap_id: str) -> dict | None:
+    idx = _load_cap_registry()
+    for entry in idx.get("capabilities", []):
+        if entry["id"] == cap_id:
+            return entry
+    return None
+
+
+def _load_cap_manifest(entry: dict) -> dict:
+    spec_path = entry.get("url", "")
+    local = os.path.join(CAP_REGISTRY_BASE, spec_path)
+    if os.path.exists(local):
+        try:
+            with open(local) as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return entry
+
+
+def cmd_cap_list():
+    idx = _load_cap_registry()
+    caps = idx.get("capabilities", [])
+    print(f"  {len(caps)} capabilities available")
+    print()
+    for c in caps:
+        print(f"  {c['id']:20s}  v{c.get('version','')}  {c.get('description','')[:60]}")
+    print()
+    print(f"  Show:     python tools/identity cap show <id>")
+    print(f"  Install:  python tools/identity cap install <id> --identity <identity_id>")
+
+
+def cmd_cap_show(cap_id: str):
+    entry = _find_capability(cap_id)
+    if not entry:
+        print(f"  Capability '{cap_id}' not found.")
+        sys.exit(1)
+    manifest = _load_cap_manifest(entry)
+    d = {**entry, **manifest}
+
+    print(f"  id:           {d.get('id','')}")
+    print(f"  name:         {d.get('name','')}")
+    print(f"  version:      {d.get('version','')}")
+    print(f"  author:       {d.get('author','')}")
+    print(f"  description:  {d.get('description','')}")
+    print(f"  permissions:  {', '.join(d.get('permissions', {}).keys())}")
+    print(f"  provider:     {d.get('provider','')}")
+    print()
+    print(f"  skills ({len(d.get('skills', []))}):")
+    for s in d.get("skills", []):
+        print(f"    {s['name']:40s}  {s.get('description','')[:50]}")
+    if d.get("config_schema", {}).get("properties"):
+        print()
+        print(f"  config:")
+        for k, v in d["config_schema"]["properties"].items():
+            print(f"    {k}:  {v.get('description','')}")
+
+
+def cmd_cap_install(cap_id: str, identity_id: str | None):
+    if identity_id is None:
+        print("  Usage: python tools/identity cap install <cap_id> --identity <identity_id>")
+        sys.exit(1)
+    entry = _find_capability(cap_id)
+    if not entry:
+        print(f"  Capability '{cap_id}' not found in marketplace.")
+        sys.exit(1)
+
+    runtime, identity = load_identity(identity_id)
+    try:
+        cap = runtime.capability_registry.install(identity_id, cap_id)
+        print(f"  installed: {cap_id} -> {identity_id}")
+        print(f"  skills:    {len(cap.skills())} added")
+    except ValueError as e:
+        print(f"  error: {e}")
+        sys.exit(1)
+
+
+def cmd_cap_search(query: str):
+    idx = _load_cap_registry()
+    q = query.lower()
+    results = []
+    for c in idx.get("capabilities", []):
+        text = f"{c.get('id','')} {c.get('name','')} {c.get('description','')}"
+        if q in text.lower():
+            results.append(c)
+    print(f"  {len(results)} matches for '{query}'")
+    print()
+    for c in results:
+        print(f"  {c['id']:20s}  {c.get('description','')[:60]}")
+
+
+def cmd_cap_list_installed(identity_id: str):
+    runtime, identity = load_identity(identity_id)
+    caps = runtime.capability_registry.list(identity_id)
+    if not caps:
+        print(f"  no capabilities installed for {identity_id}")
+        return
+    print(f"  installed capabilities for {identity_id}:")
+    print()
+    for c in caps:
+        info = c.to_dict() if hasattr(c, "to_dict") else {"id": c.id, "skills": []}
+        print(f"  {info.get('id',''):20s}  v{info.get('version','')}  {info.get('description','')[:50]}")
+        for s in info.get("skills", []):
+            print(f"    {s}")
+
+
 # ── Registry helpers ──────────────────────────────────────────────────
 
 def _load_registry() -> dict:
@@ -438,6 +563,7 @@ def main():
         print("  python tools/identity show <identity_id>")
         print("  python tools/identity install <identity_id>")
         print("  python tools/identity publish <path-to-spec>")
+        print("  python tools/identity cap <list|show|install|search|installed>")
         sys.exit(1)
 
     cmd = sys.argv[1]
@@ -470,6 +596,38 @@ def main():
             sys.exit(1)
         question = " ".join(sys.argv[3:])
         cmd_explain(sys.argv[2], question)
+    elif cmd in ("cap", "caps", "capabilities"):
+        if len(sys.argv) < 3:
+            print("Usage: python tools/identity cap <list|show|install|search|installed> [...]")
+            sys.exit(1)
+        sub = sys.argv[2]
+        if sub == "list":
+            cmd_cap_list()
+        elif sub == "show":
+            if len(sys.argv) < 4:
+                print("Usage: python tools/identity cap show <cap_id>")
+                sys.exit(1)
+            cmd_cap_show(sys.argv[3])
+        elif sub == "install":
+            identity_id = None
+            cap_id = sys.argv[3] if len(sys.argv) > 3 else None
+            for i, a in enumerate(sys.argv):
+                if a in ("--identity", "--id", "-i") and i + 1 < len(sys.argv):
+                    identity_id = sys.argv[i + 1]
+            cmd_cap_install(cap_id, identity_id)
+        elif sub == "search":
+            if len(sys.argv) < 4:
+                print("Usage: python tools/identity cap search <query>")
+                sys.exit(1)
+            cmd_cap_search(" ".join(sys.argv[3:]))
+        elif sub == "installed":
+            if len(sys.argv) < 4:
+                print("Usage: python tools/identity cap installed <identity_id>")
+                sys.exit(1)
+            cmd_cap_list_installed(sys.argv[3])
+        else:
+            print(f"  Unknown cap subcommand: {sub}")
+            sys.exit(1)
     else:
         print(f"Unknown command: {cmd}")
         sys.exit(1)
