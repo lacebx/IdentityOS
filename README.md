@@ -30,6 +30,27 @@ The identity doesn't just remember. It infers dependencies, detects blocked goal
 
 ---
 
+## Architecture
+
+```
+                         Identity OS
+                             |
+      -------------------------------------------------
+      |                       |                       |
+ Identity Registry         Memory Layer          Capability Marketplace
+ (Who am I?)              (What do I know?)      (What can I do?)
+      |                       |                       |
+  registry/index.json     MemoryStore              CapabilityRegistry
+  manifest.json           UserProfile              SkillPack
+  tools/identity          TimelineRegistry         permissions system
+                          FactStore
+                          extract_user_facts()
+```
+
+Three orthogonal concerns, one runtime. Identities are publishable, memory is portable, capabilities are installable. Each pillar can evolve independently.
+
+---
+
 ## Current milestone: Capability Marketplace
 
 We proved cross-app reasoning. Now we're making identities extensible.
