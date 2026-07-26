@@ -1,0 +1,16 @@
+{
+  "id": "system_info",
+  "name": "System Information",
+  "version": "1.0.0",
+  "author": "IdentityOS",
+  "license": "MIT",
+  "description": "Get OS information, disk usage, CPU details, and system metadata",
+  "permissions": {"local": "Read system information"},
+  "provider": "local",
+  "tags": ["system", "os", "disk", "cpu", "platform"],
+  "skills": [
+    {"name": "system_info.os", "description": "Get operating system name, version, and architecture"},
+    {"name": "system_info.disk", "description": "Get disk usage information (total, used, free)"},
+    {"name": "system_info.cpu", "description": "Get CPU information (count, architecture)"}
+  ]
+}
