@@ -1,47 +1,87 @@
 # IdentityOS
 
-**The Open Identity Specification for AI**
+**Your AI should know you — not just your conversation history.**
 
-> *Inspired by the anime Pluto — where every robot had its own unique soul.*
-
----
-
-IdentityOS is a standard for **portable, versionable, persistent digital identities in AI systems**.
-
-Just as HTTP enabled the web and Docker enabled containers, IdentityOS enables a world where:
-- **Identities are portable** — run on any compliant runtime
-- **Vendors compete on execution**, not lock-in
-- **Users own** their AI relationships
-- **Innovation happens at the runtime layer**, not the format layer
+> IdentityOS is a runtime for persistent AI identities that reason across apps, time, and decisions. It's not shared memory. It's a living assistant that notices what you don't.
 
 ---
 
-## Current Status: Foundation Complete, Ecosystem Building
+## One-minute demo
 
-**IdentityOS Architecture Foundation v1 is complete.**
+```bash
+git clone https://github.com/lacebx/IdentityOS.git
+cd IdentityOS
+bash demo.sh
+```
 
-The constitution, laws, amendment system, migration framework, goal engine, intention engine, evidence graph, and confidence system have all been implemented and verified.
-
-**The architecture is now intentionally stable.** Future architectural work should arise from lessons learned while building real applications.
-
-### What We're Building Now: [Runtime v2 — Real Agents](https://github.com/lacebx/IdentityOS/milestone/7)
-
-| Project | Priority |
-|---------|----------|
-| Identity Chat | High |
-| IdentityOS SDK | High |
-| Public REST API | High |
-| Identity Debugger | High |
-| Browser Extension | High |
-| Discord Agent | Medium |
-| VSCode Extension | Medium |
-| Identity Replay | Medium |
-| Long-running Benchmark | Medium |
-| Developer Examples | Medium |
-
-Full roadmap: [docs/ROADMAP.md](docs/ROADMAP.md)
+Watch the identity learn a goal in ChatGPT, learn a conflicting decision in Discord, and proactively flag the broken plan in a third workspace — without being asked.
 
 ---
+
+## What IdentityOS proves that no isolated AI can
+
+| App | What it knows | What it misses |
+|-----|--------------|----------------|
+| ChatGPT | Your promotion depends on shipping a project | The project was cancelled |
+| Discord | The project was cancelled | Why it mattered |
+| **IdentityOS** | **Both. And it connects them.** | |
+
+The identity doesn't just remember. It infers dependencies, detects blocked goals, and intervenes before you realize a plan is broken.
+
+---
+
+## Architecture
+
+```
+                         Identity OS
+                             |
+      -------------------------------------------------
+      |                       |                       |
+ Identity Registry         Memory Layer          Capability Marketplace
+ (Who am I?)              (What do I know?)      (What can I do?)
+      |                       |                       |
+  registry/index.json     MemoryStore              CapabilityRegistry
+  manifest.json           UserProfile              SkillPack
+  tools/identity          TimelineRegistry         permissions system
+                          FactStore
+                          extract_user_facts()
+```
+
+Three orthogonal concerns, one runtime. Identities are publishable, memory is portable, capabilities are installable. Each pillar can evolve independently.
+
+---
+
+## Current milestone: Capability Marketplace
+
+We proved cross-app reasoning. Now we're making identities extensible.
+
+**Next up:** An identity that can install skills like `identity.github.analyze` or `identity.calendar.summarize` — acquiring new abilities without retraining or code changes.
+
+See open issues: [Capability Marketplace](https://github.com/lacebx/IdentityOS/issues/38)
+
+---
+
+## Quick start for contributors
+
+```bash
+# Setup
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+
+# Run all tests
+python3 -m pytest tests/ -q
+
+# Run the demo
+bash demo.sh
+```
+
+Start here: [Good first issues](https://github.com/lacebx/IdentityOS/labels/good%20first%20issue)
+
+---
+
+## Architecture
+
+IdentityOS organizes identity state into **governed modules**, each with a constitutional foundation:
 
 ## Architecture
 
