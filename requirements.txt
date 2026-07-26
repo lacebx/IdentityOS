@@ -1,0 +1,7 @@
+# IdentityOS — Development Requirements
+# Install with: pip install -e .[dev]
+# Or for just the runtime: pip install -e .
+
+-e .
+pytest>=7.4.0
+pytest-asyncio>=0.21.0

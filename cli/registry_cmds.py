@@ -1,0 +1,591 @@
+import json
+import os
+import sys
+import urllib.request
+
+REGISTRY_URL = "https://raw.githubusercontent.com/lacebx/IdentityOS/main/registry/index.json"
+CAP_REGISTRY_BASE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "registry", "capabilities")
+
+
+# ── Registry helpers ──────────────────────────────────────────────────
+
+def _load_registry() -> dict:
+    local = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "registry", "index.json")
+    if os.path.exists(local):
+        with open(local) as f:
+            return json.load(f)
+    try:
+        resp = urllib.request.urlopen(REGISTRY_URL, timeout=5)
+        return json.loads(resp.read().decode())
+    except Exception as e:
+        print(f"Registry unavailable: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+def _registry_base() -> str:
+    return _load_registry().get("registry", "")
+
+
+def _find_in_registry(identity_id: str) -> dict | None:
+    idx = _load_registry()
+    for entry in idx.get("identities", []):
+        if entry["id"] == identity_id or entry["id"].split("/")[-1] == identity_id:
+            return entry
+    return None
+
+
+def _load_manifest(entry: dict) -> dict:
+    spec_path = entry.get("url", "")
+    registry_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "registry")
+    local = os.path.join(registry_dir, spec_path)
+    if os.path.exists(local):
+        try:
+            with open(local) as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return entry
+
+
+def _load_cap_registry() -> dict:
+    path = os.path.join(CAP_REGISTRY_BASE, "index.json")
+    if not os.path.exists(path):
+        print("Capability registry not found locally.", file=sys.stderr)
+        sys.exit(1)
+    with open(path) as f:
+        return json.load(f)
+
+
+def _find_capability(cap_id: str) -> dict | None:
+    idx = _load_cap_registry()
+    return next((e for e in idx.get("capabilities", []) if e["id"] == cap_id), None)
+
+
+def _load_cap_manifest(entry: dict) -> dict:
+    spec_path = entry.get("url", "")
+    local = os.path.join(CAP_REGISTRY_BASE, spec_path)
+    if os.path.exists(local):
+        try:
+            with open(local) as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return entry
+
+
+def _load_isp_registry() -> dict:
+    isp_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "registry", "isp")
+    local = os.path.join(isp_dir, "index.json")
+    if os.path.exists(local):
+        with open(local) as f:
+            return json.load(f)
+    print("ISP registry not found locally.", file=sys.stderr)
+    sys.exit(1)
+
+
+def _find_isp_pack(pack_id: str) -> dict | None:
+    return next((p for p in _load_isp_registry().get("packs", []) if p["id"] == pack_id), None)
+
+
+def _load_isp_manifest(entry: dict) -> dict:
+    registry_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "registry", "isp")
+    local = os.path.join(registry_dir, entry.get("url", ""))
+    if os.path.exists(local):
+        try:
+            with open(local) as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return entry
+
+
+# ── Progress bar helper (for inspect dashboard) ──────────────────────
+
+def _progress_bar(filled: float, total: float = 1.0, width: int = 18) -> str:
+    ratio = filled / total if total > 0 else 0
+    done = int(ratio * width)
+    return f"{'█' * done}{'░' * (width - done)}"
+
+
+# ── Registry commands ─────────────────────────────────────────────────
+
+def cmd_registry_list():
+    idx = _load_registry()
+    base = _registry_base().split("/")[2] if "//" in _registry_base() else _registry_base()
+    print(f"  IdentityOS Registry ({base})")
+    print(f"  {len(idx.get('identities', []))} identities available")
+    print()
+    print(f"  {'ID':30s} {'Version':10s} {'Capabilities':15s} {'Model':25s} {'Description'}")
+    print(f"  {'-'*28}  {'-'*8}   {'-'*13}  {'-'*23}  {'-'*30}")
+    for entry in idx.get("identities", []):
+        eid = entry.get("id", "")
+        ver = f"v{entry.get('version', '')}"
+        caps = str(len(entry.get("capabilities", [])))
+        mod = entry.get("model", {}).get("model", "any")
+        desc = entry.get("description", "")[:45]
+        print(f"  {eid:30s} {ver:10s} {caps:15s} {mod:25s} {desc}")
+    print()
+    print(f"  identity registry show <id>    — Show details")
+    print(f"  identity registry install <id> — Install identity")
+
+
+def cmd_registry_show(identity_id: str):
+    entry = _find_in_registry(identity_id)
+    if not entry:
+        print(f"Identity '{identity_id}' not found in registry.", file=sys.stderr)
+        sys.exit(1)
+    manifest = _load_manifest(entry)
+    combined = {**entry, **manifest}
+    print(f"  Identity")
+    print(f"    ID:          {combined.get('id', '')}")
+    print(f"    Name:        {combined.get('name', '')}")
+    print(f"    Version:     {combined.get('version', '')}")
+    author = combined.get("author", "unknown")
+    if isinstance(author, dict):
+        author = author.get("name", "unknown")
+    print(f"    Author:      {author}")
+    print(f"    License:     {combined.get('license', 'unknown')}")
+    print(f"    Description: {combined.get('description', '')}")
+    tags = combined.get("tags", [])
+    print(f"    Tags:        {', '.join(tags) if tags else 'none'}")
+    print(f"    Published:   {combined.get('published', 'unknown')}")
+    print()
+    print(f"  Personality")
+    pers = combined.get("personality", {})
+    print(f"    Role:    {pers.get('role', 'not specified')}")
+    print(f"    Tagline: {pers.get('tagline', '')}")
+    if pers.get("values"):
+        print(f"    Values:  {', '.join(pers['values'])}")
+    if pers.get("traits"):
+        print(f"    Traits:  {', '.join(pers['traits'])}")
+    print()
+    print(f"  Model")
+    mod = combined.get("model", {})
+    print(f"    Provider: {mod.get('provider', 'any')}")
+    print(f"    Model:    {mod.get('model', 'any')}")
+    print()
+    print(f"  Memory")
+    mem = combined.get("memory", {})
+    print(f"    Backend:   {mem.get('backend', 'default')}")
+    print(f"    Retention: {mem.get('retention', 'default')}")
+    if mem.get("features"):
+        print(f"    Features:  {', '.join(mem['features'])}")
+    print()
+    caps = combined.get("capabilities", [])
+    print(f"  Capabilities ({len(caps)})")
+    for cap in caps:
+        print(f"    - {cap}")
+    print()
+    print(f"  Runtime")
+    rt = combined.get("runtime", {})
+    print(f"    identityos: {rt.get('identityos', '*')}")
+    print()
+    print(f"  Permissions")
+    perm = combined.get("permissions", {})
+    for k, v in perm.items():
+        print(f"    {k}: {'✓' if v else '✗'}")
+
+
+def cmd_registry_install(identity_id: str):
+    entry = _find_in_registry(identity_id)
+    if not entry:
+        print(f"Identity '{identity_id}' not found in registry.", file=sys.stderr)
+        return
+    base = _registry_base()
+    registry_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "registry")
+    local_spec = os.path.join(registry_dir, entry["url"])
+    if os.path.exists(local_spec):
+        with open(local_spec) as f:
+            spec = json.load(f)
+    else:
+        full_url = f"{base.rstrip('/')}/{entry['url']}"
+        print(f"  Downloading from {full_url}...")
+        try:
+            resp = urllib.request.urlopen(full_url, timeout=10)
+            spec = json.loads(resp.read().decode())
+        except Exception as e:
+            print(f"  Failed to download spec: {e}")
+            return
+    store_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".identity_store")
+    os.makedirs(store_dir, exist_ok=True)
+    spec_path = os.path.join(store_dir, f"{identity_id}.json")
+    with open(spec_path, "w") as f:
+        json.dump(spec, f, indent=2)
+    print(f"  ✓ Installed to {spec_path}")
+    print(f"  To use: identity inspect {identity_id}")
+
+
+def cmd_registry_publish(spec_path: str):
+    if not os.path.exists(spec_path):
+        print(f"  File not found: {spec_path}", file=sys.stderr)
+        return
+    with open(spec_path) as f:
+        spec = json.load(f)
+    identity_id = spec.get("id") or spec.get("name", "unknown")
+    print(f"  Publishing '{identity_id}'...")
+    print(f"  To add to the registry, copy {spec_path} to:")
+    print(f"    registry/identities/{identity_id}.json")
+    print(f"  Then add an entry to registry/index.json and submit a PR.")
+
+
+# ── Capability marketplace commands ──────────────────────────────────
+
+def cmd_cap_list():
+    idx = _load_cap_registry()
+    caps = idx.get("capabilities", [])
+    print(f"  {len(caps)} capabilities available")
+    print()
+    for c in caps:
+        print(f"  {c['id']:20s}  v{c.get('version','')}  {c.get('description','')[:60]}")
+    print()
+    print(f"  identity cap show <id>           — Show details")
+    print(f"  identity cap install <id> --identity <id> — Install capability")
+
+
+def cmd_cap_show(cap_id: str):
+    entry = _find_capability(cap_id)
+    if not entry:
+        print(f"  Capability '{cap_id}' not found.", file=sys.stderr)
+        sys.exit(1)
+    manifest = _load_cap_manifest(entry)
+    d = {**entry, **manifest}
+    print(f"  id:           {d.get('id','')}")
+    print(f"  name:         {d.get('name','')}")
+    print(f"  version:      {d.get('version','')}")
+    print(f"  author:       {d.get('author','')}")
+    print(f"  description:  {d.get('description','')}")
+    print(f"  permissions:  {', '.join(d.get('permissions', {}).keys())}")
+    print(f"  provider:     {d.get('provider','')}")
+    print()
+    print(f"  skills ({len(d.get('skills', []))}):")
+    for s in d.get("skills", []):
+        print(f"    {s['name']:40s}  {s.get('description','')[:50]}")
+    if d.get("config_schema", {}).get("properties"):
+        print()
+        print(f"  config:")
+        for k, v in d["config_schema"]["properties"].items():
+            print(f"    {k}:  {v.get('description','')}")
+
+
+def cmd_cap_install(cap_id: str, identity_id: str | None):
+    if identity_id is None:
+        print("  Usage: identity cap install <cap_id> --identity <identity_id>")
+        sys.exit(1)
+    entry = _find_capability(cap_id)
+    if not entry:
+        print(f"  Capability '{cap_id}' not found in marketplace.", file=sys.stderr)
+        sys.exit(1)
+    from runtime.persistence import JSONFileBackend
+    from runtime.orchestrator import IdentityRuntime
+    from runtime.main import register_default_criteria
+    storage = JSONFileBackend()
+    runtime = IdentityRuntime(storage=storage)
+    runtime.load_persisted()
+    runtime.load(identity_id)
+    register_default_criteria(runtime.evaluation_engine)
+    try:
+        cap = runtime.capability_registry.install(identity_id, cap_id)
+        print(f"  installed: {cap_id} -> {identity_id}")
+        print(f"  skills:    {len(cap.skills())} added")
+    except ValueError as e:
+        print(f"  error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+def cmd_cap_search(query: str):
+    idx = _load_cap_registry()
+    q = query.lower()
+    results = []
+    for c in idx.get("capabilities", []):
+        text = f"{c.get('id','')} {c.get('name','')} {c.get('description','')}"
+        if q in text.lower():
+            results.append(c)
+    print(f"  {len(results)} matches for '{query}'")
+    print()
+    for c in results:
+        print(f"  {c['id']:20s}  {c.get('description','')[:60]}")
+
+
+def cmd_cap_list_installed(identity_id: str):
+    from runtime.persistence import JSONFileBackend
+    from runtime.orchestrator import IdentityRuntime
+    from runtime.main import register_default_criteria
+    storage = JSONFileBackend()
+    runtime = IdentityRuntime(storage=storage)
+    runtime.load_persisted()
+    runtime.load(identity_id)
+    register_default_criteria(runtime.evaluation_engine)
+    caps = runtime.capability_registry.list(identity_id)
+    if not caps:
+        print(f"  no capabilities installed for {identity_id}")
+        return
+    print(f"  installed capabilities for {identity_id}:")
+    print()
+    for c in caps:
+        info = c.to_dict() if hasattr(c, "to_dict") else {"id": c.id, "skills": []}
+        print(f"  {info.get('id',''):20s}  v{info.get('version','')}  {info.get('description','')[:50]}")
+        for s in info.get("skills", []):
+            print(f"    {s}")
+
+
+# ── ISP (Identity Skill Pack) commands ──────────────────────────────
+
+def cmd_isp_list():
+    idx = _load_isp_registry()
+    packs = idx.get("packs", [])
+    print(f"  Identity Skill Pack Registry")
+    print(f"  {len(packs)} packs available")
+    print()
+    for p in packs:
+        print(f"  {p['id']:20s}  v{p.get('version','')}  {p.get('description','')[:55]}")
+    print()
+    print(f"  identity isp show <id>            — Show details")
+    print(f"  identity isp install <id> --identity <id> — Install pack")
+
+
+def cmd_isp_show(pack_id: str):
+    entry = _find_isp_pack(pack_id)
+    if not entry:
+        print(f"  Pack '{pack_id}' not found in ISP registry.", file=sys.stderr)
+        sys.exit(1)
+    manifest = _load_isp_manifest(entry)
+    d = {**entry, **manifest}
+    print(f"  id:           {d.get('id','')}")
+    print(f"  name:         {d.get('name','')}")
+    print(f"  version:      {d.get('version','')}")
+    print(f"  author:       {d.get('author','')}")
+    print(f"  description:  {d.get('description','')}")
+    print()
+    caps = d.get("capabilities", [])
+    if caps and isinstance(caps[0], dict):
+        print(f"  capabilities ({len(caps)}):")
+        for c in caps:
+            print(f"    {c['id']:20s}  {c.get('reason','')[:55]}")
+    else:
+        print(f"  capabilities: {', '.join(caps)}")
+    print(f"  tags:         {', '.join(d.get('tags', []))}")
+    print()
+    for ex in d.get("example_uses", []):
+        print(f"  > {ex}")
+
+
+def cmd_isp_install(pack_id: str, identity_id: str | None):
+    if identity_id is None:
+        print("  Usage: identity isp install <pack_id> --identity <identity_id>")
+        sys.exit(1)
+    entry = _find_isp_pack(pack_id)
+    if not entry:
+        print(f"  Pack '{pack_id}' not found in ISP registry.", file=sys.stderr)
+        sys.exit(1)
+    manifest = _load_isp_manifest(entry)
+    d = {**entry, **manifest}
+    caps = d.get("capabilities", [])
+    cap_ids = [c["id"] if isinstance(c, dict) else c for c in caps]
+    from runtime.persistence import JSONFileBackend
+    from runtime.orchestrator import IdentityRuntime
+    from runtime.main import register_default_criteria
+    storage = JSONFileBackend()
+    runtime = IdentityRuntime(storage=storage)
+    runtime.load_persisted()
+    runtime.load(identity_id)
+    register_default_criteria(runtime.evaluation_engine)
+    installed = 0
+    total_skills = 0
+    for cap_id in cap_ids:
+        try:
+            cap = runtime.capability_registry.install(identity_id, cap_id)
+            installed += 1
+            total_skills += len(cap.skills())
+            print(f"    installed: {cap_id} ({len(cap.skills())} skills)")
+        except ValueError as e:
+            print(f"    skipped {cap_id}: {e}")
+    print()
+    print(f"  Pack '{pack_id}' installed — {installed}/{len(cap_ids)} capabilities, {total_skills} total skills")
+
+
+# ── Explain command ──────────────────────────────────────────────────
+
+def cmd_explain(identity_id: str, question: str):
+    from runtime.persistence import JSONFileBackend
+    from runtime.orchestrator import IdentityRuntime
+    from runtime.main import register_default_criteria
+    storage = JSONFileBackend()
+    runtime = IdentityRuntime(storage=storage)
+    runtime.load_persisted()
+    identity = runtime.load(identity_id)
+    if identity is None:
+        print(f"Identity '{identity_id}' not found.", file=sys.stderr)
+        sys.exit(1)
+    register_default_criteria(runtime.evaluation_engine)
+    W = 78
+    lines = []
+    lines.append("═" * W)
+    lines.append(f"  Explanation")
+    lines.append("═" * W)
+    lines.append("")
+    lines.append(f"  {question}")
+    lines.append("")
+    from core.goals import GoalScope
+    goals = runtime.goal_engine.by_scope(GoalScope.PERSISTENT) or runtime.goal_engine.by_scope(GoalScope.LIFELONG) or []
+    active_goals = [g for g in goals if g.status.value == "active"]
+    if active_goals:
+        lines.append(f"  Goal")
+        for g in active_goals:
+            lines.append(f"  → {g.title}")
+            if g.description:
+                lines.append(f"    {g.description[:80]}")
+        lines.append("")
+    fact_store = runtime._fact_stores.get(identity_id)
+    if fact_store:
+        all_facts = fact_store.all()
+        active_facts = [f for f in all_facts if f.status.value == "active"]
+        if active_facts:
+            lines.append(f"  Identity Facts")
+            for f in active_facts[:6]:
+                val = str(f.value)[:60]
+                conf = f.confidence
+                lines.append(f"  {f.field}: {val}")
+                lines.append(f"    Confidence: {conf:.0%}  Reinforced: {f.times_reinforced}x")
+            lines.append("")
+    try:
+        evidence_graph = getattr(runtime, "_evidence_graph", None)
+        if evidence_graph:
+            all_evidence = list(evidence_graph._nodes.values())
+            if all_evidence:
+                lines.append(f"  Evidence Chain")
+                for e in all_evidence[:5]:
+                    lines.append(f"  • {e.description[:70]}")
+                    lines.append(f"    Type: {e.evidence_type.value}  Source: {e.source_text[:50]}")
+                lines.append("")
+    except Exception:
+        pass
+    tl = runtime.timeline_registry.get(identity.id)
+    if tl:
+        events = tl.events()
+        relevant = [e for e in events if any(w in (e.title + e.description).lower() for w in question.lower().split())]
+        if relevant:
+            lines.append(f"  Related Timeline Events")
+            for e in relevant[:3]:
+                lines.append(f"  • {e.title} ({e.age_label()})")
+                if e.description:
+                    lines.append(f"    {e.description[:80]}")
+            lines.append("")
+        elif events:
+            lines.append(f"  Timeline")
+            for e in events[-3:]:
+                lines.append(f"  • {e.title} ({e.age_label()})")
+            lines.append("")
+    profile = runtime._get_user_profile(identity_id)
+    if profile:
+        all_facts = profile.all_facts()
+        matching = []
+        for fact in all_facts:
+            value = str(fact.value) if hasattr(fact, "value") else str(fact)
+            if any(w in (fact.field + " " + value).lower() for w in question.lower().split()):
+                matching.append((fact.field, value))
+        if matching:
+            lines.append(f"  What the identity knows about you")
+            for field_name, value in matching:
+                lines.append(f"  • {field_name}: {value[:70]}")
+            lines.append("")
+    if active_goals:
+        lines.append(f"  Confidence Assessment")
+        for g in active_goals:
+            cl = getattr(g, "confidence_label", "moderate")
+            lines.append(f"  Goal '{g.title}': {cl}")
+        lines.append("")
+    lines.append(f"  * Traced from {len(runtime.memory_store.by_identity(identity_id))} memories, "
+                  f"{len(fact_store.all()) if fact_store else 0} identity facts")
+    lines.append("═" * W)
+    print("\n".join(lines))
+
+
+# ── Enhanced inspect dashboard ────────────────────────────────────────
+
+def cmd_inspect_dashboard(identity_id: str):
+    from runtime.persistence import JSONFileBackend
+    from runtime.orchestrator import IdentityRuntime
+    from runtime.main import register_default_criteria
+    storage = JSONFileBackend()
+    runtime = IdentityRuntime(storage=storage)
+    runtime.load_persisted()
+    identity = runtime.load(identity_id)
+    if identity is None:
+        print(f"Identity '{identity_id}' not found.", file=sys.stderr)
+        sys.exit(1)
+    register_default_criteria(runtime.evaluation_engine)
+    dash = []
+    W = 78
+    header = f"  Identity  {identity.name}"
+    pad = W - len(header) - 2
+    dash.append("═" * W)
+    dash.append(header + " " * pad + " ")
+    dash.append("═" * W)
+    dash.append("")
+    from core.goals import GoalScope
+    goals = runtime.goal_engine.by_scope(GoalScope.PERSISTENT) or runtime.goal_engine.by_scope(GoalScope.LIFELONG) or []
+    active_goals = [g for g in goals if g.status.value == "active"]
+    if active_goals:
+        top = active_goals[0]
+        pct = int(top.progress * 100) if hasattr(top, "progress") else 0
+        bar = _progress_bar(top.progress if hasattr(top, "progress") else 0)
+        dash.append(f"  Current Mission")
+        dash.append(f"  {top.title}")
+        dash.append(f"  {bar} {pct}%")
+    else:
+        dash.append(f"  No current mission")
+    dash.append("")
+    runtime.intention_engine.check_expiry()
+    active_intentions = [i for i in runtime.intention_engine.all() if i.is_active()]
+    if active_intentions:
+        dash.append(f"  Thinking About")
+        for i in active_intentions[:5]:
+            desc = i.description[:60]
+            dash.append(f"  • {desc}")
+        dash.append("")
+    profile = runtime._get_user_profile(identity_id)
+    if profile:
+        all_facts = profile.all_facts()
+        if all_facts:
+            dash.append(f"  Recently Learned")
+            for fact in all_facts[:6]:
+                value = str(fact.value) if hasattr(fact, "value") else str(fact)
+                if len(value) > 50:
+                    value = value[:47] + "..."
+                dash.append(f"  ✓ {fact.field}: {value}")
+            dash.append("")
+    sessions = [sid for sid, id_ in runtime._sessions.items() if id_ == identity.id]
+    if sessions:
+        dash.append(f"  Workspaces")
+        for sid in sessions[-5:]:
+            mode = runtime._session_modes.get(sid)
+            mode_tag = f" [{mode.value}]" if mode else ""
+            dash.append(f"  {sid}{mode_tag}")
+        dash.append("")
+    tl = runtime.timeline_registry.get(identity.id)
+    if tl:
+        events = tl.recent(4)
+        if events:
+            dash.append(f"  Recent History")
+            for e in events:
+                label = e.age_label()
+                dash.append(f"  {label}: {e.title}")
+                if e.description:
+                    desc = e.description[:70]
+                    dash.append(f"    {desc}")
+            dash.append("")
+    mems = runtime.memory_store.by_identity(identity_id)
+    if mems:
+        ep = len([m for m in mems if m.memory_type.value == "episodic"])
+        sem = len([m for m in mems if m.memory_type.value == "semantic"])
+        dash.append(f"  Memory")
+        dash.append(f"  {len(mems)} total ({ep} conversations, {sem} facts)")
+        dash.append("")
+    cap_list = runtime.capability_registry.list(identity_id)
+    if cap_list:
+        dash.append(f"  Installed Capabilities")
+        for c in cap_list:
+            dash.append(f"  {c.id}")
+        dash.append("")
+    dash.append("═" * W)
+    print("\n".join(dash))

@@ -6,6 +6,7 @@ dist/
 .env
 identity_runtime.db
 .identity_store/
+.identity_store_cli/
 .mypy_cache/
 *.pyc
 __pycache__/
@@ -14,3 +15,6 @@ __pycache__/
 .ruff_cache/
 .venv
 venv/
+*.log
+demo/output/
+.test_canonical_facts/

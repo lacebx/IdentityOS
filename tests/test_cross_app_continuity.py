@@ -32,6 +32,11 @@ from pathlib import Path
 
 import pytest
 
+pytestmark = pytest.mark.skipif(
+    not os.environ.get("GROQ_API_KEY") and not os.environ.get("OPENROUTER_API_KEY"),
+    reason="Requires GROQ_API_KEY or OPENROUTER_API_KEY for LLM access",
+)
+
 API_BASE = "http://localhost:8000"
 SERVER_WAIT = 5
 
@@ -53,16 +58,15 @@ def runtime_server():
             elif p.is_dir():
                 shutil.rmtree(p, ignore_errors=True)
     env = os.environ.copy()
-    # Force Groq adapter — the server auto-detection might pick
-    # OpenRouter (no credits) or no adapter at all.
-    for key in ("GROQ_API_KEY", "GROQ_API_KEY_2", "GROQ_API_KEY_3", "GROQ_API_KEY_4",
-                "GROQ_API_KEY_5", "GROQ_API_KEY_6", "GROQ_API_KEY_7", "SAMBANOVA_API_KEY"):
-        if key not in env and os.environ.get(key):
-            env[key] = os.environ[key]
-    # Prevent OpenRouter from being picked (no credits)
-    env["OPENROUTER_API_KEY"] = ""
-    env["IDENTITY_ADAPTER"] = "groq"
-    env["IDENTITY_MODEL"] = "llama-3.3-70b-versatile"
+    # Use whichever API key is available
+    if os.environ.get("GROQ_API_KEY"):
+        env["IDENTITY_ADAPTER"] = "groq"
+    elif os.environ.get("SAMBANOVA_API_KEY"):
+        env["IDENTITY_ADAPTER"] = "sambanova"
+    elif os.environ.get("OPENROUTER_API_KEY"):
+        env["IDENTITY_ADAPTER"] = "openrouter"
+    elif os.environ.get("OPENAI_API_KEY"):
+        env["IDENTITY_ADAPTER"] = "openai"
 
     proc = subprocess.Popen(
         [sys.executable, "-m", "runtime.main"],

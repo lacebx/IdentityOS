@@ -1,5 +1,9 @@
 # 07 — Identity Spec
 
+> **⚠️ Aspirational Design Document**
+>
+> This document describes the vision for a standardized identity spec format. The IdentityOS runtime implements a subset of what's described here. See the [spec/](../spec/) directory for the formal draft specification and the [identityos](../identityos/) package for the current implementation.
+
 ## What is the Identity Spec?
 
 The Identity Spec is the core data format for defining who an AI identity is. It's the "source of truth" file that the Runtime loads to know how an agent should behave, speak, and what it values.
@@ -12,7 +16,7 @@ Think of it like `package.json` for a Node project, or `docker-compose.yml` for 
 
 ```json
 {
-  "$schema": "https://identity-runtime.dev/spec/v1.0",
+  "$schema": "../../spec/identity.schema.json",
   "identity": {
     "id": "startup-mentor-v1",
     "name": "Startup Mentor",
@@ -116,7 +120,7 @@ Governance and persistence settings.
 
 ```json
 {
-  "$schema": "https://identity-runtime.dev/spec/v1.0",
+  "$schema": "../../spec/identity.schema.json",
   "identity": {
     "id": "my-first-identity",
     "name": "My Assistant",

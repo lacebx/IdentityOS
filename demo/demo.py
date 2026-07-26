@@ -150,9 +150,9 @@ def main():
     say(cyan("\n  That's not memory. That's reasoning across a life.\n"), 0.03)
     print()
     print(dim("  You can verify this is real state:"))
-    print(dim("  python3 tools/identity inspect arsene"))
-    print(dim('  python3 tools/identity explain arsene "promotion"'))
-    print(dim('  python3 tools/identity explain arsene "shelved"'))
+    print(dim("  identity inspect --id arsene"))
+    print(dim('  identity explain arsene "promotion"'))
+    print(dim('  identity explain arsene "shelved"'))
     print("=" * 72 + "\n")
 
 
