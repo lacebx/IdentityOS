@@ -276,6 +276,8 @@ def _find_in_registry(identity_id: str) -> dict | None:
     for entry in idx.get("identities", []):
         if entry["id"] == identity_id:
             return entry
+        if entry["id"].split("/")[-1] == identity_id:
+            return entry
     return None
 
 
@@ -283,15 +285,36 @@ def _find_in_registry(identity_id: str) -> dict | None:
 
 def cmd_list():
     idx = _load_registry()
-    base = _registry_base()
+    base = _registry_base().split("/")[2] if "//" in _registry_base() else _registry_base()
     print(f"  IdentityOS Registry ({base})")
     print(f"  {len(idx.get('identities', []))} identities available")
     print()
+    print(f"  {'ID':30s} {'Version':10s} {'Capabilities':15s} {'Model':25s} {'Description'}")
+    print(f"  {'-'*28}  {'-'*8}   {'-'*13}  {'-'*23}  {'-'*30}")
     for entry in idx.get("identities", []):
-        print(f"  {entry['id']:20s} {entry['name']:20s} v{entry['version']:8s} {entry.get('description', '')[:50]}")
+        eid = entry.get("id", "")
+        ver = f"v{entry.get('version', '')}"
+        caps = str(len(entry.get("capabilities", [])))
+        mod = entry.get("model", {}).get("model", "any")
+        desc = entry.get("description", "")[:45]
+        print(f"  {eid:30s} {ver:10s} {caps:15s} {mod:25s} {desc}")
     print()
-    print(f"  Install:  python tools/identity install <identity_id>")
-    print(f"  Details:  python tools/identity show <identity_id>")
+    print(f"  Install:  python tools/identity install <id>")
+    print(f"  Details:  python tools/identity show <id>")
+
+
+def _load_manifest(entry: dict) -> dict:
+    """Try to load the full manifest for a registry entry."""
+    spec_path = entry.get("url", "")
+    registry_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "registry")
+    local = os.path.join(registry_dir, spec_path)
+    if os.path.exists(local):
+        try:
+            with open(local) as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return entry
 
 
 def cmd_show(identity_id: str):
@@ -299,13 +322,58 @@ def cmd_show(identity_id: str):
     if not entry:
         print(f"Identity '{identity_id}' not found in registry.")
         sys.exit(1)
-    print(f"  Name:        {entry['name']}")
-    print(f"  ID:          {entry['id']}")
-    print(f"  Version:     {entry['version']}")
-    print(f"  Author:      {entry.get('author', 'unknown')}")
-    print(f"  Description: {entry.get('description', '')}")
-    print(f"  Tags:        {', '.join(entry.get('tags', []))}")
-    print(f"  Published:   {entry.get('published', 'unknown')}")
+    # Prefer manifest over index entry when available
+    manifest = _load_manifest(entry)
+    combined = {**entry, **manifest}
+
+    print(f"  Identity")
+    print(f"    ID:          {combined.get('id', '')}")
+    print(f"    Name:        {combined.get('name', '')}")
+    print(f"    Version:     {combined.get('version', '')}")
+    author = combined.get("author", "unknown")
+    if isinstance(author, dict):
+        author = author.get("name", "unknown")
+    print(f"    Author:      {author}")
+    print(f"    License:     {combined.get('license', 'unknown')}")
+    print(f"    Description: {combined.get('description', '')}")
+    tags = combined.get("tags", [])
+    print(f"    Tags:        {', '.join(tags) if tags else 'none'}")
+    print(f"    Published:   {combined.get('published', 'unknown')}")
+    print()
+    print(f"  Personality")
+    pers = combined.get("personality", {})
+    print(f"    Role:    {pers.get('role', 'not specified')}")
+    print(f"    Tagline: {pers.get('tagline', '')}")
+    if pers.get("values"):
+        print(f"    Values:  {', '.join(pers['values'])}")
+    if pers.get("traits"):
+        print(f"    Traits:  {', '.join(pers['traits'])}")
+    print()
+    print(f"  Model")
+    mod = combined.get("model", {})
+    print(f"    Provider: {mod.get('provider', 'any')}")
+    print(f"    Model:    {mod.get('model', 'any')}")
+    print()
+    print(f"  Memory")
+    mem = combined.get("memory", {})
+    print(f"    Backend:   {mem.get('backend', 'default')}")
+    print(f"    Retention: {mem.get('retention', 'default')}")
+    if mem.get("features"):
+        print(f"    Features:  {', '.join(mem['features'])}")
+    print()
+    caps = combined.get("capabilities", [])
+    print(f"  Capabilities ({len(caps)})")
+    for cap in caps:
+        print(f"    - {cap}")
+    print()
+    print(f"  Runtime")
+    rt = combined.get("runtime", {})
+    print(f"    identityos: {rt.get('identityos', '*')}")
+    print()
+    print(f"  Permissions")
+    perm = combined.get("permissions", {})
+    for k, v in perm.items():
+        print(f"    {k}: {'✓' if v else '✗'}")
 
 
 def cmd_install(identity_id: str):
@@ -317,10 +385,8 @@ def cmd_install(identity_id: str):
     spec_path_rel = entry["url"]
     base = _registry_base()
 
-    # Try local file first
-    local_spec = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), "..", "registry", spec_path_rel
-    )
+    registry_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "registry")
+    local_spec = os.path.join(registry_dir, spec_path_rel)
     if os.path.exists(local_spec):
         with open(local_spec) as f:
             spec = json.load(f)
