@@ -25,9 +25,22 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Optional
+
+# Load .env if present (same pattern as runtime/main.py)
+_env_file = Path(__file__).resolve().parent.parent / ".env"
+if _env_file.is_file():
+    try:
+        for _line in _env_file.read_text().splitlines():
+            _line = _line.strip()
+            if _line and not _line.startswith("#") and "=" in _line:
+                _k, _v = _line.split("=", 1)
+                os.environ.setdefault(_k.strip(), _v.strip().strip("\"'"))
+    except Exception:
+        pass
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -318,6 +331,23 @@ def cmd_playground(args: argparse.Namespace) -> int:
     return 0
 
 
+def _detect_adapter():
+    """Auto-detect adapter using same priority as runtime/main.py."""
+    import os
+    _groq_keys = [os.environ.get(k) for k in ("GROQ_API_KEY", "GROQ_API_KEY_2", "GROQ_API_KEY_3",
+                                               "GROQ_API_KEY_4", "GROQ_API_KEY_5", "GROQ_API_KEY_6")]
+    if any(k for k in _groq_keys if k and "PLACEHOLDER" not in k):
+        from adapters.groq_adapter import GroqAdapter
+        return GroqAdapter(model=os.environ.get("IDENTITY_MODEL", "llama-3.3-70b-versatile"))
+    if os.environ.get("OPENROUTER_API_KEY"):
+        from adapters.openrouter_adapter import OpenRouterAdapter
+        return OpenRouterAdapter(model=os.environ.get("IDENTITY_MODEL", "openai/gpt-4o"))
+    if os.environ.get("OPENAI_API_KEY"):
+        from adapters.openai_adapter import OpenAIAdapter
+        return OpenAIAdapter(model=os.environ.get("IDENTITY_MODEL", "gpt-4o"))
+    return None
+
+
 def cmd_chat(args: argparse.Namespace) -> int:
     """
     Start an interactive REPL with a loaded identity.
@@ -340,7 +370,7 @@ def cmd_chat(args: argparse.Namespace) -> int:
     # Lazy-import the orchestrator
     try:
         from runtime.orchestrator import IdentityRuntime, InteractionRequest
-        adapter = _get_adapter(args) if args.adapter else None
+        adapter = _get_adapter(args) if args.adapter else _detect_adapter()
         runtime = IdentityRuntime(storage=storage, adapter=adapter)
         runtime.load(args.id)
         session_id = runtime.start_session(args.id)
