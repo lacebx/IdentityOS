@@ -34,6 +34,39 @@
       "total_skills": 16,
       "tags": ["architecture", "design", "code", "research"],
       "url": "packs/architect/manifest.json"
+    },
+    {
+      "id": "scribe",
+      "name": "Scribe Pack",
+      "version": "1.0.0",
+      "description": "Document intelligence specialist — read, analyze, index files",
+      "author": "IdentityOS",
+      "capabilities": ["filesystem", "text", "calc"],
+      "total_skills": 10,
+      "tags": ["documents", "files", "analysis", "writing"],
+      "url": "packs/scribe/manifest.json"
+    },
+    {
+      "id": "sage",
+      "name": "Sage Pack",
+      "version": "1.0.0",
+      "description": "Knowledge oracle — real-time clock, calculations, web research",
+      "author": "IdentityOS",
+      "capabilities": ["datetime", "calc", "web"],
+      "total_skills": 9,
+      "tags": ["knowledge", "oracle", "research", "computation"],
+      "url": "packs/sage/manifest.json"
+    },
+    {
+      "id": "scout",
+      "name": "Scout Pack",
+      "version": "1.0.0",
+      "description": "Forward-reconnaissance identity — watches weather, GitHub, web, time",
+      "author": "IdentityOS",
+      "capabilities": ["weather", "github", "web", "datetime"],
+      "total_skills": 15,
+      "tags": ["scout", "monitoring", "intelligence", "discovery"],
+      "url": "packs/scout/manifest.json"
     }
   ]
 }

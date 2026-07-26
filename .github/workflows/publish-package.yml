@@ -1,0 +1,29 @@
+name: Publish to GitHub Packages
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - run: pip install build twine
+
+      - run: python -m build
+
+      - run: |
+          python -m twine upload \
+            --repository-url https://uploads.packages.github.com/ \
+            --user ${{ github.actor }} \
+            --password ${{ secrets.GITHUB_TOKEN }} \
+            dist/*

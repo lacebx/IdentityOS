@@ -1,0 +1,29 @@
+{
+  "id": "scribe",
+  "name": "Scribe Pack",
+  "version": "1.0.0",
+  "author": "IdentityOS",
+  "license": "MIT",
+  "description": "Transforms an identity into a document intelligence specialist. Read, analyze, transform, and index files — your identity becomes a personal librarian and editor who knows every file in your project.",
+  "capabilities": [
+    {
+      "id": "filesystem",
+      "reason": "Navigate directories, read source files, inspect file metadata"
+    },
+    {
+      "id": "text",
+      "reason": "Word counts, keyword extraction, pattern matching, text splitting"
+    },
+    {
+      "id": "calc",
+      "reason": "Document statistics, size calculations, readability metrics"
+    }
+  ],
+  "tags": ["documents", "files", "analysis", "writing", "library"],
+  "example_uses": [
+    "Read all the Python files in src/ and summarize their structure",
+    "How many lines of code are in this project?",
+    "Extract all TODO comments from the codebase",
+    "Read this file and give me a markdown summary"
+  ]
+}

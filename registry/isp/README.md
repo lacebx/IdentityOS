@@ -4,11 +4,14 @@ ISP is a packaging format for bundling capabilities into purpose-built skill pac
 
 ## Available Packs
 
-| Pack | Capabilities | Skills | Use Case |
-|------|-------------|--------|----------|
-| [Reviewer](packs/reviewer/manifest.json) | text, github, web, calc | 13 | Code review, PR inspection, document analysis |
-| [Planner](packs/planner/manifest.json) | datetime, calc, text, weather | 13 | Scheduling, time management, weather-aware planning |
-| [Architect](packs/architect/manifest.json) | filesystem, github, web, text | 16 | System design, code navigation, architecture research |
+| Pack | Capabilities | Skills | Personality Shift |
+|------|-------------|--------|-------------------|
+| [Reviewer](packs/reviewer/manifest.json) | text, github, web, calc | 13 | Code reviewer — inspects PRs, analyzes docs, researches references |
+| [Planner](packs/planner/manifest.json) | datetime, calc, text, weather | 13 | Scheduler — time-aware, weather-aware, planning-focused |
+| [Architect](packs/architect/manifest.json) | filesystem, github, web, text | 16 | System designer — navigates code, researches architectures |
+| [Scribe](packs/scribe/manifest.json) | filesystem, text, calc | 10 | **Librarian** — reads, indexes, analyzes your entire project |
+| [Sage](packs/sage/manifest.json) | datetime, calc, web | 9 | **Oracle** — real-time facts, calculations, web knowledge |
+| [Scout](packs/scout/manifest.json) | weather, github, web, datetime | 15 | **Watcher** — monitors GitHub, weather, and web intelligence |
 
 ## Install a Pack
 
