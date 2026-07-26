@@ -1,0 +1,16 @@
+{
+  "registry": "https://raw.githubusercontent.com/lacebx/IdentityOS/main/registry",
+  "description": "IdentityOS Public Registry — discover and install identity specs",
+  "identities": [
+    {
+      "id": "arsene",
+      "name": "Arsene",
+      "version": "1.0.0",
+      "description": "A persistent personal assistant who remembers, connects, and reasons across everything you do.",
+      "author": "IdentityOS Team",
+      "tags": ["assistant", "personal", "cross-app"],
+      "published": "2026-07-25",
+      "url": "identities/arsene.json"
+    }
+  ]
+}
