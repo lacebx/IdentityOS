@@ -16,20 +16,20 @@ ISP is a packaging format for bundling capabilities into purpose-built skill pac
 ## Install a Pack
 
 ```bash
-python tools/identity isp install <pack_id> --identity <identity_id>
-python tools/identity isp install planner --identity cap-demo
+identity isp install <pack_id> --identity <identity_id>
+identity isp install planner --identity cap-demo
 ```
 
 ## List Available Packs
 
 ```bash
-python tools/identity isp list
+identity isp list
 ```
 
 ## Show Pack Details
 
 ```bash
-python tools/identity isp show planner
+identity isp show planner
 ```
 
 ## Create Your Own Pack

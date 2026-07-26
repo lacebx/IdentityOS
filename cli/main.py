@@ -1,24 +1,19 @@
 """
 cli/main.py - IdentityOS Command-Line Interface
 
-The human-facing entry point for interacting with the Identity Runtime.
-Provides commands to create, load, chat with, inspect, and version
-any identity without writing a single line of code.
+Single entry point for all IdentityOS operations.
+Run `identity --help` after installing.
 
 Usage:
-    python -m cli.main --help
-    python -m cli.main create --name "Mentor" --persona mentor
-    python -m cli.main chat        --id mentor-01
-    python -m cli.main playground  --port 8000
-    python -m cli.main inspect     --id mentor-01
-    python -m cli.main snapshot --id mentor-01 --label "after-session-3"
-    python -m cli.main history  --id mentor-01
-    python -m cli.main rollback --id mentor-01 --snap <snapshot_id>
-    python -m cli.main diff     --id mentor-01 --from <snap_a> --to <snap_b>
-
-Dependencies:
-    Standard library only (argparse, json, sys, os, pathlib).
-    Runtime imports are lazy so the CLI starts fast.
+    identity create --name "Mentor" --persona mentor    Create an identity
+    identity chat --id mentor-01                         Chat with an identity
+    identity inspect --id mentor-01                      Inspect identity state
+    identity list                                        List all identities
+    identity playground                                  Launch web UI
+    identity registry list                               Browse identity registry
+    identity cap list                                    Browse capabilities
+    identity isp list                                    Browse skill packs
+    identity explain <id> <question>                     Explain identity reasoning
 """
 
 from __future__ import annotations
@@ -30,7 +25,24 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-# Load .env if present (same pattern as runtime/main.py)
+from cli.registry_cmds import (
+    cmd_registry_list,
+    cmd_registry_show,
+    cmd_registry_install,
+    cmd_registry_publish,
+    cmd_cap_list,
+    cmd_cap_show,
+    cmd_cap_install,
+    cmd_cap_search,
+    cmd_cap_list_installed,
+    cmd_isp_list,
+    cmd_isp_show,
+    cmd_isp_install,
+    cmd_explain,
+    cmd_inspect_dashboard,
+)
+
+# Load .env if present
 _env_file = Path(__file__).resolve().parent.parent / ".env"
 if _env_file.is_file():
     try:
@@ -132,10 +144,12 @@ def cmd_create(args: argparse.Namespace) -> int:
 def cmd_inspect(args: argparse.Namespace) -> int:
     """
     Print the current persisted state of an identity.
-
-    Reads all live namespaces (identity, timeline, relationships, goals,
-    memories) directly from the storage backend, not from snapshots.
+    Use --dashboard for the rich visual dashboard.
     """
+    if getattr(args, "dashboard", False):
+        cmd_inspect_dashboard(args.id)
+        return 0
+
     storage = _get_storage(args)
     identity_id = args.id
 
@@ -429,7 +443,7 @@ def cmd_chat(args: argparse.Namespace) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="identity-runtime",
+        prog="identity",
         description="IdentityOS CLI - manage persistent digital identities",
     )
     parser.add_argument(
@@ -453,8 +467,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_create.add_argument("--persona", default="default", help="Persona archetype (e.g. mentor, analyst)")
 
     # inspect
-    p_inspect = sub.add_parser("inspect", help="Print the latest snapshot of an identity")
+    p_inspect = sub.add_parser("inspect", help="Inspect identity state (JSON)")
     p_inspect.add_argument("--id", required=True, help="Identity id")
+    p_inspect.add_argument("--dashboard", action="store_true", help="Show rich dashboard view")
 
     # snapshot
     p_snapshot = sub.add_parser("snapshot", help="Manually capture a snapshot")
@@ -483,8 +498,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_chat.add_argument("--adapter-config", default="{}", help="JSON string with adapter config")
     p_chat.add_argument("--model", default="gpt-4o", help="Model adapter to use")
 
-    # get
-    p_get = sub.add_parser("get", help="List all identities ranked by experience")
+    # list
+    p_get = sub.add_parser("list", aliases=["get"], help="List all identities ranked by experience")
     p_get.add_argument("--limit", type=int, default=0, help="Limit rows (0 = unlimited)")
 
     # playground
@@ -501,7 +516,102 @@ def build_parser() -> argparse.ArgumentParser:
         help="Host to bind (default: 0.0.0.0)",
     )
 
+    # explain
+    p_explain = sub.add_parser("explain", help="Explain why an identity behaves as it does")
+    p_explain.add_argument("id", help="Identity id")
+    p_explain.add_argument("question", nargs="+", help="Question to explain")
+
+    # registry
+    p_reg = sub.add_parser("registry", help="Identity registry operations")
+    reg_sub = p_reg.add_subparsers(dest="registry_command")
+    p_reg_list = reg_sub.add_parser("list", help="List identities in registry")
+    p_reg_show = reg_sub.add_parser("show", help="Show registry entry details")
+    p_reg_show.add_argument("id", help="Identity id")
+    p_reg_install = reg_sub.add_parser("install", help="Install identity from registry")
+    p_reg_install.add_argument("id", help="Identity id")
+    p_reg_pub = reg_sub.add_parser("publish", help="Publish identity spec to registry")
+    p_reg_pub.add_argument("path", help="Path to identity spec JSON file")
+
+    # cap
+    p_cap = sub.add_parser("cap", help="Capability marketplace operations")
+    cap_sub = p_cap.add_subparsers(dest="cap_command")
+    cap_sub.add_parser("list", help="List available capabilities")
+    p_cap_show = cap_sub.add_parser("show", help="Show capability details")
+    p_cap_show.add_argument("id", help="Capability id")
+    p_cap_search = cap_sub.add_parser("search", help="Search capabilities")
+    p_cap_search.add_argument("query", nargs="+", help="Search query")
+    p_cap_install = cap_sub.add_parser("install", help="Install a capability")
+    p_cap_install.add_argument("id", help="Capability id")
+    p_cap_install.add_argument("--identity", required=True, help="Identity id to install on")
+    p_cap_installed = cap_sub.add_parser("installed", help="List installed capabilities")
+    p_cap_installed.add_argument("identity", help="Identity id")
+
+    # isp
+    p_isp = sub.add_parser("isp", help="Identity Skill Pack operations")
+    isp_sub = p_isp.add_subparsers(dest="isp_command")
+    isp_sub.add_parser("list", help="List available skill packs")
+    p_isp_show = isp_sub.add_parser("show", help="Show skill pack details")
+    p_isp_show.add_argument("id", help="Pack id")
+    p_isp_install = isp_sub.add_parser("install", help="Install a skill pack")
+    p_isp_install.add_argument("id", help="Pack id")
+    p_isp_install.add_argument("--identity", required=True, help="Identity id to install on")
+
     return parser
+
+
+# ---------------------------------------------------------------------------
+# Wrapper functions (defined before COMMAND_MAP)
+# ---------------------------------------------------------------------------
+
+def cmd_explain_wrapper(args: argparse.Namespace) -> int:
+    question = " ".join(args.question)
+    cmd_explain(args.id, question)
+    return 0
+
+
+def cmd_registry_wrapper(args: argparse.Namespace) -> int:
+    if args.registry_command == "list":
+        cmd_registry_list()
+    elif args.registry_command == "show":
+        cmd_registry_show(args.id)
+    elif args.registry_command == "install":
+        cmd_registry_install(args.id)
+    elif args.registry_command == "publish":
+        cmd_registry_publish(args.path)
+    else:
+        print("Usage: identity registry <list|show|install|publish>")
+        return 1
+    return 0
+
+
+def cmd_cap_wrapper(args: argparse.Namespace) -> int:
+    if args.cap_command == "list":
+        cmd_cap_list()
+    elif args.cap_command == "show":
+        cmd_cap_show(args.id)
+    elif args.cap_command == "search":
+        cmd_cap_search(" ".join(args.query))
+    elif args.cap_command == "install":
+        cmd_cap_install(args.id, args.identity)
+    elif args.cap_command == "installed":
+        cmd_cap_list_installed(args.identity)
+    else:
+        print("Usage: identity cap <list|show|install|search|installed>")
+        return 1
+    return 0
+
+
+def cmd_isp_wrapper(args: argparse.Namespace) -> int:
+    if args.isp_command == "list":
+        cmd_isp_list()
+    elif args.isp_command == "show":
+        cmd_isp_show(args.id)
+    elif args.isp_command == "install":
+        cmd_isp_install(args.id, args.identity)
+    else:
+        print("Usage: identity isp <list|show|install>")
+        return 1
+    return 0
 
 
 # ---------------------------------------------------------------------------
@@ -516,8 +626,13 @@ COMMAND_MAP = {
     "rollback": cmd_rollback,
     "diff": cmd_diff,
     "chat": cmd_chat,
-    "playground": cmd_playground,
+    "list": cmd_get,
     "get": cmd_get,
+    "playground": cmd_playground,
+    "explain": cmd_explain_wrapper,
+    "registry": cmd_registry_wrapper,
+    "cap": cmd_cap_wrapper,
+    "isp": cmd_isp_wrapper,
 }
 
 

@@ -93,9 +93,14 @@ class TestHeuristicClassification:
         assert compute_relevance("unknown") == 1.0
 
     def test_is_worth_remembering(self):
-        assert is_worth_remembering("what is your favorite color", "blue") is True
+        # Questions are skipped (user is asking, not disclosing)
+        assert is_worth_remembering("what is your favorite color", "blue") is False
+        # Trivial acknowledgments are skipped
         assert is_worth_remembering("ok", "fine") is False
+        # Very short messages are skipped
         assert is_worth_remembering("hi", "hello") is False
+        # User disclosures are worth remembering
+        assert is_worth_remembering("my favorite color is blue", "nice") is True
 
     def test_heuristic_memory_scorer(self):
         assert heuristic_memory_scorer("ok", "fine") == 0.0

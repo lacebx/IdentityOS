@@ -7,15 +7,25 @@ name = "identityos"
 version = "2.0.0"
 description = "Portable AI identity layer — persistent, composable AI identities for LLM applications."
 readme = "README.md"
-license = {text = "MIT"}
+license = {text = "Apache-2.0"}
+classifiers = [
+    "License :: OSI Approved :: Apache Software License",
+]
 authors = [
     {name = "IdentityOS Contributors"},
 ]
 
 requires-python = ">=3.11"
 dependencies = [
-    "httpx",
+    "httpx>=0.25.0",
+    "fastapi>=0.104.0",
+    "uvicorn[standard]>=0.24.0",
+    "pydantic>=2.4.0",
+    "jinja2>=3.0.0",
 ]
+
+[project.scripts]
+identity = "cli.main:main"
 
 [project.urls]
 Homepage = "https://github.com/lacebx/IdentityOS"

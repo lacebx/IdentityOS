@@ -3,7 +3,7 @@
 Open the terminal. Type:
 
 ```
-$ python tools/identity inspect arsene
+$ identity inspect --id arsene
 ```
 
 ```

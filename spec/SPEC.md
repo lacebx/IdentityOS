@@ -4,6 +4,12 @@
 **Status:** Draft  
 **Last Updated:** 2026-07-18
 
+> **⚠️ Draft Specification — Not Fully Implemented**
+>
+> This document describes an aspirational, community-driven specification for portable AI identities. Some features described here are not yet implemented in the IdentityOS runtime. The specification is intended to guide future development and attract contributors — it is **not** a feature-complete description of the current codebase.
+>
+> For what actually works today, see the [README](../README.md) and the [identityos](../identityos/) package.
+
 ---
 
 ## Abstract

@@ -37,6 +37,8 @@ class OpenAIAdapter(BaseAdapter):
             api_key = os.environ.get("OPENAI_API_KEY")
         super().__init__(model=model, **kwargs)
         self.api_key = api_key
+        if base_url is None:
+            base_url = os.environ.get("OPENAI_BASE_URL")
         self.base_url = base_url
         self.organization = organization
         self.temperature = temperature

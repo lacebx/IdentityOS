@@ -1,11 +1,14 @@
-# IdentityOS SDK
+# IdentityOS SDK (legacy shim)
 
 **Path:** `sdk/`
+
+> **Note:** The SDK has moved to `identityos/`. Use `from identityos import Identity` instead.
+> This `sdk/` directory is kept for backward compatibility and re-exports everything.
 
 The official Python SDK for IdentityOS. Hide all internal runtime complexity behind a clean, typed, well-documented API.
 
 ```python
-from sdk import Identity
+from identityos import Identity
 
 # Load a persisted identity
 lace = Identity.load("lace")
@@ -49,7 +52,7 @@ restored = Identity.from_file("lace-portable.json")
 ### Load an existing identity
 
 ```python
-from sdk import Identity
+from identityos import Identity
 
 mentor = Identity.load("mentor-01")
 response = mentor.chat("What is your purpose?")
@@ -59,7 +62,7 @@ print(response)
 ### Create a new identity
 
 ```python
-from sdk import Identity
+from identityos import Identity
 
 lace = Identity.create(
     name="Lace",
@@ -73,7 +76,7 @@ print(response)
 ### Import from a portable JSON file
 
 ```python
-from sdk import Identity
+from identityos import Identity
 
 lace = Identity.from_file("lace-portable.json")
 ```
@@ -202,7 +205,7 @@ lace = Identity.from_file("lace-portable.json")
 ### 20-line Discord Bot
 
 ```python
-from sdk import Identity
+from identityos import Identity
 
 bot = Identity.load("discord-bot")
 
@@ -215,7 +218,7 @@ async def on_message(message):
 ### 30-line NPC
 
 ```python
-from sdk import Identity
+from identityos import Identity
 
 npc = Identity.load("village-elder")
 
@@ -227,7 +230,7 @@ def on_player_speak(player_input: str) -> str:
 ### 40-line Research Assistant
 
 ```python
-from sdk import Identity
+from identityos import Identity
 
 assistant = Identity.load("research-assistant")
 assistant.goal("Track papers about transformer architectures")
@@ -244,6 +247,6 @@ def process_paper(abstract: str):
 
 1. **Zero engine knowledge required** — Developers do not need to understand stores, engines, or configs
 2. **Everything is optional** — Chat works without goals; goals work without relationships
-3. **Minimal imports** — `from sdk import Identity` is all you need
+3. **Minimal imports** — `from identityos import Identity` is all you need
 4. **Typed returns** — All methods return dicts with consistent field names
 5. **Portable** — Export produces a standalone JSON file that can be shared, migrated, or imported

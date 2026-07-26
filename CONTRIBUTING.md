@@ -10,7 +10,7 @@ IdentityOS is an open runtime for persistent AI identities. Contributions are we
 git clone https://github.com/lacebx/IdentityOS.git
 cd IdentityOS
 python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+pip install -e .
 python3 -m pytest tests/ -q
 bash demo.sh
 ```
@@ -172,7 +172,7 @@ Identity Laws govern specific domains of identity behavior. Each law corresponds
 
 ### Python
 
-- **Python 3.10+** — Use modern type annotations (`list[X]` not `List[X]`)
+- **Python 3.11+** — Use modern type annotations (`list[X]` not `List[X]`)
 - **Type hints** — All public functions and methods must have type annotations
 - **No comments** — Code should be self-documenting. Avoid inline comments
 - **Docstrings** — Module-level docstrings required. Function docstrings for non-trivial logic
@@ -266,7 +266,7 @@ Subsystem READMEs (in `core/*/README.md`) should explain:
 
 ### Prerequisites
 
-- Python 3.10+
+- Python 3.11+
 - Git
 
 ### Setup
@@ -274,7 +274,7 @@ Subsystem READMEs (in `core/*/README.md`) should explain:
 ```bash
 git clone https://github.com/lacebx/IdentityOS.git
 cd IdentityOS
-pip install -r runtime/requirements.txt
+pip install -e .
 ```
 
 ### First Contribution Ideas
@@ -295,4 +295,4 @@ pip install -r runtime/requirements.txt
 
 ## License
 
-By contributing, you agree that your contributions will be licensed under the MIT License. See [LICENSE](LICENSE) for details.
+By contributing, you agree that your contributions will be licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for details.
