@@ -71,6 +71,16 @@
       "skills": 4,
       "permissions": ["public"],
       "url": "text/manifest.json"
+    },
+    {
+      "id": "system_info",
+      "name": "System Information",
+      "version": "1.0.0",
+      "description": "OS information, disk usage, CPU details, and system metadata",
+      "author": "IdentityOS",
+      "skills": 3,
+      "permissions": ["local"],
+      "url": "system_info/manifest.json"
     }
   ]
 }

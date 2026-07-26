@@ -66,6 +66,7 @@ class OpenAIAdapter(BaseAdapter):
         identity: Any,
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
+        retries: int = 3,
         **kwargs
     ) -> str:
         """
@@ -73,27 +74,41 @@ class OpenAIAdapter(BaseAdapter):
 
         The context string is injected as the system message.
         The user_input becomes the user turn.
+        Retries up to `retries` times with exponential backoff on rate limits.
         """
+        import time as _time
         client = self._get_client()
         messages = [
             {"role": "system", "content": context},
             {"role": "user", "content": user_input},
         ]
         model = self.model or "gpt-4o"
-        try:
-            response = client.chat.completions.create(
-                model=model,
-                messages=messages,
-                temperature=temperature or self.temperature,
-                max_tokens=max_tokens or self.max_tokens,
-                **kwargs
-            )
-            return response.choices[0].message.content or ""
-        except Exception as exc:
-            msg = str(exc)
-            raise RuntimeError(
-                f"Adapter error (model={model!r}, base_url={self.base_url!r}): {msg}"
-            ) from exc
+        last_exc = None
+        for attempt in range(retries):
+            try:
+                response = client.chat.completions.create(
+                    model=model,
+                    messages=messages,
+                    temperature=temperature or self.temperature,
+                    max_tokens=max_tokens or self.max_tokens,
+                    **kwargs
+                )
+                return response.choices[0].message.content or ""
+            except Exception as exc:
+                last_exc = exc
+                msg = str(exc)
+                if "rate limit" in msg.lower() or "429" in msg:
+                    wait = 2 ** attempt * 5
+                    print(f"  [rate limited, retrying in {wait}s...]")
+                    _time.sleep(wait)
+                    continue
+                raise RuntimeError(
+                    f"Adapter error (model={model!r}, base_url={self.base_url!r}): {msg}"
+                ) from exc
+        msg = str(last_exc)
+        raise RuntimeError(
+            f"Adapter error (model={model!r}, base_url={self.base_url!r}): {msg}"
+        ) from last_exc
 
     def health_check(self) -> bool:
         """Verify connectivity by listing available models."""

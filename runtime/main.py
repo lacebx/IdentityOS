@@ -53,10 +53,20 @@ storage = JSONFileBackend(root_dir=".identity_store")
 adapter = None
 adapter_type = os.environ.get("IDENTITY_ADAPTER", "")
 
-# Priority 1: Auto-detect Groq (default) if any GROQ_API_KEY is set
+# Priority 0: Auto-detect SambaNova if any SAMBANOVA_API_KEY is set
+if os.environ.get("SAMBANOVA_API_KEY"):
+    try:
+        from adapters.sambanova_adapter import SambaNovaAdapter
+        model = os.environ.get("IDENTITY_MODEL", "DeepSeek-V3.1")
+        adapter = SambaNovaAdapter(model=model)
+        logger.info(f"Auto-configured SambaNova adapter (model={model}) with key rotation")
+    except Exception as e:
+        logger.warning(f"Failed to initialize SambaNova adapter: {e}")
+
+# Priority 1: Auto-detect Groq if any GROQ_API_KEY is set
 _groq_keys = [os.environ.get(k) for k in ("GROQ_API_KEY", "GROQ_API_KEY_2", "GROQ_API_KEY_3",
                                            "GROQ_API_KEY_4", "GROQ_API_KEY_5", "GROQ_API_KEY_6")]
-if any(k for k in _groq_keys if k and "PLACEHOLDER" not in k):
+if not adapter and any(k for k in _groq_keys if k and "PLACEHOLDER" not in k):
     try:
         from adapters.groq_adapter import GroqAdapter
         model = os.environ.get("IDENTITY_MODEL", "llama-3.3-70b-versatile")
@@ -65,17 +75,7 @@ if any(k for k in _groq_keys if k and "PLACEHOLDER" not in k):
     except Exception as e:
         logger.warning(f"Failed to initialize Groq adapter: {e}")
 
-# Priority 2: Auto-detect OpenRouter if OPENROUTER_API_KEY is set
-if not adapter and os.environ.get("OPENROUTER_API_KEY"):
-    try:
-        from adapters.openrouter_adapter import OpenRouterAdapter
-        model = os.environ.get("IDENTITY_MODEL", "openai/gpt-4o")
-        adapter = OpenRouterAdapter(model=model)
-        logger.info(f"Auto-configured OpenRouter adapter (model={model})")
-    except Exception as e:
-        logger.warning(f"Failed to initialize OpenRouter adapter: {e}")
-
-# Priority 3: Explicit IDENTITY_ADAPTER env var
+# Priority 2: Explicit IDENTITY_ADAPTER env var
 if not adapter and adapter_type:
     try:
         from adapters import get_adapter

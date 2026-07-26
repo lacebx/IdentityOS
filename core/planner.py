@@ -36,10 +36,25 @@ class SkillRouter:
         seen: set[str] = set()
         caps = self._registry.list(self._identity_id)
 
+        # First pass: check if ANY skill matches with contextual confidence
+        contextual = False
         for cap in caps:
             for skill in cap.skills():
                 match = self._match(user_input, skill)
-                if match["matched"] and skill.name not in seen:
+                if match.get("confidence") == "contextual":
+                    contextual = True
+                    break
+
+        for cap in caps:
+            for skill in cap.skills():
+                if contextual:
+                    # Execute ALL skills — broad contextual query
+                    matches = True
+                else:
+                    match = self._match(user_input, skill)
+                    matches = match["matched"]
+
+                if matches and skill.name not in seen:
                     seen.add(skill.name)
                     try:
                         params = self._extract_params(user_input, skill)
@@ -80,20 +95,52 @@ class SkillRouter:
 
     # ── Matching ──────────────────────────────────────────────────────
 
+    _STOP_WORDS = frozenset({
+        "the", "a", "an", "is", "it", "at", "my", "your", "our", "in", "on",
+        "to", "for", "of", "and", "or", "this", "that", "with", "me", "you",
+    })
+
+    def _clean_param(self, raw: str) -> str:
+        """Remove stop words and trivial tokens from an extracted parameter."""
+        if not raw:
+            return raw
+        parts = re.findall(r'[A-Za-z]\w+', raw)
+        filtered = [p for p in parts if p.lower() not in self._STOP_WORDS and len(p) > 1]
+        return " ".join(filtered) if filtered else ""
+
     def _match(self, user_input: str, skill: Any) -> dict:
         """Check if user input matches this skill. Returns match + confidence."""
         text = user_input.lower()
 
         # Define strong trigger words per skill domain
         triggers: dict[str, list[str]] = {
-            "time": ["time", "date", "today", "current time", "what day", "datetime", "what's the date"],
-            "weather": ["weather", "temperature", "forecast", "raining", "sunny", "humidity"],
-            "calc": ["calculate", "evaluate", "what is", "compute", "plus", "minus", "times", "divided", "="],
-            "text": ["count words", "word count", "extract", "keywords", "analyze text"],
-            "web": ["fetch", "web page", "http", "url", "website", "download page"],
-            "file": ["list files", "read file", "directory", "ls ", "file info"],
-            "github": ["github", "repository", "repo", "pull request", "issue", "commit"],
+            "time": ["time", "date", "today", "current time", "what day", "datetime", "what's the date", "tomorrow", "yesterday", "what day is it", "what's today"],
+            "weather": ["weather", "temperature", "forecast", "raining", "sunny", "humidity", "rain", "cloudy", "wind", "degrees"],
+            "calc": ["calculate", "evaluate", "what is", "compute", "plus", "minus", "times", "divided", "=", "how many", "% of", "percent"],
+            "text": ["count words", "word count", "extract", "keywords", "analyze text", "summarize", "pattern", "stats"],
+            "web": ["fetch", "web page", "http", "url", "website", "download page", "look up", "search for", "find", "wikipedia"],
+            "file": ["list files", "read file", "directory", "ls ", "file info", "list directory", "what files", "read the file", "show me"],
+            "github": ["github", "repository", "repo", "pull request", "issue", "commit", "stars", "open source", "beginner", "trending", "lacebx", "identityos", "repo info"],
+            "system": ["operating system", "disk space", "disk usage", "how much disk", "os", "cpu", "what system", "what os", "system info", "platform"],
         }
+
+        # Additional pattern-based matching for GitHub repo references
+        if re.search(r'[\w-]+/[\w-]+', user_input):  # owner/repo pattern
+            for domain, keywords in triggers.items():
+                if domain == "github":
+                    return {"matched": True, "confidence": "high"}
+
+        # Broad contextual queries — match ALL capabilities
+        context_phrases = [
+            "what should i focus on", "what's my priority", "what is my priority",
+            "give me a status", "what's going on", "what's happening",
+            "how am i doing", "what do i need to do", "what's my plan",
+            "what's the situation", "assess my context",
+        ]
+        for phrase in context_phrases:
+            if phrase in text:
+                # Return a special sentinel — caller executes all skills
+                return {"matched": True, "confidence": "contextual"}
 
         # Check skill name
         skill_name = skill.name.lower()
@@ -130,8 +177,8 @@ class SkillRouter:
             # "time in Tokyo" or "time in UTC" or just "time"
             tz_match = re.search(r'\bin\s+([A-Za-z/]+)', text)
             if tz_match:
-                tz = tz_match.group(1).upper()
-                if len(tz) <= 5:  # looks like a timezone code
+                tz = self._clean_param(tz_match.group(1)).upper()
+                if tz and len(tz) <= 5:
                     return {"tz_name": tz}
             return {"tz_name": "UTC"}
 
@@ -142,50 +189,77 @@ class SkillRouter:
             return {}
 
         if name in ("weather.current", "weather.forecast"):
-            # "weather in London" or "weather London"
             loc_match = re.search(r'\bin\s+([A-Za-z]+)', text)
             if loc_match:
-                return {"location": loc_match.group(1).strip()}
+                cleaned = self._clean_param(loc_match.group(1))
+                if cleaned:
+                    return {"location": cleaned}
             words = text.split()
             for w in words:
-                if w[0].isupper() and len(w) > 2:
+                if w[0].isupper() and len(w) > 2 and w.lower() not in self._STOP_WORDS:
                     return {"location": w}
             return {"location": "London"}
 
         if name == "calc.evaluate":
-            # Extract expression: text after "calculate", "what is", after "="
             expr = text
             for prefix in ["calculate", "evaluate", "compute"]:
                 if prefix in text.lower():
                     expr = text.lower().split(prefix, 1)[-1].strip()
                     break
-            # Remove leading/trailing punctuation
             expr = expr.strip("?.!,;:")
-            if expr:
+            if expr and len(expr) > 2:
                 return {"expression": expr}
             return {}
 
-        if name == "web.fetch" or name == "web.extract":
+        if name == "system_info.disk":
+            return {"path": "/"}
+
+        if name in ("system_info.os", "system_info.cpu"):
+            return {}
+
+        if name in ("web.fetch", "web.extract"):
             urls = re.findall(r'https?://[^\s<>"\']+|www\.[^\s<>"\']+', text)
             if urls:
                 return {"url": urls[0]}
             return {}
 
+        if name == "github.search_repositories":
+            clean = self._clean_param(text)
+            return {"query": clean}
+
+        if name == "github.get_repository":
+            owner_repo = re.findall(r'([\w.-]+)/([\w.-]+)', text)
+            if owner_repo:
+                return {"owner": owner_repo[0][0], "repo": owner_repo[0][1]}
+            return {}
+
+        if name == "github.find_beginner_issue":
+            owner_repo = re.findall(r'([\w.-]+)/([\w.-]+)', text)
+            if owner_repo:
+                return {"owner": owner_repo[0][0], "repo": owner_repo[0][1]}
+            return {"query": text}
+
+        if name in ("github.review_pull_request", "github.list_commits", "github.list_branches", "github.summarize_release"):
+            owner_repo = re.findall(r'([\w.-]+)/([\w.-]+)', text)
+            if owner_repo:
+                return {"owner": owner_repo[0][0], "repo": owner_repo[0][1]}
+            return {}
+
         if name == "filesystem.list_dir":
-            # "list files in /path" or "list directory"
             path_match = re.search(r'\bin\s+([/\w.-]+)', text)
             if path_match:
-                return {"path": path_match.group(1)}
+                cleaned = self._clean_param(path_match.group(1))
+                if cleaned:
+                    return {"path": cleaned}
             return {"path": "."}
 
         if name == "filesystem.read_file":
-            path_match = re.search(r'(?:read|open|show)\s+([/\w.-]+)', text)
+            path_match = re.search(r'(?:read|open|show)\s+([/\w.-]+(?:\.[\w]+)?)', text)
             if path_match:
                 return {"path": path_match.group(1)}
             return {}
 
         if name == "text.stats":
-            # Return the text for analysis
             return {"text": text}
 
         if name == "text.extract_pattern":

@@ -1,0 +1,8 @@
+{
+  "identity": "evolve",
+  "question": "What should I focus on today?",
+  "response": "Based on what I know about your current situation, here are my recommendations for what you should focus on today:\n\n**Highest Priority: IdentityOS Architecture Presentation Prep**\n- You have a presentation about IdentityOS architecture tomorrow morning\n- I can see you have comprehensive documentation files: `ARCHITECTURE_VERIFICATION.md`, `VERIFICATION_REPORT.md`, `README.md`, and `MANIFESTO.md`\n- **Action**: Let me help you extract key architecture details from these files to prepare your presentation\n\n**Secondary Priority: Review Open Pull Request**\n- You mentioned needing to review a pull request that's been open for 3 days\n- **Action**: I can help you access and review that PR once you provide the repository details\n\n**Time Context**: It's currently Sunday, July 26, 2026 at 6:41 AM UTC, so you have the full day to prepare.\n\n**My Recommendation**: Start with the architecture presentation preparation since it's time-sensitive for tomorrow morning.",
+  "user_never_mentioned": ["datetime", "github", "filesystem", "weather", "calendar", "email", "browser"],
+  "identity_independently_used": ["memory", "datetime", "filesystem", "github"],
+  "elapsed_seconds": 7.3
+}
