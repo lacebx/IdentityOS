@@ -1,0 +1,33 @@
+{
+  "id": "reviewer",
+  "name": "Reviewer Pack",
+  "version": "1.0.0",
+  "author": "IdentityOS",
+  "license": "MIT",
+  "description": "Turns any identity into a capable code and document reviewer. Inspect PRs, analyze text, research web resources, and calculate metrics.",
+  "capabilities": [
+    {
+      "id": "text",
+      "reason": "Word counts, keyword extraction, pattern detection for analyzing code and documents"
+    },
+    {
+      "id": "github",
+      "reason": "Search repositories, review pull requests, find beginner issues"
+    },
+    {
+      "id": "web",
+      "reason": "Fetch documentation, research references, extract web content"
+    },
+    {
+      "id": "calc",
+      "reason": "Quick calculations, metric conversions, impact analysis"
+    }
+  ],
+  "tags": ["review", "code-review", "analysis", "pr", "documentation"],
+  "example_uses": [
+    "Review the latest PR in lacebx/IdentityOS",
+    "Analyze this code for potential issues: ...",
+    "Find beginner-friendly issues in this repo",
+    "Check the documentation at https://example.com/docs"
+  ]
+}

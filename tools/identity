@@ -13,6 +13,9 @@ Usage:
     python tools/identity cap install <cap_id> --identity <identity_id>
     python tools/identity cap search <query>
     python tools/identity cap installed <identity_id>
+    python tools/identity isp list
+    python tools/identity isp show <pack_id>
+    python tools/identity isp install <pack_id> --identity <identity_id>
 """
 
 import json
@@ -369,6 +372,109 @@ def cmd_cap_list_installed(identity_id: str):
             print(f"    {s}")
 
 
+# ── ISP (Identity Skill Pack) commands ──────────────────────────────
+
+def _load_isp_registry() -> dict:
+    isp_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "registry", "isp")
+    local = os.path.join(isp_dir, "index.json")
+    if os.path.exists(local):
+        with open(local) as f:
+            return json.load(f)
+    print("  ISP registry not found locally.")
+    sys.exit(1)
+
+
+def _find_isp_pack(pack_id: str) -> dict | None:
+    idx = _load_isp_registry()
+    for p in idx.get("packs", []):
+        if p["id"] == pack_id:
+            return p
+    return None
+
+
+def _load_isp_manifest(entry: dict) -> dict:
+    spec_path = entry.get("url", "")
+    registry_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "registry", "isp")
+    local = os.path.join(registry_dir, spec_path)
+    if os.path.exists(local):
+        try:
+            with open(local) as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return entry
+
+
+def cmd_isp_list():
+    idx = _load_isp_registry()
+    packs = idx.get("packs", [])
+    print(f"  Identity Skill Pack Registry")
+    print(f"  {len(packs)} packs available")
+    print()
+    for p in packs:
+        print(f"  {p['id']:20s}  v{p.get('version','')}  {p.get('description','')[:55]}")
+    print()
+    print(f"  Show:     python tools/identity isp show <pack_id>")
+    print(f"  Install:  python tools/identity isp install <pack_id> --identity <identity_id>")
+
+
+def cmd_isp_show(pack_id: str):
+    entry = _find_isp_pack(pack_id)
+    if not entry:
+        print(f"  Pack '{pack_id}' not found in ISP registry.")
+        sys.exit(1)
+    manifest = _load_isp_manifest(entry)
+    d = {**entry, **manifest}
+
+    print(f"  id:           {d.get('id','')}")
+    print(f"  name:         {d.get('name','')}")
+    print(f"  version:      {d.get('version','')}")
+    print(f"  author:       {d.get('author','')}")
+    print(f"  description:  {d.get('description','')}")
+    print()
+    caps = d.get("capabilities", [])
+    if caps and isinstance(caps[0], dict):
+        print(f"  capabilities ({len(caps)}):")
+        for c in caps:
+            print(f"    {c['id']:20s}  {c.get('reason','')[:55]}")
+    else:
+        print(f"  capabilities: {', '.join(caps)}")
+    print(f"  tags:         {', '.join(d.get('tags', []))}")
+    print()
+    for ex in d.get("example_uses", []):
+        print(f"  > {ex}")
+
+
+def cmd_isp_install(pack_id: str, identity_id: str | None):
+    if identity_id is None:
+        print("  Usage: python tools/identity isp install <pack_id> --identity <identity_id>")
+        sys.exit(1)
+    entry = _find_isp_pack(pack_id)
+    if not entry:
+        print(f"  Pack '{pack_id}' not found in ISP registry.")
+        sys.exit(1)
+    manifest = _load_isp_manifest(entry)
+    d = {**entry, **manifest}
+
+    # Determine the capability IDs to install
+    caps = d.get("capabilities", [])
+    cap_ids = [c["id"] if isinstance(c, dict) else c for c in caps]
+
+    runtime, identity = load_identity(identity_id)
+    installed = 0
+    total_skills = 0
+    for cap_id in cap_ids:
+        try:
+            cap = runtime.capability_registry.install(identity_id, cap_id)
+            installed += 1
+            total_skills += len(cap.skills())
+            print(f"    installed: {cap_id} ({len(cap.skills())} skills)")
+        except ValueError as e:
+            print(f"    skipped {cap_id}: {e}")
+    print()
+    print(f"  Pack '{pack_id}' installed — {installed}/{len(cap_ids)} capabilities, {total_skills} total skills")
+
+
 # ── Registry helpers ──────────────────────────────────────────────────
 
 def _load_registry() -> dict:
@@ -564,6 +670,7 @@ def main():
         print("  python tools/identity install <identity_id>")
         print("  python tools/identity publish <path-to-spec>")
         print("  python tools/identity cap <list|show|install|search|installed>")
+        print("  python tools/identity isp <list|show|install>")
         sys.exit(1)
 
     cmd = sys.argv[1]
@@ -627,6 +734,28 @@ def main():
             cmd_cap_list_installed(sys.argv[3])
         else:
             print(f"  Unknown cap subcommand: {sub}")
+            sys.exit(1)
+    elif cmd == "isp":
+        if len(sys.argv) < 3:
+            print("Usage: python tools/identity isp <list|show|install> [...]")
+            sys.exit(1)
+        sub = sys.argv[2]
+        if sub == "list":
+            cmd_isp_list()
+        elif sub == "show":
+            if len(sys.argv) < 4:
+                print("Usage: python tools/identity isp show <pack_id>")
+                sys.exit(1)
+            cmd_isp_show(sys.argv[3])
+        elif sub == "install":
+            identity_id = None
+            pack_id = sys.argv[3] if len(sys.argv) > 3 else None
+            for i, a in enumerate(sys.argv):
+                if a in ("--identity", "--id", "-i") and i + 1 < len(sys.argv):
+                    identity_id = sys.argv[i + 1]
+            cmd_isp_install(pack_id, identity_id)
+        else:
+            print(f"  Unknown isp subcommand: {sub}")
             sys.exit(1)
     else:
         print(f"Unknown command: {cmd}")

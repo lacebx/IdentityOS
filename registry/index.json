@@ -1,6 +1,10 @@
 {
   "registry": "https://raw.githubusercontent.com/lacebx/IdentityOS/main/registry",
   "description": "IdentityOS Public Registry — discover and install AI identity manifests",
+  "isp": {
+    "description": "Identity Skill Pack Registry — install curated capability bundles",
+    "url": "isp/index.json"
+  },
   "identities": [
     {
       "id": "lacebx/arsene",
