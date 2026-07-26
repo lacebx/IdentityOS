@@ -30,8 +30,9 @@ class TextCapability(Capability):
 
     def prompts(self, identity_id: str) -> list[str]:
         return [
-            "## Available Text Skills",
-            "You can count words and characters, extract keywords, split text, and detect URLs or emails in text.",
+            "## Text Processing Skills (MANDATORY — use for text analysis)",
+            "When the user asks you to analyze, count, or extract from text, you MUST use the skills below.",
+            "Do NOT estimate word counts or character counts — use the text.stats skill precisely.",
         ]
 
     _SKILLS = [

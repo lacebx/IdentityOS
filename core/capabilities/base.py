@@ -46,6 +46,27 @@ class Capability(ABC):
     def skills(self) -> list[Skill]:
         """All skills this capability exposes."""
 
+    def tool_defs(self) -> list[dict]:
+        """OpenAI-compatible tool definitions for each skill.
+
+        Override to provide precise parameter schemas.
+        """
+        defs = []
+        for s in self.skills():
+            defs.append({
+                "type": "function",
+                "function": {
+                    "name": s.name,
+                    "description": s.description,
+                    "parameters": {
+                        "type": "object",
+                        "properties": {},
+                        "additionalProperties": True,
+                    },
+                },
+            })
+        return defs
+
     def can(self, skill_name: str) -> tuple[bool, str]:
         for s in self.skills():
             if s.name == skill_name:

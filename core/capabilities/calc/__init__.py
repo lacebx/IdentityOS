@@ -78,8 +78,9 @@ class CalcCapability(Capability):
 
     def prompts(self, identity_id: str) -> list[str]:
         return [
-            "## Available Calculator Skills",
-            "You can evaluate math expressions and convert between units (km/miles, C/F, kg/lbs, m/ft, L/gal).",
+            "## Calculator Skills (MANDATORY — use for math and conversions)",
+            "When the user asks for a calculation or unit conversion, you MUST use the skills below.",
+            "Do NOT attempt to calculate in your head — use the calc.evaluate skill.",
         ]
 
     _SKILLS = [

@@ -44,8 +44,9 @@ class DateTimeCapability(Capability):
 
     def prompts(self, identity_id: str) -> list[str]:
         return [
-            "## Available DateTime Skills",
-            "You can get the current time in any timezone, convert between timezones, and calculate date differences.",
+            "## DateTime Skills (MANDATORY — use when asked about time/date)",
+            "When the user asks for the current time, date, or timezone conversion, you MUST use the skills below.",
+            "Do NOT say you don't have real-time access. You DO. Use the skills.",
         ]
 
     _SKILLS = [
@@ -77,12 +78,12 @@ class DateTimeCapability(Capability):
             return _KNOWN_ZONES[upper]
         raise ValueError(f"Unknown timezone: {tz_name}. Supported: {', '.join(_KNOWN_ZONES.keys())}")
 
-    def _now(self, timezone: str = "UTC", **kwargs: Any) -> dict[str, Any]:
-        offset = self._utc_offset(timezone)
+    def _now(self, tz_name: str = "UTC", **kwargs: Any) -> dict[str, Any]:
+        offset = self._utc_offset(tz_name)
         tz = timezone(timedelta(hours=offset))
         now = datetime.now(tz)
         return {
-            "timezone": timezone.upper(),
+            "timezone": tz_name.upper(),
             "datetime": now.strftime("%Y-%m-%d %H:%M:%S"),
             "utc_offset_hours": offset,
             "weekday": now.strftime("%A"),

@@ -34,8 +34,9 @@ class WebCapability(Capability):
 
     def prompts(self, identity_id: str) -> list[str]:
         return [
-            "## Available Web Skills",
-            "You can fetch the content of any URL and extract human-readable text from HTML pages.",
+            "## Web Skills (MANDATORY — use for URL content)",
+            "When the user asks you to fetch a URL or check a web page, you MUST use the skills below.",
+            "Do NOT say you cannot browse the web. You CAN. Use the skills.",
         ]
 
     _SKILLS = [

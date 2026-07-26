@@ -35,8 +35,9 @@ class WeatherCapability(Capability):
 
     def prompts(self, identity_id: str) -> list[str]:
         return [
-            "## Available Weather Skills",
-            "You can get current weather conditions or a multi-day forecast for any city or region.",
+            "## Weather Skills (MANDATORY — use when asked about weather)",
+            "When the user asks about weather, temperature, or forecast, you MUST use the skills below.",
+            "Do NOT say you cannot access weather data. You CAN. Use the skills.",
         ]
 
     _SKILLS = [

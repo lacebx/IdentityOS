@@ -29,8 +29,9 @@ class FileSystemCapability(Capability):
 
     def prompts(self, identity_id: str) -> list[str]:
         return [
-            "## Available FileSystem Skills",
-            "You can list directory contents, read file contents, and check file metadata.",
+            "## FileSystem Skills (MANDATORY — use for file/directory operations)",
+            "When the user asks you to read a file or list a directory, you MUST use the skills below.",
+            "Do NOT say you cannot access files. You CAN. Use the skills.",
         ]
 
     _SKILLS = [
