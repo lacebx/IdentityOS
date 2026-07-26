@@ -1,0 +1,40 @@
+{
+  "registry": "https://raw.githubusercontent.com/lacebx/IdentityOS/main/registry",
+  "description": "IdentityOS Public Registry — discover and install AI identity manifests",
+  "isp": {
+    "description": "Identity Skill Pack Registry — install curated capability bundles",
+    "url": "isp/index.json"
+  },
+  "identities": [
+    {
+      "id": "lacebx/arsene",
+      "name": "Arsene",
+      "version": "1.0.0",
+      "description": "A persistent personal assistant who remembers, connects, and reasons across everything you do.",
+      "author": "lacebx",
+      "tags": ["assistant", "personal", "cross-app", "reasoning"],
+      "published": "2026-07-25",
+      "url": "identities/lacebx/arsene/manifest.json",
+      "runtime": {
+        "identityos": ">=0.4"
+      },
+      "model": {
+        "provider": "openai",
+        "model": "gpt-4o"
+      },
+      "personality": {
+        "role": "personal AI assistant",
+        "profile": "A helpful companion who tracks goals, connects decisions across apps, and proactively surfaces gaps."
+      },
+      "memory": {
+        "backend": "sqlite",
+        "retention": "persistent"
+      },
+      "capabilities": [],
+      "permissions": {
+        "network": false,
+        "filesystem": false
+      }
+    }
+  ]
+}

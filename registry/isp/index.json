@@ -1,0 +1,72 @@
+{
+  "registry": "https://raw.githubusercontent.com/lacebx/IdentityOS/main/registry",
+  "description": "Identity Skill Pack (ISP) Registry — install curated capability bundles in one command",
+  "packs": [
+    {
+      "id": "reviewer",
+      "name": "Reviewer Pack",
+      "version": "1.0.0",
+      "description": "Code review, document analysis, PR inspection, and web research",
+      "author": "IdentityOS",
+      "capabilities": ["text", "github", "web", "calc"],
+      "total_skills": 13,
+      "tags": ["review", "code-review", "analysis", "pr"],
+      "url": "packs/reviewer/manifest.json"
+    },
+    {
+      "id": "planner",
+      "name": "Planner Pack",
+      "version": "1.0.0",
+      "description": "Time management, scheduling, date math, weather-aware planning",
+      "author": "IdentityOS",
+      "capabilities": ["datetime", "calc", "text", "weather"],
+      "total_skills": 13,
+      "tags": ["planning", "scheduling", "time", "calendar"],
+      "url": "packs/planner/manifest.json"
+    },
+    {
+      "id": "architect",
+      "name": "Architect Pack",
+      "version": "1.0.0",
+      "description": "System design, file navigation, architecture research, code analysis",
+      "author": "IdentityOS",
+      "capabilities": ["filesystem", "github", "web", "text"],
+      "total_skills": 16,
+      "tags": ["architecture", "design", "code", "research"],
+      "url": "packs/architect/manifest.json"
+    },
+    {
+      "id": "scribe",
+      "name": "Scribe Pack",
+      "version": "1.0.0",
+      "description": "Document intelligence specialist — read, analyze, index files",
+      "author": "IdentityOS",
+      "capabilities": ["filesystem", "text", "calc"],
+      "total_skills": 10,
+      "tags": ["documents", "files", "analysis", "writing"],
+      "url": "packs/scribe/manifest.json"
+    },
+    {
+      "id": "sage",
+      "name": "Sage Pack",
+      "version": "1.0.0",
+      "description": "Knowledge oracle — real-time clock, calculations, web research",
+      "author": "IdentityOS",
+      "capabilities": ["datetime", "calc", "web"],
+      "total_skills": 9,
+      "tags": ["knowledge", "oracle", "research", "computation"],
+      "url": "packs/sage/manifest.json"
+    },
+    {
+      "id": "scout",
+      "name": "Scout Pack",
+      "version": "1.0.0",
+      "description": "Forward-reconnaissance identity — watches weather, GitHub, web, time",
+      "author": "IdentityOS",
+      "capabilities": ["weather", "github", "web", "datetime"],
+      "total_skills": 15,
+      "tags": ["scout", "monitoring", "intelligence", "discovery"],
+      "url": "packs/scout/manifest.json"
+    }
+  ]
+}

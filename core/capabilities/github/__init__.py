@@ -46,9 +46,9 @@ class GithubCapability(Capability):
 
     def prompts(self, identity_id: str) -> list[str]:
         return [
-            "## Available GitHub Skills",
-            "You can search repositories, review pull requests, find beginner-friendly issues, "
-            "summarize releases, list commits and branches, and get repository details.",
+            "## GitHub Skills (MANDATORY — use for GitHub operations)",
+            "When the user asks about GitHub repositories, PRs, issues, or commits, you MUST use the skills below.",
+            "Do NOT say you cannot access GitHub. You CAN. Use the skills.",
         ]
 
     # ── Skills ─────────────────────────────────────────────────────────

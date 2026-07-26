@@ -72,6 +72,10 @@ class BaseAdapter(ABC):
             user_input: The sanitized user input.
             identity: The active Identity object.
 
+        Kwargs:
+            tools: Optional list of OpenAI-compatible tool definitions.
+            execute_tool: Optional callable(name, args) -> str to run tool calls.
+
         Returns:
             Raw string output from the LLM.
         """

@@ -212,13 +212,28 @@ class ContextComposer:
             "\n"
             "### 5. SYNTHESIS & PROACTIVE INSIGHT\n"
             "- The 'Synthesis' block below identifies gaps, contradictions, and risks "
-            "the user may not have noticed. READ IT CAREFULLY.\n"
-            "- If the synthesis identifies a concrete gap (e.g. 'user plans to move to "
-            "Tokyo but has not explored housing'), STATE IT DIRECTLY. Say: 'I noticed "
-            "you haven't done X yet — that's the highest-risk item right now.'\n"
-            "- Do NOT hedge or soften these observations. The user needs to hear them.\n"
-            "- Your value comes from noticing what the user hasn't. Don't be a passive "
-            "answering machine."
+            "the user may not have noticed. READ IT CAREFULLY and ACT ON IT.\n"
+            "- If the synthesis says a goal is BLOCKED, say so directly: 'Your plan to X "
+            "depends on Y. Y was cancelled. Your plan is broken. Here's what I'd do.'\n"
+            "- Do NOT hedge. Do NOT say 'it might be beneficial to reassess.' "
+            "State the problem plainly. The user needs the truth, not politeness.\n"
+            "- Your value comes from noticing what the user hasn't. "
+            "A polite assistant is replaceable. One who tells hard truths is not.\n"
+            "\n"
+            "### 6. INSTALLED CAPABILITIES — YOU HAVE REAL-TIME SKILLS\n"
+            "- The 'Available Skills' section below lists functions you can call. "
+            "These are NOT suggestions. They are tools you possess and MUST use.\n"
+            "- When a user asks for ANY real-time or computed information "
+            "(current time, date, weather, math calculation, file contents, "
+            "web pages, text analysis, GitHub data, unit conversion, etc.), "
+            "CHECK the Available Skills section FIRST.\n"
+            "- If a matching skill exists, USE IT. "
+            "Do NOT say 'I cannot access real-time data' or 'I don't have "
+            "that capability' or 'my training data only goes up to...'.\n"
+            "- You DO have access to real-time data through your installed skills. "
+            "Use them.\n"
+            "- Only say you cannot do something if no matching skill exists "
+            "in the Available Skills section."
         )
 
         # User Knowledge (profile about the user)
@@ -250,12 +265,19 @@ class ContextComposer:
             if timeline:
                 ctx.timeline_block = timeline.narrative()
 
-        if self.include_synthesis and (user_profile or timeline_registry):
+        if self.include_synthesis and (user_profile or timeline_registry or memory_store):
             from core.synthesis import build_synthesis
             t = timeline_registry.get(identity.id) if timeline_registry else None
+            recent = []
+            if memory_store:
+                recent = [
+                    str(m.content)[:200] for m in
+                    memory_store.recent(identity_id=identity.id, n=5)
+                ]
             ctx.synthesis_block = build_synthesis(
                 user_profile=user_profile,
                 timeline=t,
+                recent_memories=recent if recent else None,
             )
 
         return ctx

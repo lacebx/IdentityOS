@@ -1,0 +1,40 @@
+{
+  "id": "text",
+  "name": "Text Processing",
+  "version": "1.0.0",
+  "author": "IdentityOS",
+  "license": "MIT",
+  "homepage": "https://github.com/lacebx/IdentityOS",
+  "description": "Count words, extract keywords, detect URLs/emails, split text into chunks.",
+  "provider": "core.capabilities.text.TextCapability",
+  "config_schema": {
+    "type": "object",
+    "properties": {}
+  },
+  "permissions": {
+    "network": false,
+    "filesystem": false
+  },
+  "skills": [
+    {
+      "name": "text.stats",
+      "description": "Word count, character count, line count, reading time",
+      "permission": "public"
+    },
+    {
+      "name": "text.keywords",
+      "description": "Extract most frequent words excluding stop words",
+      "permission": "public"
+    },
+    {
+      "name": "text.extract_pattern",
+      "description": "Extract URLs, emails, or hashtags from text",
+      "permission": "public"
+    },
+    {
+      "name": "text.split",
+      "description": "Split text into chunks by paragraph, tokens, or lines",
+      "permission": "public"
+    }
+  ]
+}

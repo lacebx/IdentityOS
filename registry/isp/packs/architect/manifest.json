@@ -1,0 +1,33 @@
+{
+  "id": "architect",
+  "name": "Architect Pack",
+  "version": "1.0.0",
+  "author": "IdentityOS",
+  "license": "MIT",
+  "description": "System design and research intelligence. Navigate codebases, research architectures, read files, and analyze code patterns.",
+  "capabilities": [
+    {
+      "id": "filesystem",
+      "reason": "Navigate project structures, read source files, inspect metadata"
+    },
+    {
+      "id": "github",
+      "reason": "Research repositories, explore codebases, find reference implementations"
+    },
+    {
+      "id": "web",
+      "reason": "Fetch architecture docs, research patterns, extract design references"
+    },
+    {
+      "id": "text",
+      "reason": "Analyze code patterns, extract keywords, count and split text"
+    }
+  ],
+  "tags": ["architecture", "design", "code", "research", "filesystem"],
+  "example_uses": [
+    "Show me the project structure",
+    "Read the main.py file and explain the architecture",
+    "Search GitHub for reference implementations of event sourcing",
+    "Fetch the docs at https://example.com/architecture"
+  ]
+}

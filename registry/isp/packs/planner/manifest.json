@@ -1,0 +1,33 @@
+{
+  "id": "planner",
+  "name": "Planner Pack",
+  "version": "1.0.0",
+  "author": "IdentityOS",
+  "license": "MIT",
+  "description": "Gives an identity scheduling intelligence — current time, timezone conversion, date math, weather awareness, and quick calculations.",
+  "capabilities": [
+    {
+      "id": "datetime",
+      "reason": "Current time in any timezone, date differences, timezone conversion"
+    },
+    {
+      "id": "calc",
+      "reason": "Date math, duration calculations, unit conversions"
+    },
+    {
+      "id": "text",
+      "reason": "Extract dates, times, and scheduling info from text"
+    },
+    {
+      "id": "weather",
+      "reason": "Weather-aware planning — check conditions before scheduling"
+    }
+  ],
+  "tags": ["planning", "scheduling", "time", "calendar", "weather"],
+  "example_uses": [
+    "What time is it in Tokyo right now?",
+    "Plan a meeting for next Tuesday at 3pm EST — what's that in UTC?",
+    "How many days until December 25?",
+    "What's the weather in New York this weekend?"
+  ]
+}

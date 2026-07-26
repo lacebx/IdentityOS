@@ -1,0 +1,34 @@
+{
+  "id": "scout",
+  "name": "Scout Pack",
+  "version": "1.0.0",
+  "author": "IdentityOS",
+  "license": "MIT",
+  "description": "A forward-reconnaissance identity that watches the world. Scans GitHub for activity, checks weather conditions, fetches web intelligence, and knows what day and time it is. Your identity becomes an ever-vigilant scout.",
+  "capabilities": [
+    {
+      "id": "weather",
+      "reason": "Real-time weather conditions anywhere in the world"
+    },
+    {
+      "id": "github",
+      "reason": "Search repos, discover projects, find beginner issues"
+    },
+    {
+      "id": "web",
+      "reason": "Fetch web content, research topics, extract data from pages"
+    },
+    {
+      "id": "datetime",
+      "reason": "Know the current time and date across timezones"
+    }
+  ],
+  "tags": ["scout", "monitoring", "intelligence", "reconnaissance", "discovery"],
+  "example_uses": [
+    "What's the weather like in San Francisco right now?",
+    "Find me trending Python repos on GitHub",
+    "What time is it in London?",
+    "Check the latest activity on the IdentityOS repo",
+    "Search GitHub for projects about 'event sourcing'"
+  ]
+}

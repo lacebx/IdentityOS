@@ -1,0 +1,29 @@
+{
+  "id": "sage",
+  "name": "Sage Pack",
+  "version": "1.0.0",
+  "author": "IdentityOS",
+  "license": "MIT",
+  "description": "Turns an identity into a knowledge oracle. Current time in any timezone, instant calculations, web research, and text analysis — all synced to factual real-world data. The identity is never disconnected from reality.",
+  "capabilities": [
+    {
+      "id": "datetime",
+      "reason": "Real-time clock, timezone conversion, date arithmetic"
+    },
+    {
+      "id": "calc",
+      "reason": "Instant computation, unit conversion, what-if calculations"
+    },
+    {
+      "id": "web",
+      "reason": "Live web fetching, content extraction, online research"
+    }
+  ],
+  "tags": ["knowledge", "oracle", "research", "computation", "time"],
+  "example_uses": [
+    "What time is it in Berlin right now?",
+    "Calculate 15% of 340 and add 22",
+    "Look up the latest news about Python 3.14",
+    "Fetch the Wikipedia page for quantum computing and summarize it"
+  ]
+}

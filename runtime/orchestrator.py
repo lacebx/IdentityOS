@@ -1248,6 +1248,13 @@ class IdentityRuntime:
         if cap_prompts:
             context.custom_blocks["capabilities"] = "\n".join(cap_prompts)
 
+        # Route user intent through installed capabilities (the Planner layer)
+        _router = __import__("core.planner", fromlist=["SkillRouter"]).SkillRouter
+        _skill_router = _router(self.capability_registry, identity.id)
+        _skill_results = _skill_router.route(sanitized_input)
+        if _skill_results:
+            context.custom_blocks["factual_skill_data"] = _skill_router.format_for_context(_skill_results)
+
         # Stage 4: Adapter call
         if self.adapter:
             self._emit(

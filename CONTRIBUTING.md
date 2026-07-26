@@ -1,22 +1,35 @@
 # Contributing to IdentityOS
 
-IdentityOS is an open standard for portable, persistent AI identities. Contributions are welcome in all forms — code, documentation, design, testing, and community governance.
+IdentityOS is an open runtime for persistent AI identities. Contributions are welcome in all forms — code, documentation, testing, demos, and ideas.
 
 ---
 
-## Table of Contents
+## Quick start
 
-- [Architecture Decision Process](#architecture-decision-process)
-- [How ADRs Work](#how-adrs-work)
-- [How Amendments Work](#how-amendments-work)
-- [How Migrations Work](#how-migrations-work)
-- [Proposing Identity Laws](#proposing-identity-laws)
-- [Code Standards](#code-standards)
-- [Testing Expectations](#testing-expectations)
-- [Documentation Expectations](#documentation-expectations)
-- [Getting Started](#getting-started)
+```bash
+git clone https://github.com/lacebx/IdentityOS.git
+cd IdentityOS
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+python3 -m pytest tests/ -q
+bash demo.sh
+```
 
----
+## Where to start
+
+Pick any issue labeled [`good first issue`](https://github.com/lacebx/IdentityOS/labels/good%20first%20issue). These are scoped to be self-contained and have clear success criteria.
+
+Current active milestone: [Capability Marketplace](https://github.com/lacebx/IdentityOS/issues/38)
+
+## Code standards
+
+| Rule | Guideline |
+|------|-----------|
+| Tests | Every new feature has a test. Run `python3 -m pytest tests/ -q` before committing. |
+| No fake state | Every output must come from a real LLM through the runtime. No injected memories, no hardcoded responses. |
+| Vision first | Every feature must make the IdentityOS vision more obvious. If it doesn't, it probably doesn't belong. |
+| Minimum code | New architecture is the last resort. Reuse what exists. |
+| No special-case rules | The runtime reasons across domains. Don't hardcode knowledge about Tokyo, GitHub, or any specific domain. |
 
 ## Architecture Decision Process
 

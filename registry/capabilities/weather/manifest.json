@@ -1,0 +1,30 @@
+{
+  "id": "weather",
+  "name": "Weather",
+  "version": "1.0.0",
+  "author": "IdentityOS",
+  "license": "MIT",
+  "homepage": "https://github.com/lacebx/IdentityOS",
+  "description": "Get current weather conditions and multi-day forecasts for any location.",
+  "provider": "core.capabilities.weather.WeatherCapability",
+  "config_schema": {
+    "type": "object",
+    "properties": {}
+  },
+  "permissions": {
+    "network": true,
+    "filesystem": false
+  },
+  "skills": [
+    {
+      "name": "weather.current",
+      "description": "Get current weather conditions for a location",
+      "permission": "public"
+    },
+    {
+      "name": "weather.forecast",
+      "description": "Get a multi-day weather forecast for a location",
+      "permission": "public"
+    }
+  ]
+}
