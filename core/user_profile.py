@@ -234,6 +234,31 @@ USER_PERSON_RELATIONSHIP = re.compile(
     re.IGNORECASE | re.VERBOSE,
 )
 
+USER_MOVING = re.compile(
+    r"""(?:I(?:'m|\s+am)\s+(?:moving|relocating|going)\s+to|(?:before|planning)\s+(?:moving|relocating)\s+to)\s+(.+?)(?:\s+(?:next|in|with|and|\.|,)|$)""",
+    re.IGNORECASE,
+)
+
+USER_BUDGET = re.compile(
+    r"""(?:I\s+have\s+a|my\s+budget\s+is|budget\s+of|(?:trying|try|need)\s+to\s+save|saving)\s+\$?([\d,]+(?:\s*-\s*\$?[\d,]+)?)\s*(?:\/|\s+per\s+)?(month|year|week)?""",
+    re.IGNORECASE,
+)
+
+USER_JOB_ROLE = re.compile(
+    r"(?:help\s+me\s+find|looking\s+for)\s+(.+?)(?:\.|!|\?|$)",
+    re.IGNORECASE,
+)
+
+USER_LEARNING_GOAL = re.compile(
+    r"""I\s+(?:want|need|would\s+like|plan)\s+to\s+(?:learn|study|master|pick\s+up)\s+(.+?)(?=\s+(?:and|\.|,|!|\?)|$)""",
+    re.IGNORECASE,
+)
+
+USER_ACCOUNTABILITY = re.compile(
+    r"""(?:keep\s+(?:me|us)\s+accountable|hold\s+me\s+accountable)""",
+    re.IGNORECASE,
+)
+
 USER_COLOR_HINTS = {
     "red", "blue", "green", "yellow", "purple", "orange", "pink", "brown",
     "black", "white", "gray", "grey", "teal", "cyan", "magenta", "lime",
@@ -317,5 +342,38 @@ def extract_user_facts(user_input: str, turn_index: int = 0) -> List[UserFact]:
         rel = m.group(3).strip().lower()
         field = f"relationships.{rel}.of_{person_b.lower()}"
         _add(field=field, value=person_a, confidence=0.85)
+
+    # "I'm moving to X" — relocation targets
+    for m in USER_MOVING.finditer(user_input):
+        location = m.group(1).strip().rstrip(".,!?")
+        _add(field="target_location", value=location, confidence=0.85)
+
+    # "I have a $X budget" — budget disclosures
+    for m in USER_BUDGET.finditer(user_input):
+        amount = m.group(1).strip()
+        period = m.group(2).strip() if m.group(2) else ""
+        value = f"${amount}/{period}" if period else f"${amount}"
+        _add(field="budget", value=value, confidence=0.9)
+
+    # Job role disclosures
+    for m in USER_JOB_ROLE.finditer(user_input):
+        role = m.group(1).strip().rstrip(".,!?")
+        # Strip common trailing words
+        for suffix in [" jobs", " role", " position", " work"]:
+            if role.lower().endswith(suffix):
+                role = role[:-len(suffix)]
+        role = role.strip()
+        if role and len(role) > 1:
+            _add(field="desired_role", value=role, confidence=0.85)
+
+    # Learning goals
+    for m in USER_LEARNING_GOAL.finditer(user_input):
+        goal = m.group(1).strip().rstrip(".,!?")
+        field = f"learning_goal"
+        _add(field=field, value=goal, confidence=0.85)
+
+    # Accountability preference
+    if USER_ACCOUNTABILITY.search(user_input):
+        _add(field="preferences.accountability", value="wants accountability", confidence=0.9)
 
     return facts

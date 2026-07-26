@@ -184,6 +184,12 @@ async def process(req: ProcessRequest):
     """
     session_id = req.session_id or runtime.start_session(req.identity_id)
 
+    # Auto-load identity from disk if not already in memory.
+    # The /identity POST endpoint writes to disk but does not register
+    # with the runtime, so we must load on first use.
+    if not runtime.identity_store.get(req.identity_id):
+        runtime.load(req.identity_id)
+
     request = InteractionRequest(
         identity_id=req.identity_id,
         user_input=req.message,

@@ -1,0 +1,262 @@
+#!/usr/bin/env python3
+"""Identity Inspector — visual CLI for inspecting and explaining identities.
+
+Usage:
+    python tools/identity inspect <identity_id>
+    python tools/identity explain <identity_id> <question>
+"""
+
+import sys
+import os
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+
+def load_identity(identity_id: str, storage_path: str = ".identity_store"):
+    from runtime.persistence import JSONFileBackend
+    from runtime.orchestrator import IdentityRuntime
+    from runtime.main import register_default_criteria
+
+    storage = JSONFileBackend(root_dir=storage_path)
+    runtime = IdentityRuntime(storage=storage)
+    runtime.load_persisted()
+    identity = runtime.load(identity_id)
+    if identity is None:
+        print(f"Identity '{identity_id}' not found.")
+        sys.exit(1)
+    register_default_criteria(runtime.evaluation_engine)
+    return runtime, identity
+
+
+def progress_bar(filled: float, total: float = 1.0, width: int = 18) -> str:
+    ratio = filled / total if total > 0 else 0
+    done = int(ratio * width)
+    remaining = width - done
+    return f"{'█' * done}{'░' * remaining}"
+
+
+def cmd_inspect(identity_id: str):
+    runtime, identity = load_identity(identity_id)
+
+    dash = []
+
+    # Header bar
+    W = 78
+    header = f"  Identity  {identity.name}"
+    pad = W - len(header) - 2
+    dash.append("═" * W)
+    dash.append(header + " " * pad + " ")
+    dash.append("═" * W)
+    dash.append("")
+
+    # Current Mission — top goal
+    from core.goals import GoalScope
+    goals = runtime.goal_engine.by_scope(GoalScope.PERSISTENT) or runtime.goal_engine.by_scope(GoalScope.LIFELONG) or []
+    active_goals = [g for g in goals if g.status.value == "active"]
+    if active_goals:
+        top = active_goals[0]
+        pct = int(top.progress * 100) if hasattr(top, "progress") else 0
+        bar = progress_bar(top.progress if hasattr(top, "progress") else 0)
+        dash.append(f"  Current Mission")
+        dash.append(f"  {top.title}")
+        dash.append(f"  {bar} {pct}%")
+    else:
+        dash.append(f"  No current mission")
+    dash.append("")
+
+    # Thinking About — active intentions
+    runtime.intention_engine.check_expiry()
+    active_intentions = [i for i in runtime.intention_engine.all() if i.is_active()]
+    if active_intentions:
+        dash.append(f"  Thinking About")
+        for i in active_intentions[:5]:
+            desc = i.description[:60]
+            dash.append(f"  \u2022 {desc}")
+        dash.append("")
+
+    # Recently Learned — user profile facts
+    profile = runtime._get_user_profile(identity_id)
+    if profile:
+        all_facts = profile.all_facts()
+        if all_facts:
+            dash.append(f"  Recently Learned")
+            for fact in all_facts[:6]:
+                value = str(fact.value) if hasattr(fact, "value") else str(fact)
+                if len(value) > 50:
+                    value = value[:47] + "..."
+                dash.append(f"  \u2713 {fact.field}: {value}")
+            dash.append("")
+
+    # Active sessions
+    sessions = [sid for sid, id_ in runtime._sessions.items() if id_ == identity.id]
+    if sessions:
+        dash.append(f"  Workspaces")
+        for sid in sessions[-5:]:
+            mode = runtime._session_modes.get(sid)
+            mode_tag = f" [{mode.value}]" if mode else ""
+            dash.append(f"  {sid}{mode_tag}")
+        dash.append("")
+
+    # Timeline events
+    tl = runtime.timeline_registry.get(identity.id)
+    if tl:
+        events = tl.recent(4)
+        if events:
+            dash.append(f"  Recent History")
+            for e in events:
+                label = e.age_label()
+                dash.append(f"  {label}: {e.title}")
+                if e.description:
+                    desc = e.description[:70]
+                    dash.append(f"    {desc}")
+            dash.append("")
+
+    # Memories count
+    mems = runtime.memory_store.by_identity(identity_id)
+    if mems:
+        ep = len([m for m in mems if m.memory_type.value == "episodic"])
+        sem = len([m for m in mems if m.memory_type.value == "semantic"])
+        dash.append(f"  Memory")
+        dash.append(f"  {len(mems)} total ({ep} conversations, {sem} facts)")
+        dash.append("")
+
+    # Installed Capabilities
+    cap_list = runtime.capability_registry.list(identity_id)
+    if cap_list:
+        dash.append(f"  Installed Capabilities")
+        for c in cap_list:
+            dash.append(f"  {c.id}")
+        dash.append("")
+
+    # Footer bar
+    dash.append("═" * W)
+
+    print("\n".join(dash))
+
+
+def cmd_explain(identity_id: str, question: str):
+    runtime, identity = load_identity(identity_id)
+
+    W = 78
+    lines = []
+    lines.append("═" * W)
+    lines.append(f"  Explanation")
+    lines.append("═" * W)
+    lines.append("")
+    lines.append(f"  {question}")
+    lines.append("")
+
+    # Find relevant goals
+    goals = runtime.goal_engine.all()
+    active_goals = [g for g in goals if g.status.value == "active"]
+    if active_goals:
+        lines.append(f"  Goal")
+        for g in active_goals:
+            lines.append(f"  \u2192 {g.title}")
+            if g.description:
+                lines.append(f"    {g.description[:80]}")
+        lines.append("")
+
+    # Find relevant facts from FactStore
+    fact_store = runtime._fact_stores.get(identity_id)
+    if fact_store:
+        all_facts = fact_store.all()
+        active_facts = [f for f in all_facts if f.status.value == "active"]
+        if active_facts:
+            lines.append(f"  Identity Facts")
+            for f in active_facts[:6]:
+                val = str(f.value)[:60]
+                conf = f.confidence
+                lines.append(f"  {f.field}: {val}")
+                lines.append(f"    Confidence: {conf:.0%}  Reinforced: {f.times_reinforced}x")
+            lines.append("")
+
+    # Evidence chain
+    try:
+        from core.evidence_graph import EvidenceGraph
+        evidence_graph = getattr(runtime, "_evidence_graph", None)
+        if evidence_graph:
+            all_evidence = list(evidence_graph._nodes.values())
+            if all_evidence:
+                lines.append(f"  Evidence Chain")
+                for e in all_evidence[:5]:
+                    lines.append(f"  \u2022 {e.description[:70]}")
+                    lines.append(f"    Type: {e.evidence_type.value}  Source: {e.source_text[:50]}")
+                lines.append("")
+    except Exception:
+        pass
+
+    # Timeline events
+    tl = runtime.timeline_registry.get(identity.id)
+    if tl:
+        events = tl.events()
+        relevant = [e for e in events if any(w in (e.title + e.description).lower() for w in question.lower().split())]
+        if relevant:
+            lines.append(f"  Related Timeline Events")
+            for e in relevant[:3]:
+                lines.append(f"  \u2022 {e.title} ({e.age_label()})")
+                if e.description:
+                    lines.append(f"    {e.description[:80]}")
+            lines.append("")
+        elif events:
+            lines.append(f"  Timeline")
+            for e in events[-3:]:
+                lines.append(f"  \u2022 {e.title} ({e.age_label()})")
+            lines.append("")
+
+    # User profile facts matching the question
+    profile = runtime._get_user_profile(identity_id)
+    if profile:
+        all_facts = profile.all_facts()
+        matching = []
+        for fact in all_facts:
+            value = str(fact.value) if hasattr(fact, "value") else str(fact)
+            if any(w in (fact.field + " " + value).lower() for w in question.lower().split()):
+                matching.append((fact.field, value))
+        if matching:
+            lines.append(f"  What the identity knows about you")
+            for field_name, value in matching:
+                lines.append(f"  \u2022 {field_name}: {value[:70]}")
+            lines.append("")
+
+    # Confidence summary
+    if active_goals:
+        lines.append(f"  Confidence Assessment")
+        for g in active_goals:
+            cl = getattr(g, "confidence_label", "moderate")
+            lines.append(f"  Goal '{g.title}': {cl}")
+        lines.append("")
+
+    lines.append(f"  * Traced from {len(runtime.memory_store.by_identity(identity_id))} memories, "
+                  f"{len(fact_store.all()) if fact_store else 0} identity facts")
+    lines.append("═" * W)
+
+    print("\n".join(lines))
+
+
+def main():
+    if len(sys.argv) < 3:
+        print("Usage:")
+        print("  python tools/identity inspect <identity_id>")
+        print("  python tools/identity explain <identity_id> <question>")
+        sys.exit(1)
+
+    cmd = sys.argv[1]
+    identity_id = sys.argv[2]
+
+    if cmd == "inspect":
+        cmd_inspect(identity_id)
+    elif cmd == "explain":
+        if len(sys.argv) < 4:
+            print("Usage: python tools/identity explain <identity_id> <question>")
+            sys.exit(1)
+        question = " ".join(sys.argv[3:])
+        cmd_explain(identity_id, question)
+    else:
+        print(f"Unknown command: {cmd}")
+        print("Available: inspect, explain")
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

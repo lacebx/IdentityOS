@@ -33,6 +33,7 @@ from core.memory import MemoryFragment, MemoryStore, MemoryType
 from core.motivations import MotivationEngine
 from core.policies import PolicyEngine, PolicyScope
 from core.relationships import EdgeType, IdentityGraph, TrustLevel
+from core.capabilities import CapabilityRegistry as PluginRegistry
 from core.skills import SkillRegistry
 from core.timeline import LifeEvent, LifeEventType, TimelineRegistry
 from core.user_profile import UserProfile, extract_user_facts
@@ -288,6 +289,9 @@ class IdentityRuntime:
         self._migration_manager = MigrationManager(
             self._migration_registry, storage=self._storage,
         )
+
+        # Pluggable Capability System — installed per identity
+        self.capability_registry = PluginRegistry(storage=self._storage)
 
         # Event Bus — wired into the pipeline but subscribers are opt-in
         self.event_bus = EventBus()
@@ -893,34 +897,38 @@ class IdentityRuntime:
             return []
         return [e.to_dict() for e in fact_store.replay()]
 
-    def _get_user_profile(self, session_id: str) -> UserProfile:
-        """Get or create a UserProfile for the given session."""
-        key = session_id or "default"
+    def _get_user_profile(self, identity_id: str) -> UserProfile:
+        """Get or create a UserProfile for the given identity.
+
+        User profiles are shared across all sessions for the same identity,
+        so facts learned in one app are available in another.
+        """
+        key = identity_id
         if key not in self._user_profiles:
             self._user_profiles[key] = UserProfile(user_id=key)
             self._load_user_profile(key)
         return self._user_profiles[key]
 
-    def _load_user_profile(self, user_id: str) -> None:
+    def _load_user_profile(self, identity_id: str) -> None:
         """Load a persisted user profile from storage."""
         if not self._storage:
             return
         try:
-            data = self._storage.load(f"user_{user_id}", "profile")
+            data = self._storage.load(f"user_{identity_id}", "profile")
             if data:
-                self._user_profiles[user_id] = UserProfile.from_dict(data)
+                self._user_profiles[identity_id] = UserProfile.from_dict(data)
         except Exception:
             pass
 
-    def _save_user_profile(self, user_id: str) -> None:
-        """Persist a user profile."""
+    def _save_user_profile(self, identity_id: str) -> None:
+        """Persist a user profile keyed by identity."""
         if not self._storage:
             return
-        profile = self._user_profiles.get(user_id)
+        profile = self._user_profiles.get(identity_id)
         if not profile:
             return
         try:
-            self._storage.save(f"user_{user_id}", "profile", profile.to_dict())
+            self._storage.save(f"user_{identity_id}", "profile", profile.to_dict())
         except Exception:
             pass
 
@@ -942,8 +950,8 @@ class IdentityRuntime:
         """
         # ── Step 1: Extract user profile facts first (always) ──
         user_facts = extract_user_facts(user_input)
-        if user_facts and session_id:
-            profile = self._get_user_profile(session_id)
+        if user_facts:
+            profile = self._get_user_profile(identity_id)
             for uf in user_facts:
                 profile.add_or_update(
                     field=uf.field,
@@ -951,7 +959,7 @@ class IdentityRuntime:
                     source=uf.source_conversation,
                     confidence=uf.confidence,
                 )
-            self._save_user_profile(session_id)
+            self._save_user_profile(identity_id)
 
         # ── Step 2: Check if the input is worth remembering as semantic fact ──
         if not is_worth_remembering(user_input, output):
@@ -1208,7 +1216,7 @@ class IdentityRuntime:
         sanitized_input = input_policy.transformed_data or request.user_input
 
         # Stage 3: Compose context
-        user_profile = self._user_profiles.get(session_id)
+        user_profile = self._get_user_profile(identity.id)
         session_fact_store = self._get_fact_store_for_session(identity.id, session_id)
         context = self.context_composer.compose(
             identity=identity,
@@ -1234,6 +1242,11 @@ class IdentityRuntime:
             token_estimate=context.token_estimate(),
             session_mode=session_mode.value,
         )
+
+        # Inject capability prompts into context
+        cap_prompts = self.capability_registry.all_prompts(identity.id)
+        if cap_prompts:
+            context.custom_blocks["capabilities"] = "\n".join(cap_prompts)
 
         # Stage 4: Adapter call
         if self.adapter:
