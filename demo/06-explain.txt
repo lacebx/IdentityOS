@@ -1,0 +1,45 @@
+Step 6: identity explain
+
+$ python tools/identity explain arsene "Why did I recommend Japanese today?"
+
+══════════════════════════════════════════════════════════════════════════
+  Explanation
+══════════════════════════════════════════════════════════════════════════
+
+  Why did I recommend Japanese today?
+
+  Goal
+  → Move to Tokyo
+    Relocate to Tokyo, Japan by October 2026
+
+  Identity Facts
+  user.language_goal: Japanese (conversational)
+    Confidence: 88%  Reinforced: 1x
+  user.move_timeline: October 2026
+    Confidence: 92%
+
+  Related Timeline Events
+  • Committed to Japanese study (30 minutes ago)
+    User expressed desire to learn conversational Japanese
+  • Set Goal: Move to Tokyo (2 hours ago)
+    Arsene committed to relocating to Tokyo by October 2026
+
+  What the identity knows about you
+  • language_goal: Japanese (conversational)
+  • target_location: Tokyo, Japan
+
+  * Traced from 6 memories, 8 identity facts
+══════════════════════════════════════════════════════════════════════════
+
+Now ask ONE question:
+
+Where did all of this come from?
+
+It points to every source:
+- The budget: ChatGPT, Conversation 14
+- The neighborhood: ChatGPT, Conversation 19
+- The Japanese goal: ChatGPT, Conversation 23
+- The resume tracking: Goal progress
+
+Everything is traceable. Everything is explainable.
+That is the difference between memory and identity.

@@ -32,6 +32,15 @@ SERVER_WAIT = 5
 def runtime_server():
     """Start a live runtime server for the test session."""
     repo_root = Path(__file__).resolve().parent.parent
+    # Clean isolated state before starting
+    store_dir = repo_root / ".identity_store"
+    if store_dir.exists():
+        import shutil
+        for p in list(store_dir.iterdir()):
+            if p.is_file():
+                p.unlink()
+            elif p.is_dir():
+                shutil.rmtree(p, ignore_errors=True)
     env = os.environ.copy()
     env["OPENROUTER_API_KEY"] = env.get("OPENROUTER_API_KEY", "")
     env["GROQ_API_KEY"] = env.get("GROQ_API_KEY", "")
@@ -61,6 +70,7 @@ def runtime_server():
 
     proc.kill()
     proc.wait()
+    time.sleep(1)  # let OS release port
 
 
 def _req(method, path, data=None):

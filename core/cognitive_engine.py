@@ -49,6 +49,7 @@ class ComposedContext:
     relationships_block: str = ""
     motivations_block: str = ""
     timeline_block: str = ""
+    synthesis_block: str = ""
     custom_blocks: Dict[str, str] = field(default_factory=dict)
 
     def render(self, separator: str = "\n\n") -> str:
@@ -83,6 +84,8 @@ class ComposedContext:
             sections.append(self.motivations_block)
         if self.timeline_block:
             sections.append(self.timeline_block)
+        if self.synthesis_block:
+            sections.append(self.synthesis_block)
         for block in self.custom_blocks.values():
             if block:
                 sections.append(block)
@@ -114,6 +117,7 @@ class ContextComposer:
         include_relationships: bool = True,
         include_motivations: bool = True,
         include_timeline: bool = True,
+        include_synthesis: bool = True,
     ):
         self.max_tokens = max_tokens
         self.include_identity = include_identity
@@ -124,6 +128,7 @@ class ContextComposer:
         self.include_relationships = include_relationships
         self.include_motivations = include_motivations
         self.include_timeline = include_timeline
+        self.include_synthesis = include_synthesis
 
     def compose(
         self,
@@ -203,7 +208,17 @@ class ContextComposer:
             "\n"
             "### 4. HANDLING UNCERTAINTY\n"
             "- If you genuinely don't know something about the user, say you don't know yet.\n"
-            "- Never guess or make up facts about yourself or the user."
+            "- Never guess or make up facts about yourself or the user.\n"
+            "\n"
+            "### 5. SYNTHESIS & PROACTIVE INSIGHT\n"
+            "- The 'Synthesis' block below identifies gaps, contradictions, and risks "
+            "the user may not have noticed. READ IT CAREFULLY.\n"
+            "- If the synthesis identifies a concrete gap (e.g. 'user plans to move to "
+            "Tokyo but has not explored housing'), STATE IT DIRECTLY. Say: 'I noticed "
+            "you haven't done X yet — that's the highest-risk item right now.'\n"
+            "- Do NOT hedge or soften these observations. The user needs to hear them.\n"
+            "- Your value comes from noticing what the user hasn't. Don't be a passive "
+            "answering machine."
         )
 
         # User Knowledge (profile about the user)
@@ -234,6 +249,14 @@ class ContextComposer:
             timeline = timeline_registry.get(identity.id)
             if timeline:
                 ctx.timeline_block = timeline.narrative()
+
+        if self.include_synthesis and (user_profile or timeline_registry):
+            from core.synthesis import build_synthesis
+            t = timeline_registry.get(identity.id) if timeline_registry else None
+            ctx.synthesis_block = build_synthesis(
+                user_profile=user_profile,
+                timeline=t,
+            )
 
         return ctx
 
