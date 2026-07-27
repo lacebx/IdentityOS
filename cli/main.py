@@ -345,21 +345,95 @@ def cmd_playground(args: argparse.Namespace) -> int:
     return 0
 
 
-def _detect_adapter():
-    """Auto-detect adapter using same priority as runtime/main.py."""
-    import os
+def _probe_adapter(name: str, adapter_cls: type, model: str, **kwargs):
+    """Try to create and health-check an adapter. Return (name, instance, error_or_None)."""
+    try:
+        inst = adapter_cls(model=model, **kwargs)
+        ok = inst.health_check()
+        if ok:
+            return (name, inst, None)
+        return (name, None, f"{name}: reachable but health check failed")
+    except Exception as e:
+        return (name, None, f"{name}: {e}")
+
+
+def _interactive_adapter_select():
+    """Scan env for configured adapters, health-check them, let user pick."""
+
+    candidates = []
+
+    # Groq (with key rotation)
     _groq_keys = [os.environ.get(k) for k in ("GROQ_API_KEY", "GROQ_API_KEY_2", "GROQ_API_KEY_3",
                                                "GROQ_API_KEY_4", "GROQ_API_KEY_5", "GROQ_API_KEY_6")]
     if any(k for k in _groq_keys if k and "PLACEHOLDER" not in k):
         from adapters.groq_adapter import GroqAdapter
-        return GroqAdapter(model=os.environ.get("IDENTITY_MODEL", "llama-3.3-70b-versatile"))
+        candidates.append(
+            _probe_adapter("Groq", GroqAdapter, os.environ.get("IDENTITY_MODEL", "llama-3.3-70b-versatile"))
+        )
+
+    if os.environ.get("SAMBANOVA_API_KEY"):
+        from adapters.sambanova_adapter import SambaNovaAdapter
+        candidates.append(
+            _probe_adapter("SambaNova", SambaNovaAdapter, os.environ.get("IDENTITY_MODEL", "DeepSeek-V3.1"))
+        )
+
     if os.environ.get("OPENROUTER_API_KEY"):
         from adapters.openrouter_adapter import OpenRouterAdapter
-        return OpenRouterAdapter(model=os.environ.get("IDENTITY_MODEL", "openai/gpt-4o"))
+        candidates.append(
+            _probe_adapter("OpenRouter", OpenRouterAdapter, os.environ.get("IDENTITY_MODEL", "openai/gpt-4o"))
+        )
+
     if os.environ.get("OPENAI_API_KEY"):
         from adapters.openai_adapter import OpenAIAdapter
-        return OpenAIAdapter(model=os.environ.get("IDENTITY_MODEL", "gpt-4o"))
-    return None
+        candidates.append(
+            _probe_adapter("OpenAI", OpenAIAdapter, os.environ.get("IDENTITY_MODEL", "gpt-4o"))
+        )
+
+    if os.environ.get("ANTHROPIC_API_KEY"):
+        from adapters.openai_adapter import AnthropicAdapter
+        candidates.append(
+            _probe_adapter("Anthropic", AnthropicAdapter, os.environ.get("IDENTITY_MODEL", "claude-3-5-sonnet-20241022"))
+        )
+
+    # Ollama is always worth trying if a base URL is set or default host is reachable
+    if os.environ.get("OPENAI_BASE_URL", "").startswith("http://localhost"):
+        from adapters.openai_adapter import OllamaAdapter
+        candidates.append(
+            _probe_adapter("Ollama (local)", OllamaAdapter, os.environ.get("IDENTITY_MODEL", "llama3.2"))
+        )
+
+    # Separate working from failed
+    working = [(n, a) for n, a, e in candidates if a is not None]
+    failed = [(n, e) for n, a, e in candidates if a is None and e]
+
+    # Print failures so user knows what's wrong
+    for name, err in failed:
+        print(f"  ⚠ {err}", file=sys.stderr)
+
+    if not working:
+        print("  No working adapters found. Set an API key in .env or configure a local model.", file=sys.stderr)
+        return None
+
+    if len(working) == 1:
+        name, adapter = working[0]
+        print(f"  Using {name}")
+        return adapter
+
+    # Multiple working adapters — let user choose
+    print("\n  Available adapters:")
+    for i, (name, _) in enumerate(working, 1):
+        print(f"    {i}. {name}")
+    while True:
+        try:
+            choice = input("\n  Select adapter [1]: ").strip()
+            if not choice:
+                choice = "1"
+            idx = int(choice) - 1
+            if 0 <= idx < len(working):
+                return working[idx][1]
+            print(f"  Enter a number between 1 and {len(working)}.")
+        except (ValueError, IndexError):
+            print(f"  Enter a number between 1 and {len(working)}.")
 
 
 def cmd_chat(args: argparse.Namespace) -> int:
@@ -381,10 +455,16 @@ def cmd_chat(args: argparse.Namespace) -> int:
     print("Type 'exit' or Ctrl-C to quit. Type ':snapshot' to checkpoint.")
     print("-" * 60)
 
+    # Resolve adapter
+    adapter = None
+    if args.adapter:
+        adapter = _get_adapter(args)
+    else:
+        adapter = _interactive_adapter_select()
+
     # Lazy-import the orchestrator
     try:
         from runtime.orchestrator import IdentityRuntime, InteractionRequest
-        adapter = _get_adapter(args) if args.adapter else _detect_adapter()
         runtime = IdentityRuntime(storage=storage, adapter=adapter)
         runtime.load(args.id)
         session_id = runtime.start_session(args.id)

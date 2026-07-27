@@ -77,9 +77,11 @@ identity chat --id a1b2c3d4 [--adapter openai] [--model gpt-4o]
 | Flag | Required | Description |
 |------|----------|-------------|
 | `--id` | yes | Identity ID to chat with |
-| `--adapter` | no | LLM adapter type: `openai`, `anthropic`, `ollama`, `openrouter`, `groq` |
+| `--adapter` | no | LLM adapter type: `openai`, `anthropic`, `ollama`, `openrouter`, `groq`, `sambanova` |
 | `--adapter-config` | no | JSON string with adapter config |
 | `--model` | no | Model override (default: `gpt-4o`) |
+
+When `--adapter` is omitted, `chat` scans `.env` for configured API keys, runs a health check on each, and presents an interactive menu of working adapters to choose from. If only one adapter passes the health check, it is selected automatically.
 
 **Special chat commands:**
 | Command | Action |
