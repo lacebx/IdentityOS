@@ -33,6 +33,7 @@ Example:
 from __future__ import annotations
 
 import json
+import os
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -134,7 +135,7 @@ class Identity:
 
         data = json.loads(Path(path).read_text(encoding="utf-8"))
 
-        storage = JSONFileBackend(root_dir=".identity_store")
+        storage = JSONFileBackend(root_dir=os.environ.get("IDENTITY_STORE_PATH", ".identity_store"))
         runtime = IdentityRuntime(storage=storage)
 
         spec = IdentitySpec.from_dict(data.get("identity", data))
