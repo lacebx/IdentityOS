@@ -436,6 +436,20 @@ def _interactive_adapter_select():
             print(f"  Enter a number between 1 and {len(working)}.")
 
 
+def _resolve_identity(storage, identity_id_or_name: str) -> Optional[str]:
+    """Resolve an identity by ID or name. Tries exact ID first, then scans names."""
+    if storage.load(identity_id_or_name, "latest_snapshot"):
+        return identity_id_or_name
+    for candidate in storage.list_identities():
+        data = storage.load(candidate, "latest_snapshot")
+        if data:
+            modules = data.get("modules") or data
+            identity_data = modules.get("identity", modules)
+            if identity_data.get("name") == identity_id_or_name:
+                return candidate
+    return None
+
+
 def cmd_chat(args: argparse.Namespace) -> int:
     """
     Start an interactive REPL with a loaded identity.
@@ -444,13 +458,16 @@ def cmd_chat(args: argparse.Namespace) -> int:
     run the FastAPI service in runtime/main.py instead.
     """
     storage = _get_storage(args)
-    manager = _get_snapshot_manager(storage, args.id)
-    latest = manager.latest()
-    if latest is None:
+    resolved = _resolve_identity(storage, args.id)
+    if resolved is None:
         print(f"Identity '{args.id}' not found. Run 'create' first.", file=sys.stderr)
         return 1
+    if resolved != args.id:
+        print(f"  Resolved '{args.id}' → identity {resolved}")
+    manager = _get_snapshot_manager(storage, resolved)
+    latest = manager.latest()
 
-    identity_name = latest.modules.get("identity", {}).get("name", args.id)
+    identity_name = latest.modules.get("identity", {}).get("name", resolved)
     print(f"IdentityOS Chat - talking to: {identity_name}")
     print("Type 'exit' or Ctrl-C to quit. Type ':snapshot' to checkpoint.")
     print("-" * 60)
@@ -573,7 +590,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     # chat
     p_chat = sub.add_parser("chat", help="Start an interactive chat session with an identity")
-    p_chat.add_argument("--id", required=True, help="Identity id")
+    p_chat.add_argument("--id", required=True, help="Identity id (or name)")
     p_chat.add_argument("--adapter", default="", help="LLM adapter type: openai, anthropic, ollama, openrouter")
     p_chat.add_argument("--adapter-config", default="{}", help="JSON string with adapter config")
     p_chat.add_argument("--model", default="gpt-4o", help="Model adapter to use")
