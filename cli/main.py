@@ -468,9 +468,9 @@ def cmd_chat(args: argparse.Namespace) -> int:
     latest = manager.latest()
 
     identity_name = latest.modules.get("identity", {}).get("name", resolved)
-    print(f"IdentityOS Chat - talking to: {identity_name}")
-    print("Type 'exit' or Ctrl-C to quit. Type ':snapshot' to checkpoint.")
-    print("-" * 60)
+    print(f"\n  \u25B6 IdentityOS Chat — {identity_name}")
+    print(f"  Type 'exit' or Ctrl-C to quit. Type ':snapshot' to checkpoint.")
+    print()
 
     # Resolve adapter
     adapter = None
@@ -483,8 +483,8 @@ def cmd_chat(args: argparse.Namespace) -> int:
     try:
         from runtime.orchestrator import IdentityRuntime, InteractionRequest
         runtime = IdentityRuntime(storage=storage, adapter=adapter)
-        runtime.load(args.id)
-        session_id = runtime.start_session(args.id)
+        runtime.load(resolved)
+        session_id = runtime.start_session(resolved)
         runtime_ok = True
     except Exception as e:
         print(f"[warn] Could not initialize runtime ({e}). Running in echo mode.")
@@ -493,7 +493,7 @@ def cmd_chat(args: argparse.Namespace) -> int:
     session_turns = 0
     while True:
         try:
-            user_input = input("you> ").strip()
+            user_input = input("\nyou> ").strip()
         except (KeyboardInterrupt, EOFError):
             print("\nGoodbye.")
             break
@@ -508,7 +508,7 @@ def cmd_chat(args: argparse.Namespace) -> int:
                 latest.modules,
                 label=f"chat-turn-{session_turns}",
             )
-            print(f"[snapshot saved: {snap_id[:8]}]")
+            print(f"  [snapshot saved: {snap_id[:8]}]")
             continue
         if user_input == ":history":
             for snap in manager.history():
@@ -518,16 +518,18 @@ def cmd_chat(args: argparse.Namespace) -> int:
         if runtime_ok:
             try:
                 req = InteractionRequest(
-                    identity_id=args.id,
+                    identity_id=resolved,
                     user_input=user_input,
                     session_id=session_id,
                 )
                 resp = runtime.process(req)
-                print(f"{identity_name}> {resp.output}")
+                print(f"\n{identity_name}> {resp.output}\n")
+                print("─" * 40)
             except Exception as e:
-                print(f"[runtime error] {e}")
+                print(f"  [runtime error] {e}")
         else:
-            print(f"{identity_name}> [echo] {user_input}")
+            print(f"\n{identity_name}> [echo] {user_input}\n")
+            print("─" * 40)
 
         session_turns += 1
 
