@@ -464,10 +464,13 @@ def cmd_chat(args: argparse.Namespace) -> int:
         return 1
     if resolved != args.id:
         print(f"  Resolved '{args.id}' → identity {resolved}")
-    manager = _get_snapshot_manager(storage, resolved)
-    latest = manager.latest()
 
-    identity_name = latest.modules.get("identity", {}).get("name", resolved)
+    # Load identity name from storage (handles both SnapshotManager and register() formats)
+    identity_data = storage.load(resolved, "latest_snapshot") or {}
+    modules = identity_data.get("modules") or identity_data
+    identity_spec = modules.get("identity", modules) if isinstance(modules, dict) else modules
+    identity_name = identity_spec.get("name", resolved) if isinstance(identity_spec, dict) else resolved
+    manager = _get_snapshot_manager(storage, resolved)
     print(f"\n  \u25B6 IdentityOS Chat — {identity_name}")
     print(f"  Type 'exit' or Ctrl-C to quit. Type ':snapshot' to checkpoint.")
     print()
@@ -536,6 +539,28 @@ def cmd_chat(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_delete(args: argparse.Namespace) -> int:
+    """Delete an identity and all its data from the store."""
+    storage = _get_storage(args)
+    resolved = _resolve_identity(storage, args.id)
+    if resolved is None:
+        print(f"Identity '{args.id}' not found.", file=sys.stderr)
+        return 1
+    if resolved != args.id:
+        print(f"  Resolved '{args.id}' → identity {resolved}")
+
+    import shutil
+    from pathlib import Path
+    store_root = Path(args.store)
+    id_dir = store_root / resolved
+    if id_dir.exists():
+        shutil.rmtree(id_dir)
+        print(f"  Identity '{resolved}' deleted.")
+        return 0
+    print(f"  Identity '{resolved}' not found in store.", file=sys.stderr)
+    return 1
+
+
 # ---------------------------------------------------------------------------
 # Argument parser
 # ---------------------------------------------------------------------------
@@ -600,6 +625,10 @@ def build_parser() -> argparse.ArgumentParser:
     # list
     p_get = sub.add_parser("list", aliases=["get"], help="List all identities ranked by experience")
     p_get.add_argument("--limit", type=int, default=0, help="Limit rows (0 = unlimited)")
+
+    # delete
+    p_delete = sub.add_parser("delete", aliases=["rm"], help="Delete an identity and all its data")
+    p_delete.add_argument("--id", required=True, help="Identity id (or name)")
 
     # playground
     p_play = sub.add_parser(
@@ -727,6 +756,8 @@ COMMAND_MAP = {
     "chat": cmd_chat,
     "list": cmd_get,
     "get": cmd_get,
+    "delete": cmd_delete,
+    "rm": cmd_delete,
     "playground": cmd_playground,
     "explain": cmd_explain_wrapper,
     "registry": cmd_registry_wrapper,

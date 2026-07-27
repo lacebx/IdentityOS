@@ -358,11 +358,14 @@ class IdentityRuntime:
         if self._storage:
             snapshot_data = identity.to_dict()
             self._storage.save(identity.id, "identity_spec", snapshot_data)
-            self._storage.save(
-                identity.id,
-                "latest_snapshot",
-                {"modules": {"identity": snapshot_data}},
-            )
+            # Only write latest_snapshot if it doesn't exist yet (first-time setup).
+            # SnapshotManager.capture() owns this namespace after initial creation.
+            if not self._storage.load(identity.id, "latest_snapshot"):
+                self._storage.save(
+                    identity.id,
+                    "latest_snapshot",
+                    {"modules": {"identity": snapshot_data}},
+                )
         self._emit(
             EventType.IDENTITY_LOADED,
             identity_id=identity.id,
@@ -914,7 +917,7 @@ class IdentityRuntime:
         if not self._storage:
             return
         try:
-            data = self._storage.load(f"user_{identity_id}", "profile")
+            data = self._storage.load(identity_id, "_user_profile")
             if data:
                 self._user_profiles[identity_id] = UserProfile.from_dict(data)
         except Exception:
@@ -928,7 +931,7 @@ class IdentityRuntime:
         if not profile:
             return
         try:
-            self._storage.save(f"user_{identity_id}", "profile", profile.to_dict())
+            self._storage.save(identity_id, "_user_profile", profile.to_dict())
         except Exception:
             pass
 
