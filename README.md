@@ -47,7 +47,7 @@ Identities are **portable**. Export one to JSON, move it to another machine, loa
 
 **Persona**: The character or role of an identity (e.g., "mentor", "analyst", "companion"). This shapes how it responds.
 
-**Capability**: A skill an identity can use. Capabilities are installed at runtime — no retraining needed. Examples: `datetime` (knows the current time), `filesystem` (reads/writes files), `github` (queries repos).
+**Capability**: A skill an identity can use. Capabilities are installed at runtime , no retraining needed. Examples: `datetime` (knows the current time), `filesystem` (reads/writes files), `github` (queries repos).
 
 **ISP (Identity Skill Pack)**: A bundle of capabilities that work together. Install one ISP and your identity gains multiple skills at once.
 
@@ -97,7 +97,7 @@ OPENAI_BASE_URL="http://localhost:11434/v1"   # Ollama
 OPENAI_API_KEY="ollama"                       # Ollama accepts any key
 ```
 
-IdentityOS works with any LLM — cloud or local. Pick what fits.
+IdentityOS works with any LLM , cloud or local. Pick what fits.
 
 ### Create Your First Identity
 
@@ -262,7 +262,7 @@ agent.observe("My name is Alice and I love Python")
 # Give it a goal
 agent.goal("Master FastAPI", priority="high")
 
-# Export — save to a file, share with anyone
+# Export , save to a file, share with anyone
 agent.export("mybot.json")
 
 # Restore later
@@ -335,7 +335,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
-Apache License, Version 2.0 — see [LICENSE](LICENSE).
+Apache License, Version 2.0,  see [LICENSE](LICENSE).
 
 ---
 
