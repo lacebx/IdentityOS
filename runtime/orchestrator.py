@@ -1218,6 +1218,7 @@ class IdentityRuntime:
         # Stage 3: Compose context
         user_profile = self._get_user_profile(identity.id)
         session_fact_store = self._get_fact_store_for_session(identity.id, session_id)
+        cap_prompts = self.capability_registry.all_prompts(identity.id)
         context = self.context_composer.compose(
             identity=identity,
             memory_store=self.memory_store,
@@ -1233,6 +1234,7 @@ class IdentityRuntime:
             top_k_memories=top_k_memories,
             session_mode=session_mode,
             emotion_state=emotion_state,
+            capability_prompts=cap_prompts if cap_prompts else None,
         )
 
         self._emit(
@@ -1242,11 +1244,6 @@ class IdentityRuntime:
             token_estimate=context.token_estimate(),
             session_mode=session_mode.value,
         )
-
-        # Inject capability prompts into context
-        cap_prompts = self.capability_registry.all_prompts(identity.id)
-        if cap_prompts:
-            context.custom_blocks["capabilities"] = "\n".join(cap_prompts)
 
         # Route user intent through installed capabilities (the Planner layer)
         _router = __import__("core.planner", fromlist=["SkillRouter"]).SkillRouter
