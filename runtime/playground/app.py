@@ -227,7 +227,7 @@ class RuntimeManager:
     def __init__(self):
         self._runtime: Optional[IdentityRuntime] = None
         self._sessions: Dict[str, str] = {}
-        self._storage = JSONFileBackend(root_dir=".identity_store")
+        self._storage = JSONFileBackend(root_dir=os.environ.get("IDENTITY_STORE_PATH", ".identity_store"))
 
         # Read adapter config from env vars (same convention as runtime/main.py)
         self._adapter_name: Optional[str] = os.environ.get("IDENTITY_ADAPTER") or None

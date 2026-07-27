@@ -48,7 +48,8 @@ if os.path.isfile(_env_file):
         pass
 
 # Initialize the runtime orchestrator with persistence and optional adapter
-storage = JSONFileBackend(root_dir=".identity_store")
+_store_path = os.environ.get("IDENTITY_STORE_PATH", ".identity_store")
+storage = JSONFileBackend(root_dir=_store_path)
 
 adapter = None
 adapter_type = os.environ.get("IDENTITY_ADAPTER", "")
@@ -299,7 +300,7 @@ def create_identity(req: CreateIdentityRequest):
         identity_class=req.identity_class,
         persona=req.persona,
         role=req.role,
-        storage_path=".identity_store",
+        storage_path=os.environ.get("IDENTITY_STORE_PATH", ".identity_store"),
     )
     logger.info(f"Identity created via API: {req.identity_id} ({req.name})")
     return {"id": identity.id, "name": identity.name, "status": "created"}

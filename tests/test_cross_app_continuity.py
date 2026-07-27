@@ -28,6 +28,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -47,20 +48,9 @@ def runtime_server():
 
     Forces Groq adapter so LLM calls work reliably.
     """
-    repo_root = Path(__file__).resolve().parent.parent
-    # Clean isolated state before starting
-    store_dir = repo_root / ".identity_store"
-    if store_dir.exists():
-        import shutil
-        for p in list(store_dir.iterdir()):
-            if p.is_file():
-                p.unlink()
-            elif p.is_dir():
-                shutil.rmtree(p, ignore_errors=True)
+    store_dir = tempfile.mkdtemp(prefix="identity_test_store_")
     env = os.environ.copy()
-    # Use whichever API key is available
-    if os.environ.get("GROQ_API_KEY"):
-        env["IDENTITY_ADAPTER"] = "groq"
+    env["IDENTITY_STORE_PATH"] = store_dir
     elif os.environ.get("SAMBANOVA_API_KEY"):
         env["IDENTITY_ADAPTER"] = "sambanova"
     elif os.environ.get("OPENROUTER_API_KEY"):
