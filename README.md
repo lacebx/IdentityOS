@@ -19,7 +19,7 @@ You tell one assistant about your goals. You tell another about a cancelled proj
 
 **IdentityOS changes that.**
 
-It gives AI a persistent identity — a single self that remembers across apps, learns from every conversation, gains new capabilities, and notices things no isolated AI could.
+It gives AI a persistent identity, a single self that remembers across apps, learns from every conversation, gains new capabilities, and notices things no isolated AI could.
 
 ---
 
@@ -28,14 +28,14 @@ It gives AI a persistent identity — a single self that remembers across apps, 
 IdentityOS is an open-source runtime for **portable AI identities**.
 
 An identity is a persistent digital self. It has:
-- A **name and persona** — who it is
-- **Memory** — facts it learns about you and the world
-- **Goals** — things it's working toward
-- **Timeline** — a life story of events
-- **Capabilities** — skills it can use (check the weather, read files, search GitHub)
-- **Relationships** — trust networks with other identities and users
+- A **name and persona**: who it is
+- **Memory**: facts it learns about you and the world
+- **Goals**: things it's working toward
+- **Timeline**: a life story of events
+- **Capabilities**: skills it can use (check the weather, read files, search GitHub)
+- **Relationships**: trust networks with other identities and users
 
-Identities are **portable**. Export one to JSON, move it to another machine, load it with a different LLM provider — it remembers everything.
+Identities are **portable**. Export one to JSON, move it to another machine, load it with a different LLM provider,it remembers everything.
 
 > Not shared memory. A shared self.
 
@@ -43,17 +43,17 @@ Identities are **portable**. Export one to JSON, move it to another machine, loa
 
 ## Core Concepts
 
-**Identity** — A persistent AI personality. It has a name, persona, memories, goals, and capabilities. You create it once and interact with it anywhere.
+**Identity**: A persistent AI personality. It has a name, persona, memories, goals, and capabilities. You create it once and interact with it anywhere.
 
-**Persona** — The character or role of an identity (e.g., "mentor", "analyst", "companion"). This shapes how it responds.
+**Persona**: The character or role of an identity (e.g., "mentor", "analyst", "companion"). This shapes how it responds.
 
-**Capability** — A skill an identity can use. Capabilities are installed at runtime — no retraining needed. Examples: `datetime` (knows the current time), `filesystem` (reads/writes files), `github` (queries repos).
+**Capability**: A skill an identity can use. Capabilities are installed at runtime — no retraining needed. Examples: `datetime` (knows the current time), `filesystem` (reads/writes files), `github` (queries repos).
 
-**ISP (Identity Skill Pack)** — A bundle of capabilities that work together. Install one ISP and your identity gains multiple skills at once.
+**ISP (Identity Skill Pack)**: A bundle of capabilities that work together. Install one ISP and your identity gains multiple skills at once.
 
-**Runtime** — The server that runs identities. Handles memory, context, LLM calls, capability execution, and persistence.
+**Runtime**: The server that runs identities. Handles memory, context, LLM calls, capability execution, and persistence.
 
-**Adapter** — A connector to an LLM provider. IdentityOS supports Groq, OpenAI, Anthropic, OpenRouter, SambaNova, and any OpenAI-compatible endpoint (Ollama, LM Studio, vLLM, etc.).
+**Adapter**: A connector to an LLM provider. IdentityOS supports Groq, OpenAI, Anthropic, OpenRouter, SambaNova, and any OpenAI-compatible endpoint (Ollama, LM Studio, vLLM, etc.).
 
 ---
 
@@ -102,18 +102,18 @@ IdentityOS works with any LLM — cloud or local. Pick what fits.
 ### Create Your First Identity
 
 ```bash
-# Create an identity named "Pluto"
-identity create --name "Pluto" --persona companion
+# Create an identity named "Gabriel"
+identity create --name "Gabriel" --persona messenger --id gabe
 
-# Chat with Pluto
-identity chat --id pluto
+# Chat with Gabriel
+identity chat --id gabe #Note: IF you have more than 1 adapter key in .env you get to chose adapter at start of each session, identity knows everything no matter what adapter you select
 ```
 
 Type a few messages. IdentityOS stores everything in `.identity_store/`.
 
 ```bash
-# See what Pluto knows about you
-identity inspect --id pluto --dashboard
+# See what Gabriel knows about you
+identity inspect --id gabe --dashboard
 ```
 
 ---
@@ -122,7 +122,7 @@ identity inspect --id pluto --dashboard
 
 ---
 
-## After Setup — Try These
+## After Setup, try These
 
 ### List Your Identities
 
@@ -133,14 +133,14 @@ identity list
 ### Inspect an Identity
 
 ```bash
-identity inspect --id pluto
+identity inspect --id gabe
 ```
 
 ### Checkpoint and Roll Back
 
 ```bash
-identity snapshot --id pluto --label "before-experiment"
-identity rollback --id pluto --snap <snapshot_id>
+identity snapshot --id gabe --label "before-experiment"
+identity rollback --id gabe --snap <snapshot_id>
 ```
 
 ### Launch the Web Playground
@@ -153,7 +153,7 @@ Open http://localhost:8000/playground
 
 ---
 
-## Capabilities — Give Your Identity New Skills
+## Capabilities: Give Your Identity New Skills
 
 An identity with no capabilities is just a chatbot. Add capabilities and it becomes useful.
 
@@ -161,14 +161,14 @@ An identity with no capabilities is just a chatbot. Add capabilities and it beco
 # Browse available capabilities
 identity cap list
 
-# Install the datetime capability (so Pluto knows the current time)
-identity cap install datetime --identity pluto
+# Install the datetime capability (so Gabriel knows the current time)
+identity cap install datetime --identity gabe
 
-# Install filesystem capability (so Pluto can read/write files)
-identity cap install filesystem --identity pluto
+# Install filesystem capability (so Gabriel can read/write files)
+identity cap install filesystem --identity gabe
 ```
 
-Now chat with Pluto again. Ask "what time is it?" or "read my notes.txt". It will use the installed capabilities automatically.
+Now chat with Gabriel again. Ask "what time is it?" or "read my notes.txt". It will use the installed capabilities automatically.
 
 > Capabilities are installed at runtime. No code changes. No retraining.
 
@@ -176,7 +176,7 @@ Now chat with Pluto again. Ask "what time is it?" or "read my notes.txt". It wil
 
 ---
 
-## ISP Marketplace — Install Skill Packs
+## ISP Marketplace: Install Skill Packs
 
 ISPs bundle related capabilities:
 
@@ -269,7 +269,7 @@ agent.export("mybot.json")
 restored = Identity.from_file("mybot.json")
 ```
 
-No API key needed for identity features — facts, goals, memory, export. Add an adapter for chat.
+No API key needed for identity features, facts, goals, memory, export. Add an adapter for chat.
 
 ---
 
@@ -308,11 +308,11 @@ Full constitution: [docs/constitution/](docs/constitution/)
 ## Demo Recording Guides
 
 Step-by-step guides for recording demos:
-- [Demo 1: Identity Growth](docs/demos/01-identity-growth.md) — Capabilities transform an identity
-- [Demo 2: ISP Installation](docs/demos/02-isp-install.md) — Multiple skills at once
-- [Demo 3: Cross-App Continuity](docs/demos/03-cross-app.md) — Identity remembers across apps
-- [Demo 4: Capability Cooperation](docs/demos/04-capability-cooperation.md) — Skills work together
-- [Demo 5: Proactive Insight (Hero)](docs/demos/05-proactive-insight.md) — Identity notices what you missed
+- [Demo 1: Identity Growth](docs/demos/01-identity-growth.md)  Capabilities transform an identity
+- [Demo 2: ISP Installation](docs/demos/02-isp-install.md)  Multiple skills at once
+- [Demo 3: Cross-App Continuity](docs/demos/03-cross-app.md)  Identity remembers across apps
+- [Demo 4: Capability Cooperation](docs/demos/04-capability-cooperation.md)  Skills work together
+- [Demo 5: Proactive Insight (Hero)](docs/demos/05-proactive-insight.md)  Identity notices what you missed
 
 ---
 
