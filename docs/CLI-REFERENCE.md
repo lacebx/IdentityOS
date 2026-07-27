@@ -618,14 +618,20 @@ restored = Identity.from_file("mybot.json")
 ## Package Management
 
 ```bash
-# Install IdentityOS with runtime dependencies
+# Install IdentityOS with all runtime dependencies
 pip install -e .
 
 # Install from PyPI (when published)
 pip install identityos
 
-# Install with dev/test dependencies
+# Install with dev/test dependencies (pytest, etc.)
 pip install -e ".[dev]"
+
+# Install with Anthropic adapter support
+pip install -e ".[anthropic]"
+
+# Install everything
+pip install -e ".[dev,anthropic]"
 
 # Run tests
 pytest tests/ -v
@@ -633,6 +639,27 @@ pytest tests/ -v
 # Run tests (exclude API-key-dependent tests)
 pytest tests/ -v --ignore=tests/legacy
 ```
+
+### What `pip install -e .` Installs
+
+| Package | Size | Why |
+|---------|------|-----|
+| `openai` | ~500KB | Required by every adapter except Anthropic (Groq, Ollama, OpenRouter, SambaNova, and plain OpenAI all use the OpenAI SDK) |
+| `fastapi` | ~300KB | Runtime API server |
+| `uvicorn` | ~200KB | ASGI server for the runtime |
+| `pydantic` | ~500KB | Data validation (used by runtime and SDK) |
+| `httpx` | ~300KB | HTTP client (used by SDK and runtime internally) |
+| `jinja2` | ~400KB | Template engine for the Playground web UI |
+| `python-dotenv` | ~100KB | Loads `.env` file automatically |
+
+The `identity` CLI command is registered as a `console_scripts` entry point — it becomes available globally once the package is installed in the active environment.
+
+### Optional Extras
+
+| Extra | Installs | For |
+|-------|----------|-----|
+| `[dev]` | `pytest`, `pytest-asyncio` | Running tests |
+| `[anthropic]` | `anthropic` Python SDK | Using `AnthropicAdapter` |
 
 ---
 
