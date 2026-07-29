@@ -47,7 +47,7 @@ jobs:
           if git show origin/main:.identitybench/benchmark_index.json 2>/dev/null; then
             BASELINE_DIR=$(mktemp -d)
             git show origin/main:.identitybench > "$BASELINE_DIR/baseline.json" 2>/dev/null || true
-            identitybench compare smoke-test-identity --last 2 2>&1 | tee regression-check.txt
+            identitybench compare --id smoke-test-identity --last 2 2>&1 | tee regression-check.txt
           else
             echo "No baseline found — this is the first run." | tee regression-check.txt
           fi

@@ -58,7 +58,7 @@ class IdentityBench:
         if not spec:
             raise ValueError(
                 f"Identity '{target}' not found. "
-                f"Available: {self.runtime.identity_store.list()} or run 'identity list'."
+                f"Available: {[s.id for s in self.runtime.identity_store.list_all()]} or run 'identity list'."
             )
 
     def run(

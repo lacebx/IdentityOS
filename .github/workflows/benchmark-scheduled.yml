@@ -2,11 +2,8 @@ name: Scheduled IdentityBench
 
 on:
   schedule:
-    # Nightly (smoke suite) — 2am UTC daily
     - cron: '0 2 * * *'
-    # Weekly (full suite) — 3am UTC every Monday
     - cron: '0 3 * * 1'
-    # Monthly endurance — 4am UTC on the 1st
     - cron: '0 4 1 * *'
 
 permissions:
@@ -22,16 +19,21 @@ jobs:
         with:
           python-version: "3.11"
       - run: pip install -e ".[dev]"
+      - name: Enumerate identities
+        id: enum
+        run: |
+          identity list --json 2>/dev/null | jq -r '.[].id' > /tmp/identity_ids.txt
+          if [ ! -s /tmp/identity_ids.txt ]; then echo "gabe" > /tmp/identity_ids.txt; fi
       - name: Run nightly smoke benchmark
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
-          for identity_id in $(identity list --json 2>/dev/null | python3 -c "import json,sys; [print(i['id']) for i in json.load(sys.stdin)]" 2>/dev/null || echo "gabe"); do
+          while IFS= read -r identity_id; do
             echo "=== Benchmarking $identity_id ==="
             identitybench run "$identity_id" --mode smoke --seed 42
             identitybench report "$identity_id" --markdown -o ".identitybench/reports/$identity_id-nightly.md"
-          done
+          done < /tmp/identity_ids.txt
       - uses: actions/upload-artifact@v4
         with:
           name: nightly-benchmark
@@ -46,18 +48,22 @@ jobs:
         with:
           python-version: "3.11"
       - run: pip install -e ".[dev]"
+      - name: Enumerate identities
+        run: |
+          identity list --json 2>/dev/null | jq -r '.[].id' > /tmp/identity_ids.txt
+          if [ ! -s /tmp/identity_ids.txt ]; then echo "gabe" > /tmp/identity_ids.txt; fi
       - name: Run weekly full benchmark
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
           mkdir -p .identitybench/reports
-          for identity_id in $(identity list --json 2>/dev/null | python3 -c "import json,sys; [print(i['id']) for i in json.load(sys.stdin)]" 2>/dev/null || echo "gabe"); do
+          while IFS= read -r identity_id; do
             echo "=== Full benchmark for $identity_id ==="
             identitybench run "$identity_id" --mode full --seed 42
             identitybench report "$identity_id" --markdown -o ".identitybench/reports/$identity_id-weekly.md"
             identitybench history "$identity_id"
-          done
+          done < /tmp/identity_ids.txt
       - uses: actions/upload-artifact@v4
         with:
           name: weekly-benchmark
@@ -72,22 +78,24 @@ jobs:
         with:
           python-version: "3.11"
       - run: pip install -e ".[dev]"
+      - name: Enumerate identities
+        run: |
+          identity list --json 2>/dev/null | jq -r '.[].id' > /tmp/identity_ids.txt
+          if [ ! -s /tmp/identity_ids.txt ]; then echo "gabe" > /tmp/identity_ids.txt; fi
       - name: Run monthly endurance benchmark
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
           mkdir -p .identitybench/reports
-          for identity_id in $(identity list --json 2>/dev/null | python3 -c "import json,sys; [print(i['id']) for i in json.load(sys.stdin)]" 2>/dev/null || echo "gabe"); do
+          while IFS= read -r identity_id; do
             echo "=== Endurance benchmark for $identity_id ==="
-            # Run full suite 3 times to assess stability
             for i in 1 2 3; do
               identitybench run "$identity_id" --mode full --seed $((41 + i))
               identitybench report "$identity_id" --markdown -o ".identitybench/reports/$identity_id-endurance-run$i.md"
             done
-            # Generate comparison report
-            identitybench compare "$identity_id" --last 3
-          done
+            identitybench compare --id "$identity_id" --last 3
+          done < /tmp/identity_ids.txt
       - uses: actions/upload-artifact@v4
         with:
           name: monthly-endurance-benchmark
