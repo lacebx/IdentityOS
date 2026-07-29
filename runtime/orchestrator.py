@@ -1222,6 +1222,15 @@ class IdentityRuntime:
         user_profile = self._get_user_profile(identity.id)
         session_fact_store = self._get_fact_store_for_session(identity.id, session_id)
         cap_prompts = self.capability_registry.all_prompts(identity.id)
+
+        # Route user intent through installed capabilities (the Planner layer)
+        _router = __import__("core.planner", fromlist=["SkillRouter"]).SkillRouter
+        _skill_router = _router(self.capability_registry, identity.id)
+        _evidence = _skill_router.route(sanitized_input)
+        _report = _evidence.report()
+        _evidence_results = [r.to_evidence_dict() for r in _evidence._results] if hasattr(_evidence, '_results') else []
+        _has_evidence = bool(_report.facts or _report.failures)
+
         context = self.context_composer.compose(
             identity=identity,
             memory_store=self.memory_store,
@@ -1235,9 +1244,11 @@ class IdentityRuntime:
             user_profile=user_profile,
             query=sanitized_input,
             top_k_memories=top_k_memories,
+            session_id=request.session_id,
             session_mode=session_mode,
             emotion_state=emotion_state,
             capability_prompts=cap_prompts if cap_prompts else None,
+            evidence_results=_evidence_results if _evidence_results else None,
         )
 
         self._emit(
@@ -1248,14 +1259,8 @@ class IdentityRuntime:
             session_mode=session_mode.value,
         )
 
-        # Route user intent through installed capabilities (the Planner layer)
-        _router = __import__("core.planner", fromlist=["SkillRouter"]).SkillRouter
-        _skill_router = _router(self.capability_registry, identity.id)
-        _evidence = _skill_router.route(sanitized_input)
-        _report = _evidence.report()
-        if _report.facts or _report.failures:
+        if _has_evidence:
             context.custom_blocks["factual_skill_data"] = _skill_router.format_for_context(_evidence)
-            context.custom_blocks["evidence_report"] = _evidence.trust_block(_report)
         # Persist trust metrics for dashboard
         _history = _evidence.call_history
         if _history:
@@ -1514,6 +1519,20 @@ class IdentityRuntime:
 
         # Stage 10: Persist goals
         self._persist_goals(identity.id)
+
+        # Append evidence footer to output if capabilities were used
+        if _evidence_results and policy_passed:
+            footer_lines = ["\n\n---\n📊 **Evidence Sources**"]
+            for ev in _evidence_results[:12]:
+                status = "✓" if ev["success"] else "✗"
+                conf = ev["confidence"]
+                label = "verified" if conf >= 0.8 else "sourced" if conf >= 0.5 else "inferred"
+                err = f" — {ev['error']['message'][:200]}" if ev.get("error") else ""
+                footer_lines.append(
+                    f"  {status} `{ev['capability']}.{ev['action']}` — {label} ({conf:.1f}) — {ev['duration_ms']:.0f}ms{err}"
+                )
+            footer_lines.append("---")
+            final_output += "\n".join(footer_lines)
 
         return InteractionResponse(
             request_id=request.id,

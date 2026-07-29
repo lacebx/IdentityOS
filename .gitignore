@@ -18,3 +18,4 @@ venv/
 *.log
 demo/output/
 .test_canonical_facts/
+.identitybench/

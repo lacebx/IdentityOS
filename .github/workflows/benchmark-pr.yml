@@ -1,0 +1,93 @@
+name: IdentityBench PR Check
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Run unit tests
+        run: python -m pytest tests/ -v --tb=short 2>&1 | tee test-results.txt
+
+      - name: Run integration tests
+        run: python -m pytest tests/test_runtime_pipeline.py -v --tb=short 2>&1 | tee integration-results.txt
+
+      - name: Run IdentityBench smoke suite
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          identitybench run smoke-test-identity --mode smoke --seed 42 2>&1 | tee benchmark-results.txt
+          identitybench report smoke-test-identity --markdown -o benchmark-report.md
+
+      - name: Compare against baseline (main branch)
+        id: compare
+        run: |
+          git fetch origin main:refs/remotes/origin/main
+          if git show origin/main:.identitybench/benchmark_index.json 2>/dev/null; then
+            BASELINE_DIR=$(mktemp -d)
+            git show origin/main:.identitybench > "$BASELINE_DIR/baseline.json" 2>/dev/null || true
+            identitybench compare --id smoke-test-identity --last 2 2>&1 | tee regression-check.txt
+          else
+            echo "No baseline found — this is the first run." | tee regression-check.txt
+          fi
+
+      - name: Check for regressions
+        run: |
+          if [ -f regression-check.txt ] && grep -q "REGRESSION" regression-check.txt; then
+            echo "::warning::Critical metric regression detected. Review benchmark report."
+          fi
+
+      - name: Upload benchmark artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results
+          path: |
+            benchmark-report.md
+            benchmark-results.txt
+            regression-check.txt
+            .identitybench/
+
+      - name: Comment benchmark summary on PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let summary = '';
+            try {
+              const results = fs.readFileSync('benchmark-results.txt', 'utf8');
+              summary = '## IdentityBench Results\n```\n' + results.slice(-1500) + '\n```\n';
+            } catch(e) {
+              summary = '## IdentityBench Results\n_Benchmark completed but summary unavailable._\n';
+            }
+            try {
+              const report = fs.readFileSync('benchmark-report.md', 'utf8');
+              const lines = report.split('\n').slice(0, 40).join('\n');
+              summary += '\n### Report Excerpt\n' + lines;
+            } catch(e) {}
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: summary
+            });

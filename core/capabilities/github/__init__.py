@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any, Optional
 
 import httpx
+import os
 
 from core.capabilities.base import Capability, Skill
 from core.capabilities.registry import register
@@ -30,7 +31,7 @@ class GithubCapability(Capability):
             "Accept": "application/vnd.github.v3+json",
             "User-Agent": "IdentityOS/1.0",
         }
-        token = self._config.get("token", "")
+        token = self._config.get("token", "") or os.environ.get("GITHUB_TOKEN", "")
         if token:
             headers["Authorization"] = f"Bearer {token}"
         self._client = httpx.Client(base_url=GITHUB_API, headers=headers, timeout=15)

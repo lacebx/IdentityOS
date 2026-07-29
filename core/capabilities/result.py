@@ -60,6 +60,18 @@ class CapabilityResult:
             duration_ms=duration_ms,
         )
 
+    def to_evidence_dict(self) -> dict:
+        return {
+            "capability": self.capability,
+            "action": self.action,
+            "success": self.success,
+            "confidence": self.confidence,
+            "source": self.source,
+            "timestamp": self.timestamp,
+            "duration_ms": self.duration_ms,
+            "error": self.error,
+        }
+
 
 @dataclass
 class Fact:
@@ -76,6 +88,8 @@ class Fact:
         if not result.success:
             return []
         text = str(result.data) if not isinstance(result.data, dict) else _summarize(result.data)
+        if len(text) > 3000:
+            text = text[:3000] + "\n... [truncated]"
         return [
             Fact(
                 content=text,

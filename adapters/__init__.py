@@ -4,9 +4,11 @@ from typing import Any, Optional
 
 from .base import BaseAdapter, AdapterMessage, AdapterRequest, AdapterResponse
 from .chain import ChainAdapter
+from .cerebras_adapter import CerebrasAdapter
 from .openai_adapter import OpenAIAdapter, AnthropicAdapter, OllamaAdapter
 from .openrouter_adapter import OpenRouterAdapter
 from .groq_adapter import GroqAdapter
+from .cerebras_adapter import CerebrasAdapter
 from .sambanova_adapter import SambaNovaAdapter
 
 
@@ -34,6 +36,7 @@ def get_adapter(
 __all__ = [
     "BaseAdapter",
     "ChainAdapter",
+    "CerebrasAdapter",
     "AdapterMessage",
     "AdapterRequest",
     "AdapterResponse",

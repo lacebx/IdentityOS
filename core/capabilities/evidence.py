@@ -101,17 +101,18 @@ class EvidenceManager:
 
         if rep.facts:
             lines.append("## Live Capability Results (verified factual data)")
-            for f in rep.facts:
+            for f in rep.facts[:6]:
                 label = f"[{f.origin.value}]" if f.confidence < 1.0 else ""
-                lines.append(f"  - {f.content} {label}".strip())
+                content = f.content[:2000] if isinstance(f.content, str) else str(f.content)[:2000]
+                lines.append(f"  - {content} {label}".strip())
             lines.append("")
 
         if rep.failures:
             lines.append("## Capability Failures — you MUST acknowledge these")
-            for fail in rep.failures:
+            for fail in rep.failures[:8]:
+                msg = (fail.error['message'] if fail.error else 'unknown error')[:300]
                 lines.append(
-                    f"  - {fail.capability}.{fail.action} failed: "
-                    f"{fail.error['message'] if fail.error else 'unknown error'}. "
+                    f"  - {fail.capability}.{fail.action} failed: {msg}. "
                     f"Source: {fail.source}"
                 )
             lines.append("  Do NOT fabricate data for failed capabilities.")
