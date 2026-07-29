@@ -20,6 +20,20 @@ from identitybench.analytics.regression import detect_regressions, format_regres
 from identitybench.visualization.trends import render_trend_chart
 from identitybench.journal.capability_journal import CapabilityJournal
 from identitybench.journal.evolution_history import EvolutionHistory
+from identitybench.atlas.health import compute_identity_health, format_health
+from identitybench.atlas.prediction import predict_all_categories, format_prediction
+from identitybench.atlas.forecast import build_forecast, format_forecast
+from identitybench.atlas.strategy import generate_strategies, format_strategies
+from identitybench.atlas.decision_engine import (
+    analyze_capability_impact,
+    generate_evidence_recommendations,
+    format_evidence_recommendation,
+)
+from identitybench.atlas.capability_lifecycle import (
+    compute_capability_ranking,
+    format_capability_ranking,
+    explain_score_change,
+)
 
 
 def cmd_run(args: argparse.Namespace) -> None:
@@ -231,6 +245,111 @@ def cmd_regressions(args: argparse.Namespace) -> None:
         print("")
 
 
+def cmd_forecast(args: argparse.Namespace) -> None:
+    storage = BenchmarkStorage(root_dir=args.storage_dir)
+    identity_id = args.identity
+    run_history = storage.load_all_runs(identity_id)
+    if not run_history:
+        print(f"No benchmark history for '{identity_id}'.")
+        return
+    trends = storage.load_trends(identity_id)
+    if not trends:
+        print(f"No trend data for '{identity_id}'.")
+        return
+    latest_run = run_history[-1] if run_history else {}
+    category_scores = latest_run.get("category_scores", {})
+    if not category_scores:
+        print(f"No category scores found in latest run for '{identity_id}'.")
+        return
+
+    predictions = predict_all_categories(trends, steps_ahead=5)
+
+    if args.command == "forecast":
+        forecast = build_forecast(category_scores, predictions, weeks=args.weeks)
+        print(f"\nAtlas Forecast for {identity_id}:\n")
+        print(format_forecast(forecast))
+        return
+
+    print(f"\nAtlas Strategic Analysis for {identity_id}:\n")
+    print("─" * 50)
+
+    health = compute_identity_health(
+        category_scores=category_scores,
+        regressions=None,
+        predictions=predictions,
+    )
+    print("IDENTITY HEALTH")
+    print(format_health(health))
+    print()
+
+    cap_journal = CapabilityJournal(args.storage_dir)
+    caps = cap_journal.list_capabilities(identity_id)
+    cap_entries = []
+    for cap_id in caps:
+        cap_entries.extend(cap_journal.get_journal(identity_id, cap_id))
+
+    roi_data = []
+    if cap_entries:
+        from identitybench.analytics.roi import calculate_capability_roi
+        roi_data = calculate_capability_roi(cap_entries, run_history)
+
+    impacts = analyze_capability_impact(cap_entries, run_history)
+    evidence_recs = generate_evidence_recommendations(
+        current_scores=category_scores,
+        capability_impacts=impacts,
+        predictions=predictions,
+    )
+    ranking = compute_capability_ranking(roi_data, run_history, cap_entries)
+    strategies = generate_strategies(health, predictions, evidence_recs, ranking)
+
+    print("PREDICTIONS")
+    for pred in predictions:
+        print(format_prediction(pred))
+        print()
+    print("─" * 50)
+
+    print("EVIDENCE-BASED RECOMMENDATIONS")
+    if evidence_recs:
+        for rec in evidence_recs[:5]:
+            print(format_evidence_recommendation(rec))
+            print()
+    else:
+        print("  No recommendations at this time.")
+    print("─" * 50)
+
+    print("CAPABILITY RANKING")
+    print(format_capability_ranking(ranking))
+    print("─" * 50)
+
+    print("STRATEGIES")
+    print(format_strategies(strategies))
+    print("─" * 50)
+
+    if args.output:
+        lines = []
+        lines.append(f"Atlas Strategic Analysis for {identity_id}")
+        lines.append("")
+        lines.append("IDENTITY HEALTH")
+        lines.append(format_health(health))
+        lines.append("")
+        lines.append("PREDICTIONS")
+        for pred in predictions:
+            lines.append(format_prediction(pred))
+        lines.append("")
+        lines.append("EVIDENCE-BASED RECOMMENDATIONS")
+        for rec in evidence_recs[:5]:
+            lines.append(format_evidence_recommendation(rec))
+        lines.append("")
+        lines.append("CAPABILITY RANKING")
+        lines.append(format_capability_ranking(ranking))
+        lines.append("")
+        lines.append("STRATEGIES")
+        lines.append(format_strategies(strategies))
+        with open(args.output, "w") as f:
+            f.write("\n".join(lines))
+        print(f"Atlas report written to {args.output}")
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="identitybench",
@@ -285,6 +404,16 @@ def build_parser() -> argparse.ArgumentParser:
     p_regressions.add_argument("identity", help="Identity ID")
     p_regressions.add_argument("--threshold", type=int, default=3, help="Consecutive decreases threshold")
     p_regressions.set_defaults(func=cmd_regressions)
+
+    p_forecast = sub.add_parser("forecast", help="Generate forecast timeline")
+    p_forecast.add_argument("identity", help="Identity ID")
+    p_forecast.add_argument("--weeks", type=int, default=8, help="Number of weeks to forecast")
+    p_forecast.set_defaults(func=cmd_forecast)
+
+    p_atlas = sub.add_parser("atlas", help="Full Atlas strategic analysis (health + predictions + recs + ranking + strategies)")
+    p_atlas.add_argument("identity", help="Identity ID")
+    p_atlas.add_argument("-o", "--output", help="Write report to file")
+    p_atlas.set_defaults(func=cmd_forecast)
 
     return parser
 
