@@ -1,4 +1,4 @@
-name: Daedalus Daily Engineering Report
+name: Daedalus Engineering Journal
 
 on:
   schedule:
@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  daily-report:
+  journal:
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -45,37 +45,6 @@ jobs:
           identity create --name "DaedalusDaily" --id daedalus-daily --persona "engineering" 2>&1 || true
           identitybench run daedalus-daily --mode smoke --seed 42 2>&1 | tee /tmp/daily-benchmark.txt || true
 
-      - name: Generate Daedalus daily report
-        id: report
+      - name: Update Engineering Journal
         run: |
-          python scripts/daedalus_actions.py report --open-issue 2>&1 | tee /tmp/daedalus-report.txt
-          echo "REPORT=$(cat /tmp/daedalus-report.txt | head -5)" >> $GITHUB_OUTPUT
-
-      - name: Comment on existing daily issue if open
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const { data: issues } = await github.rest.issues.listForRepo({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              state: 'open',
-              labels: 'daedalus',
-              per_page: 5
-            });
-            const today = new Date().toISOString().slice(0, 10);
-            const todaysIssue = issues.find(i => i.title.includes(today));
-            if (todaysIssue) {
-              const fs = require('fs');
-              let body = '';
-              try {
-                body = fs.readFileSync('/tmp/daedalus-report.txt', 'utf8');
-              } catch(e) {
-                body = 'Daedalus report generated.';
-              }
-              await github.rest.issues.createComment({
-                issue_number: todaysIssue.number,
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                body: '## Updated Report\n```\n' + body.slice(0, 3000) + '\n```\n' + '— Daedalus\nLace\'s Engineering Partner\nIdentityOS'
-              });
-            }
+          python scripts/daedalus_actions.py report 2>&1 | tee /tmp/daedalus-journal.txt

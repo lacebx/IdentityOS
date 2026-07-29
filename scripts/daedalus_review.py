@@ -155,10 +155,14 @@ def detect_layer(fpath: str) -> Optional[str]:
 def analyze_separation(files: List[Dict[str, Any]], diff: str) -> List[str]:
     findings: List[str] = []
     for pattern, file_prefix, message in SEPARATION_CHECK_PATTERNS:
-        if any(f["path"].startswith(file_prefix) for f in files):
-            matches = re.findall(pattern, diff, re.MULTILINE)
-            if matches:
-                findings.append(f"- \u26a0\ufe0f **{message}** detected in `{file_prefix}*`")
+        for f in files:
+            if f["path"].startswith(file_prefix):
+                for line in f["lines"]:
+                    stripped = line.lstrip("+").strip()
+                    if re.search(pattern, stripped):
+                        findings.append(
+                            f"- \u26a0\ufe0f **{message}** in `{f['path']}`: `{stripped[:80]}`"
+                        )
     for src_prefix, forbidden_prefix, message in IMPORT_RESTRICTIONS:
         if any(f["path"].startswith(src_prefix) for f in files):
             for f in files:

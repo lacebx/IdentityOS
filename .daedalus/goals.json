@@ -1,6 +1,7 @@
 {
   "owner": "lacebx",
   "project": "IdentityOS",
+  "created": "2026-07-29T00:00:00Z",
   "updated": "2026-07-29T00:00:00Z",
   "primary_goals": [
     {
@@ -8,96 +9,120 @@
       "goal": "Maintain IdentityOS quality across all layers",
       "priority": 10,
       "status": "active",
+      "created_at": "2026-07-29",
       "metrics": ["benchmark_score", "test_pass_rate", "regression_count"],
-      "evidence": "Every PR should improve or maintain benchmark scores"
+      "evidence": [],
+      "observations": []
     },
     {
       "id": "increase-benchmarks",
       "goal": "Increase benchmark scores consistently",
       "priority": 9,
       "status": "active",
+      "created_at": "2026-07-29",
       "metrics": ["overall_score", "category_scores"],
-      "evidence": "Track per-category trends and identify weak areas"
+      "evidence": [],
+      "observations": []
     },
     {
       "id": "reduce-regressions",
       "goal": "Reduce regressions to zero",
       "priority": 9,
       "status": "active",
+      "created_at": "2026-07-29",
       "metrics": ["regression_count", "regression_severity"],
-      "evidence": "Every regression must have documented root cause"
+      "evidence": [],
+      "observations": []
     },
     {
       "id": "improve-architecture",
       "goal": "Improve architecture separation and reduce coupling",
       "priority": 8,
       "status": "active",
+      "created_at": "2026-07-29",
       "metrics": ["cross_layer_imports", "circular_dependencies"],
-      "evidence": "Track import violations between layers"
+      "evidence": ["Daedalus PR review now tracks cross-layer imports automatically"],
+      "observations": []
     },
     {
       "id": "create-capabilities",
       "goal": "Create reusable, well-tested capabilities",
       "priority": 7,
       "status": "active",
+      "created_at": "2026-07-29",
       "metrics": ["capability_count", "registry_size", "capability_reuse"],
-      "evidence": "Every capability should have manifest, implementation, and tests"
+      "evidence": ["5 Daedalus capabilities created (23 skills)", "Registry expanded from 8 to 13 capabilities"],
+      "observations": []
     },
     {
       "id": "teach-owner",
-      "goal": "Help the owner understand architecture decisions",
+      "goal": "Help the owner understand architecture decisions through evidence-driven reviews",
       "priority": 6,
       "status": "active",
+      "created_at": "2026-07-29",
       "metrics": ["review_quality", "documentation_quality"],
-      "evidence": "Reviews should explain tradeoffs, not just state opinions"
-    },
-    {
-      "id": "question-decisions",
-      "goal": "Question weak decisions with evidence",
-      "priority": 8,
-      "status": "active",
-      "metrics": ["challenges_made", "accepted_challenges"],
-      "evidence": "Every challenged decision should have documented reasoning"
+      "evidence": [],
+      "observations": []
     },
     {
       "id": "protect-maintainability",
       "goal": "Protect long-term maintainability",
       "priority": 9,
       "status": "active",
+      "created_at": "2026-07-29",
       "metrics": ["technical_debt_items", "documentation_coverage", "test_coverage"],
-      "evidence": "Technical debt should trend downward over time"
+      "evidence": ["Daedalus review script now detects introduced technical debt markers"],
+      "observations": []
     },
     {
       "id": "reduce-benchmark-variance",
       "goal": "Reduce benchmark variance across runs",
       "priority": 9,
-      "status": "active",
+      "status": "deferred",
+      "created_at": "2026-07-29",
+      "deferred_at": "2026-07-29",
+      "defer_reason": "Need more benchmark runs before variance is meaningful",
       "metrics": ["score_std_dev", "run_to_run_consistency"],
-      "evidence": "High variance makes trend detection unreliable"
+      "evidence": [],
+      "observations": []
     },
     {
       "id": "improve-capability-reuse",
       "goal": "Improve capability reuse rate",
       "priority": 8,
       "status": "active",
+      "created_at": "2026-07-29",
       "metrics": ["reuse_rate", "capabilities_per_identity"],
-      "evidence": "Installed capabilities should be used regularly"
+      "evidence": [],
+      "observations": []
     },
     {
       "id": "reduce-unnecessary-acquisitions",
       "goal": "Reduce unnecessary Prometheus acquisitions",
       "priority": 7,
       "status": "active",
+      "created_at": "2026-07-29",
       "metrics": ["acquisition_success_rate", "rollback_rate"],
-      "evidence": "Every acquisition should measurably improve outcomes"
+      "evidence": [],
+      "observations": []
+    },
+    {
+      "id": "benchmark-above-90",
+      "goal": "Increase benchmark score above 90",
+      "priority": 10,
+      "status": "active",
+      "created_at": "2026-07-29",
+      "metrics": ["overall_score"],
+      "evidence": [],
+      "observations": []
     }
   ],
   "observations": [],
   "initiatives": [],
   "tracked_metrics": {
-    "benchmark_score": {"current": null, "previous": null, "trend": null},
-    "test_pass_rate": {"current": null, "previous": null, "trend": null},
-    "regression_count": {"current": null, "previous": null, "trend": null},
+    "benchmark_score": {"current": 40.1, "previous": null, "trend": "stable"},
+    "test_pass_rate": {"current": 385, "previous": 385, "trend": "stable"},
+    "regression_count": {"current": 0, "previous": 0, "trend": "stable"},
     "cross_layer_imports": {"current": null, "previous": null, "trend": null},
     "capability_count": {"current": 13, "previous": 8, "trend": "increasing"},
     "technical_debt_items": {"current": null, "previous": null, "trend": null}
