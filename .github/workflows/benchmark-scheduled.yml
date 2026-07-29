@@ -9,6 +9,9 @@ on:
     # Monthly endurance — 4am UTC on the 1st
     - cron: '0 4 1 * *'
 
+permissions:
+  contents: read
+
 jobs:
   nightly-smoke:
     if: github.event.schedule == '0 2 * * *'
