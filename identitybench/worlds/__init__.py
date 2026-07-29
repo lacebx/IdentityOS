@@ -5,6 +5,7 @@ from identitybench.worlds.assistant import AssistantWorld
 from identitybench.worlds.knowledge import KnowledgeWorld
 from identitybench.worlds.multi_agent import MultiAgentWorld
 from identitybench.worlds.trust import TrustWorld
+from identitybench.worlds.evolution import EvolutionWorld
 
 ALL_WORLDS = [
     ResearchWorld,
@@ -13,6 +14,7 @@ ALL_WORLDS = [
     KnowledgeWorld,
     MultiAgentWorld,
     TrustWorld,
+    EvolutionWorld,
 ]
 
 __all__ = [
@@ -25,5 +27,6 @@ __all__ = [
     "KnowledgeWorld",
     "MultiAgentWorld",
     "TrustWorld",
+    "EvolutionWorld",
     "ALL_WORLDS",
 ]

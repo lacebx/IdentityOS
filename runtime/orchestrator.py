@@ -34,6 +34,7 @@ from core.motivations import MotivationEngine
 from core.policies import PolicyEngine, PolicyScope
 from core.relationships import EdgeType, IdentityGraph, TrustLevel
 from core.capabilities import CapabilityRegistry as PluginRegistry
+from core.prometheus import PrometheusEngine
 from core.skills import SkillRegistry
 from core.timeline import LifeEvent, LifeEventType, TimelineRegistry
 from core.user_profile import UserProfile, extract_user_facts
@@ -295,6 +296,12 @@ class IdentityRuntime:
 
         # Event Bus — wired into the pipeline but subscribers are opt-in
         self.event_bus = EventBus()
+
+        # Prometheus — autonomous capability evolution system
+        self.prometheus = PrometheusEngine(
+            capability_registry=self.capability_registry,
+            storage=self._storage,
+        )
 
     # ------------------------------------------------------------------
     # Event helpers
@@ -1218,6 +1225,17 @@ class IdentityRuntime:
 
         sanitized_input = input_policy.transformed_data or request.user_input
 
+        # Stage 2b: Prometheus pre-check — detect capability needs before composing context
+        _prometheus_evolved = False
+        _pre_evolve_result = self.prometheus.pre_check_and_evolve(
+            user_input=sanitized_input,
+            identity_id=identity.id,
+            runtime=self,
+            session_id=request.session_id,
+        )
+        if _pre_evolve_result and _pre_evolve_result.acquired:
+            _prometheus_evolved = True
+
         # Stage 3: Compose context
         user_profile = self._get_user_profile(identity.id)
         session_fact_store = self._get_fact_store_for_session(identity.id, session_id)
@@ -1299,6 +1317,20 @@ class IdentityRuntime:
             )
         else:
             raw_output = f"[No adapter configured. Context prepared for {identity.name}]"
+
+        # Stage 4b: Prometheus post-check — if the response indicates a missing capability,
+        # install it and retry the adapter call with the updated context
+        if not _prometheus_evolved and self.adapter:
+            _post_result = self.prometheus.post_check_and_evolve(
+                response=raw_output,
+                user_input=sanitized_input,
+                identity_id=identity.id,
+                runtime=self,
+                session_id=request.session_id,
+            )
+            if _post_result and _post_result.acquired and _post_result.retry_response:
+                raw_output = _post_result.retry_response
+                _prometheus_evolved = True
 
         # Stage 5: Output policy gate
         output_policy = self.policy_engine.evaluate(

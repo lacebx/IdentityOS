@@ -57,7 +57,7 @@ def generate_report_text(
     cat_scores = run_data.get("category_scores", {})
     lines.append(f"  {BOLD}Category Scores{RESET}")
     lines.append(f"  {'-'*40}")
-    for cat in ["Memory", "Planning", "Trust", "Adaptation", "Coordination", "Learning"]:
+    for cat in ["Memory", "Planning", "Trust", "Adaptation", "Coordination", "Learning", "Evolution"]:
         score = cat_scores.get(cat, 0)
         lines.append(f"    {cat:20s} {_color_score(score):>6s}  {_bar(score)}")
     lines.append(f"")
@@ -81,15 +81,15 @@ def generate_report_text(
         lines.append(f"  {'-'*40}")
         sorted_trends = sorted(trend_data, key=lambda x: x.get("timestamp", ""))
         header = f"    {'Run':>5s}  {'Date':>12s}  {'Overall':>8s}  "
-        for cat in ["Memory", "Planning", "Trust"]:
+        for cat in ["Memory", "Planning", "Trust", "Evolution"]:
             header += f"{cat:>10s}  "
         lines.append(header)
-        lines.append(f"    {'-'*55}")
+        lines.append(f"    {'-'*70}")
         for i, t in enumerate(sorted_trends, 1):
             date_str = t.get("timestamp", "")[:10]
             ov = t.get("overall_score", 0)
             row = f"    {i:>5d}  {date_str:>12s}  {_color_score(ov):>8s}  "
-            for cat in ["Memory", "Planning", "Trust"]:
+            for cat in ["Memory", "Planning", "Trust", "Evolution"]:
                 cs = t.get(cat, 0)
                 row += f"{_color_score(cs):>10s}  "
             lines.append(row)
@@ -100,7 +100,7 @@ def generate_report_text(
             lines.append(f"  {'-'*40}")
             prev = sorted_trends[-2]
             curr = sorted_trends[-1]
-            all_cats = ["Memory", "Planning", "Trust", "Adaptation", "Coordination", "Learning"]
+            all_cats = ["Memory", "Planning", "Trust", "Adaptation", "Coordination", "Learning", "Evolution"]
             for cat in all_cats + ["overall_score"]:
                 old = prev.get(cat, 0) or 0
                 new = curr.get(cat, 0) or 0
@@ -166,7 +166,7 @@ def generate_markdown_report(run_data: dict, trend_data: Optional[List[dict]] = 
     lines.append("| Category | Score |")
     lines.append("|----------|-------|")
     cat_scores = run_data.get("category_scores", {})
-    for cat in ["Memory", "Planning", "Trust", "Adaptation", "Coordination", "Learning"]:
+    for cat in ["Memory", "Planning", "Trust", "Adaptation", "Coordination", "Learning", "Evolution"]:
         score = cat_scores.get(cat, 0)
         lines.append(f"| {cat} | {score}/100 |")
     lines.append("")

@@ -8,11 +8,16 @@ from .trust import TrustMetrics
 from .adaptation import AdaptationMetrics
 from .coordination import CoordinationMetrics
 from .learning import LearningMetrics
+from .evolution import EvolutionMetrics
 
 
 def compute_all_metrics(transcript: List[dict], world_name: str = "") -> Dict[str, float]:
+    classes = [MemoryMetrics, PlanningMetrics, TrustMetrics, AdaptationMetrics,
+               CoordinationMetrics, LearningMetrics]
+    if "evolution" in world_name.lower():
+        classes.append(EvolutionMetrics)
     scores = {}
-    for cls in [MemoryMetrics, PlanningMetrics, TrustMetrics, AdaptationMetrics, CoordinationMetrics, LearningMetrics]:
+    for cls in classes:
         try:
             m = cls(transcript, world_name)
             scores.update(m.compute())
@@ -28,6 +33,9 @@ def compute_category_scores(scores: Dict[str, float]) -> Dict[str, float]:
         "Trust": ["hallucination_rate", "verification_rate", "stale_knowledge_detection", "confidence_calibration"],
         "Adaptation": ["updated_beliefs", "corrected_assumptions", "proactive_verification"],
         "Coordination": ["memory_leakage", "responsibility_leakage", "coordination_efficiency"],
+        "Evolution": ["gap_detection", "search_quality", "install_success", "retry_success",
+                       "adaptation_speed", "capability_reuse", "unnecessary_installs_prevented",
+                       "performance_improvement", "evolution_score"],
     }
     cat_scores = {}
     for cat, keys in categories.items():

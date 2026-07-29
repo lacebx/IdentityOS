@@ -17,6 +17,7 @@ from identitybench.worlds.assistant import AssistantWorld
 from identitybench.worlds.knowledge import KnowledgeWorld
 from identitybench.worlds.multi_agent import MultiAgentWorld
 from identitybench.worlds.trust import TrustWorld
+from identitybench.worlds.evolution import EvolutionWorld
 
 
 DEFAULT_WORLDS: List[Type[BenchmarkWorld]] = [
@@ -26,12 +27,13 @@ DEFAULT_WORLDS: List[Type[BenchmarkWorld]] = [
     KnowledgeWorld,
     TrustWorld,
     MultiAgentWorld,
+    EvolutionWorld,
 ]
 
 SMOKE_WORLDS: List[Type[BenchmarkWorld]] = [
-    ResearchWorld,
+    EvolutionWorld,
     TrustWorld,
-    AssistantWorld,
+    ResearchWorld,
 ]
 
 
