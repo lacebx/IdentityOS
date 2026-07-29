@@ -116,6 +116,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--title", required=True, help="PR title")
     parser.add_argument("--output", required=True, help="Output markdown file")
     parser.add_argument("--token", default="", help="GitHub token")
+    parser.add_argument("--test-results", default="", help="Path to test results file for AI interpretation")
+    parser.add_argument("--benchmark-results", default="", help="Path to benchmark results file for AI interpretation")
     return parser.parse_args()
 
 
@@ -407,6 +409,108 @@ def generate_markdown_review(
     return "\n".join(lines)
 
 
+def generate_llm_review_section(
+    args: argparse.Namespace,
+    findings: Dict[str, List[str]],
+    readiness: Tuple[str, List[str]],
+) -> str:
+    try:
+        from core.capabilities.daedalus.thinking_engine import ThinkingEngine, load_memory, record_pr_review, record_recommendation, summarize_recommendation_follow_through
+    except ImportError:
+        return ""
+
+    memory_context = summarize_recommendation_follow_through()
+    diff_text = read_diff(args.diff)
+    diff_preview = "\n".join(diff_text.splitlines()[:100])
+    if len(diff_text.splitlines()) > 100:
+        diff_preview += f"\n... ({len(diff_text.splitlines()) - 100} more lines)"
+
+    test_results = ""
+    bench_results = ""
+    if args.test_results and os.path.exists(args.test_results):
+        with open(args.test_results) as f:
+            test_results = f.read()[:2000]
+        test_results = f"\n### Test Results\n```\n{test_results}\n```\n"
+    if args.benchmark_results and os.path.exists(args.benchmark_results):
+        with open(args.benchmark_results) as f:
+            bench_results = f.read()[:2000]
+        bench_results = f"\n### Benchmark Results\n```\n{bench_results}\n```\n"
+
+    user_prompt = f"""## PR: {args.title} (#{args.pr_number})
+**Branch:** {args.head_ref} → {args.base_ref}
+
+### Static Analysis Results
+
+**Layer Separation:**
+{' '.join(findings.get('separation', ['No violations detected']))}
+
+**Architectural Impact:**
+{' '.join(findings.get('architecture', ['No significant impact']))}
+
+**Test Coverage:**
+{' '.join(findings.get('test_coverage', ['No tests changed']))}
+
+**Technical Debt:**
+{' '.join(findings.get('tech_debt', ['None detected']))}
+
+**Diff Quality:**
+{' '.join(findings.get('diff_quality', ['Small, focused change']))}
+
+**Documentation:**
+{' '.join(findings.get('documentation', ['No docs impact']))}
+
+**Goal Alignment:**
+{' '.join(findings.get('goals', ['N/A']))}
+
+### Diff Preview (first 100 lines)
+```
+{diff_preview}
+```
+{test_results}
+{bench_results}
+Analyze this PR and respond in the specified JSON format."""
+
+    engine = ThinkingEngine()
+    from core.capabilities.daedalus.thinking_engine import ARCHITECTURAL_REVIEW_SYSTEM_PROMPT
+    thought = engine.think(
+        system_prompt=ARCHITECTURAL_REVIEW_SYSTEM_PROMPT.format(memory_context=memory_context),
+        user_prompt=user_prompt,
+        max_tokens=2048,
+        temperature=0.3,
+    )
+
+    record_pr_review(args.pr_number, readiness[0], thought.content[:200] if thought.content else "No LLM analysis")
+
+    if thought.content and thought.finish_reason != "error":
+        try:
+            parsed = json.loads(thought.content)
+            recs = parsed.get("recommendations", [])
+            for r in recs[:3]:
+                record_recommendation(
+                    recommendation=r if isinstance(r, str) else str(r),
+                    context=f"PR #{args.pr_number}: {args.title}",
+                    pr_number=args.pr_number,
+                    severity="warning" if "must" in r.lower() or "critical" in r.lower() else "info",
+                )
+        except (json.JSONDecodeError, Exception):
+            pass
+
+        lines = [
+            "",
+            "## Daedalus AI Analysis",
+            "",
+            f"_Powered by {thought.provider}/{thought.model}_",
+            f"_Tokens: {thought.usage.get('total_tokens', '?')} | Duration: {thought.duration_ms:.0f}ms_",
+            "",
+        ]
+        lines.append(thought.content)
+        lines.append("")
+        return "\n".join(lines)
+    elif thought.content:
+        return f"\n\n## Daedalus AI Analysis\n\n_LLM analysis unavailable: {thought.content[:200]}_\n"
+    return ""
+
+
 def main() -> None:
     args = parse_args()
     daedalus_config = load_daedalus_config()
@@ -429,13 +533,21 @@ def main() -> None:
     findings["goals"] = analyze_goals_alignment(files, args.title, daedalus_config)
     findings["tech_debt"] = analyze_technical_debt_introduced(files)
     readiness = assess_readiness(findings)
+    llm_section = generate_llm_review_section(args, findings, readiness)
     markdown = generate_markdown_review(
         args.title, args.pr_number, args.head_ref, args.base_ref,
         findings, readiness, daedalus_config,
     )
+    if llm_section:
+        markdown += llm_section
     with open(args.output, "w") as f:
         f.write(markdown)
-    print(f"Daedalus review written to {args.output} \u2014 status: {readiness[0]}")
+    status = readiness[0]
+    github_output = os.environ.get("GITHUB_OUTPUT")
+    if github_output:
+        with open(github_output, "a") as f:
+            f.write(f"status={status}\n")
+    print(f"Daedalus review written to {args.output} \u2014 status: {status}")
 
 
 if __name__ == "__main__":

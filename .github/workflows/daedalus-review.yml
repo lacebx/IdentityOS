@@ -40,19 +40,6 @@ jobs:
           git diff origin/${{ github.base_ref }}...HEAD > /tmp/pr.diff
           echo "Diff size: $(wc -l < /tmp/pr.diff) lines"
 
-      - name: Run Daedalus PR review
-        id: daedalus
-        run: |
-          python scripts/daedalus_review.py \
-            --diff /tmp/pr.diff \
-            --repo "${{ github.repository }}" \
-            --pr-number ${{ github.event.pull_request.number }} \
-            --head-ref "${{ github.head_ref }}" \
-            --base-ref "${{ github.base_ref }}" \
-            --title "${{ github.event.pull_request.title }}" \
-            --output /tmp/daedalus-review.md \
-            --token "${{ secrets.GITHUB_TOKEN }}"
-
       - name: Restore benchmark identity from cache
         uses: actions/cache@v4
         id: identity-cache
@@ -71,7 +58,7 @@ jobs:
           identity create --name "DaedalusBench" --id daedalus-bench --persona "engineering" 2>&1 || true
           echo "Benchmark identity created."
 
-      - name: Run unit tests (ignore pre-existing test_cross_app_continuity issue)
+      - name: Run unit tests
         run: python -m pytest tests/ --ignore=tests/test_cross_app_continuity.py --ignore=tests/legacy -q --tb=short 2>&1 | tee /tmp/test-results.txt || true
 
       - name: Run IdentityBench smoke suite
@@ -82,22 +69,35 @@ jobs:
         run: |
           identitybench run daedalus-bench --mode smoke --seed 42 2>&1 | tee /tmp/benchmark-results.txt || echo "Benchmark skipped (API keys may be unavailable)"
 
-      - name: Append benchmark results to review
+      - name: Run Daedalus PR review (static + AI analysis)
+        id: daedalus
+        env:
+          DAEDALUS_GITHUB_TOKEN: ${{ secrets.DAEDALUS_GITHUB_TOKEN }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          GROQ_API_KEY_2: ${{ secrets.GROQ_API_KEY_2 }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          CEREBRAS_API_KEY: ${{ secrets.CEREBRAS_API_KEY }}
+          CEREBRAS_API_KEY_2: ${{ secrets.CEREBRAS_API_KEY_2 }}
+          SAMBANOVA_API_KEY: ${{ secrets.SAMBANOVA_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: |
-          if [ -f /tmp/test-results.txt ]; then
-            echo -e "\n## Test Results\n\`\`\`" >> /tmp/daedalus-review.md
-            tail -20 /tmp/test-results.txt >> /tmp/daedalus-review.md
-            echo -e "\`\`\`" >> /tmp/daedalus-review.md
-          fi
-          if [ -f /tmp/benchmark-results.txt ]; then
-            echo -e "\n## Benchmark Results\n\`\`\`" >> /tmp/daedalus-review.md
-            tail -20 /tmp/benchmark-results.txt >> /tmp/daedalus-review.md
-            echo -e "\`\`\`" >> /tmp/daedalus-review.md
-          fi
+          python scripts/daedalus_review.py \
+            --diff /tmp/pr.diff \
+            --repo "${{ github.repository }}" \
+            --pr-number ${{ github.event.pull_request.number }} \
+            --head-ref "${{ github.head_ref }}" \
+            --base-ref "${{ github.base_ref }}" \
+            --title "${{ github.event.pull_request.title }}" \
+            --output /tmp/daedalus-review.md \
+            --token "${{ secrets.DAEDALUS_GITHUB_TOKEN }}" \
+            --test-results /tmp/test-results.txt \
+            --benchmark-results /tmp/benchmark-results.txt
 
-      - name: Comment Daedalus review on PR
+      - name: Daedalus posts review on PR
         uses: actions/github-script@v7
         with:
+          github-token: ${{ secrets.DAEDALUS_GITHUB_TOKEN }}
           script: |
             const fs = require('fs');
             let body = '';
@@ -106,9 +106,42 @@ jobs:
             } catch(e) {
               body = '## Daedalus Review\n_Daedalus was unable to complete the review._\n';
             }
-            github.rest.issues.createComment({
+            await github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
               body: body
             });
+
+      - name: Daedalus applies labels and self-assigns
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.DAEDALUS_GITHUB_TOKEN }}
+          script: |
+            const reviewStatus = '${{ steps.daedalus.outputs.status }}';
+            const labels = ['daedalus-reviewed'];
+            if (reviewStatus === 'NEEDS_WORK') labels.push('needs-changes');
+            if (reviewStatus === 'NOT_READY') labels.push('blocked');
+            if (reviewStatus === 'READY') labels.push('ready-to-merge');
+
+            try {
+              await github.rest.issues.addLabels({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                labels: labels
+              });
+            } catch(e) {
+              console.log('Could not add labels (may already exist): ' + e.message);
+            }
+
+            try {
+              await github.rest.issues.update({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                assignees: ['daedalus-Idos']
+              });
+            } catch(e) {
+              console.log('Could not self-assign: ' + e.message);
+            }

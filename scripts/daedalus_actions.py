@@ -31,8 +31,11 @@ GITHUB_REPO = os.environ.get("GITHUB_REPOSITORY", "lacebx/IdentityOS")
 
 def run_gh(args: List[str]) -> str:
     cmd = ["gh"] + args + ["--repo", GITHUB_REPO]
+    env = os.environ.copy()
+    if GITHUB_TOKEN:
+        env["GH_TOKEN"] = GITHUB_TOKEN
     try:
-        return subprocess.check_output(cmd, text=True, timeout=30).strip()
+        return subprocess.check_output(cmd, text=True, timeout=30, env=env).strip()
     except subprocess.CalledProcessError as e:
         print(f"gh command failed: {' '.join(args)}: {e.output}")
         return ""
@@ -128,14 +131,95 @@ def generate_daily_entry() -> str:
     benchmark_findings = check_benchmark_health()
     active = [g for g in goals.get("primary_goals", []) if g.get("status") == "active"]
     completed = [g for g in goals.get("primary_goals", []) if g.get("status") == "completed"]
+
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    week_num = datetime.now(timezone.utc).isocalendar()[1]
+    report_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+    llm_narrative = ""
+    try:
+        from core.capabilities.daedalus.thinking_engine import (
+            ThinkingEngine, load_memory, WEEKLY_REPORT_SYSTEM_PROMPT,
+        )
+        memory = load_memory()
+        memory_context_lines = ["### Past Recommendations"]
+        for r in memory.get("recommendations", [])[-5:]:
+            status = "✓" if r.get("outcome") == "followed" else "✗" if r.get("outcome") == "ignored" else "○"
+            memory_context_lines.append(f"{status} {r['recommendation'][:100]}")
+        memory_context_lines.append("")
+        for r in memory.get("weekly_reports", [])[-2:]:
+            memory_context_lines.append(f"Previous report ({r.get('date', '?')}): health={r.get('overall_health', '?')}")
+        memory_context = "\n".join(memory_context_lines)
+
+        bench_text = "\n".join(f"- {f['message']}" for f in benchmark_findings) if benchmark_findings else "No significant changes."
+        user_prompt = f"""## Engineering Journal — Week {week_num} ({report_date})
+
+### Active Goals ({len(active)})
+{chr(10).join(f"- [{g['priority']}] {g['goal'][:80]}" for g in sorted(active, key=lambda x: -x.get('priority', 0)))}
+
+### Completed Goals
+{chr(10).join(f"- {g['goal'][:80]}" for g in completed[:5]) if completed else "None this week"}
+
+### Benchmark Health
+{bench_text}
+
+### Raw Test Results
+{chr(10).join(f"- {f['message']}" for f in benchmark_findings[:5]) if benchmark_findings else "Tests passed."}
+
+Generate the weekly engineering report in the specified JSON format."""
+
+        engine = ThinkingEngine()
+        thought = engine.think(
+            system_prompt=WEEKLY_REPORT_SYSTEM_PROMPT.format(memory_context=memory_context),
+            user_prompt=user_prompt,
+            max_tokens=2048,
+            temperature=0.4,
+        )
+        if thought.content and thought.finish_reason != "error":
+            try:
+                parsed = json.loads(thought.content)
+                parsed["date"] = report_date
+                memory["weekly_reports"].append({
+                    "date": report_date,
+                    "overall_health": parsed.get("overall_health"),
+                    "trend": parsed.get("trend"),
+                    "narrative": parsed.get("narrative", "")[:200],
+                })
+                from core.capabilities.daedalus.thinking_engine import save_memory
+                save_memory(memory)
+
+                llm_narrative = f"""
+### Daedalus Assessment
+
+**Overall Health:** {parsed.get('overall_health', '?')}/100 — Trend: **{parsed.get('trend', 'stable')}**
+
+{parsed.get('narrative', '')}
+
+**Key Metrics:** {json.dumps(parsed.get('key_metrics', {}))}
+
+**Suggested Initiative:**
+- **{parsed.get('initiative', {}).get('title', '(none)')}**
+- {parsed.get('initiative', {}).get('description', '')}
+- Estimated impact: {parsed.get('initiative', {}).get('estimated_impact', 'N/A')}
+"""
+            except (json.JSONDecodeError, Exception):
+                llm_narrative = f"\n### Daedalus Assessment\n\n{thought.content[:1000]}\n"
+    except ImportError:
+        pass
+
     lines = [
         f"## Daedalus Engineering Journal",
-        f"**Week {datetime.now(timezone.utc).isocalendar()[1]}**",
-        f"Last updated: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}",
+        f"**Week {week_num}** — {report_date}",
+        f"Last updated: {today}",
         "",
     ]
+    if llm_narrative:
+        lines.append(llm_narrative)
+        lines.append("")
+    lines.append("### Raw Metrics")
+    lines.append("")
     if benchmark_findings:
-        lines.append("### Benchmark Health")
+        lines.append("**Benchmark Health**")
         for f in benchmark_findings:
             lines.append(f"- \u26a0\ufe0f {f['message']}")
         lines.append("")
@@ -148,13 +232,9 @@ def generate_daily_entry() -> str:
             f"Multiple categories declining: {', '.join(cats)}. "
             f"We keep adding capabilities but benchmark scores aren't improving proportionally."
         )
-        lines.append(
-            "I've noticed we've been ignoring capability reuse for weeks. "
-            "We should stop building new features until planning reliability exceeds 90%."
-        )
         lines.append("")
 
-    lines.append(f"### Active Goals ({len(active)})")
+    lines.append(f"**Active Goals ({len(active)})**")
     for g in sorted(active, key=lambda x: -x.get("priority", 0)):
         p = g.get("priority", 0)
         name = g.get("goal", "")[:70]
@@ -162,7 +242,7 @@ def generate_daily_entry() -> str:
     lines.append("")
 
     if completed:
-        lines.append(f"### Completed Goals ({len(completed)})")
+        lines.append(f"**Completed Goals ({len(completed)})**")
         for g in completed:
             completed_at = g.get("completed_at", "?")
             evidence = g.get("evidence", [])
@@ -173,7 +253,7 @@ def generate_daily_entry() -> str:
 
     abandoned = [g for g in goals.get("primary_goals", []) if g.get("status") == "abandoned"]
     if abandoned:
-        lines.append(f"### Abandoned ({len(abandoned)})")
+        lines.append(f"**Abandoned ({len(abandoned)})**")
         for g in abandoned:
             lines.append(f"- \U0001f4a4 {g.get('goal', '')[:60]}")
 

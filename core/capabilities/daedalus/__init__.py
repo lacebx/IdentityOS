@@ -12,6 +12,8 @@ from core.capabilities.base import Capability, Skill
 from core.capabilities.registry import register
 from core.capabilities.result import CapabilityResult
 
+from .thinking_engine import ThinkingEngine, Thought, load_memory, save_memory, record_recommendation, record_pr_review, summarize_recommendation_follow_through  # noqa: F401
+
 
 DAEDALUS_VERSION = "1.0.0"
 DAEDALUS_AUTHOR = "Daedalus"
