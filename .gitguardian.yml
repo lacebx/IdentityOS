@@ -1,0 +1,19 @@
+# GitGuardian configuration
+# Ignore false positives: environment variable names (not values) that look like secrets
+version: 2
+
+secret:
+  ignored-paths:
+    - .env.example
+    - .gitguardian.yml
+
+  ignored-matches:
+    # CEREBRAS_API_KEY is an environment variable name, not a secret value
+    - match: CEREBRAS_API_KEY
+      reason: Environment variable name, not a secret value
+    - match: CEREBRAS_API_KEY_2
+      reason: Environment variable name, not a secret value
+    - match: CEREBRAS_API_KEY_3
+      reason: Environment variable name, not a secret value
+    - match: CEREBRAS_API_KEY_4
+      reason: Environment variable name, not a secret value
