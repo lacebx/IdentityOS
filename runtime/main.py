@@ -93,7 +93,18 @@ if adapter_type:
     except Exception as e:
         logger.warning("Failed to initialize adapter '%s': %s", adapter_type, e)
 
-# Priority 3: OpenAI fallback
+# Priority 3: Cerebras (multi-key rotation)
+_cerebras_keys = [os.environ.get(k) for k in ("CEREBRAS_API_KEY", "CEREBRAS_API_KEY_2",
+                                               "CEREBRAS_API_KEY_3", "CEREBRAS_API_KEY_4")]
+if any(k for k in _cerebras_keys if k):
+    try:
+        from adapters.cerebras_adapter import CerebrasAdapter
+        _candidates.append(CerebrasAdapter())
+        logger.info("Added Cerebras adapter to chain")
+    except Exception as e:
+        logger.warning("Failed to initialize Cerebras adapter: %s", e)
+
+# Priority 4: OpenAI fallback
 if os.environ.get("OPENAI_API_KEY"):
     try:
         from adapters.openai_adapter import OpenAIAdapter

@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 if TYPE_CHECKING:
     from .goals import GoalEngine
@@ -51,6 +51,7 @@ class ComposedContext:
     timeline_block: str = ""
     synthesis_block: str = ""
     custom_blocks: Dict[str, str] = field(default_factory=dict)
+    evidence_footer_block: str = ""
 
     def render(self, separator: str = "\n\n") -> str:
         """
@@ -89,6 +90,8 @@ class ComposedContext:
         for block in self.custom_blocks.values():
             if block:
                 sections.append(block)
+        if self.evidence_footer_block:
+            sections.append(self.evidence_footer_block)
         return separator.join(sections)
 
     def token_estimate(self, chars_per_token: float = 4.0) -> int:
@@ -144,9 +147,11 @@ class ContextComposer:
         user_profile: Optional[Any] = None,
         query: Optional[str] = None,
         top_k_memories: int = 5,
+        session_id: Optional[str] = None,
         session_mode: Optional[SessionMode] = None,
         emotion_state: Optional[Any] = None,
         capability_prompts: Optional[list[str]] = None,
+        evidence_results: Optional[list[dict]] = None,
     ) -> ComposedContext:
         """
         Compose a full runtime context for the given identity.
@@ -222,10 +227,27 @@ class ContextComposer:
             "State the problem plainly. The user needs the truth, not politeness.\n"
             "- Your value comes from noticing what the user hasn't. "
             "A polite assistant is replaceable. One who tells hard truths is not.\n",
+            "### 7. AMBIGUITY DETECTION — YOU MUST NEVER ASSUME\n"
+            "- If the user asks about a GitHub repository without specifying an owner, "
+            "you MUST ask for clarification. Do NOT guess the owner.\n"
+            "- If the user asks about a company, person, city, file, package, branch, "
+            "or any named entity that could have multiple meanings, "
+            "ask for clarification rather than assuming.\n"
+            "- Never answer based on inferred context alone. "
+            "If you are uncertain about the referent, say so and ask.\n"
+            "- Exception: unambiguous references from the current session "
+            "(e.g. 'that repo we just discussed') are fine.\n",
+            "### 8. CAPABILITY RECALL — EXPLAIN YOUR SOURCES\n"
+            "- If asked 'How do you know that?' or 'Which capability gave you that?', "
+            "you MUST identify the capability by name and report whether it succeeded or failed.\n"
+            "- Reference the 'Live Capability Results' section for successful calls.\n"
+            "- Reference the 'Capability Failures' section for failed calls.\n"
+            "- Report the confidence level: verified (>=0.8), sourced (0.5-0.8), inferred (<0.5).\n"
+            "- If you cannot identify the source, state 'I don't know exactly which capability produced that.'\n",
         ]
         if capability_prompts:
             parts.append(
-                "### 7. INSTALLED CAPABILITIES — YOU HAVE REAL-TIME SKILLS\n"
+                "### 9. INSTALLED CAPABILITIES — YOU HAVE REAL-TIME SKILLS\n"
                 "- The 'Live Capability Results' section below lists data retrieved by installed skills. "
                 "These are NOT suggestions. They are tools you possess and MUST use.\n"
                 "- When a user asks for ANY real-time or computed information "
@@ -250,7 +272,7 @@ class ContextComposer:
 
         if self.include_memory and memory_store:
             ctx.memory_block = self._render_memory(
-                memory_store, identity.id, query, top_k_memories
+                memory_store, identity.id, query, top_k_memories, session_id
             )
 
         if self.include_skills:
@@ -291,7 +313,29 @@ class ContextComposer:
                 recent_memories=recent if recent else None,
             )
 
+        # Build evidence footer from capability results
+        if evidence_results:
+            ctx.evidence_footer_block = self._render_evidence_footer(evidence_results)
+
         return ctx
+
+    def _render_evidence_footer(self, evidence_results: list[dict]) -> str:
+        """Build a user-visible trust footer showing capability provenance."""
+        lines = ["---", "### Evidence Sources"]
+        for ev in evidence_results[:12]:
+            capability = ev.get("capability", "?")
+            action = ev.get("action", "?")
+            success = ev.get("success", False)
+            confidence = ev.get("confidence", 0.0)
+            duration = ev.get("duration_ms", 0)
+            status_icon = "✓" if success else "✗"
+            conf_label = "verified" if confidence >= 0.8 else "sourced" if confidence >= 0.5 else "inferred"
+            error_info = f" — {ev.get('error', {}).get('message', '')[:200]}" if not success and ev.get('error') else ""
+            lines.append(
+                f"  {status_icon} **{capability}.{action}** — {conf_label} ({confidence:.1f}) — {duration:.0f}ms{error_info}"
+            )
+        lines.append("---")
+        return "\n".join(lines)
 
     def _render_identity(self, identity: "IdentitySpec") -> str:
         lines = [
@@ -442,21 +486,45 @@ class ContextComposer:
         identity_id: str,
         query: Optional[str],
         top_k: int,
+        session_id: Optional[str] = None,
     ) -> str:
         all_frags = store.by_identity(identity_id) if identity_id else store.all()
         if not all_frags:
             return ""
 
-        scored = [
-            (f, self._score_memory(f, query))
-            for f in all_frags
-        ]
-        scored.sort(key=lambda x: x[1], reverse=True)
-        top = scored[:top_k]
+        lines: list[str] = []
 
-        lines = ["## Relevant Memory"]
-        for frag, sc in top:
-            lines.append(f"  [{frag.memory_type.value.upper()}] {frag.content}")
+        # If no session_id provided, include all memory (legacy backward-compat)
+        if not session_id:
+            scored = [(f, self._score_memory(f, query)) for f in all_frags]
+            scored.sort(key=lambda x: x[1], reverse=True)
+            lines.append("## This Conversation")
+            for frag, sc in scored[:top_k]:
+                lines.append(f"  [{frag.memory_type.value.upper()}] {frag.content}")
+            lines.append("")
+            return "\n".join(lines)
+
+        # Split into working memory (current session) and past sessions
+        current_frags = [f for f in all_frags if f.session_id == session_id]
+        past_frags = [f for f in all_frags if f.session_id != session_id]
+
+        # Working memory (current session)
+        if current_frags:
+            scored = [(f, self._score_memory(f, query)) for f in current_frags]
+            scored.sort(key=lambda x: x[1], reverse=True)
+            lines.append("## This Conversation")
+            for frag, sc in scored[:top_k]:
+                lines.append(f"  [{frag.memory_type.value.upper()}] {frag.content}")
+            lines.append("")
+
+        # Past conversation memory — only included when query explicitly references past
+        if past_frags and query and any(kw in (query or "").lower() for kw in ["before", "previous", "earlier", "last time", "remember", "past", "before this session"]):
+            scored = [(f, self._score_memory(f, query)) for f in past_frags]
+            scored.sort(key=lambda x: x[1], reverse=True)
+            lines.append("## Past Conversations (NOT this session — only reference if asked)")
+            for frag, sc in scored[:3]:
+                lines.append(f"  [{frag.memory_type.value.upper()}] {frag.content}")
+
         return "\n".join(lines)
 
     def _render_relationships(

@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import logging
 import os
 from typing import Any, Optional
 
 from .base import BaseAdapter
+
+logger = logging.getLogger(__name__)
 
 
 class OpenAIAdapter(BaseAdapter):
@@ -100,9 +103,10 @@ class OpenAIAdapter(BaseAdapter):
                 last_exc = exc
                 msg = str(exc)
                 if "rate limit" in msg.lower() or "429" in msg:
-                    wait = 2 ** attempt * 5
-                    print(f"  [rate limited, retrying in {wait}s...]")
-                    _time.sleep(wait)
+                    if attempt < retries - 1:
+                        wait = 2 ** attempt * 5
+                        logger.warning("Rate limited, retrying in %ds...", wait)
+                        _time.sleep(wait)
                     continue
                 raise RuntimeError(
                     f"Adapter error (model={model!r}, base_url={self.base_url!r}): {msg}"

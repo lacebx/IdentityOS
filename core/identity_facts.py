@@ -75,6 +75,7 @@ class IdentityFact:
     confidence: float = 0.5
     reasons: List[str] = field(default_factory=list)
     source: FactSource = FactSource.RUNTIME_INFERRED
+    source_capability: str = ""          # capability name that produced this fact, e.g. "github"
     evidence_ids: List[str] = field(default_factory=list)
     first_seen: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     last_confirmed: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
@@ -125,6 +126,7 @@ class IdentityFact:
             "confidence": self.confidence,
             "reasons": self.reasons,
             "source": self.source.value,
+            "source_capability": self.source_capability,
             "evidence_ids": self.evidence_ids,
             "first_seen": self.first_seen,
             "last_confirmed": self.last_confirmed,
@@ -145,6 +147,7 @@ class IdentityFact:
             confidence=data.get("confidence", 0.5),
             reasons=data.get("reasons", []),
             source=FactSource(data.get("source", "runtime_inferred")),
+            source_capability=data.get("source_capability", ""),
             evidence_ids=data.get("evidence_ids", []),
             first_seen=data.get("first_seen", datetime.now(timezone.utc).isoformat()),
             last_confirmed=data.get("last_confirmed", datetime.now(timezone.utc).isoformat()),
@@ -244,6 +247,7 @@ class FactStore:
         source: FactSource,
         evidence_id: str = "",
         domain: Optional[FactDomain] = None,
+        source_capability: str = "",
     ) -> IdentityFact:
         """
         If an active fact exists for this field with the same value, reinforce it.
@@ -275,6 +279,7 @@ class FactStore:
                 confidence=confidence,
                 reasons=reasons,
                 source=source,
+                source_capability=source_capability,
                 evidence_ids=[evidence_id] if evidence_id else [],
             )
             existing.supersede(new_fact.fact_id)
@@ -291,6 +296,7 @@ class FactStore:
             confidence=confidence,
             reasons=reasons,
             source=source,
+            source_capability=source_capability,
             evidence_ids=[evidence_id] if evidence_id else [],
             status=FactStatus.ACTIVE,
         )

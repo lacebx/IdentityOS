@@ -72,8 +72,7 @@ class SambaNovaAdapter(OpenAIAdapter):
             self._key_index = (self._key_index + 1) % len(self._keys)
             cooldown_until = self._cooldowns.get(self._key_index, 0)
             if cooldown_until <= now:
-                logger.info(f"Rotated to SambaNova API key index {self._key_index}")
-                print(f"  [SambaNova: switching to key {self._key_index + 1}/{len(self._keys)}]", flush=True)
+                logger.info("Rotated to SambaNova API key index %d", self._key_index)
                 self.api_key = self._keys[self._key_index]
                 self._client = None
                 return self.api_key
@@ -87,8 +86,9 @@ class SambaNovaAdapter(OpenAIAdapter):
             if 0 < remaining < min_wait:
                 min_wait = remaining
         if min_wait > 0:
-            logger.warning(f"All keys on cooldown. Waiting {min_wait:.0f}s...")
-            time.sleep(min_wait + 1)
+            capped_wait = min(min_wait, 60)
+            logger.warning(f"All keys on cooldown. Waiting {capped_wait:.0f}s...")
+            time.sleep(capped_wait + 1)
         self._key_index = 0
         self._rotate_key()
 
@@ -103,8 +103,13 @@ class SambaNovaAdapter(OpenAIAdapter):
     ) -> str:
         last_error = None
         now = time.time()
+        deadline = now + 60  # Give up after 60s so chain can fall through
 
         for attempt in range(len(self._keys) * 3):
+            if time.time() > deadline:
+                raise RuntimeError(
+                    f"All SambaNova API keys exhausted (timeout after 120s). Last error: {last_error}"
+                ) from last_error
             cooldown_until = self._cooldowns.get(self._key_index, 0)
             if cooldown_until > now:
                 if self._rotate_key() is None:
@@ -127,8 +132,7 @@ class SambaNovaAdapter(OpenAIAdapter):
                 msg_lower = msg.lower()
                 if "429" in msg_lower or "rate limit" in msg_lower or "quota" in msg_lower:
                     retry_after = 60
-                    logger.warning(f"Rate limited on key {self._key_index}")
-                    print(f"  [SambaNova: key {self._key_index + 1}/{len(self._keys)} rate limited, cooldown 60s]", flush=True)
+                    logger.warning("Rate limited on SambaNova key %d", self._key_index)
                     self._cooldowns[self._key_index] = time.time() + retry_after
                     if self._rotate_key() is None:
                         self._wait_shortest_cooldown(retry_after)

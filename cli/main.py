@@ -377,6 +377,14 @@ def _interactive_adapter_select():
             _probe_adapter("SambaNova", SambaNovaAdapter, os.environ.get("IDENTITY_MODEL", "DeepSeek-V3.1"))
         )
 
+    _cerebras_keys = [os.environ.get(k) for k in ("CEREBRAS_API_KEY", "CEREBRAS_API_KEY_2",
+                                                   "CEREBRAS_API_KEY_3", "CEREBRAS_API_KEY_4")]
+    if any(k for k in _cerebras_keys if k):
+        from adapters.cerebras_adapter import CerebrasAdapter
+        candidates.append(
+            _probe_adapter("Cerebras", CerebrasAdapter, os.environ.get("IDENTITY_MODEL", "llama3.1-8b"))
+        )
+
     if os.environ.get("OPENROUTER_API_KEY"):
         from adapters.openrouter_adapter import OpenRouterAdapter
         candidates.append(

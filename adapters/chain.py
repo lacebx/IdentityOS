@@ -83,7 +83,6 @@ class ChainAdapter(BaseAdapter):
                         next_name,
                         exc,
                     )
-                    print(f"  [{name} exhausted → switching to {next_name}]", flush=True)
                 continue
 
         raise RuntimeError(
