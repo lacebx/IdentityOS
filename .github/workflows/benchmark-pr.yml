@@ -4,6 +4,9 @@ on:
   pull_request:
     branches: [main]
 
+env:
+  BENCHMARK_IDENTITY: "benchmark-bot"
+
 jobs:
   benchmark:
     runs-on: ubuntu-latest
@@ -26,32 +29,44 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
 
+      - name: Restore identity state from cache
+        uses: actions/cache@v4
+        id: identity-cache
+        with:
+          path: |
+            .identity_store/
+            .identitybench/
+          key: benchmark-${{ env.BENCHMARK_IDENTITY }}-${{ github.base_ref }}-${{ hashFiles('identitybench/**/*.py') }}
+          restore-keys: |
+            benchmark-${{ env.BENCHMARK_IDENTITY }}-${{ github.base_ref }}-
+            benchmark-${{ env.BENCHMARK_IDENTITY }}-
+
+      - name: Create benchmark identity (first run only)
+        if: steps.identity-cache.outputs.cache-hit != 'true'
+        run: |
+          identity create --name "BenchmarkBot" --id ${{ env.BENCHMARK_IDENTITY }} --persona "benchmark"
+          echo "Identity ${{ env.BENCHMARK_IDENTITY }} created for long-term benchmarking."
+
       - name: Run unit tests
         run: python -m pytest tests/ -v --tb=short 2>&1 | tee test-results.txt
 
       - name: Run integration tests
         run: python -m pytest tests/test_runtime_pipeline.py -v --tb=short 2>&1 | tee integration-results.txt
 
-      - name: Create test identity for benchmark
-        run: |
-          identity create --name "SmokeTestBot" --id smoke-test-identity --persona "benchmark test identity" 2>&1 | tee identity-creation.txt
-
       - name: Run IdentityBench smoke suite
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
-          identitybench run smoke-test-identity --mode smoke --seed 42 2>&1 | tee benchmark-results.txt
-          identitybench report smoke-test-identity --markdown -o benchmark-report.md
+          identitybench run ${{ env.BENCHMARK_IDENTITY }} --mode smoke --seed 42 2>&1 | tee benchmark-results.txt
+          identitybench report ${{ env.BENCHMARK_IDENTITY }} --markdown -o benchmark-report.md
 
       - name: Compare against baseline (main branch)
         id: compare
         run: |
           git fetch origin main:refs/remotes/origin/main
           if git show origin/main:.identitybench/benchmark_index.json 2>/dev/null; then
-            BASELINE_DIR=$(mktemp -d)
-            git show origin/main:.identitybench > "$BASELINE_DIR/baseline.json" 2>/dev/null || true
-            identitybench compare --id smoke-test-identity --last 2 2>&1 | tee regression-check.txt
+            identitybench compare --id ${{ env.BENCHMARK_IDENTITY }} --last 2 2>&1 | tee regression-check.txt
           else
             echo "No baseline found — this is the first run." | tee regression-check.txt
           fi

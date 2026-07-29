@@ -6,6 +6,9 @@ on:
     - cron: '0 3 * * 1'
     - cron: '0 4 1 * *'
 
+env:
+  BENCHMARK_IDENTITY: "benchmark-bot"
+
 permissions:
   contents: read
 
@@ -19,21 +22,33 @@ jobs:
         with:
           python-version: "3.11"
       - run: pip install -e ".[dev]"
-      - name: Enumerate identities
-        id: enum
+
+      - name: Restore identity state from cache
+        uses: actions/cache@v4
+        id: nightly-cache
+        with:
+          path: |
+            .identity_store/
+            .identitybench/
+          key: benchmark-${{ env.BENCHMARK_IDENTITY }}-nightly-${{ github.run_id }}
+          restore-keys: |
+            benchmark-${{ env.BENCHMARK_IDENTITY }}-nightly-
+            benchmark-${{ env.BENCHMARK_IDENTITY }}-
+
+      - name: Create benchmark identity (first run only)
+        if: steps.nightly-cache.outputs.cache-hit != 'true'
         run: |
-          identity list --json 2>/dev/null | jq -r '.[].id' > /tmp/identity_ids.txt
-          if [ ! -s /tmp/identity_ids.txt ]; then echo "gabe" > /tmp/identity_ids.txt; fi
+          identity create --name "BenchmarkBot" --id ${{ env.BENCHMARK_IDENTITY }} --persona "benchmark"
+          echo "Identity ${{ env.BENCHMARK_IDENTITY }} created."
+
       - name: Run nightly smoke benchmark
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
-          while IFS= read -r identity_id; do
-            echo "=== Benchmarking $identity_id ==="
-            identitybench run "$identity_id" --mode smoke --seed 42
-            identitybench report "$identity_id" --markdown -o ".identitybench/reports/$identity_id-nightly.md"
-          done < /tmp/identity_ids.txt
+          identitybench run ${{ env.BENCHMARK_IDENTITY }} --mode smoke --seed 42 2>&1
+          identitybench report ${{ env.BENCHMARK_IDENTITY }} --markdown -o ".identitybench/reports/${{ env.BENCHMARK_IDENTITY }}-nightly.md"
+
       - uses: actions/upload-artifact@v4
         with:
           name: nightly-benchmark
@@ -48,22 +63,35 @@ jobs:
         with:
           python-version: "3.11"
       - run: pip install -e ".[dev]"
-      - name: Enumerate identities
+
+      - name: Restore identity state from cache
+        uses: actions/cache@v4
+        id: weekly-cache
+        with:
+          path: |
+            .identity_store/
+            .identitybench/
+          key: benchmark-${{ env.BENCHMARK_IDENTITY }}-weekly-${{ github.run_id }}
+          restore-keys: |
+            benchmark-${{ env.BENCHMARK_IDENTITY }}-weekly-
+            benchmark-${{ env.BENCHMARK_IDENTITY }}-
+
+      - name: Create benchmark identity (first run only)
+        if: steps.weekly-cache.outputs.cache-hit != 'true'
         run: |
-          identity list --json 2>/dev/null | jq -r '.[].id' > /tmp/identity_ids.txt
-          if [ ! -s /tmp/identity_ids.txt ]; then echo "gabe" > /tmp/identity_ids.txt; fi
+          identity create --name "BenchmarkBot" --id ${{ env.BENCHMARK_IDENTITY }} --persona "benchmark"
+          echo "Identity ${{ env.BENCHMARK_IDENTITY }} created."
+
       - name: Run weekly full benchmark
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
           mkdir -p .identitybench/reports
-          while IFS= read -r identity_id; do
-            echo "=== Full benchmark for $identity_id ==="
-            identitybench run "$identity_id" --mode full --seed 42
-            identitybench report "$identity_id" --markdown -o ".identitybench/reports/$identity_id-weekly.md"
-            identitybench history "$identity_id"
-          done < /tmp/identity_ids.txt
+          identitybench run ${{ env.BENCHMARK_IDENTITY }} --mode full --seed 42 2>&1
+          identitybench report ${{ env.BENCHMARK_IDENTITY }} --markdown -o ".identitybench/reports/${{ env.BENCHMARK_IDENTITY }}-weekly.md"
+          identitybench history ${{ env.BENCHMARK_IDENTITY }}
+
       - uses: actions/upload-artifact@v4
         with:
           name: weekly-benchmark
@@ -78,24 +106,37 @@ jobs:
         with:
           python-version: "3.11"
       - run: pip install -e ".[dev]"
-      - name: Enumerate identities
+
+      - name: Restore identity state from cache
+        uses: actions/cache@v4
+        id: monthly-cache
+        with:
+          path: |
+            .identity_store/
+            .identitybench/
+          key: benchmark-${{ env.BENCHMARK_IDENTITY }}-monthly-${{ github.run_id }}
+          restore-keys: |
+            benchmark-${{ env.BENCHMARK_IDENTITY }}-monthly-
+            benchmark-${{ env.BENCHMARK_IDENTITY }}-
+
+      - name: Create benchmark identity (first run only)
+        if: steps.monthly-cache.outputs.cache-hit != 'true'
         run: |
-          identity list --json 2>/dev/null | jq -r '.[].id' > /tmp/identity_ids.txt
-          if [ ! -s /tmp/identity_ids.txt ]; then echo "gabe" > /tmp/identity_ids.txt; fi
+          identity create --name "BenchmarkBot" --id ${{ env.BENCHMARK_IDENTITY }} --persona "benchmark"
+          echo "Identity ${{ env.BENCHMARK_IDENTITY }} created."
+
       - name: Run monthly endurance benchmark
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
           mkdir -p .identitybench/reports
-          while IFS= read -r identity_id; do
-            echo "=== Endurance benchmark for $identity_id ==="
-            for i in 1 2 3; do
-              identitybench run "$identity_id" --mode full --seed $((41 + i))
-              identitybench report "$identity_id" --markdown -o ".identitybench/reports/$identity_id-endurance-run$i.md"
-            done
-            identitybench compare --id "$identity_id" --last 3
-          done < /tmp/identity_ids.txt
+          for i in 1 2 3; do
+            identitybench run ${{ env.BENCHMARK_IDENTITY }} --mode full --seed $((41 + i)) 2>&1
+            identitybench report ${{ env.BENCHMARK_IDENTITY }} --markdown -o ".identitybench/reports/${{ env.BENCHMARK_IDENTITY }}-endurance-run$i.md"
+          done
+          identitybench compare --id ${{ env.BENCHMARK_IDENTITY }} --last 3 2>&1
+
       - uses: actions/upload-artifact@v4
         with:
           name: monthly-endurance-benchmark
