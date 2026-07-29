@@ -7,6 +7,7 @@ from typing import Any, Optional
 
 from core.capabilities.base import Capability, Skill
 from core.capabilities.registry import register
+from core.capabilities.result import CapabilityResult
 
 _ALLOWED_OPERATORS = {
     ast.Add: operator.add,
@@ -92,16 +93,22 @@ class CalcCapability(Capability):
     def skills(self) -> list[Skill]:
         return list(self._SKILLS)
 
-    def call(self, skill_name: str, **params: Any) -> Any:
-        dispatch = {
-            "calc.evaluate": self._evaluate,
-            "calc.convert": self._convert,
-            "calc.conversions": self._list_conversions,
-        }
-        handler = dispatch.get(skill_name)
-        if handler is None:
-            raise ValueError(f"Unknown skill: {skill_name}")
-        return handler(**params)
+    def call(self, skill_name: str, **params: Any) -> CapabilityResult:
+        import time as _time
+        _t0 = _time.monotonic()
+        try:
+            dispatch = {
+                "calc.evaluate": self._evaluate,
+                "calc.convert": self._convert,
+                "calc.conversions": self._list_conversions,
+            }
+            handler = dispatch.get(skill_name)
+            if handler is None:
+                return CapabilityResult.fail("calc", skill_name, "unknown_skill", f"Unknown skill: {skill_name}")
+            data = handler(**params)
+            return CapabilityResult.ok("calc", skill_name, data, source="math engine", duration_ms=(_time.monotonic() - _t0) * 1000)
+        except Exception as e:
+            return CapabilityResult.fail("calc", skill_name, type(e).__name__, str(e), duration_ms=(_time.monotonic() - _t0) * 1000)
 
     @staticmethod
     def _safe_eval(expr: str) -> float:

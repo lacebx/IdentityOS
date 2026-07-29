@@ -21,6 +21,7 @@ import tempfile
 
 import pytest
 
+from core.capabilities import CapabilityResult
 from core.evaluation import register_default_criteria
 from core.identity import create_identity
 from runtime.orchestrator import IdentityRuntime
@@ -90,23 +91,29 @@ class TestCapabilitySystem:
         identity.install("github")
 
         results = identity.github.search_repositories(query="identityos")
-        assert isinstance(results, list)
+        assert isinstance(results, CapabilityResult)
+        assert results.success
+        assert isinstance(results.data, list)
 
     def test_use_proxy_access(self, identity):
         """identity.use('github').get_repository(...) works."""
         identity.install("github")
 
         repo = identity.use("github").get_repository(owner="lacebx", repo="IdentityOS")
-        assert repo["name"] == "lacebx/IdentityOS"
+        assert isinstance(repo, CapabilityResult)
+        assert repo.success
+        assert repo.data["name"] == "lacebx/IdentityOS"
 
     def test_capability_proxy_access(self, identity):
         """identity.capability('github').list_commits(...) works."""
         identity.install("github")
 
         commits = identity.capability("github").list_commits(owner="lacebx", repo="IdentityOS")
-        assert isinstance(commits, list)
-        if commits:
-            assert "sha" in commits[0]
+        assert isinstance(commits, CapabilityResult)
+        assert commits.success
+        assert isinstance(commits.data, list)
+        if commits.data:
+            assert "sha" in commits.data[0]
 
     # ── Real GitHub API calls ──────────────────────────────────────────
 
@@ -114,17 +121,21 @@ class TestCapabilitySystem:
         """github.search_repositories via proxy."""
         identity.install("github")
         results = identity.github.search_repositories(query="identityos")
-        assert isinstance(results, list)
-        if results:
-            assert "name" in results[0]
-            assert "stars" in results[0]
+        assert isinstance(results, CapabilityResult)
+        assert results.success
+        assert isinstance(results.data, list)
+        if results.data:
+            assert "name" in results.data[0]
+            assert "stars" in results.data[0]
 
     def test_get_repository(self, identity):
         """github.get_repository via proxy."""
         identity.install("github")
         repo = identity.capability("github").get_repository(owner="lacebx", repo="IdentityOS")
-        assert repo["name"] == "lacebx/IdentityOS"
-        assert "stars" in repo
+        assert isinstance(repo, CapabilityResult)
+        assert repo.success
+        assert repo.data["name"] == "lacebx/IdentityOS"
+        assert "stars" in repo.data
 
     def test_review_pull_request(self, identity):
         """github.review_pull_request fetches PR details with file stats."""
@@ -132,20 +143,24 @@ class TestCapabilitySystem:
         pr = identity.use("github").review_pull_request(
             owner="lacebx", repo="IdentityOS", number=1
         )
-        assert pr["number"] == 1 or pr["number"] > 0
-        assert "title" in pr
-        assert "files_changed" in pr
-        assert "total_additions" in pr
-        assert "total_deletions" in pr
+        assert isinstance(pr, CapabilityResult)
+        assert pr.success
+        assert pr.data["number"] == 1 or pr.data["number"] > 0
+        assert "title" in pr.data
+        assert "files_changed" in pr.data
+        assert "total_additions" in pr.data
+        assert "total_deletions" in pr.data
 
     def test_find_beginner_issue(self, identity):
         """github.find_beginner_issue finds 'good first issue' issues."""
         identity.install("github")
         issues = identity.github.find_beginner_issue(owner="lacebx", repo="IdentityOS")
-        assert isinstance(issues, list)
-        if issues:
-            assert "number" in issues[0]
-            assert "title" in issues[0]
+        assert isinstance(issues, CapabilityResult)
+        assert issues.success
+        assert isinstance(issues.data, list)
+        if issues.data:
+            assert "number" in issues.data[0]
+            assert "title" in issues.data[0]
 
     def test_summarize_release(self, identity):
         """github.summarize_release returns recent changes."""
@@ -153,27 +168,33 @@ class TestCapabilitySystem:
         summary = identity.capability("github").summarize_release(
             owner="lacebx", repo="IdentityOS"
         )
-        assert "tag" in summary
-        assert "total" in summary
-        assert "commits_since_last_tag" in summary
+        assert isinstance(summary, CapabilityResult)
+        assert summary.success
+        assert "tag" in summary.data
+        assert "total" in summary.data
+        assert "commits_since_last_tag" in summary.data
 
     def test_list_commits(self, identity):
         """github.list_commits via proxy."""
         identity.install("github")
         commits = identity.use("github").list_commits(owner="lacebx", repo="IdentityOS")
-        assert isinstance(commits, list)
-        if commits:
-            assert "sha" in commits[0]
-            assert "message" in commits[0]
-            assert "author" in commits[0]
+        assert isinstance(commits, CapabilityResult)
+        assert commits.success
+        assert isinstance(commits.data, list)
+        if commits.data:
+            assert "sha" in commits.data[0]
+            assert "message" in commits.data[0]
+            assert "author" in commits.data[0]
 
     def test_list_branches(self, identity):
         """github.list_branches via proxy."""
         identity.install("github")
         branches = identity.github.list_branches(owner="lacebx", repo="IdentityOS")
-        assert isinstance(branches, list)
-        if branches:
-            assert {"name", "sha"}.issubset(branches[0].keys())
+        assert isinstance(branches, CapabilityResult)
+        assert branches.success
+        assert isinstance(branches.data, list)
+        if branches.data:
+            assert {"name", "sha"}.issubset(branches.data[0].keys())
 
     # ── Round-trip: install → call → uninstall ─────────────────────────
 
@@ -181,7 +202,9 @@ class TestCapabilitySystem:
         """Full round-trip: install, call via proxy, uninstall, confirm empty."""
         identity.install("github")
         repos = identity.github.search_repositories(query="identityos")
-        assert isinstance(repos, list)
+        assert isinstance(repos, CapabilityResult)
+        assert repos.success
+        assert isinstance(repos.data, list)
         assert len(identity.skills()) == 7
 
         identity.uninstall("github")

@@ -4,6 +4,9 @@ import json
 import re
 from typing import Any, Optional
 
+from core.capabilities.result import CapabilityResult
+from core.capabilities.evidence import EvidenceManager
+
 
 class SkillRouter:
     """Maps user intent to installed capability skills and executes them.
@@ -14,25 +17,23 @@ class SkillRouter:
     1. Matches the intent to a skill via keyword + description analysis
     2. Extracts parameters from the natural-language query
     3. Executes the skill
-    4. Returns structured results for injection into the LLM context
+    4. Returns structured results via EvidenceManager for injection into context
 
-    The LLM receives *factual data*, not *descriptions of available skills*.
-    This prevents it from falling back to "I don't have real-time access."
+    The LLM receives *factual data* with provenance and confidence,
+    not *descriptions of available skills*.
     """
 
     def __init__(self, capability_registry: Any, identity_id: str) -> None:
         self._registry = capability_registry
         self._identity_id = identity_id
 
-    def route(self, user_input: str) -> list[dict[str, Any]]:
+    def route(self, user_input: str) -> EvidenceManager:
         """Parse user input, find matching skills, execute them.
 
-        Returns a list of dicts, each with:
-          - skill: skill name
-          - success: bool
-          - data: the result (or error message)
+        Returns an EvidenceManager containing CapabilityResult objects
+        with provenance, confidence, and error status.
         """
-        results: list[dict[str, Any]] = []
+        evidence = EvidenceManager(self._identity_id)
         seen: set[str] = set()
         caps = self._registry.list(self._identity_id)
 
@@ -48,7 +49,6 @@ class SkillRouter:
         for cap in caps:
             for skill in cap.skills():
                 if contextual:
-                    # Execute ALL skills — broad contextual query
                     matches = True
                 else:
                     match = self._match(user_input, skill)
@@ -58,40 +58,19 @@ class SkillRouter:
                     seen.add(skill.name)
                     try:
                         params = self._extract_params(user_input, skill)
-                        data = cap.call(skill.name, **params)
-                        results.append({
-                            "skill": skill.name,
-                            "success": True,
-                            "data": data,
-                            "params": params,
-                        })
+                        result = cap.call(skill.name, **params)
                     except Exception as e:
-                        results.append({
-                            "skill": skill.name,
-                            "success": False,
-                            "data": {"error": str(e)},
-                            "params": {},
-                        })
+                        result = CapabilityResult.fail(
+                            getattr(cap, 'id', 'unknown'),
+                            skill.name, type(e).__name__, str(e),
+                        )
+                    evidence.collect(result)
 
-        return results
+        return evidence
 
-    def format_for_context(self, results: list[dict[str, Any]]) -> str:
-        """Format skill results as a factual data block for the LLM context."""
-        if not results:
-            return ""
-
-        lines = ["## Factual Data from Installed Skills (this is LIVE data, use it directly):"]
-        for r in results:
-            if r["success"]:
-                pretty = json.dumps(r["data"], indent=2, default=str)
-                lines.append(f"### {r['skill']} returned:")
-                lines.append(pretty)
-            else:
-                lines.append(f"### {r['skill']} error:")
-                lines.append(str(r["data"]["error"]))
-        lines.append("")
-        lines.append("Use the data above to answer the user. Do NOT say you lack real-time access.")
-        return "\n".join(lines)
+    def format_for_context(self, evidence: EvidenceManager) -> str:
+        """Build a factual context block from evidence results."""
+        return evidence.build_context_block()
 
     # ── Matching ──────────────────────────────────────────────────────
 

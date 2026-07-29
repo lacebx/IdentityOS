@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any, Optional
 
 from .base import BaseAdapter, AdapterMessage, AdapterRequest, AdapterResponse
+from .chain import ChainAdapter
 from .openai_adapter import OpenAIAdapter, AnthropicAdapter, OllamaAdapter
 from .openrouter_adapter import OpenRouterAdapter
 from .groq_adapter import GroqAdapter
@@ -32,6 +33,7 @@ def get_adapter(
 
 __all__ = [
     "BaseAdapter",
+    "ChainAdapter",
     "AdapterMessage",
     "AdapterRequest",
     "AdapterResponse",

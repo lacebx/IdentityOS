@@ -77,6 +77,7 @@ class GroqAdapter(OpenAIAdapter):
             cooldown_until = self._cooldowns.get(self._key_index, 0)
             if cooldown_until <= now:
                 logger.info(f"Rotated to Groq API key index {self._key_index}")
+                print(f"  [Groq: switching to key {self._key_index + 1}/{len(self._keys)}]", flush=True)
                 self.api_key = self._keys[self._key_index]
                 self._client = None
                 return self.api_key
@@ -134,6 +135,7 @@ class GroqAdapter(OpenAIAdapter):
                     identity=identity,
                     temperature=temperature,
                     max_tokens=max_tokens,
+                    retries=1,  # Parent retry disabled — GroqAdapter handles rotation
                     **kwargs,
                 )
             except RuntimeError as exc:
@@ -146,6 +148,7 @@ class GroqAdapter(OpenAIAdapter):
                         f"Rate limited on key {self._key_index}, "
                         f"cooldown {retry_after:.0f}s"
                     )
+                    print(f"  [Groq: key {self._key_index + 1}/{len(self._keys)} rate limited, cooldown {retry_after:.0f}s]", flush=True)
                     self._cooldowns[self._key_index] = time.time() + retry_after
                     if self._rotate_key() is None:
                         self._wait_shortest_cooldown(retry_after)

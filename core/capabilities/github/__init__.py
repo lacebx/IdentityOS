@@ -6,6 +6,7 @@ import httpx
 
 from core.capabilities.base import Capability, Skill
 from core.capabilities.registry import register
+from core.capabilities.result import CapabilityResult
 
 GITHUB_API = "https://api.github.com"
 
@@ -96,20 +97,26 @@ class GithubCapability(Capability):
 
     # ── Execution ──────────────────────────────────────────────────────
 
-    def call(self, skill_name: str, **params: Any) -> Any:
-        dispatch = {
-            "github.search_repositories": self._search_repos,
-            "github.get_repository": self._get_repo,
-            "github.review_pull_request": self._review_pr,
-            "github.find_beginner_issue": self._find_beginner_issue,
-            "github.summarize_release": self._summarize_release,
-            "github.list_commits": self._list_commits,
-            "github.list_branches": self._list_branches,
-        }
-        handler = dispatch.get(skill_name)
-        if handler is None:
-            raise ValueError(f"Unknown skill: {skill_name}")
-        return handler(**params)
+    def call(self, skill_name: str, **params: Any) -> CapabilityResult:
+        import time as _time
+        _t0 = _time.monotonic()
+        try:
+            dispatch = {
+                "github.search_repositories": self._search_repos,
+                "github.get_repository": self._get_repo,
+                "github.review_pull_request": self._review_pr,
+                "github.find_beginner_issue": self._find_beginner_issue,
+                "github.summarize_release": self._summarize_release,
+                "github.list_commits": self._list_commits,
+                "github.list_branches": self._list_branches,
+            }
+            handler = dispatch.get(skill_name)
+            if handler is None:
+                return CapabilityResult.fail("github", skill_name, "unknown_skill", f"Unknown skill: {skill_name}")
+            data = handler(**params)
+            return CapabilityResult.ok("github", skill_name, data, source="GitHub REST API", duration_ms=(_time.monotonic() - _t0) * 1000)
+        except Exception as e:
+            return CapabilityResult.fail("github", skill_name, type(e).__name__, str(e), source="GitHub REST API", duration_ms=(_time.monotonic() - _t0) * 1000)
 
     # ── Core API methods ───────────────────────────────────────────────
 

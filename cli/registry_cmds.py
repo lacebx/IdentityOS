@@ -587,5 +587,32 @@ def cmd_inspect_dashboard(identity_id: str):
         for c in cap_list:
             dash.append(f"  {c.id}")
         dash.append("")
+    # ── Trust Metrics ──
+    trust_raw = runtime._storage.load(identity_id, "capability.trust")
+    if trust_raw:
+        calls = trust_raw.get("calls", [])
+        total = len(calls)
+        if total:
+            failures = [c for c in calls if not c.get("success", True)]
+            low_conf = [c for c in calls if c.get("confidence", 1.0) < 0.8]
+            dash.append(f"  Trust Metrics")
+            dash.append(f"  {total} capability calls, {len(failures)} failures")
+            if low_conf:
+                dash.append(f"  {len(low_conf)} low-confidence results")
+                for lc in low_conf[-3:]:
+                    skill = lc.get("skill", "?")
+                    conf = lc.get("confidence", 0)
+                    dash.append(f"    ⚠ {skill}: {conf:.1f}")
+            dash.append("")
+    # ── Fact Store Facts (verified) ──
+    fs = runtime._fact_stores.get(identity_id)
+    if fs:
+        active = fs.active()
+        if active:
+            verified = [f for f in active if f.confidence >= 0.8]
+            low = [f for f in active if f.confidence < 0.8]
+            dash.append(f"  Verified Facts")
+            dash.append(f"  {len(verified)} high-confidence, {len(low)} low-confidence")
+            dash.append("")
     dash.append("═" * W)
     print("\n".join(dash))

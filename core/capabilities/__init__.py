@@ -3,6 +3,8 @@ from __future__ import annotations
 from .base import Capability, Skill
 from .proxy import CapabilityProxy
 from .registry import CapabilityRegistry
+from .result import CapabilityResult, EvidenceOrigin, Fact
+from .evidence import EvidenceManager, EvidenceReport
 
 # Import built-in capabilities so their @register decorators fire
 from . import github  # noqa: F401
@@ -19,4 +21,9 @@ __all__ = [
     "Skill",
     "CapabilityProxy",
     "CapabilityRegistry",
+    "CapabilityResult",
+    "EvidenceOrigin",
+    "Fact",
+    "EvidenceManager",
+    "EvidenceReport",
 ]
