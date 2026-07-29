@@ -18,6 +18,19 @@ from identitybench.worlds.knowledge import KnowledgeWorld
 from identitybench.worlds.multi_agent import MultiAgentWorld
 from identitybench.worlds.trust import TrustWorld
 from identitybench.worlds.evolution import EvolutionWorld
+from identitybench.metrics import (
+    compute_all_metrics,
+    compute_category_scores,
+    compute_category_explanations,
+)
+from identitybench.journal.capability_journal import CapabilityJournal
+from identitybench.journal.evolution_history import EvolutionHistory
+from identitybench.analytics.diff import compute_benchmark_diff
+from identitybench.analytics.regression import detect_regressions
+from identitybench.analytics.recommendations import generate_recommendations
+from identitybench.analytics.roi import calculate_capability_roi
+from identitybench.analytics.root_cause import analyze_root_causes
+from identitybench.analytics.timeline import build_evolution_timeline
 
 
 DEFAULT_WORLDS: List[Type[BenchmarkWorld]] = [
@@ -49,6 +62,8 @@ class IdentityBench:
         self.storage = storage or BenchmarkStorage(storage_path)
         self.runtime = runtime
         self._world_results: List[WorldResult] = []
+        self.capability_journal = CapabilityJournal(storage_path)
+        self.evolution_history = EvolutionHistory(storage_path)
 
     def load_identity(self, identity_id: Optional[str] = None) -> None:
         target = identity_id or self.identity_id
@@ -74,7 +89,6 @@ class IdentityBench:
         if not self.runtime:
             self.load_identity()
 
-        # Register secondary identity if MultiAgentWorld is in the mix
         for cls in world_classes:
             if cls is MultiAgentWorld and self.runtime:
                 secondary_id = f"{self.identity_id}-writer"
@@ -112,14 +126,17 @@ class IdentityBench:
     def _save_results(self, elapsed_seconds: float) -> None:
         all_metrics: Dict[str, float] = {}
         all_categories: Dict[str, float] = {}
+        all_explanations: Dict[str, Dict[str, list]] = {}
         world_data = []
         for wr in self._world_results:
+            metrics = wr.metrics
+            cats = wr.category_scores
             world_data.append({
                 "world": wr.world_name,
                 "description": wr.world_description,
                 "overall_score": wr.overall_score,
-                "metrics": wr.metrics,
-                "category_scores": wr.category_scores,
+                "metrics": metrics,
+                "category_scores": cats,
                 "entries": [
                     {
                         "tick": e["tick"],
@@ -130,25 +147,70 @@ class IdentityBench:
                     for e in wr.entries
                 ],
             })
-            all_metrics.update(wr.metrics)
-            for cat, score in wr.category_scores.items():
+            all_metrics.update(metrics)
+            for cat, score in cats.items():
                 all_categories[cat] = all_categories.get(cat, 0) + score
+            
+            try:
+                explanations = compute_category_explanations(
+                    [{"type": e["type"], "response": e.get("response", "")}
+                     for e in wr.entries],
+                    wr.world_name,
+                )
+                for cat, exp in explanations.items():
+                    if cat not in all_explanations:
+                        all_explanations[cat] = {"reasons": [], "confidence": 1.0, "evidence_count": 0}
+                    all_explanations[cat]["reasons"].extend(exp.get("reasons", []))
+                    all_explanations[cat]["evidence_count"] += exp.get("evidence_count", 0)
+                    all_explanations[cat]["confidence"] = min(
+                        all_explanations[cat]["confidence"],
+                        exp.get("confidence", 0.5),
+                    )
+            except Exception:
+                pass
+
         num_worlds = len(self._world_results)
         for cat in all_categories:
             all_categories[cat] = round(all_categories[cat] / num_worlds, 1)
         overall = round(sum(all_categories.values()) / len(all_categories), 1) if all_categories else 0.0
+        
+        # Load previous run for diff
+        prev_run = self.storage.load_latest_run(self.identity_id)
+        capability_history = self.capability_journal.list_capabilities(self.identity_id)
+        cap_entries = []
+        for cap_id in capability_history:
+            cap_entries.extend(self.capability_journal.get_journal(self.identity_id, cap_id))
+
         run_data: Dict[str, Any] = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "identity_id": self.identity_id,
             "elapsed_seconds": round(elapsed_seconds, 1),
             "overall_score": overall,
             "category_scores": all_categories,
+            "explanations": all_explanations,
             "worlds": world_data,
             "config": {
                 "seed": 42,
                 "worlds": [wr.world_name for wr in self._world_results],
             },
         }
+
+        # Analytics
+        if prev_run:
+            diff = compute_benchmark_diff(prev_run, run_data)
+            run_data["diff_vs_previous"] = diff
+            trends = self.storage.load_trends(self.identity_id)
+            regressions = detect_regressions(trends) if trends else []
+            run_data["regressions"] = regressions
+            root_causes = analyze_root_causes(diff, prev_run, run_data, cap_entries)
+            run_data["root_causes"] = root_causes
+            run_data["recommendations"] = generate_recommendations(
+                cat_scores=all_categories,
+                trends=trends,
+                regressions=regressions,
+                capability_history=cap_entries,
+            )
+
         filepath = self.storage.save_run(self.identity_id, run_data)
         trend_entry = {
             "timestamp": run_data["timestamp"],
@@ -156,6 +218,7 @@ class IdentityBench:
             **all_categories,
         }
         self.storage.save_trend(self.identity_id, trend_entry)
+        self.evolution_history.record_run(self.identity_id, run_data)
         print(f"\n  Results saved: {filepath}")
 
     def get_results(self) -> List[WorldResult]:

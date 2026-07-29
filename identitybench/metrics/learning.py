@@ -22,6 +22,22 @@ class LearningMetrics:
             "learning_score": overall,
         }
 
+    def explain(self) -> Dict[str, list]:
+        patterns = [t for t in self.transcript if t.get("type") == "pattern_check"]
+        preferences = [t for t in self.transcript if t.get("type") == "preference_check"]
+        corrections = [t for t in self.transcript if t.get("type") == "self_correction_check"]
+        reasons = []
+        recognized = sum(1 for p in patterns if any(k in (p.get("response") or "").lower() for k in ["pattern", "tend to", "usually", "often"]))
+        if recognized:
+            reasons.append(f"recognized {recognized} behavioral patterns")
+        known_prefs = sum(1 for p in preferences if (p.get("expected_preference") or "").lower() in (p.get("response") or "").lower())
+        if known_prefs:
+            reasons.append(f"discovered {known_prefs} user preferences")
+        self_corrected = sum(1 for c in corrections if any(k in (c.get("response") or "").lower() for k in ["i was wrong", "let me correct", "my mistake", "let me fix"]))
+        if self_corrected:
+            reasons.append(f"self-corrected {self_corrected} times")
+        return {"reasons": reasons, "confidence": 0.7 if reasons else 0.5, "evidence_count": len(patterns) + len(preferences) + len(corrections)}
+
     def _score_pattern_recognition(self) -> float:
         checks = [t for t in self.transcript if t.get("type") == "pattern_check"]
         if not checks:

@@ -13,6 +13,13 @@ from identitybench.reporting import (
     generate_report_text,
 )
 from identitybench.storage import BenchmarkStorage
+from identitybench.reports.weekly import generate_weekly_report, format_weekly_report
+from identitybench.analytics.roi import calculate_capability_roi, format_roi_entry
+from identitybench.analytics.timeline import build_evolution_timeline, format_timeline
+from identitybench.analytics.regression import detect_regressions, format_regression_warning
+from identitybench.visualization.trends import render_trend_chart
+from identitybench.journal.capability_journal import CapabilityJournal
+from identitybench.journal.evolution_history import EvolutionHistory
 
 
 def cmd_run(args: argparse.Namespace) -> None:
@@ -126,6 +133,104 @@ def cmd_compare(args: argparse.Namespace) -> None:
         print("Specify --identities for cross-identity comparison or --id with --last for historical comparison.")
 
 
+def cmd_weekly(args: argparse.Namespace) -> None:
+    storage = BenchmarkStorage(root_dir=args.storage_dir)
+    identity_id = args.identity
+    run_history = storage.load_all_runs(identity_id)
+    if not run_history:
+        print(f"No benchmark history for '{identity_id}'.")
+        return
+    cap_journal = CapabilityJournal(args.storage_dir)
+    caps = cap_journal.list_capabilities(identity_id)
+    cap_entries = []
+    for cap_id in caps:
+        cap_entries.extend(cap_journal.get_journal(identity_id, cap_id))
+    report = generate_weekly_report(
+        identity_id=identity_id,
+        run_history=run_history,
+        capability_history=cap_entries,
+        fact_counts=None,
+    )
+    text = format_weekly_report(report)
+    print(text)
+    if args.output:
+        with open(args.output, "w") as f:
+            f.write(text)
+        print(f"Weekly report written to {args.output}")
+
+
+def cmd_roi(args: argparse.Namespace) -> None:
+    storage = BenchmarkStorage(root_dir=args.storage_dir)
+    identity_id = args.identity
+    run_history = storage.load_all_runs(identity_id)
+    cap_journal = CapabilityJournal(args.storage_dir)
+    caps = cap_journal.list_capabilities(identity_id)
+    cap_entries = []
+    for cap_id in caps:
+        cap_entries.extend(cap_journal.get_journal(identity_id, cap_id))
+    roi = calculate_capability_roi(cap_entries, run_history)
+    if not roi:
+        print(f"No capability data for '{identity_id}'.")
+        return
+    print(f"Capability ROI for {identity_id}:")
+    print(f"  {'-'*40}")
+    for entry in roi:
+        print(format_roi_entry(entry))
+        print("")
+
+
+def cmd_timeline(args: argparse.Namespace) -> None:
+    storage = BenchmarkStorage(root_dir=args.storage_dir)
+    identity_id = args.identity
+    run_history = storage.load_all_runs(identity_id)
+    cap_journal = CapabilityJournal(args.storage_dir)
+    caps = cap_journal.list_capabilities(identity_id)
+    cap_entries = []
+    for cap_id in caps:
+        cap_entries.extend(cap_journal.get_journal(identity_id, cap_id))
+    timeline = build_evolution_timeline(run_history, cap_entries)
+    print(f"Evolution timeline for {identity_id}:")
+    print(format_timeline(timeline, max_entries=args.max_entries or 30))
+
+
+def cmd_prometheus(args: argparse.Namespace) -> None:
+    identity_id = args.identity
+    evo = EvolutionHistory(args.storage_dir)
+    cap_journal = CapabilityJournal(args.storage_dir)
+    caps = cap_journal.list_capabilities(identity_id)
+    cap_entries = []
+    for cap_id in caps:
+        cap_entries.extend(cap_journal.get_journal(identity_id, cap_id))
+    health = evo.compute_prometheus_health(identity_id, cap_entries)
+    print(f"Prometheus Health for {identity_id}:")
+    print(f"  {'-'*40}")
+    print(f"  Overall Health:           {health.get('overall_health', 0):.1f}/100")
+    print(f"  Gap Detection Accuracy:   {health.get('gap_detection_accuracy', 0):.1f}")
+    print(f"  Search Quality:           {health.get('search_quality', 0):.1f}")
+    print(f"  Install Success Rate:     {health.get('install_success_rate', 0):.1f}%")
+    print(f"  Validation Success:       {health.get('validation_success', 0):.1f}%")
+    print(f"  Retry Success:            {health.get('retry_success', 0):.1f}%")
+    print(f"  Capability Longevity:     {health.get('capability_longevity', 0):.1f}")
+
+
+def cmd_regressions(args: argparse.Namespace) -> None:
+    storage = BenchmarkStorage(root_dir=args.storage_dir)
+    identity_id = args.identity
+    trends = storage.load_trends(identity_id)
+    if not trends or len(trends) < 3:
+        print(f"Need at least 3 runs to detect regressions. Found {len(trends)}.")
+        return
+    signals = detect_regressions(trends, consecutive_threshold=args.threshold or 3)
+    if not signals:
+        print(f"No regressions detected for '{identity_id}'.")
+        return
+    print(f"Regression signals for {identity_id}:")
+    print(f"  {'-'*40}")
+    for sig in signals:
+        print(format_regression_warning(sig))
+        print("")
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="identitybench",
@@ -157,6 +262,29 @@ def build_parser() -> argparse.ArgumentParser:
     p_compare.add_argument("--id", dest="identity_id", default=None, help="Identity ID (for --last)")
     p_compare.add_argument("--last", type=int, default=0, help="Compare last N runs of identity")
     p_compare.set_defaults(func=cmd_compare)
+
+    p_weekly = sub.add_parser("weekly", help="Generate weekly engineering report")
+    p_weekly.add_argument("identity", help="Identity ID")
+    p_weekly.add_argument("-o", "--output", help="Write report to file")
+    p_weekly.set_defaults(func=cmd_weekly)
+
+    p_roi = sub.add_parser("roi", help="Show capability ROI analysis")
+    p_roi.add_argument("identity", help="Identity ID")
+    p_roi.set_defaults(func=cmd_roi)
+
+    p_timeline = sub.add_parser("timeline", help="Show evolution timeline")
+    p_timeline.add_argument("identity", help="Identity ID")
+    p_timeline.add_argument("--max-entries", type=int, default=30, help="Max timeline entries")
+    p_timeline.set_defaults(func=cmd_timeline)
+
+    p_prometheus = sub.add_parser("prometheus", help="Show Prometheus health evaluation")
+    p_prometheus.add_argument("identity", help="Identity ID")
+    p_prometheus.set_defaults(func=cmd_prometheus)
+
+    p_regressions = sub.add_parser("regressions", help="Detect regression signals")
+    p_regressions.add_argument("identity", help="Identity ID")
+    p_regressions.add_argument("--threshold", type=int, default=3, help="Consecutive decreases threshold")
+    p_regressions.set_defaults(func=cmd_regressions)
 
     return parser
 

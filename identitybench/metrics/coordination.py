@@ -18,6 +18,23 @@ class CoordinationMetrics:
             "coordination_efficiency": coordination_efficiency,
         }
 
+    def explain(self) -> Dict[str, list]:
+        leaks = [t for t in self.transcript if t.get("type") == "memory_leakage_check"]
+        responsibilities = [t for t in self.transcript if t.get("type") == "responsibility_check"]
+        handoffs = [t for t in self.transcript if t.get("type") == "handoff_check"]
+        reasons = []
+        prevented_leaks = sum(1 for l in leaks if (l.get("should_not_know") or "").lower() not in (l.get("response") or "").lower())
+        if prevented_leaks:
+            reasons.append(f"prevented {prevented_leaks} memory leaks")
+        knew_role = sum(1 for r in responsibilities if (r.get("my_role") or "").lower() in (r.get("response") or "").lower())
+        if knew_role:
+            reasons.append(f"understood role boundaries {knew_role} times")
+        clean_handoffs = sum(1 for h in handoffs if any(k in (h.get("response") or "").lower() for k in ["hand off", "pass to", "coordinate with", "assign to"]))
+        if clean_handoffs:
+            reasons.append(f"executed {clean_handoffs} clean handoffs")
+        total = len(leaks) + len(responsibilities) + len(handoffs)
+        return {"reasons": reasons, "confidence": 0.7 if reasons else 0.5, "evidence_count": total}
+
     def _score_memory_leakage(self) -> float:
         checks = [t for t in self.transcript if t.get("type") == "memory_leakage_check"]
         if not checks:
