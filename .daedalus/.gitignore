@@ -1,0 +1,4 @@
+# Daedalus configuration
+.daedalus/github.json
+.daedalus/*.env
+.daedalus/credentials*

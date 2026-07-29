@@ -1,0 +1,105 @@
+{
+  "owner": "lacebx",
+  "project": "IdentityOS",
+  "updated": "2026-07-29T00:00:00Z",
+  "primary_goals": [
+    {
+      "id": "maintain-quality",
+      "goal": "Maintain IdentityOS quality across all layers",
+      "priority": 10,
+      "status": "active",
+      "metrics": ["benchmark_score", "test_pass_rate", "regression_count"],
+      "evidence": "Every PR should improve or maintain benchmark scores"
+    },
+    {
+      "id": "increase-benchmarks",
+      "goal": "Increase benchmark scores consistently",
+      "priority": 9,
+      "status": "active",
+      "metrics": ["overall_score", "category_scores"],
+      "evidence": "Track per-category trends and identify weak areas"
+    },
+    {
+      "id": "reduce-regressions",
+      "goal": "Reduce regressions to zero",
+      "priority": 9,
+      "status": "active",
+      "metrics": ["regression_count", "regression_severity"],
+      "evidence": "Every regression must have documented root cause"
+    },
+    {
+      "id": "improve-architecture",
+      "goal": "Improve architecture separation and reduce coupling",
+      "priority": 8,
+      "status": "active",
+      "metrics": ["cross_layer_imports", "circular_dependencies"],
+      "evidence": "Track import violations between layers"
+    },
+    {
+      "id": "create-capabilities",
+      "goal": "Create reusable, well-tested capabilities",
+      "priority": 7,
+      "status": "active",
+      "metrics": ["capability_count", "registry_size", "capability_reuse"],
+      "evidence": "Every capability should have manifest, implementation, and tests"
+    },
+    {
+      "id": "teach-owner",
+      "goal": "Help the owner understand architecture decisions",
+      "priority": 6,
+      "status": "active",
+      "metrics": ["review_quality", "documentation_quality"],
+      "evidence": "Reviews should explain tradeoffs, not just state opinions"
+    },
+    {
+      "id": "question-decisions",
+      "goal": "Question weak decisions with evidence",
+      "priority": 8,
+      "status": "active",
+      "metrics": ["challenges_made", "accepted_challenges"],
+      "evidence": "Every challenged decision should have documented reasoning"
+    },
+    {
+      "id": "protect-maintainability",
+      "goal": "Protect long-term maintainability",
+      "priority": 9,
+      "status": "active",
+      "metrics": ["technical_debt_items", "documentation_coverage", "test_coverage"],
+      "evidence": "Technical debt should trend downward over time"
+    },
+    {
+      "id": "reduce-benchmark-variance",
+      "goal": "Reduce benchmark variance across runs",
+      "priority": 9,
+      "status": "active",
+      "metrics": ["score_std_dev", "run_to_run_consistency"],
+      "evidence": "High variance makes trend detection unreliable"
+    },
+    {
+      "id": "improve-capability-reuse",
+      "goal": "Improve capability reuse rate",
+      "priority": 8,
+      "status": "active",
+      "metrics": ["reuse_rate", "capabilities_per_identity"],
+      "evidence": "Installed capabilities should be used regularly"
+    },
+    {
+      "id": "reduce-unnecessary-acquisitions",
+      "goal": "Reduce unnecessary Prometheus acquisitions",
+      "priority": 7,
+      "status": "active",
+      "metrics": ["acquisition_success_rate", "rollback_rate"],
+      "evidence": "Every acquisition should measurably improve outcomes"
+    }
+  ],
+  "observations": [],
+  "initiatives": [],
+  "tracked_metrics": {
+    "benchmark_score": {"current": null, "previous": null, "trend": null},
+    "test_pass_rate": {"current": null, "previous": null, "trend": null},
+    "regression_count": {"current": null, "previous": null, "trend": null},
+    "cross_layer_imports": {"current": null, "previous": null, "trend": null},
+    "capability_count": {"current": 13, "previous": 8, "trend": "increasing"},
+    "technical_debt_items": {"current": null, "previous": null, "trend": null}
+  }
+}

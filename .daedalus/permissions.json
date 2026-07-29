@@ -1,0 +1,18 @@
+{
+  "can_open_pr": true,
+  "can_create_issue": true,
+  "can_comment": true,
+  "can_commit": true,
+  "can_merge": false,
+  "can_delete_branch": false,
+  "can_request_review": true,
+  "can_assign_reviewer": true,
+  "can_label_prs": true,
+  "can_run_workflows": true,
+  "approval_required_for": [
+    "modifying_core_identity",
+    "modifying_runtime_orchestrator",
+    "modifying_security_policies",
+    "merging_to_main"
+  ]
+}
