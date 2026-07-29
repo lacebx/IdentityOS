@@ -361,7 +361,7 @@ def generate_markdown_review(
         f"**Reviewer:** Daedalus \u2014 {identity.get('role', 'Engineering Partner')} for {identity.get('project', 'IdentityOS')}",
         f"**Style:** {style}, {personality.get('obsessed_with_architectural_simplicity', False) and 'architecturally rigorous' or 'analytical'}",
         "",
-        f"## Merge Readiness: {status_emoji.get(status, '\u2753')} {status.replace('_', ' ')}",
+        f"## Merge Readiness: {status_emoji.get(status, chr(10067))} {status.replace('_', ' ')}",
         "",
     ]
     if readiness[1]:
