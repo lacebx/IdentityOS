@@ -18,6 +18,26 @@ class PlanningMetrics:
             "reprioritization_quality": reprioritization_quality,
         }
 
+    def explain(self) -> Dict[str, list]:
+        completions = [t for t in self.transcript if t.get("type") == "completion_check"]
+        deadlines = [t for t in self.transcript if t.get("type") == "deadline_check"]
+        repriors = [t for t in self.transcript if t.get("type") == "reprioritization_check"]
+        reasons = []
+        done = sum(1 for c in completions if any(k in (c.get("response") or "").lower() for k in ["completed", "done", "finished"]))
+        if done:
+            reasons.append(f"completed {done} scheduled tasks")
+        deadline_ok = sum(1 for d in deadlines if "on track" in (d.get("response") or "").lower() or "by the deadline" in (d.get("response") or "").lower())
+        if deadline_ok:
+            reasons.append(f"met {deadline_ok} deadlines")
+        missed_deadlines = sum(1 for d in deadlines if "missed" in (d.get("response") or "").lower() or "too late" in (d.get("response") or "").lower())
+        if missed_deadlines:
+            reasons.append(f"missed {missed_deadlines} deadlines")
+        adapted = sum(1 for r in repriors if any(k in (r.get("response") or "").lower() for k in ["shift", "reprioritize", "adjust", "focus"]))
+        if adapted:
+            reasons.append(f"reprioritized {adapted} tasks")
+        conf = round(len([r for r in [done, deadline_ok, adapted] if r > 0]) / 3, 2) if any([done, deadline_ok, adapted]) else 0.5
+        return {"reasons": reasons, "confidence": conf, "evidence_count": len(completions) + len(deadlines) + len(repriors)}
+
     def _score_completion_rate(self) -> float:
         assignments = [t for t in self.transcript if t.get("type") == "task_assignment"]
         completions = [t for t in self.transcript if t.get("type") == "completion_check"]

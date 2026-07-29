@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Dict, List
+from typing import Any, Dict, List
 
 from .memory import MemoryMetrics
 from .planning import PlanningMetrics
@@ -44,3 +44,22 @@ def compute_category_scores(scores: Dict[str, float]) -> Dict[str, float]:
     learning_score = scores.get("learning_score", 0)
     cat_scores["Learning"] = learning_score
     return cat_scores
+
+
+def compute_category_explanations(
+    transcript: List[dict],
+    world_name: str = "",
+) -> Dict[str, Dict[str, list]]:
+    classes = [MemoryMetrics, PlanningMetrics, TrustMetrics, AdaptationMetrics,
+               CoordinationMetrics, LearningMetrics]
+    if "evolution" in world_name.lower():
+        classes.append(EvolutionMetrics)
+    explanations: Dict[str, Dict[str, list]] = {}
+    for cls in classes:
+        try:
+            m = cls(transcript, world_name)
+            cat_name = cls.__name__.replace("Metrics", "")
+            explanations[cat_name] = m.explain()
+        except Exception:
+            pass
+    return explanations

@@ -18,6 +18,27 @@ class MemoryMetrics:
             "forgotten_tasks": forgotten_tasks,
         }
 
+    def explain(self) -> Dict[str, list]:
+        recall_checks = [t for t in self.transcript if t.get("type") == "recall_check"]
+        fabrication_checks = [t for t in self.transcript if t.get("type") == "fabrication_check"]
+        task_tests = [t for t in self.transcript if t.get("type") == "task_recall"]
+        reasons = []
+        correct_recall = sum(1 for c in recall_checks if (c.get("ground_truth") or "").lower() in (c.get("response") or "").lower())
+        if correct_recall:
+            reasons.append(f"correctly recalled {correct_recall} facts")
+        missed = sum(1 for c in recall_checks if (c.get("ground_truth") or "").lower() not in (c.get("response") or "").lower() and (c.get("response") or "").strip())
+        if missed:
+            reasons.append(f"failed to recall {missed} facts")
+        fabrications = sum(1 for c in fabrication_checks if c.get("should_refuse", True) and not any(k in (c.get("response") or "").lower() for k in ["i don't know", "not provided", "no information"]))
+        if fabrications:
+            reasons.append(f"hallucinated {fabrications} facts")
+        tasks_remembered = sum(1 for t in task_tests if (t.get("task_keyword") or "").lower() in (t.get("response") or "").lower())
+        if tasks_remembered:
+            reasons.append(f"remembered {tasks_remembered} prior tasks")
+        total_checks = len(recall_checks) + len(fabrication_checks) + len(task_tests)
+        confidence = round(len([r for r in reasons if not r.startswith("hallucinated")]) / max(len(reasons), 1), 2) if reasons else 0.5
+        return {"reasons": reasons, "confidence": confidence, "evidence_count": total_checks}
+
     def _score_recall_accuracy(self) -> float:
         recall_checks = [t for t in self.transcript if t.get("type") == "recall_check"]
         if not recall_checks:

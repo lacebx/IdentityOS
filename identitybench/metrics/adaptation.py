@@ -18,6 +18,22 @@ class AdaptationMetrics:
             "proactive_verification": proactive_verification,
         }
 
+    def explain(self) -> Dict[str, list]:
+        updates = [t for t in self.transcript if t.get("type") == "belief_update_check"]
+        corrections = [t for t in self.transcript if t.get("type") == "correction_check"]
+        proactives = [t for t in self.transcript if t.get("type") == "proactive_check"]
+        reasons = []
+        beliefs_updated = sum(1 for u in updates if (u.get("new_belief") or "").lower() in (u.get("response") or "").lower())
+        if beliefs_updated:
+            reasons.append(f"updated {beliefs_updated} beliefs based on new info")
+        corrected = sum(1 for c in corrections if any(k in (c.get("response") or "").lower() for k in ["you're right", "i stand corrected", "i was wrong"]))
+        if corrected:
+            reasons.append(f"accepted {corrected} corrections")
+        proactive = sum(1 for p in proactives if any(k in (p.get("response") or "").lower() for k in ["let me check", "i'll verify", "let me search", "let me fetch"]))
+        if proactive:
+            reasons.append(f"proactively verified {proactive} facts")
+        return {"reasons": reasons, "confidence": 0.75 if reasons else 0.5, "evidence_count": len(updates) + len(corrections) + len(proactives)}
+
     def _score_updated_beliefs(self) -> float:
         updates = [t for t in self.transcript if t.get("type") == "belief_update_check"]
         if not updates:

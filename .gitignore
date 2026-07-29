@@ -19,3 +19,4 @@ venv/
 demo/output/
 .test_canonical_facts/
 .identitybench/
+MagicMock/

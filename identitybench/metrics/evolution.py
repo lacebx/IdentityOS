@@ -33,6 +33,29 @@ class EvolutionMetrics:
             "evolution_score": overall,
         }
 
+    def explain(self) -> Dict[str, list]:
+        gaps = [t for t in self.transcript if t.get("type") == "gap_check"]
+        searches = [t for t in self.transcript if t.get("type") == "search_check"]
+        installs = [t for t in self.transcript if t.get("type") == "install_check"]
+        retries = [t for t in self.transcript if t.get("type") == "retry_check"]
+        reasons = []
+        gaps_detected = sum(1 for g in gaps if any(k in (g.get("response") or "").lower() for k in ["don't have", "not installed", "missing", "registry"]))
+        if gaps_detected:
+            reasons.append(f"detected {gaps_detected} capability gaps")
+        found = sum(1 for s in searches if any(k in (s.get("response") or "").lower() for k in ["found", "candidate", "available", "discovered"]))
+        if found:
+            reasons.append(f"found {found} candidates in registry")
+        installed_ok = sum(1 for i in installs if any(k in (i.get("response") or "").lower() for k in ["installed", "installation complete", "now available"]))
+        if installed_ok:
+            reasons.append(f"installed {installed_ok} capabilities")
+        retry_ok = sum(1 for r in retries if any(k in (r.get("response") or "").lower() for k in ["here", "result", "found", "completed"]))
+        if retry_ok:
+            reasons.append(f"retry succeeded {retry_ok} times")
+        reused = sum(1 for t in self.transcript if t.get("type") == "reuse_check" and (t.get("previously_acquired", False)) and ("already" in (t.get("response") or "").lower() or "previously" in (t.get("response") or "").lower()))
+        if reused:
+            reasons.append(f"reused {reused} already-acquired capabilities")
+        return {"reasons": reasons, "confidence": 0.85 if reasons else 0.5, "evidence_count": len(gaps) + len(searches) + len(installs) + len(retries)}
+
     def _score_gap_detection(self) -> float:
         checks = [t for t in self.transcript if t.get("type") == "gap_check"]
         if not checks:
