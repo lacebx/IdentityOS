@@ -1,0 +1,62 @@
+{
+  "id": "repo_health",
+  "name": "Repository Health",
+  "version": "1.0.0",
+  "author": "Daedalus",
+  "license": "MIT",
+  "homepage": "https://github.com/lacebx/IdentityOS",
+  "description": "Analyzes repository health across multiple dimensions: code quality, test coverage, documentation freshness, dependency age, CI stability, issue resolution time, benchmark consistency, and architectural drift. Produces actionable health reports with trend analysis.",
+  "provider": "core.capabilities.daedalus.RepoHealthCapability",
+  "config_schema": {
+    "type": "object",
+    "properties": {
+      "depth": {
+        "type": "string",
+        "enum": ["quick", "standard", "comprehensive"],
+        "default": "standard",
+        "description": "Analysis depth"
+      },
+      "include_benchmark_history": {
+        "type": "boolean",
+        "default": true,
+        "description": "Include IdentityBench trend analysis"
+      },
+      "include_dependency_check": {
+        "type": "boolean",
+        "default": true,
+        "description": "Check dependency freshness"
+      }
+    }
+  },
+  "permissions": {
+    "network": true,
+    "filesystem": true
+  },
+  "skills": [
+    {
+      "name": "repo_health.assess_code_quality",
+      "description": "Assess code quality metrics from repository analysis",
+      "permission": "public"
+    },
+    {
+      "name": "repo_health.check_test_health",
+      "description": "Analyze test coverage and test reliability",
+      "permission": "public"
+    },
+    {
+      "name": "repo_health.evaluate_documentation",
+      "description": "Evaluate documentation freshness and completeness",
+      "permission": "public"
+    },
+    {
+      "name": "repo_health.analyze_benchmark_trend",
+      "description": "Analyze IdentityBench benchmark trends over time",
+      "permission": "public"
+    },
+    {
+      "name": "repo_health.produce_report",
+      "description": "Produce comprehensive repository health report",
+      "permission": "public"
+    }
+  ]
+}

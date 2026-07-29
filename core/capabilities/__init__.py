@@ -15,6 +15,7 @@ from . import web  # noqa: F401
 from . import filesystem  # noqa: F401
 from . import text  # noqa: F401
 from . import system_info  # noqa: F401
+from . import daedalus  # noqa: F401
 
 __all__ = [
     "Capability",

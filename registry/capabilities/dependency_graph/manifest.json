@@ -1,0 +1,59 @@
+{
+  "id": "dependency_graph",
+  "name": "Dependency Graph",
+  "version": "1.0.0",
+  "author": "Daedalus",
+  "license": "MIT",
+  "homepage": "https://github.com/lacebx/IdentityOS",
+  "description": "Generates dependency graphs between modules, packages, capabilities, and identities. Visualizes import relationships, detects circular dependencies, identifies untested modules, and maps the capability-identity-runtime dependency network.",
+  "provider": "core.capabilities.daedalus.DependencyGraphCapability",
+  "config_schema": {
+    "type": "object",
+    "properties": {
+      "format": {
+        "type": "string",
+        "enum": ["json", "dot", "mermaid", "text"],
+        "default": "text",
+        "description": "Output format for dependency graph"
+      },
+      "include_test_deps": {
+        "type": "boolean",
+        "default": false,
+        "description": "Include test dependencies"
+      },
+      "max_depth": {
+        "type": "integer",
+        "default": 5,
+        "minimum": 1,
+        "maximum": 20,
+        "description": "Maximum traversal depth"
+      }
+    }
+  },
+  "permissions": {
+    "network": false,
+    "filesystem": true
+  },
+  "skills": [
+    {
+      "name": "dependency_graph.analyze_module_deps",
+      "description": "Analyze import dependencies for a specific module",
+      "permission": "public"
+    },
+    {
+      "name": "dependency_graph.detect_cycles",
+      "description": "Detect circular dependencies in the codebase",
+      "permission": "public"
+    },
+    {
+      "name": "dependency_graph.map_capability_deps",
+      "description": "Map dependencies between capabilities",
+      "permission": "public"
+    },
+    {
+      "name": "dependency_graph.visualize",
+      "description": "Generate dependency graph visualization",
+      "permission": "public"
+    }
+  ]
+}

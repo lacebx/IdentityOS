@@ -39,6 +39,26 @@ _CAPABILITY_KEYWORDS: Dict[str, List[str]] = {
         "system", "os", "memory", "cpu", "disk", "hardware",
         "platform", "environment",
     ],
+    "architecture_analysis": [
+        "architecture", "architectural", "module structure", "layer separation",
+        "coupling", "codebase structure", "package dependency",
+    ],
+    "code_review": [
+        "review", "code review", "pull request review", "pr review",
+        "merge readiness", "change review",
+    ],
+    "changelog_gen": [
+        "changelog", "release notes", "what changed", "version history",
+        "git log", "commit history",
+    ],
+    "repo_health": [
+        "repository health", "repo health", "code quality", "test health",
+        "benchmark trend", "project health",
+    ],
+    "dependency_graph": [
+        "dependency graph", "dependency map", "module dependency",
+        "circular dependency", "import graph",
+    ],
 }
 
 # Patterns in LLM responses that indicate a missing capability

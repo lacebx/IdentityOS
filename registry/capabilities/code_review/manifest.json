@@ -1,0 +1,62 @@
+{
+  "id": "code_review",
+  "name": "Code Review",
+  "version": "1.0.0",
+  "author": "Daedalus",
+  "license": "MIT",
+  "homepage": "https://github.com/lacebx/IdentityOS",
+  "description": "Reviews pull requests and code changes with architectural perspective. Evaluates design decisions, identifies regressions, checks benchmark impact, verifies separation of concerns, and provides actionable feedback with evidence.",
+  "provider": "core.capabilities.daedalus.CodeReviewCapability",
+  "config_schema": {
+    "type": "object",
+    "properties": {
+      "review_depth": {
+        "type": "string",
+        "enum": ["surface", "standard", "deep"],
+        "default": "deep",
+        "description": "Depth of code review analysis"
+      },
+      "check_benchmark_impact": {
+        "type": "boolean",
+        "default": true,
+        "description": "Run benchmarks and compare results"
+      },
+      "check_separation": {
+        "type": "boolean",
+        "default": true,
+        "description": "Verify layer separation is maintained"
+      }
+    }
+  },
+  "permissions": {
+    "network": true,
+    "filesystem": true
+  },
+  "skills": [
+    {
+      "name": "code_review.review_pr",
+      "description": "Review a pull request with architectural perspective",
+      "permission": "public"
+    },
+    {
+      "name": "code_review.check_regressions",
+      "description": "Check for benchmark regressions in a change",
+      "permission": "public"
+    },
+    {
+      "name": "code_review.verify_separation",
+      "description": "Verify layer separation is maintained after a change",
+      "permission": "public"
+    },
+    {
+      "name": "code_review.detect_technical_debt",
+      "description": "Detect technical debt introduced or addressed by a change",
+      "permission": "public"
+    },
+    {
+      "name": "code_review.assess_readiness",
+      "description": "Assess whether a PR is ready for merge or needs changes",
+      "permission": "public"
+    }
+  ]
+}
