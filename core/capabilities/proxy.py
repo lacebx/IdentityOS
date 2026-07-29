@@ -3,23 +3,22 @@ from __future__ import annotations
 from typing import Any
 
 from .base import Capability
+from .result import CapabilityResult
 
 
 class CapabilityProxy:
     """
-    Wraps a ``Capability`` so skills are accessible as attributes.
+    Wraps a Capability so skills are accessible as attributes.
 
     Usage::
 
         github = identity.use("github")
-        github.search_repositories(query="identityos")
-        github.review_pull_request(owner="lacebx", repo="IdentityOS", number=1)
+        results = github.search_repositories(query="identityos")
+        # returns CapabilityResult — use .data for the raw result
     """
 
     def __init__(self, cap: Capability) -> None:
         self._cap = cap
-
-    # ── Metadata passthrough ───────────────────────────────────────────
 
     @property
     def id(self) -> str:
@@ -36,8 +35,6 @@ class CapabilityProxy:
     def metadata(self) -> dict[str, Any]:
         return self._cap.to_dict()
 
-    # ── Skill routing ──────────────────────────────────────────────────
-
     def __getattr__(self, name: str) -> Any:
         if name.startswith("_"):
             raise AttributeError(name)
@@ -47,7 +44,7 @@ class CapabilityProxy:
             raise AttributeError(
                 f"Capability '{self._cap.id}' has no skill '{name}'"
             )
-        def caller(**params: Any) -> Any:
+        def caller(**params: Any) -> CapabilityResult:
             return self._cap.call(skill_name, **params)
         caller.__name__ = name
         caller.__qualname__ = f"{type(self).__name__}.{name}"

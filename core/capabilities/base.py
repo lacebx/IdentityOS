@@ -4,6 +4,8 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
+from .result import CapabilityResult
+
 
 @dataclass
 class Skill:

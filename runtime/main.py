@@ -14,6 +14,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+from adapters import ChainAdapter
 from core.evaluation import register_default_criteria
 from runtime.orchestrator import IdentityRuntime, InteractionRequest, InteractionResponse
 from runtime.persistence import JSONFileBackend
@@ -54,48 +55,59 @@ storage = JSONFileBackend(root_dir=_store_path)
 adapter = None
 adapter_type = os.environ.get("IDENTITY_ADAPTER", "")
 
-# Priority 0: Auto-detect SambaNova if any SAMBANOVA_API_KEY is set
+# Build a chain of available adapters, tried in priority order
+_candidates: list[Any] = []
+
+# Priority 0: SambaNova (multi-key rotation)
 if os.environ.get("SAMBANOVA_API_KEY"):
     try:
         from adapters.sambanova_adapter import SambaNovaAdapter
         model = os.environ.get("IDENTITY_MODEL", "DeepSeek-V3.1")
-        adapter = SambaNovaAdapter(model=model)
-        logger.info(f"Auto-configured SambaNova adapter (model={model}) with key rotation")
+        _candidates.append(SambaNovaAdapter(model=model))
+        logger.info("Added SambaNova adapter to chain (model=%s)", model)
     except Exception as e:
-        logger.warning(f"Failed to initialize SambaNova adapter: {e}")
+        logger.warning("Failed to initialize SambaNova adapter: %s", e)
 
-# Priority 1: Auto-detect Groq if any GROQ_API_KEY is set
+# Priority 1: Groq (multi-key rotation)
 _groq_keys = [os.environ.get(k) for k in ("GROQ_API_KEY", "GROQ_API_KEY_2", "GROQ_API_KEY_3",
                                            "GROQ_API_KEY_4", "GROQ_API_KEY_5", "GROQ_API_KEY_6")]
-if not adapter and any(k for k in _groq_keys if k and "PLACEHOLDER" not in k):
+if any(k for k in _groq_keys if k and "PLACEHOLDER" not in k):
     try:
         from adapters.groq_adapter import GroqAdapter
         model = os.environ.get("IDENTITY_MODEL", "llama-3.3-70b-versatile")
-        adapter = GroqAdapter(model=model)
-        logger.info(f"Auto-configured Groq adapter (model={model}) with key rotation")
+        _candidates.append(GroqAdapter(model=model))
+        logger.info("Added Groq adapter to chain (model=%s)", model)
     except Exception as e:
-        logger.warning(f"Failed to initialize Groq adapter: {e}")
+        logger.warning("Failed to initialize Groq adapter: %s", e)
 
 # Priority 2: Explicit IDENTITY_ADAPTER env var
-if not adapter and adapter_type:
+if adapter_type:
     try:
         from adapters import get_adapter
         adapter_config: dict[str, Any] = {}
         adapter_config_str = os.environ.get("IDENTITY_ADAPTER_CONFIG", "{}")
         if adapter_config_str:
             adapter_config = json.loads(adapter_config_str)
-        adapter = get_adapter(adapter_type, **adapter_config)
-        logger.info(f"Using adapter: {adapter_type} (model={adapter_config.get('model', 'default')})")
+        _candidates.append(get_adapter(adapter_type, **adapter_config))
+        logger.info("Added explicit adapter: %s (model=%s)", adapter_type, adapter_config.get("model", "default"))
     except Exception as e:
-        logger.warning(f"Failed to initialize adapter '{adapter_type}': {e}")
+        logger.warning("Failed to initialize adapter '%s': %s", adapter_type, e)
 
-if not adapter and os.environ.get("OPENAI_API_KEY"):
+# Priority 3: OpenAI fallback
+if os.environ.get("OPENAI_API_KEY"):
     try:
         from adapters.openai_adapter import OpenAIAdapter
-        adapter = OpenAIAdapter(model=os.environ.get("IDENTITY_MODEL", "gpt-4o"))
-        logger.info("Auto-configured OpenAI adapter")
+        _candidates.append(OpenAIAdapter(model=os.environ.get("IDENTITY_MODEL", "gpt-4o")))
+        logger.info("Added OpenAI adapter to chain")
     except Exception as e:
-        logger.warning(f"Failed to initialize OpenAI adapter: {e}")
+        logger.warning("Failed to initialize OpenAI adapter: %s", e)
+
+if _candidates:
+    if len(_candidates) == 1:
+        adapter = _candidates[0]
+    else:
+        adapter = ChainAdapter(_candidates)
+        logger.info("Chained %d adapters: %s", len(_candidates), adapter)
 
 runtime = IdentityRuntime(storage=storage, adapter=adapter)
 register_default_criteria(runtime.evaluation_engine)

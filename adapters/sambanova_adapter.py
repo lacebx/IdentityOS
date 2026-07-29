@@ -73,6 +73,7 @@ class SambaNovaAdapter(OpenAIAdapter):
             cooldown_until = self._cooldowns.get(self._key_index, 0)
             if cooldown_until <= now:
                 logger.info(f"Rotated to SambaNova API key index {self._key_index}")
+                print(f"  [SambaNova: switching to key {self._key_index + 1}/{len(self._keys)}]", flush=True)
                 self.api_key = self._keys[self._key_index]
                 self._client = None
                 return self.api_key
@@ -117,6 +118,7 @@ class SambaNovaAdapter(OpenAIAdapter):
                     identity=identity,
                     temperature=temperature,
                     max_tokens=max_tokens,
+                    retries=1,  # Parent retry disabled — SambaNovaAdapter handles rotation
                     **kwargs,
                 )
             except RuntimeError as exc:
@@ -126,6 +128,7 @@ class SambaNovaAdapter(OpenAIAdapter):
                 if "429" in msg_lower or "rate limit" in msg_lower or "quota" in msg_lower:
                     retry_after = 60
                     logger.warning(f"Rate limited on key {self._key_index}")
+                    print(f"  [SambaNova: key {self._key_index + 1}/{len(self._keys)} rate limited, cooldown 60s]", flush=True)
                     self._cooldowns[self._key_index] = time.time() + retry_after
                     if self._rotate_key() is None:
                         self._wait_shortest_cooldown(retry_after)

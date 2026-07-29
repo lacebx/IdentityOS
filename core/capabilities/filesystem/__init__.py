@@ -5,6 +5,7 @@ from typing import Any, Optional
 
 from core.capabilities.base import Capability, Skill
 from core.capabilities.registry import register
+from core.capabilities.result import CapabilityResult
 
 
 @register
@@ -43,16 +44,22 @@ class FileSystemCapability(Capability):
     def skills(self) -> list[Skill]:
         return list(self._SKILLS)
 
-    def call(self, skill_name: str, **params: Any) -> Any:
-        dispatch = {
-            "filesystem.list_dir": self._list_dir,
-            "filesystem.read_file": self._read_file,
-            "filesystem.file_info": self._file_info,
-        }
-        handler = dispatch.get(skill_name)
-        if handler is None:
-            raise ValueError(f"Unknown skill: {skill_name}")
-        return handler(**params)
+    def call(self, skill_name: str, **params: Any) -> CapabilityResult:
+        import time as _time
+        _t0 = _time.monotonic()
+        try:
+            dispatch = {
+                "filesystem.list_dir": self._list_dir,
+                "filesystem.read_file": self._read_file,
+                "filesystem.file_info": self._file_info,
+            }
+            handler = dispatch.get(skill_name)
+            if handler is None:
+                return CapabilityResult.fail("filesystem", skill_name, "unknown_skill", f"Unknown skill: {skill_name}")
+            data = handler(**params)
+            return CapabilityResult.ok("filesystem", skill_name, data, source="local filesystem", duration_ms=(_time.monotonic() - _t0) * 1000)
+        except Exception as e:
+            return CapabilityResult.fail("filesystem", skill_name, type(e).__name__, str(e), duration_ms=(_time.monotonic() - _t0) * 1000)
 
     def _list_dir(self, path: str = ".", **kwargs: Any) -> dict[str, Any]:
         if not os.path.isdir(path):

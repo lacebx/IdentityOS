@@ -186,8 +186,8 @@ context = rt2.context_composer.compose(
     fact_store=rt2._fact_stores.get("canonical-test"),
 )
 rendered = context.render()
-assert "Runtime Directives" in rendered, "Context should include Runtime Directives"
-assert "NEVER claim" in rendered, "Directives should include disclaimer prohibition"
+assert "RULES OF ENGAGEMENT" in rendered, "Context should include Runtime Directives"
+assert "NEVER say" in rendered, "Directives should include disclaimer prohibition"
 log("Runtime directives present")
 for line in rendered.split("\n"):
     if "NEVER" in line:

@@ -1251,9 +1251,22 @@ class IdentityRuntime:
         # Route user intent through installed capabilities (the Planner layer)
         _router = __import__("core.planner", fromlist=["SkillRouter"]).SkillRouter
         _skill_router = _router(self.capability_registry, identity.id)
-        _skill_results = _skill_router.route(sanitized_input)
-        if _skill_results:
-            context.custom_blocks["factual_skill_data"] = _skill_router.format_for_context(_skill_results)
+        _evidence = _skill_router.route(sanitized_input)
+        _report = _evidence.report()
+        if _report.facts or _report.failures:
+            context.custom_blocks["factual_skill_data"] = _skill_router.format_for_context(_evidence)
+            context.custom_blocks["evidence_report"] = _evidence.trust_block(_report)
+        # Persist trust metrics for dashboard
+        _history = _evidence.call_history
+        if _history:
+            try:
+                _trust_raw = self._storage.load(identity.id, "capability.trust") or {}
+                _existing = _trust_raw.get("calls", [])
+                _existing.extend(_history)
+                _trust_raw["calls"] = _existing[-100:]
+                self._storage.save(identity.id, "capability.trust", _trust_raw)
+            except Exception:
+                pass  # Trust persistence is non-critical
 
         # Stage 4: Adapter call
         if self.adapter:

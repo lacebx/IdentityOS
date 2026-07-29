@@ -6,6 +6,7 @@ import httpx
 
 from core.capabilities.base import Capability, Skill
 from core.capabilities.registry import register
+from core.capabilities.result import CapabilityResult
 
 WTTR_URL = "https://wttr.in"
 
@@ -48,15 +49,21 @@ class WeatherCapability(Capability):
     def skills(self) -> list[Skill]:
         return list(self._SKILLS)
 
-    def call(self, skill_name: str, **params: Any) -> Any:
-        dispatch = {
-            "weather.current": self._current,
-            "weather.forecast": self._forecast,
-        }
-        handler = dispatch.get(skill_name)
-        if handler is None:
-            raise ValueError(f"Unknown skill: {skill_name}")
-        return handler(**params)
+    def call(self, skill_name: str, **params: Any) -> CapabilityResult:
+        import time as _time
+        _t0 = _time.monotonic()
+        try:
+            dispatch = {
+                "weather.current": self._current,
+                "weather.forecast": self._forecast,
+            }
+            handler = dispatch.get(skill_name)
+            if handler is None:
+                return CapabilityResult.fail("weather", skill_name, "unknown_skill", f"Unknown skill: {skill_name}")
+            data = handler(**params)
+            return CapabilityResult.ok("weather", skill_name, data, source="wttr.in", duration_ms=(_time.monotonic() - _t0) * 1000)
+        except Exception as e:
+            return CapabilityResult.fail("weather", skill_name, type(e).__name__, str(e), source="wttr.in", duration_ms=(_time.monotonic() - _t0) * 1000)
 
     def _current(self, location: str = "London", **kwargs: Any) -> dict[str, Any]:
         resp = self._client.get(f"{WTTR_URL}/{location}", params={"format": "j1"})
