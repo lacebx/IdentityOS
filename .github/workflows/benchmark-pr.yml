@@ -32,6 +32,10 @@ jobs:
       - name: Run integration tests
         run: python -m pytest tests/test_runtime_pipeline.py -v --tb=short 2>&1 | tee integration-results.txt
 
+      - name: Create test identity for benchmark
+        run: |
+          identity create --name "SmokeTestBot" --id smoke-test-identity --persona "benchmark test identity" 2>&1 | tee identity-creation.txt
+
       - name: Run IdentityBench smoke suite
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
