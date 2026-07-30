@@ -98,9 +98,12 @@ class SkillRouter:
             "calc": ["calculate", "evaluate", "what is", "compute", "plus", "minus", "times", "divided", "=", "how many", "% of", "percent"],
             "text": ["count words", "word count", "extract", "keywords", "analyze text", "summarize", "pattern", "stats"],
             "web": ["fetch", "web page", "http", "url", "website", "download page", "look up", "search for", "find", "wikipedia"],
-            "file": ["list files", "read file", "directory", "ls ", "file info", "list directory", "what files", "read the file", "show me"],
+            "file": ["list files", "read file", "directory", "ls ", "file info", "list directory", "what files", "read the file", "show me", "open file"],
+            "file_tools": ["write file", "create file", "save file", "write code", "create directory", "mkdir", "make directory", "append file", "edit file"],
             "github": ["github", "repository", "repo", "pull request", "issue", "commit", "stars", "open source", "beginner", "trending", "lacebx", "identityos", "repo info"],
             "system": ["operating system", "disk space", "disk usage", "how much disk", "os", "cpu", "what system", "what os", "system info", "platform"],
+            "registry_manager": ["publish", "install capability", "list capabilities", "registry", "publish skill", "install skill", "register skill", "add to registry"],
+            "skill_validator": ["validate", "syntax check", "check skill", "test skill", "verify syntax", "validate skill", "check code", "lint"],
         }
 
         # Additional pattern-based matching for GitHub repo references
@@ -247,5 +250,46 @@ class SkillRouter:
                 if key in text.lower():
                     return {"text": text, "pattern": val}
             return {"text": text, "pattern": "urls"}
+
+        # ── File Tools ───────────────────────────────────────────────────
+        if name == "file_tools.write_file":
+            path_match = re.search(r'(?:to|at|in)\s+([/\w.-]+(?:\.[\w]+)?)', text)
+            if path_match:
+                return {"path": path_match.group(1), "content": ""}
+            path_match = re.search(r'(?:file|path):\s*([/\w.-]+(?:\.[\w]+)?)', text, re.IGNORECASE)
+            if path_match:
+                return {"path": path_match.group(1), "content": ""}
+            return {}
+
+        if name == "file_tools.create_directory":
+            path_match = re.search(r'(?:at|in|to|path:)?\s*([/\w.-]+)', text)
+            if path_match:
+                return {"path": path_match.group(1)}
+            return {}
+
+        # ── Registry Manager ─────────────────────────────────────────────
+        if name == "registry_manager.list_capabilities":
+            return {}
+
+        if name in ("registry_manager.publish_capability", "registry_manager.install_capability"):
+            id_match = re.search(r'(?:capability|skill|publish|install)\s+([\w_-]+)', text, re.IGNORECASE)
+            if id_match:
+                cap_id = id_match.group(1)
+                cap_id = cap_id.replace("_", "_")  # already clean
+                return {"cap_id": cap_id}
+            return {}
+
+        # ── Skill Validator ──────────────────────────────────────────────
+        if name == "skill_validator.validate_syntax":
+            path_match = re.search(r'(?:file|path|validate):?\s*([/\w.-]+(?:\.[\w]+)?)', text, re.IGNORECASE)
+            if path_match:
+                return {"path": path_match.group(1)}
+            return {}
+
+        if name == "skill_validator.check_capability_interface":
+            path_match = re.search(r'(?:file|path|check):?\s*([/\w.-]+(?:\.[\w]+)?)', text, re.IGNORECASE)
+            if path_match:
+                return {"path": path_match.group(1)}
+            return {}
 
         return {}

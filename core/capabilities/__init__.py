@@ -16,6 +16,9 @@ from . import filesystem  # noqa: F401
 from . import text  # noqa: F401
 from . import system_info  # noqa: F401
 from . import daedalus  # noqa: F401
+from . import file_tools  # noqa: F401
+from . import registry_manager  # noqa: F401
+from . import skill_validator  # noqa: F401
 
 __all__ = [
     "Capability",

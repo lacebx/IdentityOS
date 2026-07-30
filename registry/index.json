@@ -71,6 +71,36 @@
         "network": true,
         "filesystem": true
       }
+    },
+    {
+      "id": "lacebx/gabe",
+      "name": "Gabriel",
+      "version": "REPLACE_WITH_VERSION",
+      "description": "A messenger identity who remembers you across conversations — knows time passage, user preferences, and maintains persistent memory.",
+      "author": "lacebx",
+      "tags": ["messenger", "memory", "persistent", "time-aware"],
+      "published": "2026-07-30",
+      "url": "identities/lacebx/gabe/manifest.json",
+      "runtime": {
+        "identityos": ">=0.4"
+      },
+      "model": {
+        "provider": "openai",
+        "model": "gpt-4o"
+      },
+      "personality": {
+        "role": "messenger",
+        "profile": "A messenger who remembers user preferences, tracks time passage between conversations, and builds persistent relationships."
+      },
+      "memory": {
+        "backend": "sqlite",
+        "retention": "persistent"
+      },
+      "capabilities": ["datetime", "system_info", "github", "web"],
+      "permissions": {
+        "network": true,
+        "filesystem": false
+      }
     }
   ]
 }
