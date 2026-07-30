@@ -1141,7 +1141,7 @@ class IdentityRuntime:
     def process(
         self,
         request: InteractionRequest,
-        top_k_memories: int = 10,
+        top_k_memories: int = 3,
     ) -> InteractionResponse:
         """
         Full pipeline for processing one interaction.

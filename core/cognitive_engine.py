@@ -317,6 +317,50 @@ class ContextComposer:
         if evidence_results:
             ctx.evidence_footer_block = self._render_evidence_footer(evidence_results)
 
+        # Enforce max_tokens budget — trim largest blocks first when over budget
+        if self.max_tokens > 0:
+            blocks = [
+                ("runtime_directives_block", ctx.runtime_directives_block),
+                ("identity_block", ctx.identity_block),
+                ("identity_evolution_block", ctx.identity_evolution_block),
+                ("user_knowledge_block", ctx.user_knowledge_block),
+                ("emotion_block", ctx.emotion_block),
+                ("session_mode_block", ctx.session_mode_block),
+                ("memory_block", ctx.memory_block),
+                ("skills_block", ctx.skills_block),
+                ("goals_block", ctx.goals_block),
+                ("intentions_block", ctx.intentions_block),
+                ("relationships_block", ctx.relationships_block),
+                ("motivations_block", ctx.motivations_block),
+                ("timeline_block", ctx.timeline_block),
+                ("synthesis_block", ctx.synthesis_block),
+                ("evidence_footer_block", ctx.evidence_footer_block),
+            ]
+            for _name, _block in list(ctx.custom_blocks.items()):
+                blocks.append((f"custom:{_name}", _block))
+            total_chars = sum(len(b) for _, b in blocks)
+            budget_chars = self.max_tokens * 4
+            if total_chars > budget_chars:
+                overage = total_chars - budget_chars
+                blocks.sort(key=lambda x: -len(x[1]))
+                for name, block in blocks:
+                    if overage <= 0:
+                        break
+                    if not block:
+                        continue
+                    # Truncate or remove blocks in order of size
+                    if isinstance(name, str) and name.startswith("custom:"):
+                        continue  # preserve custom blocks
+                    b_len = len(block)
+                    if b_len <= overage:
+                        setattr(ctx, name, "")
+                        overage -= b_len
+                    else:
+                        # Truncate to remaining budget
+                        keep = b_len - overage
+                        setattr(ctx, name, block[:keep] + "\n[... truncated ...]")
+                        overage = 0
+
         return ctx
 
     def _render_evidence_footer(self, evidence_results: list[dict]) -> str:
