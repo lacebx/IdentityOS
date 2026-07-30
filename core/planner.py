@@ -21,11 +21,68 @@ class SkillRouter:
 
     The LLM receives *factual data* with provenance and confidence,
     not *descriptions of available skills*.
+
+    Multi-step compound requests are routed exclusively to the
+    ``task_planner`` capability, which internally delegates to the
+    individual sub-capabilities and returns a single consolidated result.
     """
+
+    # Capabilities that the task_planner manages internally
+    _PLANNER_MANAGED: frozenset[str] = frozenset({
+        "file_tools", "skill_validator", "registry_manager",
+    })
+
+    _ACTION_VERBS: frozenset[str] = frozenset({
+        "create", "build", "make", "write", "generate", "publish",
+        "install", "validate", "check", "test", "deploy", "setup",
+        "configure", "update", "remove", "delete", "add", "compile",
+        "release", "package", "prepare", "scaffold", "init",
+    })
 
     def __init__(self, capability_registry: Any, identity_id: str) -> None:
         self._registry = capability_registry
         self._identity_id = identity_id
+
+    # ------------------------------------------------------------------
+    # Compound-request detection (intent-based, not keyword-based)
+    # ------------------------------------------------------------------
+
+    @classmethod
+    def _is_compound_request(cls, user_input: str) -> bool:
+        """Detect whether the input describes a multi-step task.
+
+        Heuristics:
+        - Comma-separated action clauses (``create X, validate, publish``)
+        - 3+ distinct action verbs
+        - Sequential markers (``first X then Y``, ``create Z and publish``)
+        """
+        text = user_input.lower()
+
+        # Pattern 1: comma-separated actions (e.g. "create X, validate it, publish")
+        clauses = [c.strip() for c in text.replace(" and ", ", ").replace(" then ", ", ").split(",") if c.strip()]
+        action_clauses = sum(1 for c in clauses if cls._has_action_verb(c))
+        if action_clauses >= 3:
+            return True
+
+        # Pattern 2: 3+ distinct action verbs anywhere in input
+        found = {v for v in cls._ACTION_VERBS if v in text}
+        if len(found) >= 3:
+            return True
+
+        # Pattern 3: sequential marker + at least one action
+        sequential = re.search(r'(first|then|finally|next|after that|step|phase|stage)', text)
+        if sequential and found:
+            return True
+
+        return False
+
+    @classmethod
+    def _has_action_verb(cls, text: str) -> bool:
+        return any(v in text for v in cls._ACTION_VERBS)
+
+    # ------------------------------------------------------------------
+    # Routing
+    # ------------------------------------------------------------------
 
     def route(self, user_input: str) -> EvidenceManager:
         """Parse user input, find matching skills, execute them.
@@ -36,8 +93,12 @@ class SkillRouter:
         evidence = EvidenceManager(self._identity_id)
         seen: set[str] = set()
         caps = self._registry.list(self._identity_id)
+        text = user_input.strip().lower()
 
-        # First pass: check if ANY skill matches with contextual confidence
+        # ── Step 1: detect compound multi-step requests ─────────────
+        is_multi_step = self._is_compound_request(text)
+
+        # ── First pass: check contextual confidence ─────────────────
         contextual = False
         for cap in caps:
             for skill in cap.skills():
@@ -46,7 +107,16 @@ class SkillRouter:
                     contextual = True
                     break
 
+        # ── Step 2: fire matching skills ────────────────────────────
         for cap in caps:
+            cap_id = getattr(cap, "id", "unknown")
+
+            # If this is a multi-step request, skip capabilities that
+            # the task_planner manages internally — the planner will
+            # call them directly via lookup().
+            if is_multi_step and cap_id in self._PLANNER_MANAGED:
+                continue
+
             for skill in cap.skills():
                 if contextual:
                     matches = True
@@ -61,10 +131,27 @@ class SkillRouter:
                         result = cap.call(skill.name, **params)
                     except Exception as e:
                         result = CapabilityResult.fail(
-                            getattr(cap, 'id', 'unknown'),
+                            cap_id,
                             skill.name, type(e).__name__, str(e),
                         )
                     evidence.collect(result)
+
+        # ── Step 3: if multi-step, also fire the task_planner ───────
+        if is_multi_step:
+            planner_skill = "task_planner.plan_and_execute"
+            if planner_skill not in seen:
+                seen.add(planner_skill)
+                for cap in caps:
+                    if getattr(cap, "id", "") == "task_planner":
+                        try:
+                            result = cap.call(planner_skill, goal=user_input)
+                        except Exception as e:
+                            result = CapabilityResult.fail(
+                                "task_planner",
+                                planner_skill, type(e).__name__, str(e),
+                            )
+                        evidence.collect(result)
+                        break
 
         return evidence
 
@@ -291,5 +378,9 @@ class SkillRouter:
             if path_match:
                 return {"path": path_match.group(1)}
             return {}
+
+        # ── Task Planner ────────────────────────────────────────────────
+        if name == "task_planner.plan_and_execute":
+            return {"goal": text}
 
         return {}
