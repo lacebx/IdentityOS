@@ -409,22 +409,30 @@ class IdentitySpec:
         Legacy evolved fields (preferences, beliefs, mutation_history, etc.)
         are silently absorbed — they are no longer stored on IdentitySpec.
         """
-        core_values = [
-            CoreValue(
-                name=cv["name"],
-                description=cv.get("description", ""),
-                strength=cv.get("strength", 1.0),
-            )
-            for cv in data.get("core_values", [])
-        ]
-        traits = [
-            Trait(
-                name=t["name"],
-                score=t.get("score", 0.5),
-                description=t.get("description", ""),
-            )
-            for t in data.get("traits", [])
-        ]
+        core_values_raw = data.get("core_values", [])
+        if core_values_raw and isinstance(core_values_raw[0], str):
+            core_values = [CoreValue(name=cv) for cv in core_values_raw]
+        else:
+            core_values = [
+                CoreValue(
+                    name=cv["name"],
+                    description=cv.get("description", ""),
+                    strength=cv.get("strength", 1.0),
+                )
+                for cv in core_values_raw
+            ]
+        traits_raw = data.get("traits", [])
+        if traits_raw and isinstance(traits_raw[0], str):
+            traits = [Trait(name=t) for t in traits_raw]
+        else:
+            traits = [
+                Trait(
+                    name=t["name"],
+                    score=t.get("score", 0.5),
+                    description=t.get("description", ""),
+                )
+                for t in traits_raw
+            ]
         return cls(
             id=data["id"],
             name=data["name"],
