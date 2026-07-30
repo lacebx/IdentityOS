@@ -410,6 +410,21 @@ def _interactive_adapter_select():
             _probe_adapter("Ollama (local)", OllamaAdapter, os.environ.get("IDENTITY_MODEL", "llama3.2"))
         )
 
+    # Zen (OpenCode) -- last resort for very large contexts when other providers fail
+    if os.environ.get("ZEN_API_KEY"):
+        from adapters.openai_adapter import OpenAIAdapter
+        zen_key = os.environ["ZEN_API_KEY"]
+        zen_model = os.environ.get("IDENTITY_MODEL", "deepseek-v4-flash")
+        try:
+            inst = OpenAIAdapter(model=zen_model, api_key=zen_key, base_url="https://opencode.ai/zen/v1")
+            ok = inst.health_check()
+            if ok:
+                candidates.append(("Zen (OpenCode) - fallback", inst, None))
+            else:
+                candidates.append(("Zen (OpenCode) - fallback", None, "Zen: reachable but health check failed"))
+        except Exception as e:
+            candidates.append(("Zen (OpenCode) - fallback", None, f"Zen: {e}"))
+
     # Separate working from failed
     working = [(n, a) for n, a, e in candidates if a is not None]
     failed = [(n, e) for n, a, e in candidates if a is None and e]
