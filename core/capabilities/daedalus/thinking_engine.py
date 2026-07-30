@@ -164,7 +164,7 @@ class ThinkingEngine:
             msg = str(exc)
             # If rate limited, try another key/provider
             if "rate limit" in msg.lower() or "429" in msg:
-                logger.warning("Rate limited on %s, trying fallback...", provider)
+                logger.warning("Rate limited on current provider, trying fallback...")
                 fallback = self._try_fallback(provider, system_prompt, user_prompt, resolved_model, max_tokens, temperature)
                 if fallback:
                     fallback.duration_ms += duration
