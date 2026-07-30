@@ -117,20 +117,24 @@ class SkillValidatorCapability(Capability):
                     else:
                         issues.append(f"  MISSING {required}()")
                 has_id = any(
-                    isinstance(n, ast.Assign) and any(t.id == "id" for t in n.targets if isinstance(t, ast.Name))
+                    isinstance(n, ast.Assign) and any(isinstance(t, ast.Name) and t.id == "id" for t in n.targets)
                     for n in cls.body
                 )
                 if has_id:
                     checks.append("  has id attribute")
                 else:
                     issues.append("  MISSING id attribute")
-                has_skills = any(
-                    n.name == "_SKILLS" for n in cls.body if isinstance(n, ast.Assign)
+                has_skills_list = any(
+                    any(isinstance(t, ast.Name) and t.id == "_SKILLS" for t in n.targets)
+                    for n in cls.body if isinstance(n, ast.Assign)
                 )
-                if has_skills:
+                has_skills_method = "skills" in methods
+                if has_skills_list:
                     checks.append("  has _SKILLS list")
+                elif has_skills_method:
+                    checks.append("  has skills() method")
                 else:
-                    issues.append("  MISSING _SKILLS list")
+                    issues.append("  MISSING _SKILLS or skills()")
         return {
             "valid": len(issues) == 0,
             "checks": checks,

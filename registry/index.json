@@ -1,8 +1,8 @@
 {
   "registry": "https://raw.githubusercontent.com/lacebx/IdentityOS/main/registry",
-  "description": "IdentityOS Public Registry — discover and install AI identity manifests",
+  "description": "IdentityOS Public Registry \u2014 discover and install AI identity manifests",
   "isp": {
-    "description": "Identity Skill Pack Registry — install curated capability bundles",
+    "description": "Identity Skill Pack Registry \u2014 install curated capability bundles",
     "url": "isp/index.json"
   },
   "identities": [
@@ -12,7 +12,12 @@
       "version": "1.0.0",
       "description": "A persistent personal assistant who remembers, connects, and reasons across everything you do.",
       "author": "lacebx",
-      "tags": ["assistant", "personal", "cross-app", "reasoning"],
+      "tags": [
+        "assistant",
+        "personal",
+        "cross-app",
+        "reasoning"
+      ],
       "published": "2026-07-25",
       "url": "identities/lacebx/arsene/manifest.json",
       "runtime": {
@@ -42,7 +47,13 @@
       "version": "1.0.0",
       "description": "Engineering partner for IdentityOS. Analyzes architecture, reviews PRs, designs capabilities, detects weaknesses, and evolves the platform through evidence-driven decisions.",
       "author": "lacebx",
-      "tags": ["engineering", "architecture", "code-review", "evolution", "identityos"],
+      "tags": [
+        "engineering",
+        "architecture",
+        "code-review",
+        "evolution",
+        "identityos"
+      ],
       "published": "2026-07-29",
       "url": "identities/lacebx/daedalus/manifest.json",
       "runtime": {
@@ -76,9 +87,14 @@
       "id": "lacebx/gabe",
       "name": "Gabriel",
       "version": "REPLACE_WITH_VERSION",
-      "description": "A messenger identity who remembers you across conversations — knows time passage, user preferences, and maintains persistent memory.",
+      "description": "A messenger identity who remembers you across conversations \u2014 knows time passage, user preferences, and maintains persistent memory.",
       "author": "lacebx",
-      "tags": ["messenger", "memory", "persistent", "time-aware"],
+      "tags": [
+        "messenger",
+        "memory",
+        "persistent",
+        "time-aware"
+      ],
       "published": "2026-07-30",
       "url": "identities/lacebx/gabe/manifest.json",
       "runtime": {
@@ -96,11 +112,26 @@
         "backend": "sqlite",
         "retention": "persistent"
       },
-      "capabilities": ["datetime", "system_info", "github", "web"],
+      "capabilities": [
+        "datetime",
+        "system_info",
+        "github",
+        "web"
+      ],
       "permissions": {
         "network": true,
         "filesystem": false
       }
+    }
+  ],
+  "capabilities": [
+    {
+      "id": "test_evolve",
+      "name": "Test Evolve",
+      "version": "1.0.0",
+      "description": "test",
+      "skills": [],
+      "published": "auto"
     }
   ]
 }
