@@ -1,0 +1,57 @@
+{
+  "id": "architecture_analysis",
+  "name": "Architecture Analysis",
+  "version": "1.0.0",
+  "author": "Daedalus",
+  "license": "MIT",
+  "homepage": "https://github.com/lacebx/IdentityOS",
+  "description": "Analyzes codebase architecture, detects coupling patterns, identifies architectural weaknesses, maps module dependencies, evaluates layer separation, and produces architecture health reports with evidence and recommendations.",
+  "provider": "core.capabilities.daedalus.ArchitectureAnalysisCapability",
+  "config_schema": {
+    "type": "object",
+    "properties": {
+      "analysis_depth": {
+        "type": "string",
+        "enum": ["quick", "deep", "full"],
+        "default": "deep",
+        "description": "Depth of architectural analysis"
+      },
+      "include_dependencies": {
+        "type": "boolean",
+        "default": true,
+        "description": "Generate dependency graph"
+      }
+    }
+  },
+  "permissions": {
+    "network": false,
+    "filesystem": true
+  },
+  "skills": [
+    {
+      "name": "architecture_analysis.analyze_module",
+      "description": "Analyze a specific module or package for architectural health",
+      "permission": "public"
+    },
+    {
+      "name": "architecture_analysis.detect_coupling",
+      "description": "Detect tight coupling between layers or modules",
+      "permission": "public"
+    },
+    {
+      "name": "architecture_analysis.evaluate_separation",
+      "description": "Evaluate whether layers are properly separated with clean interfaces",
+      "permission": "public"
+    },
+    {
+      "name": "architecture_analysis.identify_weaknesses",
+      "description": "Identify architectural weaknesses with evidence and recommended improvements",
+      "permission": "public"
+    },
+    {
+      "name": "architecture_analysis.produce_report",
+      "description": "Produce comprehensive architecture health report",
+      "permission": "public"
+    }
+  ]
+}

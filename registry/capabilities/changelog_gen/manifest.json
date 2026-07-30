@@ -1,0 +1,57 @@
+{
+  "id": "changelog_gen",
+  "name": "Changelog Generator",
+  "version": "1.0.0",
+  "author": "Daedalus",
+  "license": "MIT",
+  "homepage": "https://github.com/lacebx/IdentityOS",
+  "description": "Generates structured changelogs from git history, commit messages, and pull request descriptions. Categorizes changes, detects breaking changes, links to related issues, and produces release notes suitable for human and automated consumption.",
+  "provider": "core.capabilities.daedalus.ChangelogGenCapability",
+  "config_schema": {
+    "type": "object",
+    "properties": {
+      "style": {
+        "type": "string",
+        "enum": ["keepachangelog", "semantic", "concise"],
+        "default": "keepachangelog",
+        "description": "Changelog format style"
+      },
+      "include_unreleased": {
+        "type": "boolean",
+        "default": true,
+        "description": "Include unreleased changes section"
+      },
+      "group_by_type": {
+        "type": "boolean",
+        "default": true,
+        "description": "Group by change type (feat, fix, breaking, etc.)"
+      }
+    }
+  },
+  "permissions": {
+    "network": false,
+    "filesystem": true
+  },
+  "skills": [
+    {
+      "name": "changelog_gen.generate",
+      "description": "Generate changelog from git history between two refs",
+      "permission": "public"
+    },
+    {
+      "name": "changelog_gen.detect_breaking",
+      "description": "Detect breaking changes from commit history",
+      "permission": "public"
+    },
+    {
+      "name": "changelog_gen.categorize",
+      "description": "Categorize changes by type (feat, fix, refactor, etc.)",
+      "permission": "public"
+    },
+    {
+      "name": "changelog_gen.format_release",
+      "description": "Format changelog for a specific release version",
+      "permission": "public"
+    }
+  ]
+}

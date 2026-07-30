@@ -1,0 +1,66 @@
+name: Daedalus Engineering Journal
+
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+jobs:
+  journal:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Load benchmark data from cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            .identity_store/
+            .identitybench/
+          key: benchmark-daedalus-daily-${{ github.run_id }}
+          restore-keys: |
+            benchmark-daedalus-
+
+      - name: Run tests for health check
+        continue-on-error: true
+        run: |
+          python -m pytest tests/ --ignore=tests/legacy -q --tb=short 2>&1 | tee /tmp/daily-test-results.txt || true
+
+      - name: Run recent IdentityBench smoke suite (if API keys available)
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        continue-on-error: true
+        run: |
+          identity create --name "DaedalusDaily" --id daedalus-daily --persona "engineering" 2>&1 || true
+          identitybench run daedalus-daily --mode smoke --seed 42 2>&1 | tee /tmp/daily-benchmark.txt || true
+
+      - name: Update Engineering Journal
+        env:
+          DAEDALUS_GITHUB_TOKEN: ${{ secrets.DAEDALUS_GITHUB_TOKEN }}
+          DAEDALUS_GITHUB_USERNAME: daedalus-Idos
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          GROQ_API_KEY_2: ${{ secrets.GROQ_API_KEY_2 }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          CEREBRAS_API_KEY: ${{ secrets.CEREBRAS_API_KEY }}
+          CEREBRAS_API_KEY_2: ${{ secrets.CEREBRAS_API_KEY_2 }}
+          SAMBANOVA_API_KEY: ${{ secrets.SAMBANOVA_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ZEN_API_KEY: ${{ secrets.ZEN_API_KEY }}
+        run: |
+          python scripts/daedalus_actions.py report 2>&1 | tee /tmp/daedalus-journal.txt

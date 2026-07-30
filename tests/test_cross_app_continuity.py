@@ -51,6 +51,8 @@ def runtime_server():
     store_dir = tempfile.mkdtemp(prefix="identity_test_store_")
     env = os.environ.copy()
     env["IDENTITY_STORE_PATH"] = store_dir
+    if os.environ.get("GROQ_API_KEY"):
+        env["IDENTITY_ADAPTER"] = "groq"
     elif os.environ.get("SAMBANOVA_API_KEY"):
         env["IDENTITY_ADAPTER"] = "sambanova"
     elif os.environ.get("OPENROUTER_API_KEY"):

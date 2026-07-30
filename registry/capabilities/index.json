@@ -81,6 +81,56 @@
       "skills": 3,
       "permissions": ["local"],
       "url": "system_info/manifest.json"
+    },
+    {
+      "id": "architecture_analysis",
+      "name": "Architecture Analysis",
+      "version": "1.0.0",
+      "description": "Analyze codebase architecture, detect coupling, evaluate layer separation, identify weaknesses",
+      "author": "Daedalus",
+      "skills": 5,
+      "permissions": ["public"],
+      "url": "architecture_analysis/manifest.json"
+    },
+    {
+      "id": "code_review",
+      "name": "Code Review",
+      "version": "1.0.0",
+      "description": "Review PRs with architectural perspective, detect regressions, verify separation, assess readiness",
+      "author": "Daedalus",
+      "skills": 5,
+      "permissions": ["public"],
+      "url": "code_review/manifest.json"
+    },
+    {
+      "id": "changelog_gen",
+      "name": "Changelog Generator",
+      "version": "1.0.0",
+      "description": "Generate structured changelogs from git history, detect breaking changes, format releases",
+      "author": "Daedalus",
+      "skills": 4,
+      "permissions": ["public"],
+      "url": "changelog_gen/manifest.json"
+    },
+    {
+      "id": "repo_health",
+      "name": "Repository Health",
+      "version": "1.0.0",
+      "description": "Assess code quality, test health, documentation freshness, benchmark trends, produce reports",
+      "author": "Daedalus",
+      "skills": 5,
+      "permissions": ["public"],
+      "url": "repo_health/manifest.json"
+    },
+    {
+      "id": "dependency_graph",
+      "name": "Dependency Graph",
+      "version": "1.0.0",
+      "description": "Analyze module dependencies, detect circular deps, map capability network, visualize graphs",
+      "author": "Daedalus",
+      "skills": 4,
+      "permissions": ["public"],
+      "url": "dependency_graph/manifest.json"
     }
   ]
 }

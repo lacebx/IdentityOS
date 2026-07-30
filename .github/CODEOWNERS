@@ -1,0 +1,13 @@
+# Default owners for the entire repository
+* @lacebx
+
+# Daedalus auto-reviews all PRs affecting these layers
+identitybench/atlas/ @lacebx
+identitybench/ @lacebx
+core/prometheus/ @lacebx
+core/capabilities/ @lacebx
+runtime/ @lacebx
+registry/ @lacebx
+scripts/ @lacebx
+.github/workflows/ @lacebx
+docs/architecture/ @lacebx

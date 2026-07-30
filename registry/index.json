@@ -35,6 +35,42 @@
         "network": false,
         "filesystem": false
       }
+    },
+    {
+      "id": "lacebx/daedalus",
+      "name": "Daedalus",
+      "version": "1.0.0",
+      "description": "Engineering partner for IdentityOS. Analyzes architecture, reviews PRs, designs capabilities, detects weaknesses, and evolves the platform through evidence-driven decisions.",
+      "author": "lacebx",
+      "tags": ["engineering", "architecture", "code-review", "evolution", "identityos"],
+      "published": "2026-07-29",
+      "url": "identities/lacebx/daedalus/manifest.json",
+      "runtime": {
+        "identityos": ">=0.4"
+      },
+      "model": {
+        "provider": "openai",
+        "model": "gpt-4o"
+      },
+      "personality": {
+        "role": "engineering partner",
+        "profile": "Architect-minded engineering partner who understands IdentityOS deeply, detects weaknesses, designs capabilities, and reviews every change with evidence."
+      },
+      "memory": {
+        "backend": "sqlite",
+        "retention": "persistent"
+      },
+      "capabilities": [
+        "architecture_analysis",
+        "code_review",
+        "changelog_gen",
+        "repo_health",
+        "dependency_graph"
+      ],
+      "permissions": {
+        "network": true,
+        "filesystem": true
+      }
     }
   ]
 }
