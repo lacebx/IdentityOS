@@ -100,7 +100,7 @@ jobs:
       - name: Daedalus posts review on PR
         uses: actions/github-script@v7
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ secrets.DAEDALUS_GITHUB_TOKEN }}
           script: |
             const fs = require('fs');
             let body = '';
@@ -109,7 +109,6 @@ jobs:
             } catch(e) {
               body = '## Daedalus Review\n_Daedalus was unable to complete the review._\n';
             }
-            body = body + '\n\n---\n\n*Posted by Daedalus — Engineering Partner for IdentityOS*';
             await github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
@@ -120,7 +119,7 @@ jobs:
       - name: Daedalus applies labels and self-assigns
         uses: actions/github-script@v7
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ secrets.DAEDALUS_GITHUB_TOKEN }}
           script: |
             const reviewStatus = '${{ steps.daedalus.outputs.status }}';
             const labels = ['daedalus-reviewed'];
