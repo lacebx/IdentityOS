@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 PROVIDER_CONFIGS: Dict[str, Dict[str, Any]] = {
     "groq": {
-        "env_keys": ["GROQ_API_KEY", "GROQ_API_KEY_2"],
+        "env_keys": ["GROQ_API_KEY", "GROQ_API_KEY_2", "GROQ_API_KEY_3", "GROQ_API_KEY_4"],
         "base_url": "https://api.groq.com/openai/v1",
         "default_model": "llama-3.3-70b-versatile",
     },

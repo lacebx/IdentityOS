@@ -75,6 +75,8 @@ jobs:
           DAEDALUS_GITHUB_TOKEN: ${{ secrets.DAEDALUS_GITHUB_TOKEN }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           GROQ_API_KEY_2: ${{ secrets.GROQ_API_KEY_2 }}
+          GROQ_API_KEY_3: ${{ secrets.GROQ_API_KEY_3 }}
+          GROQ_API_KEY_4: ${{ secrets.GROQ_API_KEY_4 }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           CEREBRAS_API_KEY: ${{ secrets.CEREBRAS_API_KEY }}
           CEREBRAS_API_KEY_2: ${{ secrets.CEREBRAS_API_KEY_2 }}
@@ -97,7 +99,7 @@ jobs:
       - name: Daedalus posts review on PR
         uses: actions/github-script@v7
         with:
-          github-token: ${{ secrets.DAEDALUS_GITHUB_TOKEN }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const fs = require('fs');
             let body = '';
@@ -106,6 +108,7 @@ jobs:
             } catch(e) {
               body = '## Daedalus Review\n_Daedalus was unable to complete the review._\n';
             }
+            body = body + '\n\n---\n\n*Posted by Daedalus — Engineering Partner for IdentityOS*';
             await github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
@@ -116,7 +119,7 @@ jobs:
       - name: Daedalus applies labels and self-assigns
         uses: actions/github-script@v7
         with:
-          github-token: ${{ secrets.DAEDALUS_GITHUB_TOKEN }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const reviewStatus = '${{ steps.daedalus.outputs.status }}';
             const labels = ['daedalus-reviewed'];
@@ -132,7 +135,7 @@ jobs:
                 labels: labels
               });
             } catch(e) {
-              console.log('Could not add labels (may already exist): ' + e.message);
+              console.log('Could not add labels: ' + e.message);
             }
 
             try {
@@ -145,3 +148,8 @@ jobs:
             } catch(e) {
               console.log('Could not self-assign: ' + e.message);
             }
+
+      - name: Daedalus configures git identity for future commits
+        run: |
+          git config user.name "daedalus-Idos"
+          git config user.email "goneroguendakese@gmail.com"
