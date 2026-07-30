@@ -61,5 +61,6 @@ jobs:
           CEREBRAS_API_KEY_2: ${{ secrets.CEREBRAS_API_KEY_2 }}
           SAMBANOVA_API_KEY: ${{ secrets.SAMBANOVA_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ZEN_API_KEY: ${{ secrets.ZEN_API_KEY }}
         run: |
           python scripts/daedalus_actions.py report 2>&1 | tee /tmp/daedalus-journal.txt

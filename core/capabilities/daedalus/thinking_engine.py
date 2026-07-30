@@ -55,7 +55,14 @@ PROVIDER_CONFIGS: Dict[str, Dict[str, Any]] = {
         "base_url": "https://openrouter.ai/api/v1",
         "default_model": "openai/gpt-4o",
     },
+    "zen": {
+        "env_keys": ["ZEN_API_KEY"],
+        "base_url": "https://api.deepseek.com/v1",
+        "default_model": "deepseek-chat",
+    },
 }
+
+_ZEN_PREFERRED = bool(os.environ.get("ZEN_API_KEY"))
 
 
 def _find_any_api_key() -> Tuple[Optional[str], Optional[str], Optional[str]]:
@@ -183,6 +190,11 @@ class ThinkingEngine:
             if key:
                 config = PROVIDER_CONFIGS.get(self.preferred_provider, {})
                 return self.preferred_provider, key, config.get("base_url")
+        if _ZEN_PREFERRED:
+            key = _find_key_for_provider("zen")
+            if key:
+                config = PROVIDER_CONFIGS.get("zen", {})
+                return "zen", key, config.get("base_url")
         return _find_any_api_key()
 
     def _try_fallback(
