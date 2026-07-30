@@ -142,9 +142,9 @@ class TestDiffQuality:
         assert any("10 additions" in r for r in result)
 
     def test_large_pr(self):
-        files = [{"path": "a.py", "additions": 1000, "deletions": 0}]
+        files = [{"path": "a.py", "additions": 6000, "deletions": 0}]
         result = analyze_diff_quality(files, "fix: bug")
-        assert any("Large PR" in r for r in result)
+        assert any("6000 additions" in r for r in result)
 
     def test_categorized_by_title(self):
         files = [{"path": "a.py", "additions": 10, "deletions": 0}]
@@ -154,7 +154,7 @@ class TestDiffQuality:
     def test_uncategorized_title(self):
         files = [{"path": "a.py", "additions": 10, "deletions": 0}]
         result = analyze_diff_quality(files, "random change")
-        assert any("Unable to auto-detect" in r for r in result)
+        assert any("Could not detect" in r for r in result)
 
 
 # ── Architectural Impact ─────────────────────────────────────────────

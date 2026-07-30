@@ -108,7 +108,7 @@ def find_or_create_journal_issue() -> Optional[int]:
         except json.JSONDecodeError:
             pass
     if not GITHUB_TOKEN:
-        print(f"No GITHUB_TOKEN — would create journal issue: {title}")
+        print(f"No GITHUB_TOKEN - would create journal issue: {title}")
         return None
     result = run_gh(["issue", "create", "--title", title, "--body", "_Engineering Journal initialized._", "--label", ENGINEERING_JOURNAL_LABEL])
     if result:
@@ -120,7 +120,7 @@ def find_or_create_journal_issue() -> Optional[int]:
 
 def update_journal_issue(issue_num: int, body: str) -> bool:
     if not GITHUB_TOKEN:
-        print(f"No GITHUB_TOKEN — would update issue #{issue_num}")
+        print(f"No GITHUB_TOKEN - would update issue #{issue_num}")
         return False
     result = run_gh(["issue", "edit", str(issue_num), "--body", body])
     return bool(result)
@@ -152,7 +152,7 @@ def generate_daily_entry() -> str:
         memory_context = "\n".join(memory_context_lines)
 
         bench_text = "\n".join(f"- {f['message']}" for f in benchmark_findings) if benchmark_findings else "No significant changes."
-        user_prompt = f"""## Engineering Journal — Week {week_num} ({report_date})
+        user_prompt = f"""## Engineering Journal - Week {week_num} ({report_date})
 
 ### Active Goals ({len(active)})
 {chr(10).join(f"- [{g['priority']}] {g['goal'][:80]}" for g in sorted(active, key=lambda x: -x.get('priority', 0)))}
@@ -191,7 +191,7 @@ Generate the weekly engineering report in the specified JSON format."""
                 llm_narrative = f"""
 ### Daedalus Assessment
 
-**Overall Health:** {parsed.get('overall_health', '?')}/100 — Trend: **{parsed.get('trend', 'stable')}**
+**Overall Health:** {parsed.get('overall_health', '?')}/100 -- Trend: **{parsed.get('trend', 'stable')}**
 
 {parsed.get('narrative', '')}
 
@@ -209,7 +209,7 @@ Generate the weekly engineering report in the specified JSON format."""
 
     lines = [
         f"## Daedalus Engineering Journal",
-        f"**Week {week_num}** — {report_date}",
+        f"**Week {week_num}** - {report_date}",
         f"Last updated: {today}",
         "",
     ]
@@ -246,7 +246,7 @@ Generate the weekly engineering report in the specified JSON format."""
         for g in completed:
             completed_at = g.get("completed_at", "?")
             evidence = g.get("evidence", [])
-            lines.append(f"- \u2705 **{g.get('goal', '')[:60]}** — {completed_at}")
+            lines.append(f"- **{g.get('goal', '')[:60]}** - {completed_at}")
             for e in evidence[:2]:
                 lines.append(f"  - {e}")
         lines.append("")
