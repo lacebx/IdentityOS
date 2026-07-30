@@ -1,0 +1,30 @@
+{
+  "id": "skill_validator",
+  "name": "Skill Validator",
+  "version": "1.0.0",
+  "author": "IdentityOS",
+  "license": "MIT",
+  "homepage": "https://github.com/lacebx/IdentityOS",
+  "description": "Validate capability Python syntax and interface compliance",
+  "provider": "core.capabilities.skill_validator.SkillValidatorCapability",
+  "config_schema": {
+    "type": "object",
+    "properties": {}
+  },
+  "permissions": {
+    "network": false,
+    "filesystem": false
+  },
+  "skills": [
+    {
+      "name": "skill_validator.validate_syntax",
+      "description": "Validate Python syntax of a capability file",
+      "permission": "public"
+    },
+    {
+      "name": "skill_validator.check_capability_interface",
+      "description": "Check that a capability follows the required interface",
+      "permission": "public"
+    }
+  ]
+}
