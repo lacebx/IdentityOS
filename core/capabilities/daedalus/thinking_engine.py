@@ -55,8 +55,8 @@ PROVIDER_CONFIGS: Dict[str, Dict[str, Any]] = {
     },
     "zen": {
         "env_keys": ["ZEN_API_KEY"],
-        "base_url": "https://api.deepseek.com/v1",
-        "default_model": "deepseek-chat",
+        "base_url": "https://opencode.ai/zen/v1",
+        "default_model": "deepseek-v4-flash",
     },
 }
 

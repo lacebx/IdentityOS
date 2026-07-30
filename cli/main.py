@@ -397,6 +397,20 @@ def _interactive_adapter_select():
             _probe_adapter("OpenAI", OpenAIAdapter, os.environ.get("IDENTITY_MODEL", "gpt-4o"))
         )
 
+    if os.environ.get("ZEN_API_KEY"):
+        from adapters.openai_adapter import OpenAIAdapter
+        zen_key = os.environ["ZEN_API_KEY"]
+        zen_model = os.environ.get("IDENTITY_MODEL", "deepseek-v4-flash")
+        try:
+            inst = OpenAIAdapter(model=zen_model, api_key=zen_key, base_url="https://opencode.ai/zen/v1")
+            ok = inst.health_check()
+            if ok:
+                candidates.append(("Zen (OpenCode)", inst, None))
+            else:
+                candidates.append(("Zen (OpenCode)", None, "Zen: reachable but health check failed"))
+        except Exception as e:
+            candidates.append(("Zen (OpenCode)", None, f"Zen: {e}"))
+
     if os.environ.get("ANTHROPIC_API_KEY"):
         from adapters.openai_adapter import AnthropicAdapter
         candidates.append(
