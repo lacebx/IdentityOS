@@ -50,6 +50,7 @@ class ComposedContext:
     motivations_block: str = ""
     timeline_block: str = ""
     synthesis_block: str = ""
+    time_awareness_block: str = ""
     custom_blocks: Dict[str, str] = field(default_factory=dict)
     evidence_footer_block: str = ""
 
@@ -87,6 +88,8 @@ class ComposedContext:
             sections.append(self.timeline_block)
         if self.synthesis_block:
             sections.append(self.synthesis_block)
+        if self.time_awareness_block:
+            sections.append(self.time_awareness_block)
         for block in self.custom_blocks.values():
             if block:
                 sections.append(block)
@@ -312,6 +315,13 @@ class ContextComposer:
                 timeline=t,
                 recent_memories=recent if recent else None,
             )
+
+        # Time-awareness block — identity age, time since first/last interaction
+        ctx.time_awareness_block = self._render_time_awareness(
+            identity=identity,
+            timeline_registry=timeline_registry,
+            user_profile=user_profile,
+        )
 
         # Build evidence footer from capability results
         if evidence_results:
@@ -583,6 +593,130 @@ class ContextComposer:
                 f"  -> {e.target_id} [{e.edge_type.value}] "
                 f"trust={e.trust_level.name} strength={e.strength:.2f}"
             )
+        return "\n".join(lines)
+
+    # ------------------------------------------------------------------
+    # Time Awareness — identity age and interaction history
+    # ------------------------------------------------------------------
+
+    def _render_time_awareness(
+        self,
+        identity: "IdentitySpec",
+        timeline_registry: Optional[Any] = None,
+        user_profile: Optional[Any] = None,
+    ) -> str:
+        from datetime import datetime, timezone, timedelta
+
+        def _ensure_aware(dt):
+            if dt is None:
+                return None
+            if isinstance(dt, str):
+                dt = datetime.fromisoformat(dt.replace("Z", "+00:00"))
+            if isinstance(dt, datetime) and dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            return dt
+
+        now = datetime.now(timezone.utc)
+        lines = ["## Time Awareness (How Old Am I & Time Passage)"]
+
+        created = _ensure_aware(identity.created_at)
+        if isinstance(created, datetime):
+            age = now - created
+            days = age.days
+            hours = age.seconds // 3600
+            minutes = (age.seconds % 3600) // 60
+            parts = []
+            if days > 0:
+                parts.append(f"{days} day{'s' if days != 1 else ''}")
+            if hours > 0:
+                parts.append(f"{hours} hour{'s' if hours != 1 else ''}")
+            if minutes > 0:
+                parts.append(f"{minutes} minute{'s' if minutes != 1 else ''}")
+            if not parts:
+                parts.append("less than a minute")
+            lines.append(f"  Identity created: {created.strftime('%Y-%m-%d %H:%M UTC')}")
+            lines.append(f"  My age: {', '.join(parts)}")
+
+        # First and last interaction from timeline
+        if timeline_registry:
+            timeline = timeline_registry.get(identity.id)
+            if timeline:
+                events = timeline.events()
+                if events:
+                    first_ts = None
+                    last_ts = None
+                    for e in events:
+                        try:
+                            if hasattr(e, 'occurred_at') and e.occurred_at:
+                                ts = _ensure_aware(e.occurred_at)
+                                if ts is None:
+                                    continue
+                                if first_ts is None or ts < first_ts:
+                                    first_ts = ts
+                                if last_ts is None or ts > last_ts:
+                                    last_ts = ts
+                        except Exception:
+                            continue
+                    if first_ts and last_ts:
+                        known_duration = last_ts - first_ts
+                        lines.append(f"  First interaction: {first_ts.strftime('%Y-%m-%d %H:%M UTC')}")
+                        lines.append(f"  Most recent interaction: {last_ts.strftime('%Y-%m-%d %H:%M UTC')}")
+                        days = known_duration.days
+                        hours = known_duration.seconds // 3600
+                        parts = []
+                        if days > 0:
+                            parts.append(f"{days} day{'s' if days != 1 else ''}")
+                        if hours > 0:
+                            parts.append(f"{hours} hour{'s' if hours != 1 else ''}")
+                        if parts:
+                            lines.append(f"  Time between first and latest: {', '.join(parts)}")
+                        since_last = now - last_ts
+                        mins = int(since_last.total_seconds() / 60)
+                        if mins < 1:
+                            lines.append("  Last interaction: just now")
+                        elif mins < 60:
+                            lines.append(f"  Last interaction: {mins} minute{'s' if mins != 1 else ''} ago")
+                        else:
+                            hrs = mins // 60
+                            mins_remain = mins % 60
+                            lines.append(f"  Last interaction: {hrs}h {mins_remain}m ago")
+
+        # User profile first_seen / last_confirmed
+        if user_profile and hasattr(user_profile, '_facts'):
+            facts = list(user_profile._facts.values())
+            if facts:
+                first_seen = None
+                last_seen = None
+                for f in facts:
+                    try:
+                        fs = _ensure_aware(getattr(f, 'first_seen', None))
+                        lc = _ensure_aware(getattr(f, 'last_confirmed', None))
+                        if fs:
+                            if first_seen is None or fs < first_seen:
+                                first_seen = fs
+                        if lc:
+                            if last_seen is None or lc > last_seen:
+                                last_seen = lc
+                    except Exception:
+                        continue
+                if first_seen:
+                    known_since = now - first_seen
+                    days = known_since.days
+                    lines.append(f"  Known user since: {first_seen.strftime('%Y-%m-%d %H:%M UTC')} ({days} day{'s' if days != 1 else ''})")
+                if last_seen:
+                    since_last = now - last_seen
+                    mins = int(since_last.total_seconds() / 60)
+                    if mins < 1:
+                        lines.append("  Last user interaction: just now")
+                    elif mins < 60:
+                        lines.append(f"  Last user interaction: {mins} minute{'s' if mins != 1 else ''} ago")
+                    else:
+                        hrs = mins // 60
+                        lines.append(f"  Last user interaction: {hrs}h {mins % 60}m ago")
+
+        if len(lines) == 1:
+            return ""
+        lines.append("")
         return "\n".join(lines)
 
     # ------------------------------------------------------------------
