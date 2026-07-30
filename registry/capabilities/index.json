@@ -1,6 +1,6 @@
 {
   "registry": "https://raw.githubusercontent.com/lacebx/IdentityOS/main/registry",
-  "description": "Capability Marketplace — installable skills for AI identities",
+  "description": "Capability Marketplace \u2014 installable skills for AI identities",
   "capabilities": [
     {
       "id": "github",
@@ -9,7 +9,9 @@
       "description": "Search repos, review PRs, find issues, list commits and branches",
       "author": "IdentityOS",
       "skills": 7,
-      "permissions": ["public"],
+      "permissions": [
+        "public"
+      ],
       "url": "github/manifest.json"
     },
     {
@@ -19,7 +21,9 @@
       "description": "Get current weather and multi-day forecasts for any location",
       "author": "IdentityOS",
       "skills": 2,
-      "permissions": ["public"],
+      "permissions": [
+        "public"
+      ],
       "url": "weather/manifest.json"
     },
     {
@@ -29,7 +33,9 @@
       "description": "Evaluate math expressions and convert between units",
       "author": "IdentityOS",
       "skills": 3,
-      "permissions": ["public"],
+      "permissions": [
+        "public"
+      ],
       "url": "calc/manifest.json"
     },
     {
@@ -39,7 +45,9 @@
       "description": "Timezone conversion, date math, current time",
       "author": "IdentityOS",
       "skills": 4,
-      "permissions": ["public"],
+      "permissions": [
+        "public"
+      ],
       "url": "datetime/manifest.json"
     },
     {
@@ -49,7 +57,9 @@
       "description": "Fetch web pages and extract text from URLs",
       "author": "IdentityOS",
       "skills": 2,
-      "permissions": ["public"],
+      "permissions": [
+        "public"
+      ],
       "url": "web/manifest.json"
     },
     {
@@ -59,7 +69,9 @@
       "description": "List directories, read files, inspect metadata",
       "author": "IdentityOS",
       "skills": 3,
-      "permissions": ["public"],
+      "permissions": [
+        "public"
+      ],
       "url": "filesystem/manifest.json"
     },
     {
@@ -69,7 +81,9 @@
       "description": "Count words, extract keywords, detect patterns, split text",
       "author": "IdentityOS",
       "skills": 4,
-      "permissions": ["public"],
+      "permissions": [
+        "public"
+      ],
       "url": "text/manifest.json"
     },
     {
@@ -79,7 +93,9 @@
       "description": "OS information, disk usage, CPU details, and system metadata",
       "author": "IdentityOS",
       "skills": 3,
-      "permissions": ["local"],
+      "permissions": [
+        "local"
+      ],
       "url": "system_info/manifest.json"
     },
     {
@@ -89,7 +105,9 @@
       "description": "Analyze codebase architecture, detect coupling, evaluate layer separation, identify weaknesses",
       "author": "Daedalus",
       "skills": 5,
-      "permissions": ["public"],
+      "permissions": [
+        "public"
+      ],
       "url": "architecture_analysis/manifest.json"
     },
     {
@@ -99,7 +117,9 @@
       "description": "Review PRs with architectural perspective, detect regressions, verify separation, assess readiness",
       "author": "Daedalus",
       "skills": 5,
-      "permissions": ["public"],
+      "permissions": [
+        "public"
+      ],
       "url": "code_review/manifest.json"
     },
     {
@@ -109,7 +129,9 @@
       "description": "Generate structured changelogs from git history, detect breaking changes, format releases",
       "author": "Daedalus",
       "skills": 4,
-      "permissions": ["public"],
+      "permissions": [
+        "public"
+      ],
       "url": "changelog_gen/manifest.json"
     },
     {
@@ -119,7 +141,9 @@
       "description": "Assess code quality, test health, documentation freshness, benchmark trends, produce reports",
       "author": "Daedalus",
       "skills": 5,
-      "permissions": ["public"],
+      "permissions": [
+        "public"
+      ],
       "url": "repo_health/manifest.json"
     },
     {
@@ -129,8 +153,58 @@
       "description": "Analyze module dependencies, detect circular deps, map capability network, visualize graphs",
       "author": "Daedalus",
       "skills": 4,
-      "permissions": ["public"],
+      "permissions": [
+        "public"
+      ],
       "url": "dependency_graph/manifest.json"
+    },
+    {
+      "id": "file_tools",
+      "name": "File Tools",
+      "version": "1.0.0",
+      "description": "Write, append, and create files and directories",
+      "author": "IdentityOS",
+      "skills": 3,
+      "permissions": [
+        "public"
+      ],
+      "url": "file_tools/manifest.json"
+    },
+    {
+      "id": "skill_validator",
+      "name": "Skill Validator",
+      "version": "1.0.0",
+      "description": "Validate capability Python syntax and interface compliance",
+      "author": "IdentityOS",
+      "skills": 2,
+      "permissions": [
+        "public"
+      ],
+      "url": "skill_validator/manifest.json"
+    },
+    {
+      "id": "registry_manager",
+      "name": "Registry Manager",
+      "version": "1.0.0",
+      "description": "List, publish, and install capabilities from the registry",
+      "author": "IdentityOS",
+      "skills": 3,
+      "permissions": [
+        "public"
+      ],
+      "url": "registry_manager/manifest.json"
+    },
+    {
+      "id": "task_planner",
+      "name": "Task Planner",
+      "version": "1.0.0",
+      "description": "Plan and execute multi-step tasks with progress tracking",
+      "author": "IdentityOS",
+      "skills": 1,
+      "permissions": [
+        "public"
+      ],
+      "url": "task_planner/manifest.json"
     }
   ]
 }

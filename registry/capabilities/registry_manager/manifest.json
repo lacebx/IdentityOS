@@ -1,0 +1,35 @@
+{
+  "id": "registry_manager",
+  "name": "Registry Manager",
+  "version": "1.0.0",
+  "author": "IdentityOS",
+  "license": "MIT",
+  "homepage": "https://github.com/lacebx/IdentityOS",
+  "description": "List, publish, and install capabilities from the registry",
+  "provider": "core.capabilities.registry_manager.RegistryManagerCapability",
+  "config_schema": {
+    "type": "object",
+    "properties": {}
+  },
+  "permissions": {
+    "network": false,
+    "filesystem": false
+  },
+  "skills": [
+    {
+      "name": "registry_manager.list_capabilities",
+      "description": "List all capabilities in the local registry",
+      "permission": "public"
+    },
+    {
+      "name": "registry_manager.publish_capability",
+      "description": "Publish a new capability to the registry",
+      "permission": "public"
+    },
+    {
+      "name": "registry_manager.install_capability",
+      "description": "Install a capability from the registry onto an identity",
+      "permission": "public"
+    }
+  ]
+}

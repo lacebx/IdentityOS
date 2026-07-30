@@ -128,20 +128,100 @@
   ],
   "capabilities": [
     {
-      "id": "hello_world",
-      "name": "Hello World",
+      "id": "datetime",
+      "name": "Datetime",
       "version": "1.0.0",
-      "description": "Auto-generated: create a hello_world capability, validate it, publish it, and install it",
-      "skills": [],
-      "published": "auto"
+      "description": "Timezone conversion, date math, current time",
+      "skills": ["datetime.now", "datetime.convert", "datetime.diff", "datetime.zones"],
+      "published": "2026-07-27"
     },
     {
-      "id": "test_thing",
-      "name": "Test Thing",
+      "id": "system_info",
+      "name": "System Info",
       "version": "1.0.0",
-      "description": "Auto-generated: create a test_thing capability, validate it, publish it, and install it",
-      "skills": [],
-      "published": "auto"
+      "description": "OS information, disk usage, CPU details, and system metadata",
+      "skills": ["system_info.os", "system_info.disk", "system_info.cpu"],
+      "published": "2026-07-27"
+    },
+    {
+      "id": "github",
+      "name": "GitHub",
+      "version": "1.0.0",
+      "description": "Search repos, review PRs, find issues, list commits and branches",
+      "skills": ["github.search_repositories", "github.get_repository", "github.find_beginner_issue", "github.review_pull_request", "github.list_commits", "github.list_branches", "github.summarize_release"],
+      "published": "2026-07-27"
+    },
+    {
+      "id": "web",
+      "name": "Web",
+      "version": "1.0.0",
+      "description": "Fetch web pages and extract text from URLs",
+      "skills": ["web.fetch", "web.extract"],
+      "published": "2026-07-27"
+    },
+    {
+      "id": "weather",
+      "name": "Weather",
+      "version": "1.0.0",
+      "description": "Get current weather and multi-day forecasts for any location",
+      "skills": ["weather.current", "weather.forecast"],
+      "published": "2026-07-27"
+    },
+    {
+      "id": "calc",
+      "name": "Calc",
+      "version": "1.0.0",
+      "description": "Evaluate math expressions and convert between units",
+      "skills": ["calc.evaluate", "calc.convert"],
+      "published": "2026-07-27"
+    },
+    {
+      "id": "filesystem",
+      "name": "Filesystem",
+      "version": "1.0.0",
+      "description": "List directories, read files, inspect metadata, write files, create directories",
+      "skills": ["filesystem.list_dir", "filesystem.read_file", "filesystem.file_info", "filesystem.write_file", "filesystem.append_file", "filesystem.create_directory"],
+      "published": "2026-07-30"
+    },
+    {
+      "id": "text",
+      "name": "Text",
+      "version": "1.0.0",
+      "description": "Count words, extract keywords, detect patterns, split text",
+      "skills": ["text.stats", "text.extract_pattern"],
+      "published": "2026-07-27"
+    },
+    {
+      "id": "file_tools",
+      "name": "File Tools",
+      "version": "1.0.0",
+      "description": "Write, append, and create files and directories",
+      "skills": ["file_tools.write_file", "file_tools.append_file", "file_tools.create_directory"],
+      "published": "2026-07-30"
+    },
+    {
+      "id": "skill_validator",
+      "name": "Skill Validator",
+      "version": "1.0.0",
+      "description": "Validate capability Python syntax and interface compliance",
+      "skills": ["skill_validator.validate_syntax", "skill_validator.check_capability_interface"],
+      "published": "2026-07-30"
+    },
+    {
+      "id": "registry_manager",
+      "name": "Registry Manager",
+      "version": "1.0.0",
+      "description": "List, publish, and install capabilities from the registry",
+      "skills": ["registry_manager.list_capabilities", "registry_manager.publish_capability", "registry_manager.install_capability"],
+      "published": "2026-07-30"
+    },
+    {
+      "id": "task_planner",
+      "name": "Task Planner",
+      "version": "1.0.0",
+      "description": "Plan and execute multi-step tasks with progress tracking",
+      "skills": ["task_planner.plan_and_execute"],
+      "published": "2026-07-30"
     }
   ]
 }
