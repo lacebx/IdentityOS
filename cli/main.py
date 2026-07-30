@@ -91,6 +91,40 @@ def _print_json(data: dict) -> None:
     print(json.dumps(data, indent=2, default=str))
 
 
+def _color(s: str, code: str) -> str:
+    """Wrap *s* in an ANSI color code. No-op if output is not a TTY."""
+    if not sys.stdout.isatty():
+        return s
+    return f"{code}{s}\033[0m"
+
+
+_GREEN = "\033[92m"
+_CYAN = "\033[96m"
+_DIM = "\033[2m"
+_BOLD = "\033[1m"
+
+
+def _render_output(text: str) -> str:
+    """Post-process LLM output: collapse `<thought>...</thought>` into
+    a compact collapsible section for terminal display."""
+    import re
+    parts = re.split(r"(<thought>.*?</thought>)", text, flags=re.DOTALL)
+    rendered = []
+    for chunk in parts:
+        m = re.match(r"<thought>(.*?)</thought>", chunk, re.DOTALL)
+        if m:
+            thought_text = m.group(1).strip()
+            lines = thought_text.split("\n")
+            summary = lines[0][:100] if lines else ""
+            rendered.append(
+                f"\n  {_color('[Thought]', _DIM)} "
+                f"{_color(summary, _DIM)}"
+            )
+        else:
+            rendered.append(chunk)
+    return "".join(rendered)
+
+
 def _confirm(prompt: str) -> bool:
     try:
         answer = input(f"{prompt} [y/N] ").strip().lower()
@@ -329,6 +363,144 @@ def cmd_get(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_publish(args: argparse.Namespace) -> int:
+    """Publish an identity to the registry (local + optional remote).
+
+    Reads the identity from local storage, builds a registry manifest,
+    saves it to the local registry tree (``registry/identities/<author>/<id>/``),
+    updates ``registry/index.json``, and optionally POSTs to a remote
+    registry server if ``IDENTITY_REGISTRY_URL`` is set.
+    """
+    import shutil
+
+    storage = _get_storage(args)
+    resolved = _resolve_identity(storage, args.id)
+    if resolved is None:
+        print(f"Identity '{args.id}' not found.", file=sys.stderr)
+        return 1
+    if resolved != args.id:
+        print(f"  Resolved '{args.id}' → identity {resolved}")
+
+    # Load snapshot + identity spec
+    snap = storage.load(resolved, "latest_snapshot") or {}
+    modules = snap.get("modules", snap)
+    ident = modules.get("identity", modules) if isinstance(modules, dict) else modules
+
+    author = args.author or "anonymous"
+    version = ident.get("version", "0.1.0")
+    registry_dir = Path(args.registry_dir) / "identities" / author / resolved
+    manifest_path = registry_dir / "manifest.json"
+
+    # Load existing manifest as base (preserves hand-crafted data)
+    existing_manifest = {}
+    if manifest_path.exists():
+        existing_manifest = json.loads(manifest_path.read_text())
+
+    # Build manifest: existing manifest is authoritative for rich metadata,
+    # identity_spec only overrides fields that are meaningfully populated.
+    existing_personality = existing_manifest.get("personality", {})
+    manifest = {
+        **existing_manifest,
+        "manifest_version": "1.0",
+        "id": f"{author}/{resolved}",
+        "name": ident.get("name", resolved),
+        "version": version,
+        "description": (
+            existing_manifest.get("description")
+            or ident.get("tagline")
+            or f"Identity: {resolved}"
+        ),
+        "author": existing_manifest.get("author", {
+            "name": author,
+            "url": args.author_url or f"https://github.com/{author}",
+        }),
+        "personality": {
+            **existing_personality,
+            "role": (
+                existing_personality.get("role")
+                if existing_personality.get("role") and existing_personality["role"] != "default"
+                else ident.get("persona", "default")
+            ),
+            "codename": ident.get("codename") or existing_personality.get("codename", ""),
+            "tagline": existing_personality.get("tagline") or ident.get("tagline", ""),
+            "values": existing_personality.get("values") or ident.get("core_values", []),
+            "traits": existing_personality.get("traits") or ident.get("traits", []),
+        },
+        "capabilities": existing_manifest.get("capabilities") or ident.get("capabilities", []),
+    }
+
+    # Save manifest locally
+    registry_dir.mkdir(parents=True, exist_ok=True)
+    manifest_path.write_text(json.dumps(manifest, indent=2, default=str))
+    print(f"  Manifest saved: {manifest_path}")
+
+    # Update registry/index.json
+    index_path = Path(args.registry_dir) / "index.json"
+    if index_path.exists():
+        idx = json.loads(index_path.read_text())
+    else:
+        idx = {"identities": [], "capabilities": []}
+
+    # Pull existing index entry to preserve hand-crafted fields
+    existing_entry = {}
+    for e in idx["identities"]:
+        if e["id"] == f"{author}/{resolved}":
+            existing_entry = e
+            break
+
+    entry = {
+        **existing_entry,
+        "id": f"{author}/{resolved}",
+        "name": ident.get("name", resolved),
+        "version": version,
+        "description": manifest["description"],
+        "author": author,
+        "tags": existing_entry.get("tags") if existing_entry.get("tags") else ident.get("tags", []),
+        "published": existing_entry.get("published", "") or (ident.get("updated_at", "")[:10] if ident.get("updated_at") else ""),
+        "url": f"identities/{author}/{resolved}/manifest.json",
+        "runtime": existing_entry.get("runtime", {"identityos": ">=0.4"}),
+        "personality": {
+            **existing_entry.get("personality", {}),
+            "role": manifest["personality"]["role"],
+            "codename": manifest["personality"]["codename"],
+            "profile": manifest["description"],
+        },
+        "memory": existing_entry.get("memory", {"backend": "sqlite", "retention": "persistent"}),
+        "capabilities": existing_entry.get("capabilities") or manifest.get("capabilities", []),
+        "permissions": existing_entry.get("permissions", {"network": True, "filesystem": False}),
+    }
+
+    # Replace or append
+    existing = [i for i in idx["identities"] if i["id"] != entry["id"]]
+    existing.append(entry)
+    idx["identities"] = existing
+    index_path.write_text(json.dumps(idx, indent=2, default=str))
+    print(f"  Index updated: {index_path}")
+    print(f"  Published {author}/{resolved} v{version}")
+
+    # Remote publish (optional)
+    registry_url = os.environ.get("IDENTITY_REGISTRY_URL")
+    if registry_url:
+        import urllib.request
+        try:
+            req = urllib.request.Request(
+                f"{registry_url.rstrip('/')}/api/v1/identities",
+                data=json.dumps(manifest).encode(),
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            urllib.request.urlopen(req, timeout=10)
+            print(f"  Published to remote registry: {registry_url}")
+        except Exception as e:
+            print(f"  [warn] Remote publish failed: {e}", file=sys.stderr)
+    else:
+        print()
+        print(f"  To publish to a remote registry, set IDENTITY_REGISTRY_URL")
+        print(f"  in your .env file and run this command again.")
+
+    return 0
+
+
 def cmd_playground(args: argparse.Namespace) -> int:
     """Launch the IdentityOS Playground web UI."""
     try:
@@ -519,7 +691,7 @@ def cmd_chat(args: argparse.Namespace) -> int:
     session_turns = 0
     while True:
         try:
-            user_input = input("\nyou> ").strip()
+            user_input = input(f"\n{_color('you>', _GREEN)} ").strip()
         except (KeyboardInterrupt, EOFError):
             print("\nGoodbye.")
             break
@@ -549,7 +721,8 @@ def cmd_chat(args: argparse.Namespace) -> int:
                     session_id=session_id,
                 )
                 resp = runtime.process(req)
-                print(f"\n{identity_name}> {resp.output}\n")
+                output = _render_output(resp.output)
+                print(f"\n{identity_name}> {output}\n")
                 print("─" * 40)
             except Exception as e:
                 print(f"  [runtime error] {e}")
@@ -672,6 +845,13 @@ def build_parser() -> argparse.ArgumentParser:
     p_explain.add_argument("id", help="Identity id")
     p_explain.add_argument("question", nargs="+", help="Question to explain")
 
+    # publish (top-level)
+    p_publish = sub.add_parser("publish", help="Publish an identity to the registry")
+    p_publish.add_argument("--id", required=True, help="Identity id (or name)")
+    p_publish.add_argument("--author", default=None, help="Author namespace (default: anonymous)")
+    p_publish.add_argument("--author-url", default="", help="Author URL")
+    p_publish.add_argument("--registry-dir", default="registry", help="Registry directory (default: registry)")
+
     # registry
     p_reg = sub.add_parser("registry", help="Identity registry operations")
     reg_sub = p_reg.add_subparsers(dest="registry_command")
@@ -782,6 +962,7 @@ COMMAND_MAP = {
     "delete": cmd_delete,
     "rm": cmd_delete,
     "playground": cmd_playground,
+    "publish": cmd_publish,
     "explain": cmd_explain_wrapper,
     "registry": cmd_registry_wrapper,
     "cap": cmd_cap_wrapper,

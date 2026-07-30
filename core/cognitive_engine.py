@@ -196,7 +196,12 @@ class ContextComposer:
             "Do NOT invent data, estimate values, or fabricate a response.\n"
             "- If capability confidence < 0.8, state your uncertainty explicitly.\n"
             "- Never convert a tool failure into a factual statement. "
-            "If you cannot retrieve data, say so.\n",
+            "If you cannot retrieve data, say so.\n"
+            "- CRITICAL — CAPABILITY HALLUCINATION PROHIBITED: You MUST list ONLY the capabilities "
+            "shown in the '## Live Capability Results' section below. "
+            "Never invent, guess, or fabricate capability names, skill names, or their descriptions. "
+            "If the '## Live Capability Results' section is empty or absent, you have zero capabilities "
+            "available — say so. Do NOT list capabilities from training data or imagination.\n",
             "### 2. CANONICAL IDENTITY FACTS\n"
             "Your identity facts — preferences, beliefs, traits, communication style — are defined in "
             "the 'Identity (Evolved)' section below. They are YOUR canonical identity state. "
@@ -267,6 +272,18 @@ class ContextComposer:
                 "- IMPORTANT: If a capability failed (shown in 'Capability Failures'), "
                 "you MUST acknowledge the failure. Do NOT fabricate the data.",
             )
+        # Rule 10: Thought tags — internal reasoning wrapped in <thought>...</thought>
+        parts.append(
+            "### 10. THOUGHT TAGS — WRAP REASONING IN <thought>...</thought>\n"
+            "When you need to reason, plan, or work through a problem step-by-step, "
+            "wrap your internal reasoning in <thought> tags like this:\n"
+            "<thought>First I will check what capabilities are available...</thought>\n"
+            "- The content inside <thought>...</thought> is your internal monologue.\n"
+            "- The system will render thought content as a collapsible section.\n"
+            "- After the closing </thought> tag, write your concise response to the user.\n"
+            "- Keep thoughts brief and focused. Do not narrate obvious actions.\n"
+            "- The user will see the thought content only if they choose to expand it.\n",
+        )
         ctx.runtime_directives_block = "".join(parts)
 
         # User Knowledge (profile about the user)
