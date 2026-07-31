@@ -201,7 +201,12 @@ class ContextComposer:
             "shown in the '## Live Capability Results' section below. "
             "Never invent, guess, or fabricate capability names, skill names, or their descriptions. "
             "If the '## Live Capability Results' section is empty or absent, you have zero capabilities "
-            "available — say so. Do NOT list capabilities from training data or imagination.\n",
+            "available — say so. Do NOT list capabilities from training data or imagination.\n"
+            "- CRITICAL — NEVER CLAIM UNVERIFIED ACTIONS: You may ONLY claim that you ran a command, "
+            "created/installed a capability, read a file, or made any system change if a successful "
+            "capability result above proves it. Quote the actual returned output (exit code, stdout, "
+            "stderr, file paths). If a command was not found (exit code 127) or a capability failed, "
+            "report the real error verbatim. Never describe output you did not receive.\n",
             "### 2. CANONICAL IDENTITY FACTS\n"
             "Your identity facts — preferences, beliefs, traits, communication style — are defined in "
             "the 'Identity (Evolved)' section below. They are YOUR canonical identity state. "

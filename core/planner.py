@@ -36,7 +36,7 @@ class SkillRouter:
         "create", "build", "make", "write", "generate", "publish",
         "install", "validate", "check", "test", "deploy", "setup",
         "configure", "update", "remove", "delete", "add", "compile",
-        "release", "package", "prepare", "scaffold", "init",
+        "release", "package", "prepare", "scaffold", "init", "run", "execute",
     })
 
     def __init__(self, capability_registry: Any, identity_id: str) -> None:
@@ -61,7 +61,7 @@ class SkillRouter:
         # Pattern 1: comma-separated actions (e.g. "create X, validate it, publish")
         clauses = [c.strip() for c in text.replace(" and ", ", ").replace(" then ", ", ").split(",") if c.strip()]
         action_clauses = sum(1 for c in clauses if cls._has_action_verb(c))
-        if action_clauses >= 3:
+        if action_clauses >= 2:
             return True
 
         # Pattern 2: 3+ distinct action verbs anywhere in input
@@ -182,22 +182,21 @@ class SkillRouter:
         triggers: dict[str, list[str]] = {
             "time": ["time", "date", "today", "current time", "what day", "datetime", "what's the date", "tomorrow", "yesterday", "what day is it", "what's today"],
             "weather": ["weather", "temperature", "forecast", "raining", "sunny", "humidity", "rain", "cloudy", "wind", "degrees"],
-            "calc": ["calculate", "evaluate", "what is", "compute", "plus", "minus", "times", "divided", "=", "how many", "% of", "percent"],
+            "calc": ["calculate", "evaluate", "compute", "plus", "minus", "times", "divided", "% of", "percent", "convert", "conversion", "unit", "km to", "miles to", "celsius", "fahrenheit"],
             "text": ["count words", "word count", "extract", "keywords", "analyze text", "summarize", "pattern", "stats"],
-            "web": ["fetch", "web page", "http", "url", "website", "download page", "look up", "search for", "find", "wikipedia"],
+            "web": ["fetch", "web page", "http", "url", "website", "download page", "look up", "search for", "find", "wikipedia", "scrape", "webpage"],
             "file": ["list files", "read file", "directory", "ls ", "file info", "list directory", "what files", "read the file", "show me", "open file"],
             "file_tools": ["write file", "create file", "save file", "write code", "create directory", "mkdir", "make directory", "append file", "edit file"],
             "github": ["github", "repository", "repo", "pull request", "issue", "commit", "stars", "open source", "beginner", "trending", "lacebx", "identityos", "repo info"],
-            "system": ["operating system", "disk space", "disk usage", "how much disk", "os", "cpu", "what system", "what os", "system info", "platform"],
+            "system": ["operating system", "disk space", "disk usage", "how much disk", "os", "cpu", "what system", "what os", "system info", "platform", "system", "machine"],
             "registry_manager": ["publish", "install capability", "list capabilities", "registry", "publish skill", "install skill", "register skill", "add to registry"],
             "skill_validator": ["validate", "syntax check", "check skill", "test skill", "verify syntax", "validate skill", "check code", "lint"],
         }
 
         # Additional pattern-based matching for GitHub repo references
         if re.search(r'[\w-]+/[\w-]+', user_input):  # owner/repo pattern
-            for domain, keywords in triggers.items():
-                if domain == "github":
-                    return {"matched": True, "confidence": "high"}
+            if "github" in skill.name.lower():
+                return {"matched": True, "confidence": "high"}
 
         # Broad contextual queries — match ALL capabilities
         context_phrases = [
@@ -213,25 +212,33 @@ class SkillRouter:
 
         # Check skill name
         skill_name = skill.name.lower()
+
+        # Numeric arithmetic → calc (e.g. "what is 2+2", "5 * 9")
+        if re.search(r'\d[\s]*[+\-*/%][\s]*\d', text) or re.search(r'\d[\s]+[+\-*/][\s]+\d', text):
+            if "calc" in skill_name or "evaluate" in skill_name:
+                return {"matched": True, "confidence": "high"}
+
         for domain, keywords in triggers.items():
             if domain in skill_name:
                 for kw in keywords:
-                    if kw in text:
+                    if re.search(rf'\b{re.escape(kw)}\b', text):
                         return {"matched": True, "confidence": "high"}
 
-        # Check description
+        # Check description (stop words filtered)
         desc = skill.description.lower()
-        input_words = set(text.split())
-        desc_words = set(desc.split())
+        input_words = {w for w in text.split() if w not in self._STOP_WORDS}
+        desc_words = {w for w in desc.split() if w not in self._STOP_WORDS}
         overlap = input_words & desc_words
         if len(overlap) >= 2:
             return {"matched": True, "confidence": "medium"}
 
-        # Fallback: check if a significant word from the skill name appears
-        name_parts = skill_name.replace(".", " ").split()
-        for part in name_parts:
-            if len(part) > 3 and part in text:
-                return {"matched": True, "confidence": "low"}
+        # Fallback: explicit mention of the skill's capability/domain name (whole word).
+        # Only the DOMAIN part is considered — action words like "current", "convert",
+        # "list", "now" are far too generic and produced spurious evidence.
+        # Length >= 5 avoids generic domains like "time", "file", "text", "calc", "web".
+        domain_part = skill_name.split(".")[0]
+        if len(domain_part) >= 5 and re.search(rf'\b{re.escape(domain_part)}\b', text):
+            return {"matched": True, "confidence": "low"}
 
         return {"matched": False}
 
