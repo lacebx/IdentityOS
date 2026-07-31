@@ -1,0 +1,35 @@
+{
+  "id": "file_tools",
+  "name": "File Tools",
+  "version": "1.0.0",
+  "author": "IdentityOS",
+  "license": "MIT",
+  "homepage": "https://github.com/lacebx/IdentityOS",
+  "description": "Write, append, and create files and directories",
+  "provider": "core.capabilities.file_tools.FileToolsCapability",
+  "config_schema": {
+    "type": "object",
+    "properties": {}
+  },
+  "permissions": {
+    "network": false,
+    "filesystem": false
+  },
+  "skills": [
+    {
+      "name": "file_tools.write_file",
+      "description": "Write content to a file, creating directories as needed",
+      "permission": "public"
+    },
+    {
+      "name": "file_tools.append_file",
+      "description": "Append content to an existing file",
+      "permission": "public"
+    },
+    {
+      "name": "file_tools.create_directory",
+      "description": "Create a directory and all parent directories",
+      "permission": "public"
+    }
+  ]
+}

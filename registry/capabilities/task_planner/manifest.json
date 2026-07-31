@@ -1,0 +1,25 @@
+{
+  "id": "task_planner",
+  "name": "Task Planner",
+  "version": "1.0.0",
+  "author": "IdentityOS",
+  "license": "MIT",
+  "homepage": "https://github.com/lacebx/IdentityOS",
+  "description": "Plan and execute multi-step tasks with progress tracking",
+  "provider": "core.capabilities.task_planner.TaskPlannerCapability",
+  "config_schema": {
+    "type": "object",
+    "properties": {}
+  },
+  "permissions": {
+    "network": false,
+    "filesystem": false
+  },
+  "skills": [
+    {
+      "name": "task_planner.plan_and_execute",
+      "description": "Plan and execute a multi-step task from a goal description",
+      "permission": "public"
+    }
+  ]
+}

@@ -50,6 +50,7 @@ class ComposedContext:
     motivations_block: str = ""
     timeline_block: str = ""
     synthesis_block: str = ""
+    time_awareness_block: str = ""
     custom_blocks: Dict[str, str] = field(default_factory=dict)
     evidence_footer_block: str = ""
 
@@ -87,6 +88,8 @@ class ComposedContext:
             sections.append(self.timeline_block)
         if self.synthesis_block:
             sections.append(self.synthesis_block)
+        if self.time_awareness_block:
+            sections.append(self.time_awareness_block)
         for block in self.custom_blocks.values():
             if block:
                 sections.append(block)
@@ -193,7 +196,12 @@ class ContextComposer:
             "Do NOT invent data, estimate values, or fabricate a response.\n"
             "- If capability confidence < 0.8, state your uncertainty explicitly.\n"
             "- Never convert a tool failure into a factual statement. "
-            "If you cannot retrieve data, say so.\n",
+            "If you cannot retrieve data, say so.\n"
+            "- CRITICAL — CAPABILITY HALLUCINATION PROHIBITED: You MUST list ONLY the capabilities "
+            "shown in the '## Live Capability Results' section below. "
+            "Never invent, guess, or fabricate capability names, skill names, or their descriptions. "
+            "If the '## Live Capability Results' section is empty or absent, you have zero capabilities "
+            "available — say so. Do NOT list capabilities from training data or imagination.\n",
             "### 2. CANONICAL IDENTITY FACTS\n"
             "Your identity facts — preferences, beliefs, traits, communication style — are defined in "
             "the 'Identity (Evolved)' section below. They are YOUR canonical identity state. "
@@ -264,6 +272,18 @@ class ContextComposer:
                 "- IMPORTANT: If a capability failed (shown in 'Capability Failures'), "
                 "you MUST acknowledge the failure. Do NOT fabricate the data.",
             )
+        # Rule 10: Thought tags — internal reasoning wrapped in <thought>...</thought>
+        parts.append(
+            "### 10. THOUGHT TAGS — WRAP REASONING IN <thought>...</thought>\n"
+            "When you need to reason, plan, or work through a problem step-by-step, "
+            "wrap your internal reasoning in <thought> tags like this:\n"
+            "<thought>First I will check what capabilities are available...</thought>\n"
+            "- The content inside <thought>...</thought> is your internal monologue.\n"
+            "- The system will render thought content as a collapsible section.\n"
+            "- After the closing </thought> tag, write your concise response to the user.\n"
+            "- Keep thoughts brief and focused. Do not narrate obvious actions.\n"
+            "- The user will see the thought content only if they choose to expand it.\n",
+        )
         ctx.runtime_directives_block = "".join(parts)
 
         # User Knowledge (profile about the user)
@@ -313,9 +333,60 @@ class ContextComposer:
                 recent_memories=recent if recent else None,
             )
 
+        # Time-awareness block — identity age, time since first/last interaction
+        ctx.time_awareness_block = self._render_time_awareness(
+            identity=identity,
+            timeline_registry=timeline_registry,
+            user_profile=user_profile,
+        )
+
         # Build evidence footer from capability results
         if evidence_results:
             ctx.evidence_footer_block = self._render_evidence_footer(evidence_results)
+
+        # Enforce max_tokens budget — trim largest blocks first when over budget
+        if self.max_tokens > 0:
+            blocks = [
+                ("runtime_directives_block", ctx.runtime_directives_block),
+                ("identity_block", ctx.identity_block),
+                ("identity_evolution_block", ctx.identity_evolution_block),
+                ("user_knowledge_block", ctx.user_knowledge_block),
+                ("emotion_block", ctx.emotion_block),
+                ("session_mode_block", ctx.session_mode_block),
+                ("memory_block", ctx.memory_block),
+                ("skills_block", ctx.skills_block),
+                ("goals_block", ctx.goals_block),
+                ("intentions_block", ctx.intentions_block),
+                ("relationships_block", ctx.relationships_block),
+                ("motivations_block", ctx.motivations_block),
+                ("timeline_block", ctx.timeline_block),
+                ("synthesis_block", ctx.synthesis_block),
+                ("evidence_footer_block", ctx.evidence_footer_block),
+            ]
+            for _name, _block in list(ctx.custom_blocks.items()):
+                blocks.append((f"custom:{_name}", _block))
+            total_chars = sum(len(b) for _, b in blocks)
+            budget_chars = self.max_tokens * 4
+            if total_chars > budget_chars:
+                overage = total_chars - budget_chars
+                blocks.sort(key=lambda x: -len(x[1]))
+                for name, block in blocks:
+                    if overage <= 0:
+                        break
+                    if not block:
+                        continue
+                    # Truncate or remove blocks in order of size
+                    if isinstance(name, str) and name.startswith("custom:"):
+                        continue  # preserve custom blocks
+                    b_len = len(block)
+                    if b_len <= overage:
+                        setattr(ctx, name, "")
+                        overage -= b_len
+                    else:
+                        # Truncate to remaining budget
+                        keep = b_len - overage
+                        setattr(ctx, name, block[:keep] + "\n[... truncated ...]")
+                        overage = 0
 
         return ctx
 
@@ -539,6 +610,130 @@ class ContextComposer:
                 f"  -> {e.target_id} [{e.edge_type.value}] "
                 f"trust={e.trust_level.name} strength={e.strength:.2f}"
             )
+        return "\n".join(lines)
+
+    # ------------------------------------------------------------------
+    # Time Awareness — identity age and interaction history
+    # ------------------------------------------------------------------
+
+    def _render_time_awareness(
+        self,
+        identity: "IdentitySpec",
+        timeline_registry: Optional[Any] = None,
+        user_profile: Optional[Any] = None,
+    ) -> str:
+        from datetime import datetime, timezone, timedelta
+
+        def _ensure_aware(dt):
+            if dt is None:
+                return None
+            if isinstance(dt, str):
+                dt = datetime.fromisoformat(dt.replace("Z", "+00:00"))
+            if isinstance(dt, datetime) and dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            return dt
+
+        now = datetime.now(timezone.utc)
+        lines = ["## Time Awareness (How Old Am I & Time Passage)"]
+
+        created = _ensure_aware(identity.created_at)
+        if isinstance(created, datetime):
+            age = now - created
+            days = age.days
+            hours = age.seconds // 3600
+            minutes = (age.seconds % 3600) // 60
+            parts = []
+            if days > 0:
+                parts.append(f"{days} day{'s' if days != 1 else ''}")
+            if hours > 0:
+                parts.append(f"{hours} hour{'s' if hours != 1 else ''}")
+            if minutes > 0:
+                parts.append(f"{minutes} minute{'s' if minutes != 1 else ''}")
+            if not parts:
+                parts.append("less than a minute")
+            lines.append(f"  Identity created: {created.strftime('%Y-%m-%d %H:%M UTC')}")
+            lines.append(f"  My age: {', '.join(parts)}")
+
+        # First and last interaction from timeline
+        if timeline_registry:
+            timeline = timeline_registry.get(identity.id)
+            if timeline:
+                events = timeline.events()
+                if events:
+                    first_ts = None
+                    last_ts = None
+                    for e in events:
+                        try:
+                            if hasattr(e, 'occurred_at') and e.occurred_at:
+                                ts = _ensure_aware(e.occurred_at)
+                                if ts is None:
+                                    continue
+                                if first_ts is None or ts < first_ts:
+                                    first_ts = ts
+                                if last_ts is None or ts > last_ts:
+                                    last_ts = ts
+                        except Exception:
+                            continue
+                    if first_ts and last_ts:
+                        known_duration = last_ts - first_ts
+                        lines.append(f"  First interaction: {first_ts.strftime('%Y-%m-%d %H:%M UTC')}")
+                        lines.append(f"  Most recent interaction: {last_ts.strftime('%Y-%m-%d %H:%M UTC')}")
+                        days = known_duration.days
+                        hours = known_duration.seconds // 3600
+                        parts = []
+                        if days > 0:
+                            parts.append(f"{days} day{'s' if days != 1 else ''}")
+                        if hours > 0:
+                            parts.append(f"{hours} hour{'s' if hours != 1 else ''}")
+                        if parts:
+                            lines.append(f"  Time between first and latest: {', '.join(parts)}")
+                        since_last = now - last_ts
+                        mins = int(since_last.total_seconds() / 60)
+                        if mins < 1:
+                            lines.append("  Last interaction: just now")
+                        elif mins < 60:
+                            lines.append(f"  Last interaction: {mins} minute{'s' if mins != 1 else ''} ago")
+                        else:
+                            hrs = mins // 60
+                            mins_remain = mins % 60
+                            lines.append(f"  Last interaction: {hrs}h {mins_remain}m ago")
+
+        # User profile first_seen / last_confirmed
+        if user_profile and hasattr(user_profile, '_facts'):
+            facts = list(user_profile._facts.values())
+            if facts:
+                first_seen = None
+                last_seen = None
+                for f in facts:
+                    try:
+                        fs = _ensure_aware(getattr(f, 'first_seen', None))
+                        lc = _ensure_aware(getattr(f, 'last_confirmed', None))
+                        if fs:
+                            if first_seen is None or fs < first_seen:
+                                first_seen = fs
+                        if lc:
+                            if last_seen is None or lc > last_seen:
+                                last_seen = lc
+                    except Exception:
+                        continue
+                if first_seen:
+                    known_since = now - first_seen
+                    days = known_since.days
+                    lines.append(f"  Known user since: {first_seen.strftime('%Y-%m-%d %H:%M UTC')} ({days} day{'s' if days != 1 else ''})")
+                if last_seen:
+                    since_last = now - last_seen
+                    mins = int(since_last.total_seconds() / 60)
+                    if mins < 1:
+                        lines.append("  Last user interaction: just now")
+                    elif mins < 60:
+                        lines.append(f"  Last user interaction: {mins} minute{'s' if mins != 1 else ''} ago")
+                    else:
+                        hrs = mins // 60
+                        lines.append(f"  Last user interaction: {hrs}h {mins % 60}m ago")
+
+        if len(lines) == 1:
+            return ""
+        lines.append("")
         return "\n".join(lines)
 
     # ------------------------------------------------------------------

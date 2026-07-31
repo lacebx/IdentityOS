@@ -1141,7 +1141,7 @@ class IdentityRuntime:
     def process(
         self,
         request: InteractionRequest,
-        top_k_memories: int = 10,
+        top_k_memories: int = 3,
     ) -> InteractionResponse:
         """
         Full pipeline for processing one interaction.
@@ -1331,6 +1331,29 @@ class IdentityRuntime:
             if _post_result and _post_result.acquired and _post_result.retry_response:
                 raw_output = _post_result.retry_response
                 _prometheus_evolved = True
+
+        # Stage 4c: Runtime confidence enforcement — if evidence has
+        # low confidence or failures, prepend a disclaimer to the output.
+        # This is enforced at the runtime level, not left to LLM discretion.
+        if _has_evidence:
+            _metrics = _report.trust_metrics()
+            _low_conf = _metrics["low_confidence_facts"]
+            _fails = _metrics["failed"]
+            _total = _metrics["total_capability_calls"]
+            if _low_conf > 0 or _fails > 0:
+                _disc_parts = [f"\n\u26a0 **Confidence Notice** \u2014 {_low_conf} low-confidence, {_fails} failed out of {_total} capability calls."]
+                for _r in _evidence._results:
+                    if not _r.success:
+                        _disc_parts.append(
+                            f"  \u2022 {_r.capability}.{_r.action} failed: "
+                            f"{_r.error.get('message','')[:150] if _r.error else 'unknown'}"
+                        )
+                    elif _r.confidence < 0.8:
+                        _disc_parts.append(
+                            f"  \u2022 {_r.capability}.{_r.action} confidence={_r.confidence}"
+                        )
+                _disc_parts.append("")
+                raw_output = "\n".join(_disc_parts) + raw_output
 
         # Stage 5: Output policy gate
         output_policy = self.policy_engine.evaluate(

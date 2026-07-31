@@ -21,11 +21,68 @@ class SkillRouter:
 
     The LLM receives *factual data* with provenance and confidence,
     not *descriptions of available skills*.
+
+    Multi-step compound requests are routed exclusively to the
+    ``task_planner`` capability, which internally delegates to the
+    individual sub-capabilities and returns a single consolidated result.
     """
+
+    # Capabilities that the task_planner manages internally
+    _PLANNER_MANAGED: frozenset[str] = frozenset({
+        "file_tools", "skill_validator", "registry_manager",
+    })
+
+    _ACTION_VERBS: frozenset[str] = frozenset({
+        "create", "build", "make", "write", "generate", "publish",
+        "install", "validate", "check", "test", "deploy", "setup",
+        "configure", "update", "remove", "delete", "add", "compile",
+        "release", "package", "prepare", "scaffold", "init",
+    })
 
     def __init__(self, capability_registry: Any, identity_id: str) -> None:
         self._registry = capability_registry
         self._identity_id = identity_id
+
+    # ------------------------------------------------------------------
+    # Compound-request detection (intent-based, not keyword-based)
+    # ------------------------------------------------------------------
+
+    @classmethod
+    def _is_compound_request(cls, user_input: str) -> bool:
+        """Detect whether the input describes a multi-step task.
+
+        Heuristics:
+        - Comma-separated action clauses (``create X, validate, publish``)
+        - 3+ distinct action verbs
+        - Sequential markers (``first X then Y``, ``create Z and publish``)
+        """
+        text = user_input.lower()
+
+        # Pattern 1: comma-separated actions (e.g. "create X, validate it, publish")
+        clauses = [c.strip() for c in text.replace(" and ", ", ").replace(" then ", ", ").split(",") if c.strip()]
+        action_clauses = sum(1 for c in clauses if cls._has_action_verb(c))
+        if action_clauses >= 3:
+            return True
+
+        # Pattern 2: 3+ distinct action verbs anywhere in input
+        found = {v for v in cls._ACTION_VERBS if v in text}
+        if len(found) >= 3:
+            return True
+
+        # Pattern 3: sequential marker + at least one action
+        sequential = re.search(r'(first|then|finally|next|after that|step|phase|stage)', text)
+        if sequential and found:
+            return True
+
+        return False
+
+    @classmethod
+    def _has_action_verb(cls, text: str) -> bool:
+        return any(v in text for v in cls._ACTION_VERBS)
+
+    # ------------------------------------------------------------------
+    # Routing
+    # ------------------------------------------------------------------
 
     def route(self, user_input: str) -> EvidenceManager:
         """Parse user input, find matching skills, execute them.
@@ -36,8 +93,12 @@ class SkillRouter:
         evidence = EvidenceManager(self._identity_id)
         seen: set[str] = set()
         caps = self._registry.list(self._identity_id)
+        text = user_input.strip().lower()
 
-        # First pass: check if ANY skill matches with contextual confidence
+        # ── Step 1: detect compound multi-step requests ─────────────
+        is_multi_step = self._is_compound_request(text)
+
+        # ── First pass: check contextual confidence ─────────────────
         contextual = False
         for cap in caps:
             for skill in cap.skills():
@@ -46,7 +107,16 @@ class SkillRouter:
                     contextual = True
                     break
 
+        # ── Step 2: fire matching skills ────────────────────────────
         for cap in caps:
+            cap_id = getattr(cap, "id", "unknown")
+
+            # If this is a multi-step request, skip capabilities that
+            # the task_planner manages internally — the planner will
+            # call them directly via lookup().
+            if is_multi_step and cap_id in self._PLANNER_MANAGED:
+                continue
+
             for skill in cap.skills():
                 if contextual:
                     matches = True
@@ -61,10 +131,27 @@ class SkillRouter:
                         result = cap.call(skill.name, **params)
                     except Exception as e:
                         result = CapabilityResult.fail(
-                            getattr(cap, 'id', 'unknown'),
+                            cap_id,
                             skill.name, type(e).__name__, str(e),
                         )
                     evidence.collect(result)
+
+        # ── Step 3: if multi-step, also fire the task_planner ───────
+        if is_multi_step:
+            planner_skill = "task_planner.plan_and_execute"
+            if planner_skill not in seen:
+                seen.add(planner_skill)
+                for cap in caps:
+                    if getattr(cap, "id", "") == "task_planner":
+                        try:
+                            result = cap.call(planner_skill, goal=user_input)
+                        except Exception as e:
+                            result = CapabilityResult.fail(
+                                "task_planner",
+                                planner_skill, type(e).__name__, str(e),
+                            )
+                        evidence.collect(result)
+                        break
 
         return evidence
 
@@ -98,9 +185,12 @@ class SkillRouter:
             "calc": ["calculate", "evaluate", "what is", "compute", "plus", "minus", "times", "divided", "=", "how many", "% of", "percent"],
             "text": ["count words", "word count", "extract", "keywords", "analyze text", "summarize", "pattern", "stats"],
             "web": ["fetch", "web page", "http", "url", "website", "download page", "look up", "search for", "find", "wikipedia"],
-            "file": ["list files", "read file", "directory", "ls ", "file info", "list directory", "what files", "read the file", "show me"],
+            "file": ["list files", "read file", "directory", "ls ", "file info", "list directory", "what files", "read the file", "show me", "open file"],
+            "file_tools": ["write file", "create file", "save file", "write code", "create directory", "mkdir", "make directory", "append file", "edit file"],
             "github": ["github", "repository", "repo", "pull request", "issue", "commit", "stars", "open source", "beginner", "trending", "lacebx", "identityos", "repo info"],
             "system": ["operating system", "disk space", "disk usage", "how much disk", "os", "cpu", "what system", "what os", "system info", "platform"],
+            "registry_manager": ["publish", "install capability", "list capabilities", "registry", "publish skill", "install skill", "register skill", "add to registry"],
+            "skill_validator": ["validate", "syntax check", "check skill", "test skill", "verify syntax", "validate skill", "check code", "lint"],
         }
 
         # Additional pattern-based matching for GitHub repo references
@@ -247,5 +337,50 @@ class SkillRouter:
                 if key in text.lower():
                     return {"text": text, "pattern": val}
             return {"text": text, "pattern": "urls"}
+
+        # ── File Tools ───────────────────────────────────────────────────
+        if name == "file_tools.write_file":
+            path_match = re.search(r'(?:to|at|in)\s+([/\w.-]+(?:\.[\w]+)?)', text)
+            if path_match:
+                return {"path": path_match.group(1), "content": ""}
+            path_match = re.search(r'(?:file|path):\s*([/\w.-]+(?:\.[\w]+)?)', text, re.IGNORECASE)
+            if path_match:
+                return {"path": path_match.group(1), "content": ""}
+            return {}
+
+        if name == "file_tools.create_directory":
+            path_match = re.search(r'(?:at|in|to|path:)?\s*([/\w.-]+)', text)
+            if path_match:
+                return {"path": path_match.group(1)}
+            return {}
+
+        # ── Registry Manager ─────────────────────────────────────────────
+        if name == "registry_manager.list_capabilities":
+            return {}
+
+        if name in ("registry_manager.publish_capability", "registry_manager.install_capability"):
+            id_match = re.search(r'(?:capability|skill|publish|install)\s+([\w_-]+)', text, re.IGNORECASE)
+            if id_match:
+                cap_id = id_match.group(1)
+                cap_id = cap_id.replace("_", "_")  # already clean
+                return {"cap_id": cap_id}
+            return {}
+
+        # ── Skill Validator ──────────────────────────────────────────────
+        if name == "skill_validator.validate_syntax":
+            path_match = re.search(r'(?:file|path|validate):?\s*([/\w.-]+(?:\.[\w]+)?)', text, re.IGNORECASE)
+            if path_match:
+                return {"path": path_match.group(1)}
+            return {}
+
+        if name == "skill_validator.check_capability_interface":
+            path_match = re.search(r'(?:file|path|check):?\s*([/\w.-]+(?:\.[\w]+)?)', text, re.IGNORECASE)
+            if path_match:
+                return {"path": path_match.group(1)}
+            return {}
+
+        # ── Task Planner ────────────────────────────────────────────────
+        if name == "task_planner.plan_and_execute":
+            return {"goal": text}
 
         return {}

@@ -1,8 +1,6 @@
 name: Daedalus Engineering Board Sync
 
 on:
-  schedule:
-    - cron: "0 7 * * 1"
   workflow_dispatch:
 
 jobs:
@@ -11,7 +9,6 @@ jobs:
     permissions:
       contents: read
       issues: write
-      projects: write
 
     steps:
       - uses: actions/checkout@v4

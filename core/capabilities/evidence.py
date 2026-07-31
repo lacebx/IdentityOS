@@ -95,10 +95,55 @@ class EvidenceManager:
         return records
 
     def build_context_block(self, report: EvidenceReport | None = None) -> str:
-        """Build the factual context block from evidence, for LLM consumption."""
+        """Build the factual context block from evidence, for LLM consumption.
+
+        Includes a runtime-enforced CONFIDENCE VERDICT that the LLM MUST
+        follow — it is not optional or advisory.
+        """
         rep = report or self.report()
+        metrics = rep.trust_metrics()
         lines: list[str] = []
 
+        # ── CONFIDENCE VERDICT (runtime-enforced) ────────────────────
+        total_facts = metrics["verified_facts"] + metrics["low_confidence_facts"]
+        has_failures = rep.total_fail > 0
+        overall = "HIGH"
+        if metrics["low_confidence_facts"] > 0 or has_failures:
+            overall = "MEDIUM"
+        if has_failures and total_facts == 0:
+            overall = "LOW"
+
+        details: list[str] = []
+        for r in self._results:
+            if not r.success:
+                details.append(f"  - ✗ {r.capability}.{r.action} — FAILED ({r.error.get('message','')[:100]})")
+            elif r.confidence < 0.8:
+                details.append(f"  - ⚠ {r.capability}.{r.action} — LOW CONFIDENCE ({r.confidence})")
+
+        if total_facts > 0 or has_failures:
+            lines.append("## ⚠ CONFIDENCE VERDICT (runtime-enforced)")
+            lines.append(f"Overall confidence: {overall}  |  "
+                         f"Verified: {metrics['verified_facts']}  |  "
+                         f"Low-confidence: {metrics['low_confidence_facts']}  |  "
+                         f"Failed: {metrics['failed']}")
+            if details:
+                lines.append("")
+                lines.append("Details:")
+                lines.extend(details)
+            lines.append("")
+            if overall in ("MEDIUM", "LOW"):
+                lines.append(
+                    "RUNTIME DIRECTIVE: Your response MUST begin by acknowledging "
+                    "what you are uncertain about. Use a phrase like: "
+                    '"I want to be upfront — I\'m not 100% certain about [specific items]."'
+                )
+                lines.append(
+                    "Do NOT fabricate data, estimates, or capability names. "
+                    "If you are unsure, say so plainly."
+                )
+                lines.append("")
+
+        # ── Successful facts ─────────────────────────────────────────
         if rep.facts:
             lines.append("## Live Capability Results (verified factual data)")
             for f in rep.facts[:6]:
@@ -107,6 +152,7 @@ class EvidenceManager:
                 lines.append(f"  - {content} {label}".strip())
             lines.append("")
 
+        # ── Failures ─────────────────────────────────────────────────
         if rep.failures:
             lines.append("## Capability Failures — you MUST acknowledge these")
             for fail in rep.failures[:8]:
