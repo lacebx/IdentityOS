@@ -60,7 +60,9 @@ class CapabilityRegistry:
                 config = entry.get("config", {})
                 try:
                     cls = lookup(cap_id)
-                    instances[cap_id] = cls(config=config)
+                    inst = cls(config=config)
+                    inst.install(identity_id, self._storage)
+                    instances[cap_id] = inst
                 except ValueError:
                     pass  # skip capabilities whose class isn't loaded
             self._loaded[identity_id] = instances

@@ -280,6 +280,14 @@
       "skills": [],
       "published": "auto",
       "updated": true
+    },
+    {
+      "id": "speech",
+      "name": "Speech",
+      "version": "1.0.0",
+      "description": "Generic capability: speech",
+      "skills": [],
+      "published": "auto"
     }
   ]
 }

@@ -303,6 +303,20 @@ class IdentityRuntime:
             storage=self._storage,
         )
 
+        # Executive Runtime — persistent task engine for committed goals
+        self.executive = None
+        if self._storage is not None:
+            try:
+                from core.executive import ExecutiveRuntime
+                from core.executive.engine import register_executive
+                self.executive = ExecutiveRuntime(
+                    storage=self._storage,
+                    capability_registry=self.capability_registry,
+                )
+                register_executive(self.executive)
+            except Exception:
+                self.executive = None
+
     # ------------------------------------------------------------------
     # Event helpers
     # ------------------------------------------------------------------
@@ -1225,6 +1239,41 @@ class IdentityRuntime:
 
         sanitized_input = input_policy.transformed_data or request.user_input
 
+        # Stage 2b: Executive recovery — reload any interrupted task state so
+        # the identity never restarts committed work from scratch.
+        _executive_state_block = ""
+        if self.executive is not None:
+            try:
+                self.executive.recover(identity.id)
+                self.executive._ctx(identity.id, runtime=self)
+                _executive_state_block = self.executive.render_state(identity.id)
+            except Exception:
+                _executive_state_block = ""
+
+            # Stage 2b: Automatic Need Detection -> Task Creation.
+            # If the user input is a capability-acquisition goal and no task
+            # is already committed for it, create the executive task now so
+            # the identity's commitment is persisted BEFORE the LLM replies.
+            # This is what makes the answer truthful: the LLM reads real task
+            # state instead of inventing a completion.
+            try:
+                from core.executive.workflow import extract_capability_name, is_acquisition_goal
+                _acq_cap = extract_capability_name(sanitized_input)
+                if _acq_cap and is_acquisition_goal(sanitized_input):
+                    _existing = self.executive.active_tasks(identity.id)
+                    if not any(t.capability_id == _acq_cap or _acq_cap in (t.goal or "") for t in _existing):
+                        self.executive.create_acquisition_task(
+                            identity_id=identity.id,
+                            capability_id=_acq_cap,
+                            goal=sanitized_input,
+                            original_request=sanitized_input,
+                        )
+                        if self.executive.scheduler:
+                            self.executive.scheduler.start()
+                    _executive_state_block = self.executive.render_state(identity.id)
+            except Exception:
+                pass
+
         # Stage 2b: Prometheus pre-check — detect capability needs before composing context
         _prometheus_evolved = False
         _pre_evolve_result = self.prometheus.pre_check_and_evolve(
@@ -1279,6 +1328,8 @@ class IdentityRuntime:
 
         if _has_evidence:
             context.custom_blocks["factual_skill_data"] = _skill_router.format_for_context(_evidence)
+        if _executive_state_block:
+            context.custom_blocks["executive_state"] = _executive_state_block
         # Persist trust metrics for dashboard
         _history = _evidence.call_history
         if _history:
