@@ -448,14 +448,15 @@ class TaskPlannerCapability(Capability):
 
     @staticmethod
     def _infer_skill_kind(gl: str, cap_id: Optional[str]) -> str:
+        # Prefer functional intent over incidental words in examples ("hello world...")
         if "reverse" in gl or (cap_id and "reverse" in cap_id):
             return "reverse"
+        if "count" in gl or (cap_id and "count" in cap_id):
+            return "count"
         if "upper" in gl or "uppercase" in gl:
             return "upper"
-        if "greet" in gl or "hello" in gl:
+        if "greet" in gl and "hello world" not in gl:
             return "greet"
-        if "count" in gl:
-            return "count"
         return "echo"
 
     @staticmethod

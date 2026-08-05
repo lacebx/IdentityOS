@@ -98,37 +98,38 @@ class SkillRouter:
         # ── Step 1: detect compound multi-step requests ─────────────
         is_multi_step = self._is_compound_request(text)
 
-        # ── First pass: check contextual confidence ─────────────────
-        contextual = False
-        for cap in caps:
-            for skill in cap.skills():
-                match = self._match(user_input, skill)
-                if match.get("confidence") == "contextual":
-                    contextual = True
-                    break
+        # Multi-step evolution/create/install goals: ONLY task_planner.
+        # Prevents github/file_tools spray that caused false evidence noise.
+        if is_multi_step:
+            planner_skill = "task_planner.plan_and_execute"
+            for cap in caps:
+                if getattr(cap, "id", "") == "task_planner":
+                    try:
+                        result = cap.call(
+                            planner_skill,
+                            goal=user_input,
+                            identity_id=self._identity_id,
+                        )
+                    except Exception as e:
+                        result = CapabilityResult.fail(
+                            "task_planner",
+                            planner_skill, type(e).__name__, str(e),
+                        )
+                    evidence.collect(result)
+                    return evidence
+            # fall through if planner not installed
 
-        # ── Step 2: fire matching skills ────────────────────────────
+        # ── Step 2: fire matching skills (precise match only) ───────
         for cap in caps:
             cap_id = getattr(cap, "id", "unknown")
-
-            # If this is a multi-step request, skip capabilities that
-            # the task_planner manages internally — the planner will
-            # call them directly via lookup().
-            if is_multi_step and cap_id in self._PLANNER_MANAGED:
-                continue
-
             for skill in cap.skills():
-                if contextual:
-                    matches = True
-                else:
-                    match = self._match(user_input, skill)
-                    matches = match["matched"]
+                match = self._match(user_input, skill)
+                matches = match["matched"] and match.get("confidence") != "contextual"
 
                 if matches and skill.name not in seen:
                     seen.add(skill.name)
                     try:
                         params = self._extract_params(user_input, skill)
-                        # Always inject identity context for registry / planner skills
                         if skill.name.startswith("registry_manager.") or skill.name.startswith("task_planner."):
                             params.setdefault("identity_id", self._identity_id)
                         result = cap.call(skill.name, **params)
@@ -138,27 +139,6 @@ class SkillRouter:
                             skill.name, type(e).__name__, str(e),
                         )
                     evidence.collect(result)
-
-        # ── Step 3: if multi-step, also fire the task_planner ───────
-        if is_multi_step:
-            planner_skill = "task_planner.plan_and_execute"
-            if planner_skill not in seen:
-                seen.add(planner_skill)
-                for cap in caps:
-                    if getattr(cap, "id", "") == "task_planner":
-                        try:
-                            result = cap.call(
-                                planner_skill,
-                                goal=user_input,
-                                identity_id=self._identity_id,
-                            )
-                        except Exception as e:
-                            result = CapabilityResult.fail(
-                                "task_planner",
-                                planner_skill, type(e).__name__, str(e),
-                            )
-                        evidence.collect(result)
-                        break
 
         return evidence
 
@@ -196,9 +176,11 @@ class SkillRouter:
             "file_tools": ["write file", "create file", "save file", "write code", "create directory", "mkdir", "make directory", "append file", "edit file"],
             "github": ["github", "repository", "repo", "pull request", "issue", "commit", "stars", "open source", "beginner", "trending", "lacebx", "identityos", "repo info"],
             "system": ["operating system", "disk space", "disk usage", "how much disk", "os", "cpu", "what system", "what os", "system info", "platform"],
-            "registry_manager": ["publish", "install capability", "list capabilities", "registry", "publish skill", "install skill", "register skill", "add to registry", "inventory", "what can you", "installed capabilities", "available capabilities", "what skills"],
+            "registry_manager": ["publish capability", "install capability", "list capabilities", "registry inventory", "publish skill", "install skill", "register skill", "add to registry", "capability inventory", "available capabilities", "installed capabilities"],
             "skill_validator": ["validate", "syntax check", "check skill", "test skill", "verify syntax", "validate skill", "check code", "lint"],
             "task_planner": ["create capability", "create a skill", "plan and execute", "deploy capability", "scaffold", "create_and_deploy"],
+            "text_reverser": ["reverse", "backwards", "reverser"],
+            "word_counter": ["count words", "word count", "how many words"],
         }
 
         # Additional pattern-based matching for GitHub repo references
@@ -346,6 +328,26 @@ class SkillRouter:
                     return {"text": text, "pattern": val}
             return {"text": text, "pattern": "urls"}
 
+        if name == "web.fetch":
+            url_match = re.search(r'(https?://\S+)', text)
+            return {"url": url_match.group(1)} if url_match else {}
+
+        if name == "web.extract":
+            url_match = re.search(r'(https?://\S+)', text)
+            return {"url": url_match.group(1)} if url_match else {}
+
+        if name.endswith(".reverse") or name.endswith(".echo") or name.endswith(".upper") or name.endswith(".count") or name.endswith(".greet"):
+            # Prefer quoted string, else last meaningful phrase
+            q = re.search(r"['\"]([^'\"]+)['\"]", text)
+            if q:
+                return {"text": q.group(1), "message": q.group(1)}
+            # "reverse the word Bones" / "reverse IdentityOS"
+            m = re.search(r'(?:reverse|count|echo|uppercase)\s+(?:the\s+)?(?:word\s+|string\s+)?(.+)$', text, re.IGNORECASE)
+            if m:
+                val = m.group(1).strip().rstrip(".")
+                return {"text": val, "message": val}
+            return {}
+
         # ── File Tools ───────────────────────────────────────────────────
         if name == "file_tools.write_file":
             path_match = re.search(r'(?:to|at|in)\s+([/\w.-]+(?:\.[\w]+)?)', text)
@@ -371,13 +373,18 @@ class SkillRouter:
 
         if name in ("registry_manager.publish_capability", "registry_manager.install_capability"):
             id_match = re.search(
-                r'(?:capability|skill|publish|install)\s+([a-z][a-z0-9_]{1,64})',
+                r'(?:capability|skill|publish|install)\s+([a-z][a-z0-9_]{2,64})',
                 text,
                 re.IGNORECASE,
             )
             params: dict[str, Any] = {"identity_id": getattr(self, "_identity_id", "")}
             if id_match:
-                params["cap_id"] = id_match.group(1).lower()
+                cand = id_match.group(1).lower()
+                # Reject English debris / articles
+                if cand not in self._STOP_WORDS and cand not in {
+                    "capability", "skill", "existing", "available", "new", "the", "an", "a"
+                }:
+                    params["cap_id"] = cand
             return params
 
         if name == "registry_manager.create_and_deploy":
