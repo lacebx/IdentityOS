@@ -1255,14 +1255,14 @@ class IdentityRuntime:
         # Gate 1 self-model: for inventory-style questions, ensure inventory evidence exists
         _inv_triggers = (
             "what can you", "what can't you", "cannot do", "installed", "capabilities",
-            "inventory", "have we talked", "first encounter", "what skills",
+            "inventory", "have we talked", "first encounter", "what skills", "not do",
         )
         _low = sanitized_input.lower()
         if any(t in _low for t in _inv_triggers):
             _rm = self.capability_registry.get(identity.id, "registry_manager")
             if _rm is not None:
                 _already = any(
-                    getattr(r, "action", "").endswith("inventory") or r.action == "registry_manager.inventory"
+                    (getattr(r, "action", "") or "").endswith("inventory")
                     for r in getattr(_evidence, "_results", [])
                 )
                 if not _already:
@@ -1271,6 +1271,71 @@ class IdentityRuntime:
                     _evidence_results = [r.to_evidence_dict() for r in _evidence._results]
                     _has_evidence = True
                     _report = _evidence.report()
+
+        # Continuity: inject recent timeline when asked about prior encounters
+        _cont_triggers = ("have we talked", "first encounter", "talked before", "met before", "remember me")
+        if any(t in _low for t in _cont_triggers):
+            _tl = self.timeline_registry.get(identity.id)
+            _events = []
+            if _tl:
+                for ev in list(_tl.events())[-8:]:
+                    _events.append({
+                        "type": getattr(getattr(ev, "event_type", None), "value", str(getattr(ev, "event_type", ""))),
+                        "title": getattr(ev, "title", "") or "",
+                        "description": getattr(ev, "description", "") or "",
+                    })
+            context_note = {
+                "prior_interactions": _events,
+                "interaction_count": len(_events),
+                "goal_ok": True,
+                "note": "Use this timeline to answer whether you have talked before. Do not claim this is the first encounter if events exist.",
+            }
+            from core.capabilities.result import CapabilityResult as _CR
+            _evidence.collect(_CR.ok("system", "timeline_continuity", context_note, source="timeline"))
+            _evidence_results = [r.to_evidence_dict() for r in _evidence._results]
+            _has_evidence = True
+
+        # Gate 5: mission-driven autonomy — set a goal and optionally evolve
+        _mission_match = None
+        import re as _re
+        _m = _re.search(
+            r'(?:your mission(?: is)?|set(?: your)? mission(?: to)?|mission:)\s+(.+)',
+            sanitized_input,
+            _re.IGNORECASE,
+        )
+        if _m:
+            _mission_text = _m.group(1).strip().rstrip(".")
+            try:
+                from core.goals import Goal, GoalScope
+                _goal = Goal(description=_mission_text, scope=GoalScope.PERSISTENT)
+                self.goal_engine.add(_goal)
+                from core.capabilities.result import CapabilityResult as _CR
+                _evidence.collect(_CR.ok(
+                    "system",
+                    "mission_set",
+                    {"mission": _mission_text, "goal_ok": True},
+                    source="goal_engine",
+                ))
+            except Exception as _goal_err:
+                from core.capabilities.result import CapabilityResult as _CR
+                _evidence.collect(_CR.fail(
+                    "system", "mission_set", "goal_error", str(_goal_err)
+                ))
+            # Kick acquire/create plan for the mission via task_planner if available
+            _tp = self.capability_registry.get(identity.id, "task_planner")
+            if _tp is not None:
+                _plan_res = _tp.call(
+                    "task_planner.plan_and_execute",
+                    goal=f"inventory then install any missing capabilities needed for mission: {_mission_text}",
+                    identity_id=identity.id,
+                )
+                _evidence.collect(_plan_res)
+                _evidence_results = [r.to_evidence_dict() for r in _evidence._results]
+                _has_evidence = True
+            else:
+                _evidence_results = [r.to_evidence_dict() for r in _evidence._results]
+                _has_evidence = True
+            cap_prompts = self.capability_registry.all_prompts(identity.id)
 
         context = self.context_composer.compose(
             identity=identity,
