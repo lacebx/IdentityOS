@@ -291,6 +291,16 @@
         "word_counter.count"
       ],
       "published": "auto"
+    },
+    {
+      "id": "string_flipper",
+      "name": "String Flipper",
+      "version": "1.0.0",
+      "description": "Auto-generated from goal: Create a capability called string_flipper that reverses text, publish it, install it on yourself, then reverse the word ",
+      "skills": [
+        "string_flipper.reverse"
+      ],
+      "published": "auto"
     }
   ]
 }

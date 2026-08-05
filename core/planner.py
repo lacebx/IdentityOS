@@ -201,8 +201,29 @@ class SkillRouter:
                 # Return a special sentinel — caller executes all skills
                 return {"matched": True, "confidence": "contextual"}
 
-        # Check skill name
+        # Check skill name / domain triggers — require skill-specific intent
+        # so "list capabilities" does not also fire publish/install/create.
         skill_name = skill.name.lower()
+        skill_specific = {
+            "registry_manager.list_capabilities": ["list capabilities", "list available", "show capabilities", "capability list"],
+            "registry_manager.inventory": [
+                "inventory", "installed capabilities", "available capabilities",
+                "what can you", "what skills", "not installed", "installed versus",
+            ],
+            "registry_manager.publish_capability": ["publish capability", "publish skill", "register skill"],
+            "registry_manager.install_capability": ["install capability", "install skill"],
+            "registry_manager.create_and_deploy": ["create_and_deploy", "create and deploy", "deploy capability"],
+            "task_planner.plan_and_execute": [
+                "create capability", "create a skill", "plan and execute", "scaffold",
+                "publish and install", "create a capability",
+            ],
+        }
+        if skill_name in skill_specific:
+            for kw in skill_specific[skill_name]:
+                if kw in text:
+                    return {"matched": True, "confidence": "high"}
+            return {"matched": False}
+
         for domain, keywords in triggers.items():
             if domain in skill_name:
                 for kw in keywords:
