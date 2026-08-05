@@ -60,6 +60,13 @@ class SkillValidatorCapability(Capability):
             if handler is None:
                 return CapabilityResult.fail("skill_validator", skill_name, "unknown_skill", f"Unknown skill: {skill_name}")
             data = handler(**params)
+            if isinstance(data, dict) and (data.get("error") or data.get("valid") is False):
+                data = {**data, "goal_ok": False}
+                if not data.get("error"):
+                    data["error"] = data.get("message") or "validation failed"
+            else:
+                if isinstance(data, dict):
+                    data = {**data, "goal_ok": True}
             return CapabilityResult.ok("skill_validator", skill_name, data, source="code analysis", duration_ms=(_time.monotonic() - _t0) * 1000)
         except Exception as e:
             return CapabilityResult.fail("skill_validator", skill_name, type(e).__name__, str(e), duration_ms=(_time.monotonic() - _t0) * 1000)

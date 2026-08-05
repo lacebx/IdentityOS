@@ -1249,6 +1249,29 @@ class IdentityRuntime:
         _evidence_results = [r.to_evidence_dict() for r in _evidence._results] if hasattr(_evidence, '_results') else []
         _has_evidence = bool(_report.facts or _report.failures)
 
+        # Refresh prompts after routing — installs during this turn must be visible
+        cap_prompts = self.capability_registry.all_prompts(identity.id)
+
+        # Gate 1 self-model: for inventory-style questions, ensure inventory evidence exists
+        _inv_triggers = (
+            "what can you", "what can't you", "cannot do", "installed", "capabilities",
+            "inventory", "have we talked", "first encounter", "what skills",
+        )
+        _low = sanitized_input.lower()
+        if any(t in _low for t in _inv_triggers):
+            _rm = self.capability_registry.get(identity.id, "registry_manager")
+            if _rm is not None:
+                _already = any(
+                    getattr(r, "action", "").endswith("inventory") or r.action == "registry_manager.inventory"
+                    for r in getattr(_evidence, "_results", [])
+                )
+                if not _already:
+                    _inv = _rm.call("registry_manager.inventory", identity_id=identity.id)
+                    _evidence.collect(_inv)
+                    _evidence_results = [r.to_evidence_dict() for r in _evidence._results]
+                    _has_evidence = True
+                    _report = _evidence.report()
+
         context = self.context_composer.compose(
             identity=identity,
             memory_store=self.memory_store,
@@ -1581,7 +1604,12 @@ class IdentityRuntime:
             for ev in _evidence_results[:12]:
                 status = "✓" if ev["success"] else "✗"
                 conf = ev["confidence"]
-                label = "verified" if conf >= 0.8 else "sourced" if conf >= 0.5 else "inferred"
+                goal = ev.get("goal_ok")
+                if goal is False:
+                    status = "✗"
+                    label = "goal_failed"
+                else:
+                    label = "verified" if conf >= 0.8 else "sourced" if conf >= 0.5 else "inferred"
                 err = f" — {ev['error']['message'][:200]}" if ev.get("error") else ""
                 footer_lines.append(
                     f"  {status} `{ev['capability']}.{ev['action']}` — {label} ({conf:.1f}) — {ev['duration_ms']:.0f}ms{err}"

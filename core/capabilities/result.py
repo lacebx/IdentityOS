@@ -29,21 +29,44 @@ class CapabilityResult:
     citations: list[str] = field(default_factory=list)
     duration_ms: float = 0.0
     metadata: dict = field(default_factory=dict)
+    # call_ok is ``success``; goal_ok is whether postconditions of the *intent* passed.
+    # None means "not applicable / not checked".
+    goal_ok: Optional[bool] = None
 
     @staticmethod
     def ok(capability: str, action: str, data: Any, *,
            source: str = "", confidence: float = 1.0,
            citations: list[str] | None = None,
-           duration_ms: float = 0.0) -> CapabilityResult:
+           duration_ms: float = 0.0,
+           goal_ok: Optional[bool] = None) -> CapabilityResult:
+        # If caller provided structured data with goal_ok / error, honor it.
+        resolved_goal = goal_ok
+        conf = confidence
+        err = None
+        if isinstance(data, dict):
+            if "goal_ok" in data and resolved_goal is None:
+                resolved_goal = bool(data.get("goal_ok"))
+            if data.get("error") and resolved_goal is None:
+                resolved_goal = False
+            if data.get("valid") is False and resolved_goal is None:
+                resolved_goal = False
+            if resolved_goal is False and data.get("error"):
+                err = {"type": "goal_failed", "message": str(data.get("error"))}
+        if resolved_goal is False:
+            conf = min(conf, 0.2)
+        if resolved_goal is None:
+            resolved_goal = True
         return CapabilityResult(
             capability=capability,
             action=action,
-            success=True,
-            confidence=confidence,
+            success=resolved_goal,  # honesty: failed postconditions are not successes
+            confidence=conf if resolved_goal else 0.0,
             source=source,
             data=data,
             citations=citations or [],
             duration_ms=duration_ms,
+            goal_ok=resolved_goal,
+            error=err,
         )
 
     @staticmethod
@@ -58,6 +81,7 @@ class CapabilityResult:
             data=None,
             error={"type": error_type, "message": message},
             duration_ms=duration_ms,
+            goal_ok=False,
         )
 
     def to_evidence_dict(self) -> dict:
@@ -65,6 +89,7 @@ class CapabilityResult:
             "capability": self.capability,
             "action": self.action,
             "success": self.success,
+            "goal_ok": self.goal_ok,
             "confidence": self.confidence,
             "source": self.source,
             "timestamp": self.timestamp,

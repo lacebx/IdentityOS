@@ -252,6 +252,14 @@ class ContextComposer:
             "- Reference the 'Capability Failures' section for failed calls.\n"
             "- Report the confidence level: verified (>=0.8), sourced (0.5-0.8), inferred (<0.5).\n"
             "- If you cannot identify the source, state 'I don't know exactly which capability produced that.'\n",
+            "### 8b. HONESTY ABOUT CAPABILITY EVOLUTION — NEVER LIE ABOUT INSTALL/CREATE\n"
+            "- NEVER claim you created, published, or installed a capability unless Live Capability Results "
+            "show goal_ok=true (or status='installed' / status='deployed') for that action.\n"
+            "- If a result shows goal_ok=false, status='ready_to_install', or an error, you MUST say it failed.\n"
+            "- Do NOT invent evidence footers. Only trust the system-provided Live Capability Results.\n"
+            "- When asked what you can/cannot do, use registry_manager.inventory results if present. "
+            "Prefer installing an existing registry capability (e.g. web) over inventing a duplicate.\n"
+            "- If you previously claimed success and inventory shows otherwise, admit the earlier claim was wrong.\n",
         ]
         if capability_prompts:
             parts.append(

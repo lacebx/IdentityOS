@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from .base import Capability, Skill
 from .proxy import CapabilityProxy
-from .registry import CapabilityRegistry
+from .registry import CapabilityRegistry, import_capability, available, lookup, register
 from .result import CapabilityResult, EvidenceOrigin, Fact
 from .evidence import EvidenceManager, EvidenceReport
 
@@ -26,6 +26,10 @@ __all__ = [
     "Skill",
     "CapabilityProxy",
     "CapabilityRegistry",
+    "import_capability",
+    "available",
+    "lookup",
+    "register",
     "CapabilityResult",
     "EvidenceOrigin",
     "Fact",

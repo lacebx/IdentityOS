@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import importlib
+import sys
 from typing import Any, Optional
 
 from .base import Capability, Skill
@@ -26,6 +28,30 @@ def lookup(cap_id: str) -> type[Capability]:
 
 def available() -> list[str]:
     return list(_BUILTIN_CAPABILITIES.keys())
+
+
+def import_capability(cap_id: str) -> type[Capability]:
+    """Import (or reload) ``core.capabilities.<cap_id>`` so ``@register`` fires.
+
+    Enables hot-loading capabilities written to disk without process restart.
+    """
+    if not cap_id or not cap_id.isidentifier():
+        raise ValueError(f"Invalid capability id: {cap_id!r}")
+    module_name = f"core.capabilities.{cap_id}"
+    if module_name in sys.modules:
+        importlib.reload(sys.modules[module_name])
+    else:
+        importlib.import_module(module_name)
+    return lookup(cap_id)
+
+
+def bind_runtime_context(
+    cap: Capability, identity_id: str, registry: "CapabilityRegistry"
+) -> Capability:
+    """Attach identity + registry so skills can perform real installs."""
+    cap._identity_id = identity_id  # type: ignore[attr-defined]
+    cap._capability_registry = registry  # type: ignore[attr-defined]
+    return cap
 
 
 # ── Per-identity registry ──────────────────────────────────────────────
@@ -60,9 +86,14 @@ class CapabilityRegistry:
                 config = entry.get("config", {})
                 try:
                     cls = lookup(cap_id)
-                    instances[cap_id] = cls(config=config)
                 except ValueError:
-                    pass  # skip capabilities whose class isn't loaded
+                    try:
+                        cls = import_capability(cap_id)
+                    except Exception:
+                        continue  # skip capabilities whose class isn't loaded
+                instances[cap_id] = bind_runtime_context(
+                    cls(config=config), identity_id, self
+                )
             self._loaded[identity_id] = instances
         return self._loaded[identity_id]
 
@@ -79,13 +110,20 @@ class CapabilityRegistry:
     def install(
         self, identity_id: str, cap_id: str, config: Optional[dict] = None
     ) -> Capability:
-        cls = lookup(cap_id)
-        cap = cls(config=config or {})
+        try:
+            cls = lookup(cap_id)
+        except ValueError:
+            cls = import_capability(cap_id)
+        cap = bind_runtime_context(cls(config=config or {}), identity_id, self)
         cap.install(identity_id, self._storage)
         caps = self._load_identity_caps(identity_id)
         caps[cap_id] = cap
         self._save(identity_id)
         return cap
+
+    def invalidate(self, identity_id: str) -> None:
+        """Drop cached instances so the next list/get reloads from storage."""
+        self._loaded.pop(identity_id, None)
 
     def uninstall(self, identity_id: str, cap_id: str) -> None:
         caps = self._load_identity_caps(identity_id)

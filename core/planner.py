@@ -128,6 +128,9 @@ class SkillRouter:
                     seen.add(skill.name)
                     try:
                         params = self._extract_params(user_input, skill)
+                        # Always inject identity context for registry / planner skills
+                        if skill.name.startswith("registry_manager.") or skill.name.startswith("task_planner."):
+                            params.setdefault("identity_id", self._identity_id)
                         result = cap.call(skill.name, **params)
                     except Exception as e:
                         result = CapabilityResult.fail(
@@ -144,7 +147,11 @@ class SkillRouter:
                 for cap in caps:
                     if getattr(cap, "id", "") == "task_planner":
                         try:
-                            result = cap.call(planner_skill, goal=user_input)
+                            result = cap.call(
+                                planner_skill,
+                                goal=user_input,
+                                identity_id=self._identity_id,
+                            )
                         except Exception as e:
                             result = CapabilityResult.fail(
                                 "task_planner",
@@ -189,8 +196,9 @@ class SkillRouter:
             "file_tools": ["write file", "create file", "save file", "write code", "create directory", "mkdir", "make directory", "append file", "edit file"],
             "github": ["github", "repository", "repo", "pull request", "issue", "commit", "stars", "open source", "beginner", "trending", "lacebx", "identityos", "repo info"],
             "system": ["operating system", "disk space", "disk usage", "how much disk", "os", "cpu", "what system", "what os", "system info", "platform"],
-            "registry_manager": ["publish", "install capability", "list capabilities", "registry", "publish skill", "install skill", "register skill", "add to registry"],
+            "registry_manager": ["publish", "install capability", "list capabilities", "registry", "publish skill", "install skill", "register skill", "add to registry", "inventory", "what can you", "installed capabilities", "available capabilities", "what skills"],
             "skill_validator": ["validate", "syntax check", "check skill", "test skill", "verify syntax", "validate skill", "check code", "lint"],
+            "task_planner": ["create capability", "create a skill", "plan and execute", "deploy capability", "scaffold", "create_and_deploy"],
         }
 
         # Additional pattern-based matching for GitHub repo references
@@ -356,16 +364,45 @@ class SkillRouter:
 
         # ── Registry Manager ─────────────────────────────────────────────
         if name == "registry_manager.list_capabilities":
-            return {}
+            return {"identity_id": getattr(self, "_identity_id", "")}
+
+        if name == "registry_manager.inventory":
+            return {"identity_id": getattr(self, "_identity_id", "")}
 
         if name in ("registry_manager.publish_capability", "registry_manager.install_capability"):
-            id_match = re.search(r'(?:capability|skill|publish|install)\s+([\w_-]+)', text, re.IGNORECASE)
+            id_match = re.search(
+                r'(?:capability|skill|publish|install)\s+([a-z][a-z0-9_]{1,64})',
+                text,
+                re.IGNORECASE,
+            )
+            params: dict[str, Any] = {"identity_id": getattr(self, "_identity_id", "")}
             if id_match:
-                cap_id = id_match.group(1)
-                cap_id = cap_id.replace("_", "_")  # already clean
-                return {"cap_id": cap_id}
-            return {}
+                params["cap_id"] = id_match.group(1).lower()
+            return params
 
+        if name == "registry_manager.create_and_deploy":
+            params = {"identity_id": getattr(self, "_identity_id", "")}
+            id_match = re.search(
+                r'(?:capability|skill|create|deploy)\s+([a-z][a-z0-9]*_[a-z0-9_]+)',
+                text,
+                re.IGNORECASE,
+            )
+            if id_match:
+                params["cap_id"] = id_match.group(1).lower()
+            if "reverse" in text.lower():
+                params["skill_kind"] = "reverse"
+            elif "upper" in text.lower():
+                params["skill_kind"] = "upper"
+            return params
+
+        if name == "task_planner.plan_and_execute":
+            params = {"goal": text, "identity_id": getattr(self, "_identity_id", "")}
+            id_match = re.search(r'\b([a-z][a-z0-9]*_[a-z0-9_]+)\b', text.lower())
+            if id_match:
+                params["cap_id"] = id_match.group(1)
+            if "reverse" in text.lower():
+                params["skill_kind"] = "reverse"
+            return params
         # ── Skill Validator ──────────────────────────────────────────────
         if name == "skill_validator.validate_syntax":
             path_match = re.search(r'(?:file|path|validate):?\s*([/\w.-]+(?:\.[\w]+)?)', text, re.IGNORECASE)
@@ -378,9 +415,5 @@ class SkillRouter:
             if path_match:
                 return {"path": path_match.group(1)}
             return {}
-
-        # ── Task Planner ────────────────────────────────────────────────
-        if name == "task_planner.plan_and_execute":
-            return {"goal": text}
 
         return {}
