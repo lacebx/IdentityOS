@@ -211,6 +211,26 @@ class TestOllamaAdapter:
         assert result == "Hello from the mock!"
         mock_openai_client.return_value.chat.completions.create.assert_called_once()
 
+    def test_generate_disables_thinking_by_default(self, mock_openai_client):
+        adapter = OllamaAdapter(model="qwen3.5:4b")
+        adapter.generate(
+            context="You are a local model.",
+            user_input="Hello!",
+            identity=_MockIdentity(),
+        )
+        call_kwargs = mock_openai_client.return_value.chat.completions.create.call_args[1]
+        assert call_kwargs["extra_body"] == {"think": False}
+
+    def test_generate_can_enable_thinking(self, mock_openai_client):
+        adapter = OllamaAdapter(model="qwen3.5:4b", think=True)
+        adapter.generate(
+            context="You are a local model.",
+            user_input="Hello!",
+            identity=_MockIdentity(),
+        )
+        call_kwargs = mock_openai_client.return_value.chat.completions.create.call_args[1]
+        assert call_kwargs["extra_body"] == {"think": True}
+
     def test_default_base_url(self):
         adapter = OllamaAdapter()
         assert adapter.base_url == "http://localhost:11434/v1"
