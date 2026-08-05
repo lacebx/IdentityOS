@@ -188,6 +188,19 @@ class TaskPlannerCapability(Capability):
         identity_id = identity_id or getattr(self, "_identity_id", "") or ""
         registry = _capability_registry or getattr(self, "_capability_registry", None)
 
+        from core.claim_enforcement import is_explicit_deploy_request, is_gap_identify_only
+
+        # Gap-identify-only goals: never synthesize/deploy — inventory only
+        if is_gap_identify_only(goal) and not is_explicit_deploy_request(goal) and not steps and not cap_id:
+            plan = [{
+                "action": "inventory",
+                "params": {"identity_id": identity_id},
+                "description": "Gap identify only — inventory, do not create/deploy",
+                "critical": True,
+            }]
+            # Fall through to execute this inventory-only plan
+            steps = plan
+
         plan = steps or self._generate_plan(
             goal,
             cap_id=cap_id,
@@ -453,6 +466,8 @@ class TaskPlannerCapability(Capability):
             return "reverse"
         if "count" in gl or (cap_id and "count" in cap_id):
             return "count"
+        if "similar" in gl or "semantic" in gl or (cap_id and ("similar" in cap_id or "semantic" in cap_id)):
+            return "similarity"
         if "upper" in gl or "uppercase" in gl:
             return "upper"
         if "greet" in gl and "hello world" not in gl:
@@ -562,6 +577,25 @@ class {class_name}(Capability):
         elif kind == "count":
             body = '''        text = params.get("text") or params.get("message") or params.get("input") or ""
         return {"text": text, "chars": len(text), "words": len(text.split()), "goal_ok": True}'''
+        elif kind in ("similarity", "semantic", "overlap"):
+            body = '''        a = (params.get("text_a") or params.get("a") or params.get("text") or "").lower()
+        b = (params.get("text_b") or params.get("b") or params.get("other") or params.get("message") or "").lower()
+        # Honest local lexical overlap — NOT embedding cosine similarity
+        ta, tb = set(a.split()), set(b.split())
+        if not ta and not tb:
+            score = 1.0
+        elif not ta or not tb:
+            score = 0.0
+        else:
+            score = len(ta & tb) / len(ta | tb)
+        return {
+            "text_a": a,
+            "text_b": b,
+            "method": "jaccard_token_overlap",
+            "note": "Lexical overlap only — not embedding-based semantic similarity",
+            "score": round(score, 4),
+            "goal_ok": True,
+        }'''
         else:  # echo
             body = '''        text = params.get("text") or params.get("message") or params.get("input") or ""
         return {"echo": text, "goal_ok": True}'''

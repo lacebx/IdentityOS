@@ -1253,12 +1253,16 @@ class IdentityRuntime:
         cap_prompts = self.capability_registry.all_prompts(identity.id)
 
         # Gate 1 self-model: for inventory-style questions, ensure inventory evidence exists
+        # Use phrase matches — avoid substring "installed" matching "if installed would"
         _inv_triggers = (
-            "what can you", "what can't you", "cannot do", "installed", "capabilities",
+            "what can you", "what can't you", "cannot do", "capabilities list",
             "inventory", "have we talked", "first encounter", "what skills", "not do",
+            "installed capabilities", "available but not", "cap list",
+            "what do you have installed", "currently have installed",
         )
         _low = sanitized_input.lower()
-        if any(t in _low for t in _inv_triggers):
+        from core.claim_enforcement import is_gap_identify_only, is_explicit_deploy_request
+        if is_gap_identify_only(sanitized_input) or any(t in _low for t in _inv_triggers):
             _rm = self.capability_registry.get(identity.id, "registry_manager")
             if _rm is not None:
                 _already = any(
@@ -1367,6 +1371,12 @@ class IdentityRuntime:
 
         if _has_evidence:
             context.custom_blocks["factual_skill_data"] = _skill_router.format_for_context(_evidence)
+            from core.claim_enforcement import build_deploy_truth_block
+            context.custom_blocks["deploy_truth"] = build_deploy_truth_block(
+                list(getattr(_evidence, "_results", [])),
+                capability_registry=self.capability_registry,
+                identity_id=identity.id,
+            )
         # Persist trust metrics for dashboard
         _history = _evidence.call_history
         if _history:
@@ -1405,6 +1415,29 @@ class IdentityRuntime:
             )
         else:
             raw_output = f"[No adapter configured. Context prepared for {identity.name}]"
+
+        # Stage 4a2: HARD claim enforcement — rewrite unproven create/publish/install lies
+        from core.claim_enforcement import enforce_deploy_claims
+        raw_output, _claim_audit = enforce_deploy_claims(
+            raw_output,
+            user_input=sanitized_input,
+            evidence_results=list(getattr(_evidence, "_results", [])),
+            capability_registry=self.capability_registry,
+            identity_id=identity.id,
+        )
+        if _claim_audit:
+            try:
+                self._emit(
+                    EventType.POLICY_TRIGGERED,
+                    identity_id=identity.id,
+                    session_id=request.session_id,
+                    scope="claim_enforcement",
+                    allowed=True,
+                    policies_applied=["deploy_claim_gate"],
+                    **{k: v for k, v in _claim_audit.items() if k != "action"},
+                )
+            except Exception:
+                pass
 
         # Stage 4b: Prometheus post-check — if the response indicates a missing capability,
         # install it and retry the adapter call with the updated context

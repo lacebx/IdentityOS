@@ -254,7 +254,12 @@ class ContextComposer:
             "- If you cannot identify the source, state 'I don't know exactly which capability produced that.'\n",
             "### 8b. HONESTY ABOUT CAPABILITY EVOLUTION — NEVER LIE ABOUT INSTALL/CREATE\n"
             "- NEVER claim you created, published, or installed a capability unless Live Capability Results "
-            "show goal_ok=true (or status='installed' / status='deployed') for that action.\n"
+            "show goal_ok=true (or status='installed' / status='deployed') for that action "
+            "AND the DEPLOY TRUTH block lists it under VERIFIED.\n"
+            "- If DEPLOY TRUTH says VERIFIED: (none), you MUST NOT claim any create/publish/install success.\n"
+            "- If the user only asks what skill you lack / what would bridge a gap: name the gap and proposed "
+            "capability id — do NOT create it yet, and do NOT claim you already published/installed it.\n"
+            "- Do NOT output JSON plans or <function_calls>/<invoke> XML. Speak in plain language.\n"
             "- If a result shows goal_ok=false, status='ready_to_install', or an error, you MUST say it failed.\n"
             "- Do NOT invent evidence footers. Only trust the system-provided Live Capability Results.\n"
             "- When asked what you can/cannot do, use registry_manager.inventory results if present. "

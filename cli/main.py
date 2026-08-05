@@ -106,8 +106,14 @@ _BOLD = "\033[1m"
 
 def _render_output(text: str) -> str:
     """Post-process LLM output: collapse `<thought>...</thought>` into
-    a compact collapsible section for terminal display."""
+    a compact collapsible section for terminal display, and strip fake tool XML."""
     import re
+    # Strip fake tool-call leakage before thought rendering
+    text = re.sub(
+        r"(?is)</?function_calls?>|<invoke\b[^>]*>.*?</invoke>|<parameter\b[^>]*>.*?</parameter>",
+        "",
+        text or "",
+    )
     parts = re.split(r"(<thought>.*?</thought>)", text, flags=re.DOTALL)
     rendered = []
     for chunk in parts:
@@ -531,42 +537,39 @@ def _probe_adapter(name: str, adapter_cls: type, model: str, **kwargs):
 
 def _interactive_adapter_select():
     """Scan env for configured adapters, health-check them, let user pick."""
+    from adapters.env_keys import has_env_keys
 
     candidates = []
 
     # Groq (with key rotation)
-    _groq_keys = [os.environ.get(k) for k in ("GROQ_API_KEY", "GROQ_API_KEY_2", "GROQ_API_KEY_3",
-                                               "GROQ_API_KEY_4", "GROQ_API_KEY_5", "GROQ_API_KEY_6")]
-    if any(k for k in _groq_keys if k and "PLACEHOLDER" not in k):
+    if has_env_keys("GROQ_API_KEY"):
         from adapters.groq_adapter import GroqAdapter
         candidates.append(
             _probe_adapter("Groq", GroqAdapter, os.environ.get("IDENTITY_MODEL", "llama-3.3-70b-versatile"))
         )
 
-    if os.environ.get("SAMBANOVA_API_KEY"):
+    if has_env_keys("SAMBANOVA_API_KEY"):
         from adapters.sambanova_adapter import SambaNovaAdapter
         candidates.append(
             _probe_adapter("SambaNova", SambaNovaAdapter, os.environ.get("IDENTITY_MODEL", "DeepSeek-V3.1"))
         )
 
-    _cerebras_keys = [os.environ.get(k) for k in ("CEREBRAS_API_KEY", "CEREBRAS_API_KEY_2",
-                                                   "CEREBRAS_API_KEY_3", "CEREBRAS_API_KEY_4")]
-    if any(k for k in _cerebras_keys if k):
+    if has_env_keys("CEREBRAS_API_KEY"):
         from adapters.cerebras_adapter import CerebrasAdapter
         candidates.append(
             _probe_adapter("Cerebras", CerebrasAdapter, os.environ.get("IDENTITY_MODEL", "llama3.1-8b"))
         )
 
-    if os.environ.get("OPENROUTER_API_KEY"):
+    if has_env_keys("OPENROUTER_API_KEY"):
         from adapters.openrouter_adapter import OpenRouterAdapter
         candidates.append(
             _probe_adapter("OpenRouter", OpenRouterAdapter, os.environ.get("IDENTITY_MODEL", "openai/gpt-4o"))
         )
 
-    if os.environ.get("OPENAI_API_KEY"):
-        from adapters.openai_adapter import OpenAIAdapter
+    if has_env_keys("OPENAI_API_KEY"):
+        from adapters.rotating_providers import OpenAIKeyRotatingAdapter
         candidates.append(
-            _probe_adapter("OpenAI", OpenAIAdapter, os.environ.get("IDENTITY_MODEL", "gpt-4o"))
+            _probe_adapter("OpenAI", OpenAIKeyRotatingAdapter, os.environ.get("IDENTITY_MODEL", "gpt-4o"))
         )
 
     if os.environ.get("ANTHROPIC_API_KEY"):
@@ -583,19 +586,15 @@ def _interactive_adapter_select():
         )
 
     # Zen (OpenCode) -- last resort for very large contexts when other providers fail
-    if os.environ.get("ZEN_API_KEY"):
-        from adapters.openai_adapter import OpenAIAdapter
-        zen_key = os.environ["ZEN_API_KEY"]
-        zen_model = os.environ.get("IDENTITY_MODEL", "deepseek-v4-flash")
-        try:
-            inst = OpenAIAdapter(model=zen_model, api_key=zen_key, base_url="https://opencode.ai/zen/v1")
-            ok = inst.health_check()
-            if ok:
-                candidates.append(("Zen (OpenCode) - fallback", inst, None))
-            else:
-                candidates.append(("Zen (OpenCode) - fallback", None, "Zen: reachable but health check failed"))
-        except Exception as e:
-            candidates.append(("Zen (OpenCode) - fallback", None, f"Zen: {e}"))
+    if has_env_keys("ZEN_API_KEY"):
+        from adapters.rotating_providers import ZenKeyRotatingAdapter
+        candidates.append(
+            _probe_adapter(
+                "Zen (OpenCode) - fallback",
+                ZenKeyRotatingAdapter,
+                os.environ.get("IDENTITY_MODEL", "deepseek-v4-flash"),
+            )
+        )
 
     # Separate working from failed
     working = [(n, a) for n, a, e in candidates if a is not None]

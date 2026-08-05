@@ -53,10 +53,20 @@ class SkillRouter:
 
         Heuristics:
         - Comma-separated action clauses (``create X, validate, publish``)
-        - 3+ distinct action verbs
+        - 3+ distinct action verbs (word-boundary — 'installed' ≠ 'install')
         - Sequential markers (``first X then Y``, ``create Z and publish``)
         """
+        from core.claim_enforcement import (
+            count_word_action_verbs,
+            has_word_action_verb,
+            is_explicit_deploy_request,
+            is_gap_identify_only,
+        )
+
         text = user_input.lower()
+        # Gap-only questions must NOT become compound create/deploy routes
+        if is_gap_identify_only(user_input) and not is_explicit_deploy_request(user_input):
+            return False
 
         # Pattern 1: comma-separated actions (e.g. "create X, validate it, publish")
         clauses = [c.strip() for c in text.replace(" and ", ", ").replace(" then ", ", ").split(",") if c.strip()]
@@ -64,8 +74,8 @@ class SkillRouter:
         if action_clauses >= 3:
             return True
 
-        # Pattern 2: 3+ distinct action verbs anywhere in input
-        found = {v for v in cls._ACTION_VERBS if v in text}
+        # Pattern 2: 3+ distinct action verbs anywhere in input (word boundary)
+        found = count_word_action_verbs(text)
         if len(found) >= 3:
             return True
 
@@ -74,11 +84,18 @@ class SkillRouter:
         if sequential and found:
             return True
 
+        # Explicit create+publish+install style even with fewer verbs
+        if is_explicit_deploy_request(user_input) and (
+            has_word_action_verb(text, "create") or has_word_action_verb(text, "publish")
+        ) and has_word_action_verb(text, "install"):
+            return True
+
         return False
 
     @classmethod
     def _has_action_verb(cls, text: str) -> bool:
-        return any(v in text for v in cls._ACTION_VERBS)
+        from core.claim_enforcement import has_word_action_verb
+        return any(has_word_action_verb(text, v) for v in cls._ACTION_VERBS)
 
     # ------------------------------------------------------------------
     # Routing
@@ -94,6 +111,27 @@ class SkillRouter:
         seen: set[str] = set()
         caps = self._registry.list(self._identity_id)
         text = user_input.strip().lower()
+
+        from core.claim_enforcement import is_explicit_deploy_request, is_gap_identify_only
+
+        # Gap-identify only: inventory, never create/deploy
+        if is_gap_identify_only(user_input) and not is_explicit_deploy_request(user_input):
+            for cap in caps:
+                if getattr(cap, "id", "") == "registry_manager":
+                    try:
+                        result = cap.call(
+                            "registry_manager.inventory",
+                            identity_id=self._identity_id,
+                        )
+                    except Exception as e:
+                        result = CapabilityResult.fail(
+                            "registry_manager",
+                            "registry_manager.inventory",
+                            type(e).__name__,
+                            str(e),
+                        )
+                    evidence.collect(result)
+                    return evidence
 
         # ── Step 1: detect compound multi-step requests ─────────────
         is_multi_step = self._is_compound_request(text)

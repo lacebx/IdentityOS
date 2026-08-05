@@ -376,7 +376,15 @@ class RegistryManagerCapability(Capability):
         probe: dict[str, Any] = {"skipped": True}
         if reg is not None and identity_id:
             try:
-                result = reg.call(identity_id, full_skill, text=probe_text, message=probe_text)
+                probe_kwargs: dict[str, Any] = {"text": probe_text, "message": probe_text}
+                if skill_kind in ("similarity", "semantic", "overlap") or "similar" in short:
+                    probe_kwargs.update({
+                        "text_a": kwargs.get("text_a") or "cat sits",
+                        "text_b": kwargs.get("text_b") or "kitten sits",
+                        "a": kwargs.get("text_a") or "cat sits",
+                        "b": kwargs.get("text_b") or "kitten sits",
+                    })
+                result = reg.call(identity_id, full_skill, **probe_kwargs)
                 probe = {
                     "skill": full_skill,
                     "success": bool(getattr(result, "success", False)),
