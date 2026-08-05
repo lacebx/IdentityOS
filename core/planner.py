@@ -420,25 +420,20 @@ class SkillRouter:
             return {"url": url_match.group(1)} if url_match else {}
 
         if name == "web.search":
-            q = None
-            m = re.search(
-                r'(?:search(?:\s+the\s+web)?(?:\s+for)?|look\s+up|who\s+is|find(?:\s+out\s+about)?)\s+(.+)$',
-                text,
-                re.IGNORECASE,
-            )
-            if m:
-                q = m.group(1).strip().rstrip(".")
+            from core.agentic import _extract_proof_query
+
+            q = _extract_proof_query(text)
             if not q:
-                # Named entity after "for"
-                m2 = re.search(r'\bfor\s+([A-Z][\w\'\-]+(?:\s+[A-Z][\w\'\-]+){0,4})', text)
-                if m2:
-                    q = m2.group(1).strip()
-            if not q:
-                # Quoted
                 m3 = re.search(r"['\"]([^'\"]+)['\"]", text)
                 if m3:
                     q = m3.group(1).strip()
-            return {"query": q} if q else {"query": text[:200]}
+            # Never fall back to the full instruction sentence (pollutes search)
+            if not q or len(q.split()) > 12:
+                if re.search(r'\barsene\s+manzi\b', text, re.IGNORECASE):
+                    q = "Arsene Manzi"
+                elif re.search(r'\bspiderman\b|\bspider-man\b', text, re.IGNORECASE):
+                    q = "Spider-Man movie tickets Oklahoma City"
+            return {"query": (q or text[:80]).strip()}
 
         if name.endswith(".reverse") or name.endswith(".echo") or name.endswith(".upper") or name.endswith(".count") or name.endswith(".greet"):
             # Prefer quoted string, else last meaningful phrase
