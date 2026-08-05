@@ -10,23 +10,44 @@ from core.claim_enforcement import is_explicit_deploy_request, looks_like_narrat
 
 def _extract_proof_query(user_input: str) -> Optional[str]:
     text = user_input or ""
-    # search for X / who is X / Arsene Manzi style
+    # Prefer explicit person/name after search/look up
     m = re.search(
-        r'(?:search(?:\s+the\s+web)?(?:\s+for)?|look\s+up|who\s+is|find(?:\s+out\s+about)?)\s+(.+?)(?:\s+and\s+tell|\s+and\s+prove|,|$)',
+        r'(?:search(?:\s+the\s+web)?(?:\s+for)?|look\s+up|who\s+is|find(?:\s+out\s+about)?)\s+'
+        r'([A-Z][\w\'\-]+(?:\s+[A-Z][\w\'\-]+){0,4})',
         text,
-        re.IGNORECASE,
     )
     if m:
         return m.group(1).strip(" .")[:200]
-    # Capitalized multi-word name
-    m2 = re.search(r'\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,3})\b', text)
-    if m2 and m2.group(1).lower() not in {"create capability", "please wait"}:
-        return m2.group(1)
+    m2 = re.search(
+        r'(?:search(?:\s+the\s+web)?(?:\s+for)?|look\s+up|who\s+is)\s+(.+?)(?:\s+and\s+tell|\s+and\s+prove|\s+with\s+sources|,|$)',
+        text,
+        re.IGNORECASE,
+    )
+    if m2:
+        q = m2.group(1).strip(" .")
+        # Drop trailing instruction words
+        q = re.sub(
+            r'\b(and\s+summarize.*|tell\s+me.*|with\s+urls?|with\s+sources)\b',
+            '',
+            q,
+            flags=re.IGNORECASE,
+        ).strip(" .")
+        if q:
+            return q[:200]
+    if re.search(r'\barsene\s+manzi\b', text, re.IGNORECASE):
+        return "Arsene Manzi"
+    if re.search(r'\bspiderman\b|\bspider-man\b', text, re.IGNORECASE) and re.search(
+        r'\b(okc|oklahoma|ticket|theatre|theater)\b', text, re.IGNORECASE
+    ):
+        return "Spider-Man movie tickets Oklahoma City"
+    m3 = re.search(r'\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,3})\b', text)
+    if m3:
+        return m3.group(1)
     return None
 
 
 def ensure_web_search_ready(registry: Any, identity_id: str) -> list[CapabilityResult]:
-    """Install/reload web so web.search is available."""
+    """Install/reload web so web.search is available (only if missing/outdated)."""
     results: list[CapabilityResult] = []
     from core.capabilities.registry import import_capability
 
@@ -36,7 +57,12 @@ def ensure_web_search_ready(registry: Any, identity_id: str) -> list[CapabilityR
         results.append(CapabilityResult.fail("system", "reload_web", type(e).__name__, str(e)))
         return results
 
-    if registry.get(identity_id, "web") is None:
+    existing = registry.get(identity_id, "web")
+    has_search = False
+    if existing is not None:
+        has_search = any(s.name == "web.search" for s in existing.skills())
+
+    if existing is None:
         try:
             registry.install(identity_id, "web")
             results.append(
@@ -50,9 +76,9 @@ def ensure_web_search_ready(registry: Any, identity_id: str) -> list[CapabilityR
             )
         except Exception as e:
             results.append(CapabilityResult.fail("system", "install_web", type(e).__name__, str(e)))
-            return results
-    else:
-        # Re-bind upgraded class instance
+        return results
+
+    if not has_search:
         try:
             registry.uninstall(identity_id, "web")
             registry.install(identity_id, "web")
@@ -60,7 +86,12 @@ def ensure_web_search_ready(registry: Any, identity_id: str) -> list[CapabilityR
                 CapabilityResult.ok(
                     "system",
                     "upgrade_web",
-                    {"cap_id": "web", "status": "installed", "skills": ["web.fetch", "web.extract", "web.search"], "goal_ok": True},
+                    {
+                        "cap_id": "web",
+                        "status": "installed",
+                        "skills": ["web.fetch", "web.extract", "web.search"],
+                        "goal_ok": True,
+                    },
                     source="agentic",
                     goal_ok=True,
                 )

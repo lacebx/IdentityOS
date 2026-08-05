@@ -56,10 +56,13 @@ _ENGLISH_BLOCKLIST = frozenset({
     "then", "them", "they", "their", "there", "these", "those", "what",
     "when", "where", "which", "who", "whom", "why", "how", "just", "also",
     "only", "over", "under", "again", "further", "once", "here", "both",
-    "each", "few", "other", "into", "through", "during", "before", "after",
-    "above", "below", "between", "out", "off", "own", "same", "so", "too",
-    "very", "able", "need", "needs", "want", "wants", "let", "get", "got",
-    "know", "known", "see", "seen", "look", "looks", "use", "used", "using",
+    "each", "few", "other", "through", "above", "below", "between", "out",
+    "off", "own", "same", "so", "too", "very", "able", "need", "needs",
+    "want", "wants", "let", "get", "got", "know", "known", "see", "seen",
+    "look", "looks", "use", "used",
+    # system / evidence tokens mistaken for snake_case caps
+    "goal_ok", "call_ok", "cap_id", "skill_kind", "identity_id", "postconditions",
+    "all_succeeded", "ready_to_install", "create_and_deploy", "plan_and_execute",
 })
 
 _FAKE_TOOL_RE = re.compile(
@@ -306,6 +309,33 @@ def sanitize_assistant_text(text: str) -> str:
     return cleaned.strip()
 
 
+def _format_search_evidence(evidence_results: list[Any]) -> str:
+    lines: list[str] = []
+    for r in evidence_results or []:
+        action = getattr(r, "action", "") or ""
+        if not (action.endswith("search") or action == "web.search"):
+            continue
+        if not getattr(r, "success", False):
+            continue
+        data = getattr(r, "data", None) or {}
+        if not isinstance(data, dict):
+            continue
+        results = data.get("results") or []
+        if not results:
+            continue
+        lines.append(f"Search query: {data.get('query')!r} ({len(results)} hits)")
+        for item in results[:6]:
+            title = item.get("title") or "(no title)"
+            url = item.get("url") or ""
+            sn = item.get("snippet") or ""
+            lines.append(f"- {title}")
+            if url:
+                lines.append(f"  {url}")
+            if sn:
+                lines.append(f"  {sn[:220]}")
+    return "\n".join(lines)
+
+
 def enforce_deploy_claims(
     assistant_text: str,
     *,
@@ -321,6 +351,7 @@ def enforce_deploy_claims(
     text = sanitize_assistant_text(assistant_text or "")
     claimed = extract_claimed_cap_ids(text)
     has_success_language = bool(_SUCCESS_PHRASE_RE.search(text))
+    search_block = _format_search_evidence(evidence_results)
 
     # Gap-only questions: never allow deploy-success narration
     if is_gap_identify_only(user_input):
@@ -340,8 +371,7 @@ def enforce_deploy_claims(
                 "If you want me to bridge that gap, say explicitly:\n"
                 "`Create capability semantic_similarity, publish it, install it on myself, "
                 "then compare 'cat' and 'kitten'`.\n"
-                "I will only report success if `goal_ok=true` and the capability shows up "
-                "in inventory / `identity cap list`."
+                "I will only report success after a real deploy passes inventory checks."
             )
             return rewrite, audit
         return text, None
@@ -357,7 +387,6 @@ def enforce_deploy_claims(
             evidence_proves_cap(evidence_results, cap_id)
             and store_has_cap(capability_registry, identity_id, cap_id)
         )
-        # Also require module or registry entry for create claims
         if ok and not (module_exists(cap_id) or registry_index_has(cap_id)):
             ok = False
         if ok:
@@ -365,7 +394,16 @@ def enforce_deploy_claims(
         else:
             unproven.append(cap_id)
 
-    # Success language without any extractable id — still block if no deploy evidence
+    def _with_search(prefix: str) -> str:
+        if search_block:
+            return (
+                f"{prefix}\n\n"
+                f"Separately, here are **verified web.search results** from this turn "
+                f"(this is not a create/publish claim):\n{search_block}"
+            )
+        return prefix
+
+    # Success language without proven deploy
     if has_success_language and not proven:
         any_deploy = False
         for r in evidence_results or []:
@@ -375,25 +413,36 @@ def enforce_deploy_claims(
             ).lower() in ("deployed", "installed", "published"):
                 any_deploy = True
                 break
-            # planner nested
             if isinstance(data, dict) and data.get("goal_ok") is True and data.get("all_succeeded"):
                 for step in data.get("results") or []:
                     sd = step.get("data") if isinstance(step, dict) else None
                     if isinstance(sd, dict) and sd.get("status") in ("deployed", "installed"):
                         any_deploy = True
+        # If we already have web.search results, prefer keeping useful answer:
+        # strip only if text is mostly a deploy brag with no substance
         if not any_deploy:
             audit = {
                 "phase": "unproven_success_language",
                 "blocked_claims": claimed or ["(unspecified)"],
                 "action": "rewrote_denial",
             }
+            # Acquire-before-invent often upgrades/installs existing `web` — treat as OK note
+            web_ready = any(
+                getattr(r, "action", "") in ("install_web", "upgrade_web") and getattr(r, "success", False)
+                for r in evidence_results or []
+            )
+            if search_block or web_ready:
+                prefix = (
+                    "I did **not** invent a brand-new capability this turn. "
+                    "Browsing-by-query uses the existing `web` capability (`web.search`). "
+                    "I will not claim a fresh create/publish unless inventory shows a new cap id."
+                )
+                return _with_search(prefix), audit
             return (
-                "I must correct myself: I do **not** have verified evidence that I "
-                "created, published, and installed a new capability in this turn "
-                "(`goal_ok` deploy postconditions were not met). "
-                "Please check with `identity cap list` / inventory. "
-                "If you want a real deploy, give an explicit create+publish+install command "
-                "with a snake_case capability id.",
+                _with_search(
+                    "I must correct myself: I do **not** have verified evidence that I "
+                    "created, published, and installed a new capability in this turn."
+                ),
                 audit,
             )
 
@@ -407,7 +456,7 @@ def enforce_deploy_claims(
         lines = [
             "I need to correct an overclaim about capability deployment.",
             "",
-            f"**Not proven** (not on disk/store with goal_ok evidence): {', '.join(f'`{c}`' for c in unproven)}",
+            f"**Not proven** as a newly created capability: {', '.join(f'`{c}`' for c in unproven)}",
         ]
         if proven:
             lines.append(
@@ -415,12 +464,10 @@ def enforce_deploy_claims(
             )
         lines.extend([
             "",
-            "I will only claim create/publish/install success when evidence shows "
-            "`goal_ok=true` and the capability is installed on this identity.",
-            "Ask me to inventorize, or explicitly order: "
-            "`create capability <snake_case>, publish and install it on myself`.",
+            "I only claim create/publish/install for snake_case capability ids when "
+            "they appear installed with goal_ok evidence.",
         ])
-        return "\n".join(lines), audit
+        return _with_search("\n".join(lines)), audit
 
     return text, None
 

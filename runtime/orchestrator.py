@@ -1420,11 +1420,19 @@ class IdentityRuntime:
             )
             import time as _time
             _t0 = _time.monotonic()
-            raw_output = self.adapter.generate(
-                context=context.render(),
-                user_input=sanitized_input,
-                identity=identity,
-            )
+            try:
+                raw_output = self.adapter.generate(
+                    context=context.render(),
+                    user_input=sanitized_input,
+                    identity=identity,
+                )
+            except Exception as _adapter_err:
+                # If we already have agentic/search evidence, answer from it instead of dying
+                if getattr(_evidence, "_results", None):
+                    raw_output = summarize_agentic_results(list(_evidence._results))
+                    raw_output += f"\n\n_(Model adapter unavailable this turn: {_adapter_err})_"
+                else:
+                    raise
             _latency = _time.monotonic() - _t0
             self._emit(
                 EventType.MODEL_RESPONDED,
@@ -1436,6 +1444,8 @@ class IdentityRuntime:
             )
         else:
             raw_output = f"[No adapter configured. Context prepared for {identity.name}]"
+            if getattr(_evidence, "_results", None):
+                raw_output = summarize_agentic_results(list(_evidence._results))
 
         # Stage 4a2: HARD claim enforcement — rewrite unproven create/publish/install lies
         from core.claim_enforcement import enforce_deploy_claims
