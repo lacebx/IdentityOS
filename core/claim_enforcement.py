@@ -14,27 +14,53 @@ from typing import Any, Optional
 
 
 _CLAIM_VERBS = (
-    r"(?:created|published|installed|deployed|built|scaffolded|"
+    r"(?:created|published|installed|deployed|scaffolded|"
     r"successfully\s+(?:created|published|installed|deployed)|"
-    r"now\s+(?:available|installed)|"
-    r"capability\s+is\s+now)"
+    r"now\s+installed|"
+    r"capability\s+is\s+now\s+installed)"
 )
 
+# Require explicit capability/skill framing OR snake_case id — never bare English.
 _CLAIM_RE = re.compile(
-    rf"(?is)\b{_CLAIM_VERBS}\b.{{0,120}}?\b"
-    rf"(?:capability|skill|cap)?\s*[`'\"]?([a-z][a-z0-9_]{{2,64}})[`'\"]?",
+    rf"(?is)\b{_CLAIM_VERBS}\b.{{0,80}}?"
+    rf"(?:(?:capability|skill|cap)(?:\s+called|\s+named)?\s+)?"
+    rf"[`'\"]?([a-z][a-z0-9]*(?:_[a-z0-9]+)+)[`'\"]?",
 )
 
 _ALT_CLAIM_RE = re.compile(
-    rf"(?is)\b(?:capability|skill)\s+[`'\"]?([a-z][a-z0-9_]{{2,64}})[`'\"]?"
-    rf".{{0,80}}?\b{_CLAIM_VERBS}\b",
+    rf"(?is)\b(?:capability|skill)\s+(?:called\s+|named\s+)?"
+    rf"[`'\"]?([a-z][a-z0-9]*(?:_[a-z0-9]+)+)[`'\"]?"
+    rf".{{0,60}}?\b{_CLAIM_VERBS}\b",
 )
 
 _SUCCESS_PHRASE_RE = re.compile(
-    r"(?is)\b(?:goal_ok\s*=\s*true|installation\s+completed\s+successfully|"
-    r"successfully\s+installed|published\s+to\s+the\s+registry|"
-    r"create(?:d)?,?\s+publish(?:ed)?,?\s+and\s+install(?:ed)?)\b",
+    r"(?is)\b(?:goal_ok\s*=\s*true|"
+    r"installation\s+completed\s+successfully|"
+    r"successfully\s+(?:created|published|installed)\s+(?:the\s+)?(?:capability|skill)|"
+    r"published\s+(?:it\s+)?to\s+the\s+registry|"
+    r"installed\s+(?:it\s+)?(?:on|onto)\s+(?:my|your)?self)\b",
 )
+
+_ENGLISH_BLOCKLIST = frozenset({
+    "capability", "skill", "registry", "myself", "yourself", "successfully",
+    "available", "true", "false", "assist", "can", "help", "you", "today",
+    "with", "that", "this", "from", "into", "onto", "have", "been", "will",
+    "would", "could", "should", "about", "after", "before", "during", "while",
+    "using", "based", "local", "real", "time", "data", "info", "information",
+    "result", "results", "status", "error", "message", "please", "thanks",
+    "hello", "built", "make", "made", "work", "works", "working", "pending",
+    "complete", "completed", "task", "goal", "plan", "step", "steps",
+    "browse", "browsing", "search", "fetch", "web", "page", "pages",
+    "the", "and", "for", "our", "his", "her", "its", "not", "now", "new",
+    "all", "any", "one", "two", "more", "most", "some", "such", "than",
+    "then", "them", "they", "their", "there", "these", "those", "what",
+    "when", "where", "which", "who", "whom", "why", "how", "just", "also",
+    "only", "over", "under", "again", "further", "once", "here", "both",
+    "each", "few", "other", "into", "through", "during", "before", "after",
+    "above", "below", "between", "out", "off", "own", "same", "so", "too",
+    "very", "able", "need", "needs", "want", "wants", "let", "get", "got",
+    "know", "known", "see", "seen", "look", "looks", "use", "used", "using",
+})
 
 _FAKE_TOOL_RE = re.compile(
     r"(?is)</?function_calls?>|"
@@ -42,14 +68,22 @@ _FAKE_TOOL_RE = re.compile(
     r"<parameter\b[^>]*>.*?</parameter>",
 )
 
+_NARRATED_TOOL_RE = re.compile(
+    r"(?is)(?:task_planner\.plan_and_execute|registry_manager\.create_and_deploy)"
+    r"\s*\([^)]{0,500}\)|"
+    r"(?:I will call|Let me (?:call|execute|run)|Please wait while I execute|"
+    r"Waiting for task completion|task may take some time)",
+)
+
 _BARE_JSON_PLAN_RE = re.compile(
     r"(?is)^\s*\{\s*\"(?:goal|cap_id|skill_kind|identity_id)\"",
 )
 
 _DEPLOY_INTENT_RE = re.compile(
-    r"(?i)\b(?:create|build|make|write|scaffold|publish|install|deploy)\b"
-    r".{0,80}\b(?:capability|skill)\b|"
-    r"\b(?:create_and_deploy|publish\s+and\s+install|install\s+it\s+on\s+(?:your|my)?self)\b",
+    r"(?i)\b(?:create|creating|build|building|make|making|write|scaffold|publish|publishing|install|installing|deploy|deploying)\b"
+    r".{0,120}\b(?:capability|skill)\b|"
+    r"\b(?:create_and_deploy|publish\s+and\s+install|install\s+it\s+on\s+(?:your|my)?self|"
+    r"publish\s+it\s+to\s+(?:the\s+)?(?:capabilities\s+)?(?:store|registry))\b",
 )
 
 _GAP_ONLY_RE = re.compile(
@@ -91,9 +125,21 @@ def is_explicit_deploy_request(user_input: str) -> bool:
 
 
 def has_word_action_verb(text: str, verb: str) -> bool:
-    """Word-boundary action match — 'installed' must not match 'install'."""
-    return bool(re.search(rf"(?<![a-z]){re.escape(verb)}(?![a-z])", (text or "").lower()))
-
+    """Match imperative/gerund action forms — not passive 'if installed'."""
+    low = (text or "").lower()
+    if verb == "install" and re.search(r"\bif\s+installed\b", low):
+        return bool(re.search(r"(?<![a-z])install(?:s|ing)?(?![a-z])", low))
+    # Base + gerund + 3rd person; avoid past participle for install/publish/create
+    # (those often appear in claims, not commands).
+    if verb in ("install", "publish", "create", "deploy"):
+        return bool(
+            re.search(rf"(?<![a-z]){re.escape(verb)}(?![a-z])", low)
+            or re.search(rf"(?<![a-z]){re.escape(verb)}ing(?![a-z])", low)
+            or re.search(rf"(?<![a-z]){re.escape(verb)}s(?![a-z])", low)
+        )
+    return bool(
+        re.search(rf"(?<![a-z]){re.escape(verb)}(?:s|ed|ing)?(?![a-z])", low)
+    )
 
 def count_word_action_verbs(text: str) -> set[str]:
     found: set[str] = set()
@@ -105,19 +151,41 @@ def count_word_action_verbs(text: str) -> set[str]:
 
 
 def extract_claimed_cap_ids(assistant_text: str) -> list[str]:
-    """Capability ids the assistant claims were created/published/installed."""
+    """Capability ids the assistant claims were created/published/installed.
+
+    Only snake_case ids (must contain ``_``) are accepted — bare English
+    words like ``assist`` / ``can`` are never treated as capability claims.
+    """
     text = assistant_text or ""
     ids: list[str] = []
     for rx in (_CLAIM_RE, _ALT_CLAIM_RE):
         for m in rx.finditer(text):
             cand = (m.group(1) or "").lower()
-            if cand and cand not in ids and cand not in {
-                "capability", "skill", "registry", "myself", "yourself",
-                "successfully", "available", "true", "false",
-            }:
-                ids.append(cand)
+            if not cand or "_" not in cand:
+                continue
+            if cand in _ENGLISH_BLOCKLIST or cand in ids:
+                continue
+            if not cand.replace("_", "").isalnum():
+                continue
+            ids.append(cand)
     return ids
 
+
+def looks_like_narrated_pending_work(assistant_text: str) -> bool:
+    """True when the model pretends to be running tools / waiting."""
+    text = assistant_text or ""
+    if _NARRATED_TOOL_RE.search(text):
+        return True
+    pending_markers = (
+        "please wait",
+        "give me a moment",
+        "waiting for task",
+        "will get back to you",
+        "task may take some time",
+        "pending (0.0)",
+    )
+    low = text.lower()
+    return any(m in low for m in pending_markers)
 
 def _result_proves_deploy(result: Any, cap_id: str) -> bool:
     if result is None:

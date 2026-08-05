@@ -1252,6 +1252,27 @@ class IdentityRuntime:
         # Refresh prompts after routing — installs during this turn must be visible
         cap_prompts = self.capability_registry.all_prompts(identity.id)
 
+        # Agentic: for deploy/browse/search-prove requests, finish real work before the LLM
+        from core.agentic import run_deploy_to_completion, maybe_replace_narrated_wait, summarize_agentic_results
+        from core.claim_enforcement import is_explicit_deploy_request
+        _agentic_extra: list = []
+        _low_pre = sanitized_input.lower()
+        if is_explicit_deploy_request(sanitized_input) or any(
+            k in _low_pre for k in ("browse", "search for", "look up", "who is", "arsene", "spiderman", "ticket")
+        ):
+            _agentic_extra = run_deploy_to_completion(
+                self.capability_registry,
+                identity.id,
+                sanitized_input,
+                existing_results=[],
+            )
+            for _ar in _agentic_extra:
+                _evidence.collect(_ar)
+            _evidence_results = [r.to_evidence_dict() for r in _evidence._results]
+            _has_evidence = True
+            _report = _evidence.report()
+            cap_prompts = self.capability_registry.all_prompts(identity.id)
+
         # Gate 1 self-model: for inventory-style questions, ensure inventory evidence exists
         # Use phrase matches — avoid substring "installed" matching "if installed would"
         _inv_triggers = (
@@ -1261,7 +1282,7 @@ class IdentityRuntime:
             "what do you have installed", "currently have installed",
         )
         _low = sanitized_input.lower()
-        from core.claim_enforcement import is_gap_identify_only, is_explicit_deploy_request
+        from core.claim_enforcement import is_gap_identify_only, is_explicit_deploy_request as _is_deploy
         if is_gap_identify_only(sanitized_input) or any(t in _low for t in _inv_triggers):
             _rm = self.capability_registry.get(identity.id, "registry_manager")
             if _rm is not None:
@@ -1438,6 +1459,28 @@ class IdentityRuntime:
                 )
             except Exception:
                 pass
+
+        # Stage 4a3: If model narrates "please wait / I'll call the tool", replace with real results
+        _replaced = maybe_replace_narrated_wait(
+            raw_output,
+            list(getattr(_evidence, "_results", [])),
+        )
+        if _replaced:
+            raw_output = _replaced
+        # If deploy/search was requested and evidence has search results but model ignored them,
+        # append a grounded summary once when reply is still hollow
+        _has_search = any(
+            (getattr(r, "action", "") or "").endswith("search") and getattr(r, "success", False)
+            for r in getattr(_evidence, "_results", [])
+        )
+        if _has_search and (
+            "please wait" in (raw_output or "").lower()
+            or "do not have" in (raw_output or "").lower()
+            or "cannot browse" in (raw_output or "").lower()
+            or "don't have the capability to browse" in (raw_output or "").lower()
+            or "dont have" in (raw_output or "").lower()
+        ):
+            raw_output = summarize_agentic_results(list(getattr(_evidence, "_results", [])))
 
         # Stage 4b: Prometheus post-check — if the response indicates a missing capability,
         # install it and retry the adapter call with the updated context

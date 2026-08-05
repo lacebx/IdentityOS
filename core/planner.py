@@ -157,26 +157,69 @@ class SkillRouter:
                     return evidence
             # fall through if planner not installed
 
-        # ── Step 2: fire matching skills (precise match only) ───────
+        # ── Step 2: fire matching skills (precise HIGH confidence only) ──
+        # Cap spray: at most 3 high-confidence skills; never fire medium/low/contextual.
+        matched: list[tuple[float, str, Any, Any]] = []  # score, name, cap, skill
         for cap in caps:
             cap_id = getattr(cap, "id", "unknown")
             for skill in cap.skills():
                 match = self._match(user_input, skill)
-                matches = match["matched"] and match.get("confidence") != "contextual"
+                if not match.get("matched"):
+                    continue
+                conf = match.get("confidence")
+                if conf != "high":
+                    continue
+                # Hard domain filters — prevent github/filesystem spray on unrelated asks
+                if cap_id == "github" and not any(
+                    k in text for k in ("github", "repo", "pull request", "commit", "lacebx", "identityos")
+                ):
+                    continue
+                if cap_id in ("filesystem", "file_tools") and not any(
+                    k in text for k in ("file", "directory", "folder", "path", "write file", "read file", "mkdir")
+                ):
+                    continue
+                if cap_id == "datetime" and not any(
+                    k in text for k in ("time", "date", "timezone", "today", "clock")
+                ):
+                    continue
+                if skill.name not in seen:
+                    score = 3.0 if conf == "high" else 1.0
+                    matched.append((score, skill.name, cap, skill))
 
-                if matches and skill.name not in seen:
-                    seen.add(skill.name)
-                    try:
-                        params = self._extract_params(user_input, skill)
-                        if skill.name.startswith("registry_manager.") or skill.name.startswith("task_planner."):
-                            params.setdefault("identity_id", self._identity_id)
-                        result = cap.call(skill.name, **params)
-                    except Exception as e:
-                        result = CapabilityResult.fail(
-                            cap_id,
-                            skill.name, type(e).__name__, str(e),
-                        )
-                    evidence.collect(result)
+        # Prefer web.search for natural-language lookup / browse-without-URL
+        search_intent = any(
+            k in text for k in (
+                "search for", "look up", "who is", "browse", "find out about",
+                "tell me who", "google", "spiderman", "theatre", "theater", "tickets",
+            )
+        ) and "http://" not in text and "https://" not in text
+        if search_intent:
+            for cap in caps:
+                if getattr(cap, "id", "") == "web":
+                    for skill in cap.skills():
+                        if skill.name == "web.search" and skill.name not in {m[1] for m in matched}:
+                            matched.insert(0, (10.0, skill.name, cap, skill))
+                    break
+
+        matched.sort(key=lambda x: -x[0])
+        for _score, skill_name, cap, skill in matched[:3]:
+            if skill_name in seen:
+                continue
+            seen.add(skill_name)
+            try:
+                params = self._extract_params(user_input, skill)
+                if skill.name.startswith("registry_manager.") or skill.name.startswith("task_planner."):
+                    params.setdefault("identity_id", self._identity_id)
+                if skill.name == "web.search" and not params.get("query"):
+                    # Use whole user input as query fallback
+                    params["query"] = user_input.strip()[:200]
+                result = cap.call(skill.name, **params)
+            except Exception as e:
+                result = CapabilityResult.fail(
+                    getattr(cap, "id", "unknown"),
+                    skill.name, type(e).__name__, str(e),
+                )
+            evidence.collect(result)
 
         return evidence
 
@@ -209,38 +252,24 @@ class SkillRouter:
             "weather": ["weather", "temperature", "forecast", "raining", "sunny", "humidity", "rain", "cloudy", "wind", "degrees"],
             "calc": ["calculate", "evaluate", "what is", "compute", "plus", "minus", "times", "divided", "=", "how many", "% of", "percent"],
             "text": ["count words", "word count", "extract", "keywords", "analyze text", "summarize", "pattern", "stats"],
-            "web": ["fetch", "web page", "http", "url", "website", "download page", "look up", "search for", "find", "wikipedia"],
-            "file": ["list files", "read file", "directory", "ls ", "file info", "list directory", "what files", "read the file", "show me", "open file"],
+            "web": ["fetch http", "fetch https", "web page", "https://", "http://", "website url", "download page", "wikipedia.org"],
+            "file": ["list files", "read file", "directory", "ls ", "file info", "list directory", "what files", "read the file", "open file"],
             "file_tools": ["write file", "create file", "save file", "write code", "create directory", "mkdir", "make directory", "append file", "edit file"],
-            "github": ["github", "repository", "repo", "pull request", "issue", "commit", "stars", "open source", "beginner", "trending", "lacebx", "identityos", "repo info"],
-            "system": ["operating system", "disk space", "disk usage", "how much disk", "os", "cpu", "what system", "what os", "system info", "platform"],
+            "github": ["github", "pull request", "github.com", "open source beginner", "lacebx", "identityos"],
+            "system": ["operating system", "disk space", "disk usage", "how much disk", "what os", "system info", "cpu info"],
             "registry_manager": ["publish capability", "install capability", "list capabilities", "registry inventory", "publish skill", "install skill", "register skill", "add to registry", "capability inventory", "available capabilities", "installed capabilities"],
-            "skill_validator": ["validate", "syntax check", "check skill", "test skill", "verify syntax", "validate skill", "check code", "lint"],
-            "task_planner": ["create capability", "create a skill", "plan and execute", "deploy capability", "scaffold", "create_and_deploy"],
-            "text_reverser": ["reverse", "backwards", "reverser"],
+            "skill_validator": ["validate syntax", "syntax check", "check skill", "validate skill", "check capability interface"],
+            "task_planner": ["create capability", "create a skill", "plan and execute", "deploy capability", "scaffold", "create_and_deploy", "publish and install"],
+            "text_reverser": ["reverse the", "text_reverser", "reverser"],
             "word_counter": ["count words", "word count", "how many words"],
         }
 
-        # Additional pattern-based matching for GitHub repo references
-        if re.search(r'[\w-]+/[\w-]+', user_input):  # owner/repo pattern
-            for domain, keywords in triggers.items():
-                if domain == "github":
-                    return {"matched": True, "confidence": "high"}
+        # GitHub only with explicit github/repo signals (not bare owner/repo false positives)
+        if any(k in text for k in ("github", "pull request", "lacebx/", "identityos")):
+            if "github" in skill.name.lower() or skill.name.lower().startswith("github."):
+                return {"matched": True, "confidence": "high"}
 
-        # Broad contextual queries — match ALL capabilities
-        context_phrases = [
-            "what should i focus on", "what's my priority", "what is my priority",
-            "give me a status", "what's going on", "what's happening",
-            "how am i doing", "what do i need to do", "what's my plan",
-            "what's the situation", "assess my context",
-        ]
-        for phrase in context_phrases:
-            if phrase in text:
-                # Return a special sentinel — caller executes all skills
-                return {"matched": True, "confidence": "contextual"}
-
-        # Check skill name / domain triggers — require skill-specific intent
-        # so "list capabilities" does not also fire publish/install/create.
+        # Broad contextual queries disabled — they caused skill spray
         skill_name = skill.name.lower()
         skill_specific = {
             "registry_manager.list_capabilities": ["list capabilities", "list available", "show capabilities", "capability list"],
@@ -252,9 +281,17 @@ class SkillRouter:
             "registry_manager.install_capability": ["install capability", "install skill"],
             "registry_manager.create_and_deploy": ["create_and_deploy", "create and deploy", "deploy capability"],
             "task_planner.plan_and_execute": [
-                "create capability", "create a skill", "plan and execute", "scaffold",
-                "publish and install", "create a capability",
+                "create capability", "create a skill", "create an actual skill",
+                "plan and execute", "scaffold", "publish and install", "create a capability",
+                "publish it to", "install it to yourself", "install it on myself",
             ],
+            "web.search": [
+                "search for", "look up", "who is", "browse", "find theatres",
+                "find theaters", "ticket price", "spiderman", "without a url",
+                "through what a user asks", "web search",
+            ],
+            "web.fetch": ["https://", "http://", "fetch url", "fetch the url"],
+            "web.extract": ["extract from url", "extract text from http"],
         }
         if skill_name in skill_specific:
             for kw in skill_specific[skill_name]:
@@ -268,20 +305,7 @@ class SkillRouter:
                     if kw in text:
                         return {"matched": True, "confidence": "high"}
 
-        # Check description
-        desc = skill.description.lower()
-        input_words = set(text.split())
-        desc_words = set(desc.split())
-        overlap = input_words & desc_words
-        if len(overlap) >= 2:
-            return {"matched": True, "confidence": "medium"}
-
-        # Fallback: check if a significant word from the skill name appears
-        name_parts = skill_name.replace(".", " ").split()
-        for part in name_parts:
-            if len(part) > 3 and part in text:
-                return {"matched": True, "confidence": "low"}
-
+        # No medium/low fuzzy matches — they caused github/filesystem spray
         return {"matched": False}
 
     # ── Parameter extraction ──────────────────────────────────────────
@@ -394,6 +418,27 @@ class SkillRouter:
         if name == "web.extract":
             url_match = re.search(r'(https?://\S+)', text)
             return {"url": url_match.group(1)} if url_match else {}
+
+        if name == "web.search":
+            q = None
+            m = re.search(
+                r'(?:search(?:\s+the\s+web)?(?:\s+for)?|look\s+up|who\s+is|find(?:\s+out\s+about)?)\s+(.+)$',
+                text,
+                re.IGNORECASE,
+            )
+            if m:
+                q = m.group(1).strip().rstrip(".")
+            if not q:
+                # Named entity after "for"
+                m2 = re.search(r'\bfor\s+([A-Z][\w\'\-]+(?:\s+[A-Z][\w\'\-]+){0,4})', text)
+                if m2:
+                    q = m2.group(1).strip()
+            if not q:
+                # Quoted
+                m3 = re.search(r"['\"]([^'\"]+)['\"]", text)
+                if m3:
+                    q = m3.group(1).strip()
+            return {"query": q} if q else {"query": text[:200]}
 
         if name.endswith(".reverse") or name.endswith(".echo") or name.endswith(".upper") or name.endswith(".count") or name.endswith(".greet"):
             # Prefer quoted string, else last meaningful phrase

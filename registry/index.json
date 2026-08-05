@@ -171,11 +171,12 @@
     {
       "id": "web",
       "name": "Web",
-      "version": "1.0.0",
-      "description": "Fetch web pages and extract text from URLs",
+      "version": "1.1.0",
+      "description": "Fetch URLs, extract text, and search the web from a natural-language query",
       "skills": [
         "web.fetch",
-        "web.extract"
+        "web.extract",
+        "web.search"
       ],
       "published": "2026-07-27"
     },

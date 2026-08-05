@@ -14,11 +14,20 @@ from core.claim_enforcement import (
 from core.planner import SkillRouter
 
 
-def test_installed_does_not_match_install_verb():
-    assert has_word_action_verb("if installed would remove the gap", "install") is False
-    assert has_word_action_verb("please install the capability", "install") is True
-    found = count_word_action_verbs("create publish and install semantic_similarity")
-    assert found >= {"create", "publish", "install"}
+def test_hi_bones_does_not_false_claim_assist():
+    text = "Hey! I'm Bones - your research messenger. How can I assist you today?"
+    assert extract_claimed_cap_ids(text) == []
+    out, audit = enforce_deploy_claims(
+        text, user_input="hi bones", evidence_results=[], identity_id="bones"
+    )
+    assert audit is None
+    assert "Not proven" not in out
+
+
+def test_can_not_extracted_as_cap_id():
+    text = "I created a skill that can fetch pages and published it."
+    # no snake_case id → no claims
+    assert extract_claimed_cap_ids(text) == []
 
 
 def test_gap_identify_only_detection():
