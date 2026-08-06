@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import time
 from typing import Any, Dict, List, Optional, Set
 
@@ -26,6 +27,21 @@ from core.prometheus.stages.retry_handler import retry_original_task
 from core.prometheus.stages.performance_evaluator import evaluate_performance
 from core.prometheus.stages.learner import record_acquisition, has_previously_searched
 from core.prometheus.stages.evidence_recorder import record_evidence
+
+
+_QUESTION_PATTERNS = [
+    re.compile(r"^(did|do|does|is|are|was|were|can|could|should|would|have|has|what|who|when|where|why|how)\b", re.IGNORECASE),
+]
+
+
+def _is_status_question(text: str) -> bool:
+    """True when *text* asks about existing state rather than new work."""
+    t = (text or "").strip()
+    if not t:
+        return False
+    if t.endswith("?"):
+        return True
+    return any(p.match(t) for p in _QUESTION_PATTERNS)
 
 
 class EvolutionPipeline:
@@ -61,6 +77,15 @@ class EvolutionPipeline:
                 acquisition_record=record,
                 duration_ms=(time.time() - start_time) * 1000,
             )
+
+        # Executive delegation — when a persistent task engine is attached,
+        # Prometheus creates the acquisition task and the executive executes
+        # it (registry search, generate, validate, publish, install, verify).
+        delegated = self._delegate_to_executive(
+            need, identity_id, runtime, storage, session_id,
+        )
+        if delegated is not None:
+            return delegated
 
         if self._interaction_acquisitions >= self.config.max_acquisitions_per_interaction:
             record.status = AcquisitionStatus.FAILED
@@ -195,4 +220,105 @@ class EvolutionPipeline:
             acquisition_record=record,
             retry_response=retry_response,
             duration_ms=record.duration_ms,
+        )
+
+    # ── Executive delegation ─────────────────────────────────────────────
+
+    def _delegate_to_executive(
+        self,
+        need: CapabilityNeed,
+        identity_id: str,
+        runtime,
+        storage,
+        session_id: Optional[str],
+    ) -> Optional[EvolutionResult]:
+        """Create an executive acquisition task instead of installing directly.
+
+        Returns an EvolutionResult describing the created task, or None when
+        no executive is attached (the legacy inline path then runs).
+        """
+        executive = getattr(runtime, "executive", None)
+        if executive is None:
+            return None
+        from core.executive.engine import ExecutiveRuntime
+        if not isinstance(executive, ExecutiveRuntime):
+            return None
+
+        cap_id = (
+            need.capability_id
+            or (need.suggested_capability_ids or [None])[0]
+        )
+        if not cap_id:
+            return None
+
+        # Don't create a task for a status question ("did you finish X?").
+        # Prometheus keyword-matching can misfire on the words *about* a task;
+        # the executive only commits to NEW work, and re-committing answered
+        # requests is the re-commit anti-pattern.
+        if _is_status_question(need.original_request):
+            return EvolutionResult(
+                success=False,
+                acquired=False,
+                acquisition_record=AcquisitionRecord(
+                    need=need,
+                    identity_id=identity_id,
+                    mode=AcquisitionMode.AUTOMATIC,
+                    status=AcquisitionStatus.SEARCHING,
+                    error=f"'{cap_id}' is not an acquisition request (status question).",
+                ),
+            )
+
+        # Idempotency: don't re-queue a task that is already active.
+        for t in executive.active_tasks(identity_id):
+            if t.capability_id == cap_id:
+                return EvolutionResult(
+                    success=False,
+                    acquired=False,
+                    acquisition_record=AcquisitionRecord(
+                        need=need,
+                        identity_id=identity_id,
+                        mode=AcquisitionMode.AUTOMATIC,
+                        status=AcquisitionStatus.SEARCHING,
+                        error=f"Acquisition of '{cap_id}' already active (task {t.task_id}).",
+                    ),
+                )
+
+        # Don't re-queue a capability that already reached a terminal state.
+        from core.executive.models import TaskStatus
+        for t in executive.store.load_terminal(identity_id):
+            if t.capability_id == cap_id and t.status == TaskStatus.COMPLETED:
+                return EvolutionResult(
+                    success=False,
+                    acquired=False,
+                    acquisition_record=AcquisitionRecord(
+                        need=need,
+                        identity_id=identity_id,
+                        mode=AcquisitionMode.AUTOMATIC,
+                        status=AcquisitionStatus.SEARCHING,
+                        error=f"Acquisition of '{cap_id}' already completed (task {t.task_id}).",
+                    ),
+                )
+
+        goal = need.original_request or f"Acquire the {cap_id} capability"
+        task = executive.create_acquisition_task(
+            identity_id=identity_id,
+            capability_id=cap_id,
+            goal=goal,
+            original_request=need.original_request or goal,
+        )
+        if executive.scheduler:
+            executive.scheduler.start()
+
+        record = AcquisitionRecord(
+            need=need,
+            identity_id=identity_id,
+            mode=AcquisitionMode.AUTOMATIC,
+            status=AcquisitionStatus.SEARCHING,
+            error=None,
+        )
+        return EvolutionResult(
+            success=True,
+            acquired=False,  # the executive owns execution now
+            acquisition_record=record,
+            duration_ms=0.0,
         )

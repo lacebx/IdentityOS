@@ -207,6 +207,12 @@
       "url": "task_planner/manifest.json"
     },
     {
+      "id": "speech",
+      "name": "Speech",
+      "version": "1.0.0",
+      "description": "Generic capability: speech"
+    },
+    {
       "id": "command_exec",
       "name": "Command Exec",
       "version": "1.0.0",

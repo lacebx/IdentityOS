@@ -1,0 +1,20 @@
+{
+  "id": "speech",
+  "name": "Speech",
+  "version": "1.0.0",
+  "author": "auto-generated",
+  "license": "MIT",
+  "description": "Generic capability: speech",
+  "provider": "core.capabilities.speech.SpeechCapability",
+  "permissions": {
+    "network": false,
+    "filesystem": true
+  },
+  "skills": [
+    {
+      "name": "speech.greet",
+      "description": "Generated capability",
+      "permission": "public"
+    }
+  ]
+}

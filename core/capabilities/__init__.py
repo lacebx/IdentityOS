@@ -20,6 +20,7 @@ from . import file_tools  # noqa: F401
 from . import registry_manager  # noqa: F401
 from . import skill_validator  # noqa: F401
 from . import task_planner  # noqa: F401
+from . import executive  # noqa: F401
 
 __all__ = [
     "Capability",
