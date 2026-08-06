@@ -199,16 +199,22 @@ class OllamaAdapter(BaseAdapter):
         self,
         model: str = "llama3.2",
         base_url: str = "http://localhost:11434/v1",
+        think: bool = False,
         **kwargs
     ):
         super().__init__(model=model, **kwargs)
         self.base_url = base_url
+        # Reasoning-capable Ollama models may emit their answer exclusively in
+        # a separate reasoning field. IdentityOS consumes chat content, so keep
+        # reasoning disabled unless a caller intentionally enables it.
+        self.think = think
 
     def generate(
         self,
         context: str,
         user_input: str,
         identity: Any,
+        think: Optional[bool] = None,
         **kwargs
     ) -> str:
         # Uses OpenAI-compatible endpoint
@@ -224,6 +230,7 @@ class OllamaAdapter(BaseAdapter):
                     {"role": "system", "content": context},
                     {"role": "user", "content": user_input},
                 ],
+                extra_body={"think": self.think if think is None else think},
             )
             return response.choices[0].message.content or ""
         except ImportError:
