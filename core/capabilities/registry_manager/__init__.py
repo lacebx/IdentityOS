@@ -118,13 +118,51 @@ class RegistryManagerCapability(Capability):
             })
         index["capabilities"] = caps
         self._save_index(index)
+        marketplace = self._publish_to_marketplace(cap_id, name, version, description, skills)
         return {
             "cap_id": cap_id,
             "name": name,
             "version": version,
             "status": "published",
             "total_capabilities": len(caps),
+            "marketplace": marketplace,
         }
+
+    def _publish_to_marketplace(self, cap_id: str, name: str, version: str, description: str, skills: Optional[list]) -> dict[str, Any]:
+        """Mirror the publish into the marketplace registry (registry/capabilities/) so
+        newly created capabilities are visible to `identity cap list` and prometheus."""
+        try:
+            mk_dir = os.path.join(self._registry_path(), "capabilities", cap_id)
+            os.makedirs(mk_dir, exist_ok=True)
+            manifest = {
+                "id": cap_id,
+                "name": name or cap_id,
+                "version": version,
+                "author": "auto-generated",
+                "license": "MIT",
+                "description": description or "",
+                "provider": f"core.capabilities.{cap_id}.{''.join(p.title() for p in cap_id.split('_'))}Capability",
+                "permissions": {"network": False, "filesystem": True},
+                "skills": skills or [{"name": f"{cap_id}.run" if cap_id == "command_exec" else f"{cap_id}.greet", "description": "Generated capability", "permission": "public"}],
+            }
+            with open(os.path.join(mk_dir, "manifest.json"), "w") as f:
+                json.dump(manifest, f, indent=2)
+
+            mk_index = os.path.join(self._registry_path(), "capabilities", "index.json")
+            if os.path.isfile(mk_index):
+                with open(mk_index) as f:
+                    mk_data = json.load(f)
+            else:
+                mk_data = {"registry": "IdentityOS Marketplace", "description": "Capability Marketplace — installable skills for AI identities", "capabilities": []}
+            mk_caps = mk_data.setdefault("capabilities", [])
+            mk_caps = [c for c in mk_caps if (c.get("id") if isinstance(c, dict) else c) != cap_id]
+            mk_caps.append({"id": cap_id, "name": name or cap_id, "version": version, "description": description or ""})
+            mk_data["capabilities"] = mk_caps
+            with open(mk_index, "w") as f:
+                json.dump(mk_data, f, indent=2)
+            return {"manifest": f"registry/capabilities/{cap_id}/manifest.json", "index": len(mk_caps)}
+        except Exception as e:
+            return {"error": str(e)}
 
     def _install_capability(self, cap_id: str = "", **kwargs: Any) -> dict[str, Any]:
         if not cap_id:

@@ -205,6 +205,12 @@
         "public"
       ],
       "url": "task_planner/manifest.json"
+    },
+    {
+      "id": "command_exec",
+      "name": "Command Exec",
+      "version": "1.0.0",
+      "description": "Executes real shell commands and returns actual stdout, stderr, and exit code"
     }
   ]
 }

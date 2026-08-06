@@ -1,9 +1,29 @@
 from __future__ import annotations
 
+import importlib
+import re
 from typing import Any, Optional
 from core.capabilities.base import Capability, Skill
 from core.capabilities.registry import register, lookup
 from core.capabilities.result import CapabilityResult
+
+
+def _run_command(params: dict) -> CapabilityResult:
+    """Import a freshly-created capability module, then execute a real
+    command through its ``run`` skill. Returns actual stdout/stderr/exit."""
+    cap_id = params.get("cap_id", "command_exec")
+    command = params.get("command", "")
+    if not command:
+        return CapabilityResult.fail("task_planner", "run_command", "no_command", "No command specified")
+    try:
+        importlib.import_module(f"core.capabilities.{cap_id}")
+    except Exception as e:
+        return CapabilityResult.fail("task_planner", "run_command", "import_failed", f"Could not import {cap_id}: {e}")
+    try:
+        inst = lookup(cap_id)()
+    except Exception as e:
+        return CapabilityResult.fail("task_planner", "run_command", "lookup_failed", f"Capability {cap_id} not registered: {e}")
+    return inst.call(f"{cap_id}.run", command=command)
 
 
 _STEP_HANDLERS = {
@@ -18,7 +38,15 @@ _STEP_HANDLERS = {
     "list_capabilities": lambda p: lookup("registry_manager")().call("registry_manager.list_capabilities", **p),
     "publish_capability": lambda p: lookup("registry_manager")().call("registry_manager.publish_capability", **p),
     "install_capability": lambda p: lookup("registry_manager")().call("registry_manager.install_capability", **p),
+    # Real command execution through a created capability
+    "run_command": _run_command,
 }
+
+# Keywords that indicate the goal asks for command execution capability
+_COMMAND_INTENT = re.compile(
+    r'\b(run|execute|exec|shell|terminal|neofetch|screenfetch)\b|\bcommand'
+    r'[s]?\b', re.IGNORECASE
+)
 
 
 @register
@@ -139,6 +167,18 @@ class TaskPlannerCapability(Capability):
         import re
         gl = goal.lower()
 
+        # Detect command-execution intent (create command_exec + run a real command)
+        command = None
+        if _COMMAND_INTENT.search(gl):
+            m = re.search(r'\b(?:run|execute)\s+(?:the\s+)?["\']?([\w./~][\w./~\-]*)["\']?', gl)
+            if m:
+                command = m.group(1)
+            else:
+                for kw in ("neofetch", "screenfetch", "pwd", "ls", "uname", "whoami", "date", "uptime", "hostname", "echo"):
+                    if re.search(rf'\b{kw}\b', gl):
+                        command = kw
+                        break
+
         # Extract capability name: look for words that appear right after "create", "called", "named", "a", "an"
         cap_name = None
         patterns = [
@@ -157,11 +197,20 @@ class TaskPlannerCapability(Capability):
                     cap_name = candidate
                     break
 
+        # Command-execution goals always target the command_exec capability
+        if command and "capability" in gl:
+            cap_name = "command_exec"
+            if "install" not in gl:
+                gl = f"{gl} install"
+            if "publish" not in gl:
+                gl = f"{gl} publish"
+
         steps = []
 
         if cap_name:
             cap_dir = f"core/capabilities/{cap_name}"
             cap_path = f"{cap_dir}/__init__.py"
+            template = TaskPlannerCapability._command_exec_template() if cap_name == "command_exec" else TaskPlannerCapability._capability_template(cap_name)
             steps.append({
                 "action": "create_directory",
                 "params": {"path": cap_dir},
@@ -171,7 +220,7 @@ class TaskPlannerCapability(Capability):
                 "action": "write_file",
                 "params": {
                     "path": cap_path,
-                    "content": TaskPlannerCapability._capability_template(cap_name),
+                    "content": template,
                 },
                 "description": f"Writing {cap_name} capability code",
             })
@@ -189,9 +238,10 @@ class TaskPlannerCapability(Capability):
                 })
 
             if "publish" in gl or "register" in gl:
+                pub_desc = "Executes real shell commands and returns actual stdout, stderr, and exit code" if cap_name == "command_exec" else f"Auto-generated: {goal[:80]}"
                 steps.append({
                     "action": "publish_capability",
-                    "params": {"cap_id": cap_name, "name": cap_name.replace("_", " ").title(), "version": "1.0.0", "description": f"Auto-generated: {goal[:80]}"},
+                    "params": {"cap_id": cap_name, "name": cap_name.replace("_", " ").title(), "version": "1.0.0", "description": pub_desc},
                     "description": f"Publishing {cap_name} to registry",
                 })
 
@@ -200,6 +250,13 @@ class TaskPlannerCapability(Capability):
                     "action": "install_capability",
                     "params": {"cap_id": cap_name},
                     "description": f"Installing {cap_name} onto identity",
+                })
+
+            if command:
+                steps.append({
+                    "action": "run_command",
+                    "params": {"cap_id": cap_name, "command": command},
+                    "description": f"Running command: {command}",
                 })
         else:
             # No capability name found, do generic actions
@@ -273,4 +330,86 @@ class {class_name}(Capability):
 
     def _greet(self, **kwargs: Any) -> dict[str, Any]:
         return {{"message": "Hello from {name}!"}}
+'''
+
+    @staticmethod
+    def _command_exec_template() -> str:
+        """Generate a real command-execution capability backed by subprocess."""
+        return r'''from __future__ import annotations
+
+import subprocess
+from typing import Any, Optional
+from core.capabilities.base import Capability, Skill
+from core.capabilities.registry import register
+from core.capabilities.result import CapabilityResult
+
+
+@register
+class CommandExecCapability(Capability):
+    id = "command_exec"
+    name = "Command Exec"
+    version = "1.0.0"
+    author = "auto-generated"
+    license = "MIT"
+    description = "Executes real shell commands and returns actual stdout/stderr/exit code"
+    permissions = ["public"]
+
+    def __init__(self, config: Optional[dict] = None) -> None:
+        super().__init__(config)
+
+    def install(self, identity_id: str, storage: Any) -> None:
+        storage.save(identity_id, "capability.command_exec", {"installed_at": None})
+
+    def uninstall(self, identity_id: str, storage: Any) -> None:
+        storage.delete(identity_id, "capability.command_exec")
+
+    def prompts(self, identity_id: str) -> list[str]:
+        return ["## Command Exec Skill\nUse command_exec.run to execute a shell command. It returns real stdout/stderr and the exit code."]
+
+    _SKILLS = [
+        Skill(name="command_exec.run", description="Execute a shell command, returning actual stdout, stderr, and exit code", permission="public"),
+    ]
+
+    def skills(self) -> list[Skill]:
+        return list(self._SKILLS)
+
+    def call(self, skill_name: str, **params: Any) -> CapabilityResult:
+        import time as _time
+        _t0 = _time.monotonic()
+        try:
+            dispatch = {
+                "command_exec.run": self._run,
+            }
+            handler = dispatch.get(skill_name)
+            if handler is None:
+                return CapabilityResult.fail("command_exec", skill_name, "unknown_skill", f"Unknown skill: {skill_name}")
+            data = handler(**params)
+            return CapabilityResult.ok("command_exec", skill_name, data, source="command exec", duration_ms=(_time.monotonic() - _t0) * 1000)
+        except Exception as e:
+            return CapabilityResult.fail("command_exec", skill_name, type(e).__name__, str(e), duration_ms=(_time.monotonic() - _t0) * 1000)
+
+    def _run(self, command: str = "", timeout: int = 30, **kwargs: Any) -> dict[str, Any]:
+        if not command:
+            return {"error": "No command provided", "exit_code": -1, "stdout": "", "stderr": "command is empty"}
+        try:
+            proc = subprocess.run(
+                command,
+                shell=True,
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+            )
+            return {
+                "command": command,
+                "exit_code": proc.returncode,
+                "stdout": proc.stdout,
+                "stderr": proc.stderr,
+                "found": proc.returncode == 0,
+            }
+        except subprocess.TimeoutExpired:
+            return {"command": command, "error": "timeout", "exit_code": 124, "stdout": "", "stderr": f"command timed out after {timeout}s"}
+        except FileNotFoundError:
+            return {"command": command, "error": "not_found", "exit_code": 127, "stdout": "", "stderr": f"command not found: {command}"}
+        except Exception as e:
+            return {"command": command, "error": str(e), "exit_code": -1, "stdout": "", "stderr": str(e)}
 '''

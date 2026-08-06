@@ -1583,8 +1583,11 @@ class IdentityRuntime:
                 conf = ev["confidence"]
                 label = "verified" if conf >= 0.8 else "sourced" if conf >= 0.5 else "inferred"
                 err = f" — {ev['error']['message'][:200]}" if ev.get("error") else ""
+                cap = ev.get("capability", "")
+                act = ev.get("action", "")
+                skill_label = act if act.startswith(f"{cap}.") else f"{cap}.{act}"
                 footer_lines.append(
-                    f"  {status} `{ev['capability']}.{ev['action']}` — {label} ({conf:.1f}) — {ev['duration_ms']:.0f}ms{err}"
+                    f"  {status} `{skill_label}` — {label} ({conf:.1f}) — {ev['duration_ms']:.0f}ms{err}"
                 )
             footer_lines.append("---")
             final_output += "\n".join(footer_lines)
