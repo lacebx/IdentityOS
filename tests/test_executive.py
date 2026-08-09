@@ -455,6 +455,15 @@ def test_extract_capability_name_variants():
     assert extract_capability_name("what is the weather") is None
 
 
+def test_extract_capability_name_rejects_conversational_filler():
+    for filler in ("why", "well", "so", "ok", "no", "yes", "can", "give",
+                   "we", "ive", "now", "what", "great", "nice", "hey",
+                   "sure", "to", "please", "come", "help"):
+        assert extract_capability_name(
+            f"create a capability to {filler} and install it"
+        ) is None, f"{filler!r} should not be extracted as a capability name"
+
+
 def test_is_acquisition_goal():
     assert is_acquisition_goal("create a speech capability")
     assert is_acquisition_goal("Please build a new command_exec capability")

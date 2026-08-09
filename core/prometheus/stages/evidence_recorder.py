@@ -10,11 +10,28 @@ from core.prometheus.models import AcquisitionRecord
 _EVIDENCE_NAMESPACE = "prometheus_evidence"
 
 
+def _storage_root(storage) -> Optional[Path]:
+    """Resolve a real filesystem root from storage, else None.
+
+    Falls back to None (caller skips writing) when storage exposes only a
+    MagicMock ``.root`` or no usable path, so evidence is never scattered into
+    the current working directory.
+    """
+    raw = getattr(storage, "root", None)
+    if isinstance(raw, (str, Path)):
+        root = Path(raw)
+        try:
+            root.mkdir(parents=True, exist_ok=True)
+            return root
+        except OSError:
+            return None
+    return None
+
+
 def _get_evidence_path(identity_id: str, storage) -> Optional[Path]:
-    if hasattr(storage, 'root'):
-        base = Path(storage.root)
-    else:
-        base = Path(".identity_store")
+    base = _storage_root(storage)
+    if base is None:
+        return None
     path = base / identity_id / f"{_EVIDENCE_NAMESPACE}.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     return path

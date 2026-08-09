@@ -38,6 +38,7 @@ from core.prometheus.stages.learner import (
     get_success_rate,
     has_previously_searched,
     _load_learning_data,
+    _get_learning_path,
 )
 from core.prometheus.stages.evidence_recorder import (
     record_evidence,
@@ -532,6 +533,18 @@ class TestLearner:
         with tempfile.TemporaryDirectory() as td:
             from runtime.persistence import JSONFileBackend
             yield JSONFileBackend(root_dir=td)
+
+    def test_mock_storage_never_writes_into_cwd(self, tmp_path):
+        from core.prometheus.stages.evidence_recorder import (
+            _get_evidence_path,
+        )
+        mock_storage = MagicMock()
+        learning = _get_learning_path("tester", mock_storage)
+        assert isinstance(learning, Path)
+        assert str(learning) != ""
+        assert not learning.as_posix().startswith((".identity_store", "MagicMock"))
+        evidence = _get_evidence_path("tester", mock_storage)
+        assert evidence is None
 
     def test_record_and_retrieve(self, tmp_storage):
         record = AcquisitionRecord(

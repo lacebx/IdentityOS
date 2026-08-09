@@ -31,10 +31,27 @@ _GENERIC_CAP_PATTERNS = [
 ]
 
 _STOPWORDS = frozenset({
+    # verbs
     "create", "build", "make", "acquire", "develop", "implement", "add",
-    "install", "capability", "capabilities", "skill", "a", "an", "the",
-    "new", "set", "up", "use", "using", "for", "and", "it", "one", "to",
-    "of", "on", "self", "my", "myself", "your", "yourself",
+    "install", "use", "using", "come", "give", "help", "ask", "tell",
+    "know", "think", "go", "want", "need", "like", "let", "do", "get",
+    # capability nouns
+    "capability", "capabilities", "skill", "one",
+    # articles / determiners
+    "a", "an", "the", "this", "that", "these", "those", "new", "set", "some",
+    # prepositions / conjunctions
+    "to", "of", "for", "on", "in", "at", "by", "with", "up", "and", "or",
+    "but", "from", "about", "into", "over", "out",
+    # pronouns
+    "self", "my", "myself", "your", "yourself", "i", "me", "we", "our",
+    "ours", "us", "you", "your", "he", "she", "it", "they", "them", "their",
+    "him", "her", "its", "one", "someone", "anyone",
+    # conversational filler / question particles
+    "why", "well", "so", "ok", "okay", "no", "yes", "yeah", "now", "what",
+    "when", "where", "who", "which", "how", "please", "thanks", "hey",
+    "nice", "great", "good", "just", "really", "ive", "im", "dont", "youre",
+    "cant", "wont", "gonna", "wanna", "should", "would", "could", "maybe",
+    "can", "sure", "quite", "much", "more", "most", "very", "too", "also", "today",
 })
 
 
@@ -51,8 +68,22 @@ def extract_capability_name(goal: str) -> Optional[str]:
         m = pat.search(text)
         if m:
             cand = m.group(1)
-            if cand.lower() not in _STOPWORDS:
-                return cand.lower()
+            if cand.lower() in _STOPWORDS:
+                # Skip conversational filler: look ahead for the first real
+                # token (e.g. "build me a weather skill" -> "weather").
+                lookahead = _next_candidate_token(text[m.end():])
+                if lookahead is not None:
+                    return lookahead
+                continue
+            return cand.lower()
+    return None
+
+
+def _next_candidate_token(segment: str) -> Optional[str]:
+    """Return the first non-stopword token in *segment*, if any."""
+    for tok in re.findall(r"[a-z_][a-z0-9_]*", segment.lower()):
+        if tok not in _STOPWORDS:
+            return tok
     return None
 
 

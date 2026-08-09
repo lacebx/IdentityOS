@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import tempfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -11,11 +12,27 @@ from core.prometheus.models import AcquisitionRecord
 _LEARNING_NAMESPACE = "prometheus_learning"
 
 
+def _storage_root(storage) -> Path:
+    """Resolve a real filesystem root from storage, falling back to a temp dir.
+
+    Real backends expose ``.root`` (a ``Path`` or ``str``).  Mock/test storages
+    may expose a MagicMock ``.root`` that cannot be used as a path; in that
+    case fall back to a temp dir instead of scattering files into the CWD.
+    """
+    raw = getattr(storage, "root", None)
+    if isinstance(raw, (str, Path)):
+        root = Path(raw)
+        try:
+            root.mkdir(parents=True, exist_ok=True)
+            return root
+        except OSError:
+            pass
+    fallback = Path(tempfile.mkdtemp(prefix="identityos_learning_"))
+    return fallback
+
+
 def _get_learning_path(identity_id: str, storage) -> Path:
-    if hasattr(storage, 'root'):
-        base = Path(storage.root)
-    else:
-        base = Path(".identity_store")
+    base = _storage_root(storage)
     path = base / identity_id / f"{_LEARNING_NAMESPACE}.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     return path
