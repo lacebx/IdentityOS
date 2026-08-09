@@ -32,6 +32,8 @@ from core.prometheus.stages.learner import (
     get_success_rate,
     get_known_capabilities_for_task,
     has_previously_searched,
+    learned_capabilities,
+    sync_learning_goal,
 )
 from core.prometheus.stages.evidence_recorder import record_evidence, get_evidence_history
 
@@ -57,6 +59,8 @@ __all__ = [
     "get_success_rate",
     "get_known_capabilities_for_task",
     "has_previously_searched",
+    "learned_capabilities",
+    "sync_learning_goal",
     "record_evidence",
     "get_evidence_history",
 ]
