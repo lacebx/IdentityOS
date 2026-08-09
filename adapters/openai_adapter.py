@@ -2,11 +2,65 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 from typing import Any, Optional
 
 from .base import BaseAdapter
 
 logger = logging.getLogger(__name__)
+
+_STATUS_RE = re.compile(r"(?:status|error)\s?code[:\s]+(\d{3})|\b(5\d\d)\b|\b(4(?:01|03|29))\b")
+
+try:
+    from openai import APIConnectionError as _APIConnectionError
+except ImportError:  # pragma: no cover
+    _APIConnectionError = Exception
+
+
+def _http_status(exc: Exception) -> Optional[int]:
+    """Extract an HTTP status code from an SDK/urllib error, if present."""
+    status = getattr(exc, "status_code", None)
+    if isinstance(status, int):
+        return status
+    response = getattr(exc, "response", None)
+    if response is not None:
+        status = getattr(response, "status_code", None)
+        if isinstance(status, int):
+            return status
+    match = _STATUS_RE.search(str(exc))
+    if match:
+        code = match.group(1) or match.group(2) or match.group(3)
+        if code:
+            return int(code)
+    return None
+
+
+def _is_connection_error(exc: Exception) -> bool:
+    """True when the error is a connectivity problem (APIConnectionError et al.)."""
+    return isinstance(exc, _APIConnectionError) or "connection error" in str(exc).lower()
+
+
+def _http_status(exc: Exception) -> Optional[int]:
+    """Extract an HTTP status code from an SDK/urllib error, if present."""
+    status = getattr(exc, "status_code", None)
+    if isinstance(status, int):
+        return status
+    response = getattr(exc, "response", None)
+    if response is not None:
+        status = getattr(response, "status_code", None)
+        if isinstance(status, int):
+            return status
+    match = _STATUS_RE.search(str(exc))
+    if match:
+        code = match.group(1) or match.group(2) or match.group(3)
+        if code:
+            return int(code)
+    return None
+
+
+def _is_connection_error(exc: Exception) -> bool:
+    """True when the error is a connectivity problem (APIConnectionError et al.)."""
+    return isinstance(exc, _APIConnectionError) or "connection error" in str(exc).lower()
 
 
 class OpenAIAdapter(BaseAdapter):
@@ -102,12 +156,36 @@ class OpenAIAdapter(BaseAdapter):
             except Exception as exc:
                 last_exc = exc
                 msg = str(exc)
-                if "rate limit" in msg.lower() or "429" in msg:
+                msg_lower = msg.lower()
+                if "rate limit" in msg_lower or "429" in msg:
                     if attempt < retries - 1:
                         wait = 2 ** attempt * 5
                         logger.warning("Rate limited, retrying in %ds...", wait)
                         _time.sleep(wait)
                     continue
+                # Carry recognizable provider signals so chain/rotating
+                # adapters can detect and fail over instead of crashing.
+                status = _http_status(exc)
+                if status == 429:
+                    if attempt < retries - 1:
+                        wait = 2 ** attempt * 5
+                        logger.warning("Rate limited (HTTP %s), retrying in %ds...", status, wait)
+                        _time.sleep(wait)
+                        continue
+                    raise RuntimeError(
+                        f"Adapter error (model={model!r}, base_url={self.base_url!r}): "
+                        f"429 rate limit exceeded: {msg}"
+                    ) from exc
+                if status == 401:
+                    raise RuntimeError(
+                        f"Adapter error (model={model!r}, base_url={self.base_url!r}): "
+                        f"401 authentication failed (invalid API key): {msg}"
+                    ) from exc
+                if status in (502, 503, 504) or _is_connection_error(exc):
+                    raise RuntimeError(
+                        f"Adapter error (model={model!r}, base_url={self.base_url!r}): "
+                        f"{status or 'connection'} service unavailable: {msg}"
+                    ) from exc
                 raise RuntimeError(
                     f"Adapter error (model={model!r}, base_url={self.base_url!r}): {msg}"
                 ) from exc

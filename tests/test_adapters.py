@@ -341,3 +341,117 @@ class TestAdapterInRuntime:
             ))
             assert resp.output == "Hello from the mock!"
             assert resp.policy_passed is True
+
+
+# ---------------------------------------------------------------------------
+# ChainAdapter failover tests
+# ---------------------------------------------------------------------------
+
+class TestChainFailover:
+    def test_falls_through_on_rate_limit_429(self):
+        from adapters.chain import ChainAdapter
+
+        class BoomAdapter(BaseAdapter):
+            def generate(self, context, user_input, identity, **kwargs):
+                raise RuntimeError("Adapter error: 429 rate limit exceeded: slow down")
+
+        class OkAdapter(BaseAdapter):
+            model = "ok"
+            def generate(self, context, user_input, identity, **kwargs):
+                return "OK"
+
+        chain = ChainAdapter([BoomAdapter(model="a"), OkAdapter()])
+        assert chain.generate("", "", None) == "OK"
+
+    def test_falls_through_on_auth_401(self):
+        from adapters.chain import ChainAdapter
+
+        class BoomAdapter(BaseAdapter):
+            def generate(self, context, user_input, identity, **kwargs):
+                raise RuntimeError("Adapter error: 401 authentication failed (invalid API key)")
+
+        class OkAdapter(BaseAdapter):
+            model = "ok"
+            def generate(self, context, user_input, identity, **kwargs):
+                return "OK"
+
+        chain = ChainAdapter([BoomAdapter(model="a"), OkAdapter()])
+        assert chain.generate("", "", None) == "OK"
+
+    def test_falls_through_on_service_unavailable_503(self):
+        from adapters.chain import ChainAdapter
+
+        class BoomAdapter(BaseAdapter):
+            def generate(self, context, user_input, identity, **kwargs):
+                raise RuntimeError("Adapter error: 503 service unavailable")
+
+        class OkAdapter(BaseAdapter):
+            model = "ok"
+            def generate(self, context, user_input, identity, **kwargs):
+                return "OK"
+
+        chain = ChainAdapter([BoomAdapter(model="a"), OkAdapter()])
+        assert chain.generate("", "", None) == "OK"
+
+    def test_non_retryable_error_still_propagates(self):
+        from adapters.chain import ChainAdapter
+
+        class BoomAdapter(BaseAdapter):
+            def generate(self, context, user_input, identity, **kwargs):
+                raise RuntimeError("broke")
+
+        class OkAdapter(BaseAdapter):
+            model = "ok"
+            def generate(self, context, user_input, identity, **kwargs):
+                return "OK"
+
+        chain = ChainAdapter([BoomAdapter(model="a"), OkAdapter()])
+        with pytest.raises(RuntimeError, match="broke"):
+            chain.generate("", "", None)
+
+    def test_all_exhausted_raises(self):
+        from adapters.chain import ChainAdapter
+
+        class BoomAdapter(BaseAdapter):
+            def generate(self, context, user_input, identity, **kwargs):
+                raise RuntimeError("429 rate limit exceeded")
+
+        chain = ChainAdapter([BoomAdapter(model="a"), BoomAdapter(model="b")])
+        with pytest.raises(RuntimeError, match="All adapters exhausted"):
+            chain.generate("", "", None)
+
+
+# ---------------------------------------------------------------------------
+# Groq / SambaNova cooldown safety tests
+# ---------------------------------------------------------------------------
+
+class TestRotatingAdapterSafety:
+    def test_groq_unhandled_rate_limit_raises_exhaustion(self):
+        from adapters.groq_adapter import GroqAdapter
+
+        adapter = GroqAdapter(api_keys=["k1"])
+        with patch.object(GroqAdapter, "_rotate_key", return_value=None), \
+             patch("adapters.groq_adapter.time.sleep"):
+            with patch.object(
+                OpenAIAdapter, "generate",
+                side_effect=RuntimeError("429 rate limit exceeded"),
+            ):
+                with pytest.raises(RuntimeError, match="(?i)api keys exhausted"):
+                    adapter.generate("ctx", "hi", None)
+
+    def test_sambanova_wait_shortest_cooldown_is_bounded(self):
+        from adapters.sambanova_adapter import SambaNovaAdapter
+        import time
+
+        adapter = SambaNovaAdapter(api_keys=["k1", "k2"])
+        adapter._cooldowns = {0: time.time() + 3600}
+        adapter._key_index = 0
+        # All keys on cooldown must NOT block for the full window (~1h).
+        with patch("adapters.sambanova_adapter.time.sleep") as sleep:
+            with patch.object(SambaNovaAdapter, "_rotate_key", return_value=None):
+                t0 = time.monotonic()
+                adapter._wait_shortest_cooldown(retry_after=60, deadline=time.time() + 1)
+                elapsed = time.monotonic() - t0
+        # Sleep is capped well below the theoretical cooldown.
+        assert sleep.call_args is None or sleep.call_args[0][0] < 15
+        assert elapsed < 2

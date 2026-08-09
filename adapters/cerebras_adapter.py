@@ -79,16 +79,26 @@ class CerebrasAdapter(OpenAIAdapter):
                 return self.api_key
         return None
 
-    def _wait_shortest_cooldown(self, retry_after: float = 60):
+    def _wait_shortest_cooldown(self, retry_after: float = 60, deadline: float = 0):
+        """Briefly wait only if affordable, bounded by the outer deadline.
+
+        Never blocks for the full cooldown — if the deadline is near, return
+        immediately so the caller can raise exhaustion and let the chain
+        fall through to another provider.
+        """
         now = time.time()
+        if deadline and now >= deadline:
+            return
         min_wait = retry_after
         for idx, until in self._cooldowns.items():
             remaining = until - now
             if 0 < remaining < min_wait:
                 min_wait = remaining
-        if min_wait > 0:
-            logger.warning("All Cerebras keys on cooldown. Waiting %.0fs...", min_wait)
-            time.sleep(min_wait + 1)
+        budget = (deadline - now) if deadline else 0
+        cap = max(0.0, min(min_wait, 10, budget))
+        if cap > 0:
+            logger.warning("All Cerebras keys on cooldown. Waiting %.0fs...", cap)
+            time.sleep(cap)
         self._key_index = 0
         self._rotate_key()
 
@@ -103,12 +113,17 @@ class CerebrasAdapter(OpenAIAdapter):
     ) -> str:
         last_error = None
         now = time.time()
+        deadline = now + 60
 
         for attempt in range(len(self._keys) * 3):
+            if time.time() > deadline:
+                raise RuntimeError(
+                    f"All Cerebras API keys exhausted (timeout). Last error: {last_error}"
+                ) from last_error
             cooldown_until = self._cooldowns.get(self._key_index, 0)
             if cooldown_until > now:
                 if self._rotate_key() is None:
-                    self._wait_shortest_cooldown()
+                    self._wait_shortest_cooldown(deadline=deadline)
                     now = time.time()
 
             try:
@@ -129,12 +144,18 @@ class CerebrasAdapter(OpenAIAdapter):
                     raise RuntimeError(
                         f"All Cerebras API keys exhausted (context too large). Last error: {last_error}"
                     ) from last_error
+                if "401" in msg_lower or "authentication" in msg_lower or "invalid api key" in msg_lower:
+                    logger.warning("Invalid Cerebras API key on index %d", self._key_index)
+                    self._cooldowns[self._key_index] = time.time() + 300
+                    if self._rotate_key() is None:
+                        self._wait_shortest_cooldown(retry_after=5, deadline=deadline)
+                    continue
                 if "429" in msg_lower or "rate limit" in msg_lower or "quota" in msg_lower:
                     retry_after = 60
                     logger.warning("Rate limited on Cerebras key %d", self._key_index)
                     self._cooldowns[self._key_index] = time.time() + retry_after
                     if self._rotate_key() is None:
-                        self._wait_shortest_cooldown(retry_after)
+                        self._wait_shortest_cooldown(retry_after, deadline=deadline)
                     continue
                 raise
 
