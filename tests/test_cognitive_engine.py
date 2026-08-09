@@ -64,3 +64,17 @@ class TestContextComposer:
         graph.connect("id3", "user1", trust_level=TrustLevel.HIGH)
         ctx = composer.compose(identity=identity, identity_graph=graph)
         assert "user1" in ctx.relationships_block
+
+    def test_runtime_directives_include_rule_11(self):
+        composer = ContextComposer(
+            include_memory=False,
+            include_skills=False,
+            include_goals=False,
+            include_relationships=False,
+        )
+        identity = IdentitySpec(id="id4", name="ExecBot", role="assistant")
+        ctx = composer.compose(identity=identity)
+        directives = ctx.runtime_directives_block
+        assert "NEVER SIMULATE TOOL CALLS" in directives
+        assert "code fences" in directives
+        assert "LONG-RUNNING WORK USES THE EXECUTIVE" in directives

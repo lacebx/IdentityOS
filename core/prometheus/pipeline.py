@@ -211,6 +211,16 @@ class EvolutionPipeline:
                 record_evidence(identity_id, record, storage)
             except Exception:
                 pass
+            if record.retry_success:
+                try:
+                    from core.prometheus.stages.learner import sync_learning_goal
+                    goal_engine = getattr(runtime, "goal_engine", None)
+                    sync_learning_goal(
+                        identity_id, storage, goal_engine,
+                        learning_target=self.config.learning_goal_target,
+                    )
+                except Exception:
+                    pass
 
         self._interaction_acquisitions += 1
 

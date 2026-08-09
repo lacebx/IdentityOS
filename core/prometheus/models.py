@@ -136,5 +136,6 @@ class PrometheusConfig:
     enable_pre_check: bool = True
     enable_post_check: bool = True
     enable_learning: bool = True
+    learning_goal_target: int = 5
     registry_path: str = "registry/capabilities/index.json"
     storage_namespace: str = "prometheus"

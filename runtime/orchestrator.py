@@ -393,6 +393,15 @@ class IdentityRuntime:
             name=identity.name,
         )
 
+    def _ensure_executive_capability(self, identity_id: str) -> None:
+        """Ensure the identity has the core executive capability installed."""
+        if hasattr(self, "capability_registry") and self.capability_registry:
+            if not self.capability_registry.get(identity_id, "executive"):
+                try:
+                    self.capability_registry.install(identity_id, "executive")
+                except Exception:
+                    pass
+
     def load_persisted(self) -> int:
         """Load all identities from the persistence backend into the in-memory store.
 
@@ -1243,6 +1252,7 @@ class IdentityRuntime:
         # the identity never restarts committed work from scratch.
         _executive_state_block = ""
         if self.executive is not None:
+            self._ensure_executive_capability(identity.id)
             try:
                 self.executive.recover(identity.id)
                 self.executive._ctx(identity.id, runtime=self)
@@ -1271,6 +1281,26 @@ class IdentityRuntime:
                         if self.executive.scheduler:
                             self.executive.scheduler.start()
                     _executive_state_block = self.executive.render_state(identity.id)
+            except Exception:
+                pass
+
+            # Stage 2b: Synchronous Task Execution Loop.
+            # Execute ready steps for active tasks synchronously until completion or
+            # blockage BEFORE context composition and LLM generation. This ensures
+            # that long-running work (e.g. capability acquisition) completes in full
+            # before the identity answers the user, preventing premature stops.
+            try:
+                _max_ticks = 50
+                _ticks = 0
+                while _ticks < _max_ticks:
+                    _active = self.executive.active_tasks(identity.id)
+                    if not _active:
+                        break
+                    _pushed = self.executive.process_ready(identity.id)
+                    if not _pushed:
+                        break
+                    _ticks += 1
+                _executive_state_block = self.executive.render_state(identity.id)
             except Exception:
                 pass
 

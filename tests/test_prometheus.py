@@ -38,6 +38,7 @@ from core.prometheus.stages.learner import (
     get_success_rate,
     has_previously_searched,
     _load_learning_data,
+    _get_learning_path,
 )
 from core.prometheus.stages.evidence_recorder import (
     record_evidence,
@@ -533,6 +534,18 @@ class TestLearner:
             from runtime.persistence import JSONFileBackend
             yield JSONFileBackend(root_dir=td)
 
+    def test_mock_storage_never_writes_into_cwd(self, tmp_path):
+        from core.prometheus.stages.evidence_recorder import (
+            _get_evidence_path,
+        )
+        mock_storage = MagicMock()
+        learning = _get_learning_path("tester", mock_storage)
+        assert isinstance(learning, Path)
+        assert str(learning) != ""
+        assert not learning.as_posix().startswith((".identity_store", "MagicMock"))
+        evidence = _get_evidence_path("tester", mock_storage)
+        assert evidence is None
+
     def test_record_and_retrieve(self, tmp_storage):
         record = AcquisitionRecord(
             need=CapabilityNeed(skill_keywords=["github"], original_request="Check repos"),
@@ -559,6 +572,56 @@ class TestLearner:
         )
         record_acquisition("test-bot", record, tmp_storage)
         assert has_previously_searched("test-bot", "weather", tmp_storage)
+
+    def test_sync_learning_goal_tracks_acquired_capabilities(self, tmp_storage):
+        from core.goals import Goal, GoalEngine
+        from core.prometheus.stages.learner import sync_learning_goal
+
+        record = AcquisitionRecord(
+            need=CapabilityNeed(skill_keywords=["github"], original_request="Check repos"),
+            chosen_candidate=RegistryCandidate(
+                cap_id="github", name="GitHub", version="1.0.0",
+                author="IdentityOS", description="", skills=[],
+                permissions={}, manifest_url="",
+            ),
+            installation_success=True,
+            retry_success=True,
+        )
+        record_acquisition("test-bot", record, tmp_storage)
+
+        engine = GoalEngine()
+        goal = Goal(title="Learn and grow")
+        engine.add(goal)
+
+        updated = sync_learning_goal("test-bot", tmp_storage, engine)
+        assert updated
+        assert goal.progress > 0.0
+        assert any("github" in m.description for m in goal.milestones)
+
+    def test_sync_learning_goal_no_learning_no_change(self, tmp_storage):
+        from core.goals import Goal, GoalEngine
+        from core.prometheus.stages.learner import sync_learning_goal
+
+        engine = GoalEngine()
+        goal = Goal(title="Learn and grow", progress=0.0)
+        engine.add(goal)
+
+        updated = sync_learning_goal("test-bot", tmp_storage, engine)
+        assert updated
+        assert goal.progress == 0.0
+        assert goal.milestones == []
+
+    def test_sync_learning_goal_ignores_unrelated_goals(self, tmp_storage):
+        from core.goals import Goal, GoalEngine
+        from core.prometheus.stages.learner import sync_learning_goal
+
+        engine = GoalEngine()
+        goal = Goal(title="Write a book", progress=0.0)
+        engine.add(goal)
+
+        updated = sync_learning_goal("test-bot", tmp_storage, engine)
+        assert not updated
+        assert goal.progress == 0.0
 
 
 # ─── Evidence Recorder Tests ────────────────────────────────────────────

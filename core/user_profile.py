@@ -106,9 +106,9 @@ class UserProfile:
         self.user_id = user_id
         self._facts: Dict[str, UserFact] = {}
 
-    def _compute_confidence(self, evidence: List[EvidenceRecord]) -> float:
+    def _compute_confidence(self, evidence: List[EvidenceRecord], current_value: Any = None) -> float:
         return ConfidenceScorer.compute_from_evidence_records(
-            evidence, value_attr="value",
+            evidence, value_attr="value", current_value=current_value,
         )
 
     def add_or_update(self, field: str, value: Any,
@@ -127,9 +127,14 @@ class UserProfile:
             existing.last_confirmed = now
             unique_values = set(str(e.value) for e in existing.evidence)
             if len(unique_values) > 1:
+                # Contradictory reports: adopt the LATEST disclosure as the
+                # winner (the user's most recent statement is the most
+                # reliable signal), but keep it flagged uncertain and lower
+                # its confidence based on how much evidence agrees with it.
                 existing.contradictions += 1
                 existing.uncertain = True
-                existing.confidence = self._compute_confidence(existing.evidence)
+                existing.value = value
+                existing.confidence = self._compute_confidence(existing.evidence, current_value=value)
                 if source:
                     existing.source_conversation = source
                 return existing

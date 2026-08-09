@@ -9,6 +9,33 @@ logger = logging.getLogger(__name__)
 
 _EXHAUSTION_MARKERS = [
     "api keys exhausted",
+    "all adapters exhausted",
+]
+
+# Provider-level failures that should fall through to the next adapter in the
+# chain rather than abort it with an unhandled traceback: rate limiting,
+# quota/account issues, auth failures, bad gateway, and connectivity errors.
+_FALLTHROUGH_MARKERS = [
+    "429",
+    "rate limit",
+    "rate_limit",
+    "insufficient_quota",
+    "quota exceeded",
+    "401",
+    "authentication",
+    "invalid_api_key",
+    "invalid api key",
+    "403",
+    "permission denied",
+    "502",
+    "503",
+    "bad gateway",
+    "service unavailable",
+    "connection error",
+    "connection refused",
+    "timed out",
+    "timeout",
+    "api status error",
 ]
 
 
@@ -22,10 +49,9 @@ class ChainAdapter(BaseAdapter):
     ``ChainAdapter`` catches the exhaustion error and moves to the next
     adapter in the chain.
 
-    Usage::
-
-        chain = ChainAdapter([groq_adapter, sambanova_adapter, openai_adapter])
-        chain.generate(context, user_input, identity)
+    Provider-level failures (rate limits, auth errors, 5xx, connectivity)
+    are also treated as fallthrough triggers so one provider's outage never
+    crashes the whole chain.
     """
 
     def __init__(
@@ -47,7 +73,11 @@ class ChainAdapter(BaseAdapter):
 
     def _is_exhaustion(self, error: Exception) -> bool:
         msg = str(error).lower()
-        return any(marker in msg for marker in _EXHAUSTION_MARKERS)
+        if any(marker in msg for marker in _EXHAUSTION_MARKERS):
+            return True
+        # Provider-level failures are non-fatal to the chain: fall through so
+        # the next adapter gets a chance instead of raising an unhandled error.
+        return any(marker in msg for marker in _FALLTHROUGH_MARKERS)
 
     def generate(
         self,
