@@ -451,6 +451,7 @@ def test_extract_capability_name_variants():
     assert extract_capability_name("build a browser skill") == "browser"
     assert extract_capability_name("make an ocr capability") == "ocr"
     assert extract_capability_name("install docker capability") == "docker"
+    assert extract_capability_name("create capability to speak and install it on self") == "speak"
     assert extract_capability_name("what is the weather") is None
 
 

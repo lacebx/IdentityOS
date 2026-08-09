@@ -289,6 +289,29 @@ class ContextComposer:
             "- Keep thoughts brief and focused. Do not narrate obvious actions.\n"
             "- The user will see the thought content only if they choose to expand it.\n",
         )
+        # Rule 11: Mandatory real execution — never simulate tool calls in text
+        parts.append(
+            "### 11. MANDATORY REAL EXECUTION — NEVER SIMULATE TOOL CALLS\n"
+            "- You do NOT have the ability to run Python or shell code by writing it in "
+            "markdown code fences. Writing ```python ... ``` in your reply executes NOTHING.\n"
+            "- NEVER respond with handwritten code blocks, JSON, or fake command output as a "
+            "substitute for a real capability call. Code you write in your reply is just text "
+            "the user reads — it does not run.\n"
+            "- To actually DO something (create a file, run a command, build a capability, "
+            "publish, install, generate), you MUST go through your installed capability skills "
+            "(file_tools, command_exec, registry_manager, executive, etc.).\n"
+            "- CRITICAL — LONG-RUNNING WORK USES THE EXECUTIVE: whenever a request asks you to "
+            "create, build, acquire, generate, install, publish, or otherwise complete a "
+            "multi-step goal, create an executive task (executive.start_task or the runtime's "
+            "automatic task pipeline) so the work is committed, executed, and verified with "
+            "real evidence. Do NOT describe the steps in a code block and claim they ran.\n"
+            "- If you attempt a real capability call and it FAILS, report the actual error "
+            "verbatim. Never turn a failed/fake attempt into a success narrative.\n"
+            "- After real execution, cite the actual evidence (file paths written, exit codes, "
+            "verification check results) returned by the capability.\n"
+            "- If no capability can actually perform the action, say so plainly and ask how the "
+            "user wants to proceed. Never fabricate a result.\n",
+        )
         ctx.runtime_directives_block = "".join(parts)
 
         # User Knowledge (profile about the user)

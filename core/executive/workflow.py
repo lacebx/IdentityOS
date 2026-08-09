@@ -23,6 +23,7 @@ import re
 from typing import Optional
 
 _GENERIC_CAP_PATTERNS = [
+    re.compile(r"(?:capability|skill)\s+(?:to|for)\s+['\"]?([a-z_][a-z0-9_]{1,31})['\"]?", re.IGNORECASE),
     re.compile(r"(?:create|build|make|acquire|develop|implement|add|install|set\s?up)\s+(?:a|an|the)?\s*(?:new\s+)?(?:capability\s+|skill\s+)?['\"]?([a-z_][a-z0-9_]{1,31})['\"]?(?:\s+capability|\s+skill|\b)", re.IGNORECASE),
     re.compile(r"(?:called|named)\s+['\"]?([a-z_][a-z0-9_]{1,31})['\"]?(?:\s+capability|\b)", re.IGNORECASE),
     re.compile(r"(?:capability|skill)\s+['\"]?([a-z_][a-z0-9_]{1,31})['\"]?", re.IGNORECASE),
@@ -32,7 +33,8 @@ _GENERIC_CAP_PATTERNS = [
 _STOPWORDS = frozenset({
     "create", "build", "make", "acquire", "develop", "implement", "add",
     "install", "capability", "capabilities", "skill", "a", "an", "the",
-    "new", "set", "up", "use", "using", "for", "and", "it", "one",
+    "new", "set", "up", "use", "using", "for", "and", "it", "one", "to",
+    "of", "on", "self", "my", "myself", "your", "yourself",
 })
 
 
