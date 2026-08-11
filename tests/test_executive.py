@@ -158,11 +158,11 @@ def test_never_silently_abandon_queued_task():
 
 # ── 2. Persistence & interruption recovery ───────────────────────────────
 
-def test_task_persists_across_engine_restart(storage, registry, fresh_cap):
+def test_task_persists_across_engine_restart(storage, registry):
     eng1 = ExecutiveRuntime(storage=storage, capability_registry=registry)
     t = eng1.start_task(
-        f"create a {fresh_cap} capability and install it",
-        "tester", original_request=f"create a {fresh_cap} capability and install it",
+        "create a command_exec capability and install it",
+        "tester", original_request="create a command_exec capability and install it",
     )
     eng1.process_ready("tester")  # run exactly one step, then "crash"
     t1 = eng1.get_task("tester", t.task_id)
@@ -224,14 +224,22 @@ def test_full_acquisition_flow_with_evidence(engine, fresh_cap):
     assert actions == ["registry_search", "generate", "validate", "publish", "install", "verify", "verify_goal"]
 
     final = _run_until_terminal(engine, "tester", t.task_id)
-    assert final.status == TaskStatus.COMPLETED, final.error
+    # R3 regression: a marketplace-absent capability resolves to a generic
+    # scaffold whose `.run` only self-reports {"status": "completed"}. The
+    # verifier must NOT bless that as a verified capability, so the task is
+    # honestly FAILED — not completed — with a skill_callable rejection.
+    assert final.status == TaskStatus.FAILED, final.error
+    assert final.error and "verify" in final.error
 
     completed = [s.action for s in final.completed_steps]
-    assert "generate" in completed and "install" in completed and "verify" in completed
+    assert "generate" in completed and "install" in completed
 
     labels = {e.label for e in final.evidence}
     for expected in ("file_generated", "syntax_valid", "registry_published", "installed", "source_file_exists", "module_imports", "registered", "skill_exposed", "skill_callable"):
         assert expected in labels, f"missing evidence label {expected}"
+
+    sc = [e for e in final.evidence if e.label == "skill_callable" and not e.success]
+    assert sc, "scaffold self-report must fail the skill_callable check"
 
 
 def test_marketplace_found_skips_generation(engine):

@@ -164,7 +164,15 @@ class RegistryManagerCapability(Capability):
         except Exception as e:
             return {"error": str(e)}
 
-    def _install_capability(self, cap_id: str = "", **kwargs: Any) -> dict[str, Any]:
+    def _install_capability(
+        self,
+        cap_id: str = "",
+        capability: str = "",
+        identity_id: str = "",
+        registry: Any = None,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        cap_id = cap_id or capability or ""
         if not cap_id:
             return {"error": "cap_id is required"}
         index = self._load_index()
@@ -172,11 +180,35 @@ class RegistryManagerCapability(Capability):
         match = next((c for c in caps if c.get("id") == cap_id), None)
         if not match:
             return {"error": f"Capability '{cap_id}' not found in registry"}
+
+        # Resolve install context: an explicitly passed registry/identity wins,
+        # otherwise fall back to the live registry this instance was loaded from.
+        reg = registry
+        if reg is None and getattr(self, "_identity_registry", None) is not None:
+            reg = self._identity_registry
+        ident = identity_id
+        if not ident and getattr(self, "_identity_id", None):
+            ident = self._identity_id
+
+        if reg is not None and ident:
+            try:
+                cap_obj = reg.install(ident, cap_id)
+                return {
+                    "cap_id": cap_id,
+                    "name": match.get("name", cap_id),
+                    "version": match.get("version", "?"),
+                    "status": "installed",
+                    "description": match.get("description", ""),
+                    "skills": [s.name for s in cap_obj.skills()],
+                    "identity_id": ident,
+                }
+            except Exception as e:
+                return {"error": f"install failed: {e}", "cap_id": cap_id}
         return {
             "cap_id": match["id"],
             "name": match.get("name", cap_id),
             "version": match.get("version", "?"),
-            "status": "ready_to_install",
+            "status": "install_context_missing",
             "description": match.get("description", ""),
-            "message": f"To install: runtime.capability_registry.install('<identity_id>', '{cap_id}')",
+            "message": f"Registry and identity context are required; install against an identity that has the registry_manager capability loaded.",
         }

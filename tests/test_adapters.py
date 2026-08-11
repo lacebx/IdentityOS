@@ -165,6 +165,83 @@ class TestOpenAIAdapter:
             )
             assert adapter._client is not None
 
+    # -- Native tool calls (Step 4) --------------------------------------
+
+    def _tool_completion_sequence(self, calls):
+        """Build a fresh MagicMock client whose .create returns a sequence."""
+        completions = []
+        for tool_call in calls or []:
+            msg = MagicMock()
+            msg.content = None
+            if tool_call is None:
+                msg.tool_calls = None
+            else:
+                tc = MagicMock()
+                tc.id = tool_call["id"]
+                tc.function.name = tool_call["name"]
+                tc.function.arguments = tool_call["args"]
+                msg.tool_calls = [tc]
+            comp = MagicMock()
+            comp.choices = [MagicMock(message=msg)]
+            completions.append(comp)
+        return completions
+
+    def test_tool_call_loop_executes_and_returns_final(self):
+        completions = self._tool_completion_sequence([
+            {"id": "call-1", "name": "datetime.now", "args": "{}"},
+            None,  # final text turn
+        ])
+        with patch("openai.OpenAI") as mock:
+            client = MagicMock()
+            client.chat.completions.create.side_effect = completions
+            mock.return_value = client
+
+            executed = []
+            def execute_tool(name, args):
+                executed.append((name, args))
+                return '{"status": "executed", "output": {"now": "2026-01-01T00:00:00Z"}}'
+
+            adapter = OpenAIAdapter(api_key="sk-test")
+            out = adapter.generate(
+                context="ctx", user_input="what time", identity=_MockIdentity(),
+                tools=[{"type": "function", "function": {"name": "datetime.now"}}],
+                execute_tool=execute_tool,
+            )
+            assert executed == [("datetime.now", {})]
+            assert client.chat.completions.create.call_count == 2
+            # the tool result message is present in the second request
+            second_messages = client.chat.completions.create.call_args_list[1][1]["messages"]
+            assert any(m["role"] == "tool" for m in second_messages)
+            # plain no-tools path still returns content
+            assert out == ""
+
+    def test_no_tools_keeps_original_behavior(self, mock_openai_client):
+        adapter = OpenAIAdapter(api_key="sk-test")
+        result = adapter.generate(
+            context="You are a helpful assistant.",
+            user_input="Hello!",
+            identity=_MockIdentity(),
+        )
+        assert result == "Hello from the mock!"
+        assert callable(_MockIdentity)
+
+    def test_tool_loop_bounded_rounds(self):
+        from unittest.mock import patch as _patch
+        client = MagicMock()
+        one = MagicMock()
+        one.choices = [MagicMock(message=MagicMock(tool_calls=None, content="done"))]
+        client.chat.completions.create.return_value = one
+        with _patch("openai.OpenAI") as mock:
+            mock.return_value = client
+            adapter = OpenAIAdapter(api_key="sk-test")
+            out = adapter.generate(
+                context="ctx", user_input="hi", identity=_MockIdentity(),
+                tools=[{"type": "function", "function": {"name": "x.run"}}],
+                execute_tool=lambda *a: "{}",
+            )
+            assert out == "done"
+            assert client.chat.completions.create.call_count == 1
+
 
 # ---------------------------------------------------------------------------
 # AnthropicAdapter tests

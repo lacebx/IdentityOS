@@ -174,6 +174,36 @@ class SkillRouter:
         filtered = [p for p in parts if p.lower() not in self._STOP_WORDS and len(p) > 1]
         return " ".join(filtered) if filtered else ""
 
+    _KNOWN_ZONE_CODES = frozenset({
+        "UTC", "GMT", "EST", "CST", "MST", "PST", "CET", "EET", "IST",
+        "JST", "AEST", "NZST",
+    })
+
+    def _resolve_tz(self, raw: str) -> Optional[str]:
+        """Return a canonical IANA zone or known zone code for ``raw``.
+
+        Accepts either a well-known short code (UTC, EST, ...) or a valid
+        IANA zone name (America/Chicago, Europe/Paris, Asia/Tokyo).  Returns
+        None when the token is not a real timezone so the caller can reject
+        it instead of fabricating a result.
+        """
+        token = raw.strip()
+        upper = token.upper()
+        if upper in self._KNOWN_ZONE_CODES:
+            return upper
+        try:
+            import zoneinfo
+            if token in zoneinfo.available_timezones():
+                return token
+            # match case-insensitively / underscore-variant (new_york)
+            norm = token.replace("_", " ").lower()
+            for zone in zoneinfo.available_timezones():
+                if zone.replace("_", " ").lower() == norm:
+                    return zone
+        except Exception:
+            pass
+        return None
+
     def _match(self, user_input: str, skill: Any) -> dict:
         """Check if user input matches this skill. Returns match + confidence."""
         text = user_input.lower()
@@ -250,12 +280,21 @@ class SkillRouter:
         text = user_input.strip()
 
         if name == "datetime.now":
-            # "time in Tokyo" or "time in UTC" or just "time"
-            tz_match = re.search(r'\bin\s+([A-Za-z/]+)', text)
+            # "time in Tokyo", "time in America/Chicago" or just "time"
+            tz_match = re.search(r'\bin\s+([A-Za-z][A-Za-z/_-]+)', text)
             if tz_match:
-                tz = self._clean_param(tz_match.group(1)).upper()
-                if tz and len(tz) <= 5:
-                    return {"tz_name": tz}
+                tz = self._resolve_tz(tz_match.group(1))
+                if tz is None:
+                    # Reject garbage zone names (airport codes, cities like
+                    # OKC) with a structured failure instead of silently
+                    # falling back to UTC or passing junk to the capability.
+                    raise ValueError(
+                        f"Unknown timezone '{tz_match.group(1)}'. "
+                        "Use an IANA zone (e.g. America/Chicago) or a supported "
+                        "code: UTC, GMT, EST, CST, MST, PST, CET, EET, IST, "
+                        "JST, AEST, NZST."
+                    )
+                return {"tz_name": tz}
             return {"tz_name": "UTC"}
 
         if name == "datetime.diff":

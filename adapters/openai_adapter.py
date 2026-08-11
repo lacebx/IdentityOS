@@ -126,6 +126,9 @@ class OpenAIAdapter(BaseAdapter):
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
         retries: int = 3,
+        tools: Optional[list] = None,
+        execute_tool: Optional[Any] = None,
+        max_tool_rounds: int = 8,
         **kwargs
     ) -> str:
         """
@@ -134,7 +137,17 @@ class OpenAIAdapter(BaseAdapter):
         The context string is injected as the system message.
         The user_input becomes the user turn.
         Retries up to `retries` times with exponential backoff on rate limits.
+
+        Native tool calls (Step 4): when ``tools`` (OpenAI tool defs) and
+        ``execute_tool`` (callable ``(name, args_dict) -> str``) are provided,
+        the adapter runs a bounded tool-call loop: it calls the model, executes
+        any ``tool_calls`` the model requests, appends their results, and
+        re-requests — exactly as the runtime boundary allows.  The model can
+        REQUEST actions; the runtime (via execute_tool) produces results; the
+        model only interprets them.  Fabrication by the model is impossible
+        because the model never declares a tool result itself.
         """
+        import json as _json
         import time as _time
         client = self._get_client()
         messages = [
@@ -142,57 +155,100 @@ class OpenAIAdapter(BaseAdapter):
             {"role": "user", "content": user_input},
         ]
         model = self.model or "gpt-4o"
-        last_exc = None
-        for attempt in range(retries):
-            try:
-                response = client.chat.completions.create(
-                    model=model,
-                    messages=messages,
-                    temperature=temperature or self.temperature,
-                    max_tokens=max_tokens or self.max_tokens,
-                    **kwargs
-                )
-                return response.choices[0].message.content or ""
-            except Exception as exc:
-                last_exc = exc
-                msg = str(exc)
-                msg_lower = msg.lower()
-                if "rate limit" in msg_lower or "429" in msg:
-                    if attempt < retries - 1:
-                        wait = 2 ** attempt * 5
-                        logger.warning("Rate limited, retrying in %ds...", wait)
-                        _time.sleep(wait)
-                    continue
-                # Carry recognizable provider signals so chain/rotating
-                # adapters can detect and fail over instead of crashing.
-                status = _http_status(exc)
-                if status == 429:
-                    if attempt < retries - 1:
-                        wait = 2 ** attempt * 5
-                        logger.warning("Rate limited (HTTP %s), retrying in %ds...", status, wait)
-                        _time.sleep(wait)
+        rounds = 0
+        while True:
+            last_exc = None
+            for attempt in range(retries):
+                try:
+                    call_kwargs = dict(
+                        model=model,
+                        messages=messages,
+                        temperature=temperature or self.temperature,
+                        max_tokens=max_tokens or self.max_tokens,
+                        **kwargs
+                    )
+                    if tools:
+                        call_kwargs["tools"] = tools
+                        call_kwargs.setdefault("tool_choice", "auto")
+                    response = client.chat.completions.create(**call_kwargs)
+                    message = response.choices[0].message
+                    raw_tool_calls = getattr(message, "tool_calls", None)
+                    tool_calls = raw_tool_calls if isinstance(raw_tool_calls, list) else []
+                    if not tool_calls:
+                        return message.content or ""
+                    if execute_tool is None:
+                        # No executor wired: surface whatever the model said.
+                        return message.content or ""
+                    rounds += 1
+                    if rounds > max_tool_rounds:
+                        raise RuntimeError(
+                            f"Tool-call loop exceeded {max_tool_rounds} rounds"
+                        )
+                    assistant_msg = {
+                        "role": "assistant",
+                        "content": message.content or "",
+                    }
+                    serialized = []
+                    for tc in tool_calls:
+                        fn = getattr(tc, "function", None)
+                        name = getattr(fn, "name", "") if fn else ""
+                        args_raw = getattr(fn, "arguments", "{}") if fn else "{}"
+                        try:
+                            args = _json.loads(args_raw or "{}")
+                        except Exception:
+                            args = {"raw": args_raw}
+                        assistant_msg.setdefault("tool_calls", []).append({
+                            "id": tc.id, "type": "function",
+                            "function": {"name": name, "arguments": args_raw or "{}"},
+                        })
+                        serialized.append((tc.id, name, args))
+                    messages.append(assistant_msg)
+                    for tc_id, name, args in serialized:
+                        outcome = execute_tool(name, args)
+                        messages.append({
+                            "role": "tool",
+                            "tool_call_id": tc_id,
+                            "content": outcome if isinstance(outcome, str) else _json.dumps(outcome, default=str),
+                        })
+                    break  # continue outer loop with the appended tool results
+                except Exception as exc:
+                    last_exc = exc
+                    msg = str(exc)
+                    msg_lower = msg.lower()
+                    if "rate limit" in msg_lower or "429" in msg:
+                        if attempt < retries - 1:
+                            wait = 2 ** attempt * 5
+                            logger.warning("Rate limited, retrying in %ds...", wait)
+                            _time.sleep(wait)
                         continue
+                    status = _http_status(exc)
+                    if status == 429:
+                        if attempt < retries - 1:
+                            wait = 2 ** attempt * 5
+                            logger.warning("Rate limited (HTTP %s), retrying in %ds...", status, wait)
+                            _time.sleep(wait)
+                            continue
+                        raise RuntimeError(
+                            f"Adapter error (model={model!r}, base_url={self.base_url!r}): "
+                            f"429 rate limit exceeded: {msg}"
+                        ) from exc
+                    if status == 401:
+                        raise RuntimeError(
+                            f"Adapter error (model={model!r}, base_url={self.base_url!r}): "
+                            f"401 authentication failed (invalid API key): {msg}"
+                        ) from exc
+                    if status in (502, 503, 504) or _is_connection_error(exc):
+                        raise RuntimeError(
+                            f"Adapter error (model={model!r}, base_url={self.base_url!r}): "
+                            f"{status or 'connection'} service unavailable: {msg}"
+                        ) from exc
                     raise RuntimeError(
-                        f"Adapter error (model={model!r}, base_url={self.base_url!r}): "
-                        f"429 rate limit exceeded: {msg}"
+                        f"Adapter error (model={model!r}, base_url={self.base_url!r}): {msg}"
                     ) from exc
-                if status == 401:
-                    raise RuntimeError(
-                        f"Adapter error (model={model!r}, base_url={self.base_url!r}): "
-                        f"401 authentication failed (invalid API key): {msg}"
-                    ) from exc
-                if status in (502, 503, 504) or _is_connection_error(exc):
-                    raise RuntimeError(
-                        f"Adapter error (model={model!r}, base_url={self.base_url!r}): "
-                        f"{status or 'connection'} service unavailable: {msg}"
-                    ) from exc
+            if rounds == 0:
                 raise RuntimeError(
-                    f"Adapter error (model={model!r}, base_url={self.base_url!r}): {msg}"
-                ) from exc
-        msg = str(last_exc)
-        raise RuntimeError(
-            f"Adapter error (model={model!r}, base_url={self.base_url!r}): {msg}"
-        ) from last_exc
+                    f"Adapter error (model={model!r}, base_url={self.base_url!r}): {last_exc}"
+                ) from last_exc
 
     def health_check(self) -> bool:
         """Verify connectivity by listing available models."""

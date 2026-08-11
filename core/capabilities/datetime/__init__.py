@@ -22,6 +22,44 @@ _KNOWN_ZONES = {
     "NZST": 12,
 }
 
+_IANA_ALIASES = {
+    "EST": "America/New_York",
+    "CST": "America/Chicago",
+    "MST": "America/Denver",
+    "PST": "America/Los_Angeles",
+    "CET": "Europe/Paris",
+    "EET": "Europe/Athens",
+    "IST": "Asia/Kolkata",
+    "JST": "Asia/Tokyo",
+    "AEST": "Australia/Sydney",
+    "NZST": "Pacific/Auckland",
+    "GMT": "Etc/GMT",
+    "UTC": "Etc/UTC",
+}
+
+
+def _offset_for(tz_name: str) -> float:
+    """UTC offset in hours for a known code or IANA zone name.
+
+    IANA names resolve through the OS tz database so the capability never
+    fabricates an offset for a name it doesn't understand — it raises
+    instead.
+    """
+    upper = tz_name.upper().strip()
+    if upper in _KNOWN_ZONES or tz_name in _KNOWN_ZONES:
+        return _KNOWN_ZONES.get(tz_name, _KNOWN_ZONES[upper])
+    try:
+        import zoneinfo
+        zone = zoneinfo.ZoneInfo(tz_name)
+        offset = __import__("datetime", fromlist=["datetime"]).datetime.now(zone).utcoffset()
+        if offset is None:
+            raise ValueError(f"Unknown timezone: {tz_name}")
+        return offset.total_seconds() / 3600
+    except (KeyError, ValueError, zoneinfo.ZoneInfoNotFoundError) as e:
+        raise ValueError(
+            f"Unknown timezone: {tz_name}. Supported: {', '.join(_KNOWN_ZONES.keys())}"
+        ) from e
+
 
 @register
 class DateTimeCapability(Capability):
@@ -80,10 +118,7 @@ class DateTimeCapability(Capability):
 
     @staticmethod
     def _utc_offset(tz_name: str) -> float:
-        upper = tz_name.upper().strip()
-        if upper in _KNOWN_ZONES:
-            return _KNOWN_ZONES[upper]
-        raise ValueError(f"Unknown timezone: {tz_name}. Supported: {', '.join(_KNOWN_ZONES.keys())}")
+        return _offset_for(tz_name)
 
     def _now(self, tz_name: str = "UTC", **kwargs: Any) -> dict[str, Any]:
         offset = self._utc_offset(tz_name)

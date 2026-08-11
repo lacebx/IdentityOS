@@ -32,6 +32,9 @@ from core.executive.state import IllegalTransition, can_transition, transition
 from core.executive.store import TaskStore
 from core.executive.progress import compute_progress, render_progress_block
 from core.executive.workflow import build_acquisition_plan, extract_capability_name, is_acquisition_goal
+from core.executive.result import ActionEvidence, ActionResult, ActionResultStatus
+from core.executive.resolver import CapabilityResolver, Resolution
+from core.executive.action_executor import ActionExecutor
 
 __all__ = [
     "ExecutiveRuntime",
@@ -51,4 +54,10 @@ __all__ = [
     "build_acquisition_plan",
     "extract_capability_name",
     "is_acquisition_goal",
+    "ActionResult",
+    "ActionResultStatus",
+    "ActionEvidence",
+    "CapabilityResolver",
+    "Resolution",
+    "ActionExecutor",
 ]

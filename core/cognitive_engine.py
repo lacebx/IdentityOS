@@ -682,30 +682,44 @@ class ContextComposer:
             lines.append(f"  Identity created: {created.strftime('%Y-%m-%d %H:%M UTC')}")
             lines.append(f"  My age: {', '.join(parts)}")
 
-        # First and last interaction from timeline
+        # First and last interaction from timeline — ONLY actual user turns.
+        # A user interaction is a timeline event whose metadata carries a
+        # session_id (recorded by the orchestrator per user message). Automated
+        # events (creation, preference_learned, mutations) do not count, so the
+        # derived timestamps genuinely answer "when did we last speak".
         if timeline_registry:
             timeline = timeline_registry.get(identity.id)
             if timeline:
-                events = timeline.events()
-                if events:
-                    first_ts = None
-                    last_ts = None
-                    for e in events:
+                user_events = [
+                    e for e in timeline.events()
+                    if hasattr(e, 'metadata') and isinstance(e.metadata, dict)
+                    and e.metadata.get('session_id')
+                ]
+                if user_events:
+                    ts_list = []
+                    for e in user_events:
                         try:
-                            if hasattr(e, 'occurred_at') and e.occurred_at:
-                                ts = _ensure_aware(e.occurred_at)
-                                if ts is None:
-                                    continue
-                                if first_ts is None or ts < first_ts:
-                                    first_ts = ts
-                                if last_ts is None or ts > last_ts:
-                                    last_ts = ts
+                            ts = _ensure_aware(e.occurred_at)
+                            if ts is not None:
+                                ts_list.append(ts)
                         except Exception:
                             continue
-                    if first_ts and last_ts:
+                    if ts_list:
+                        first_ts = min(ts_list)
+                        last_ts = max(ts_list)
+                        lines.append(f"  First conversation with user: {first_ts.strftime('%Y-%m-%d %H:%M UTC')}")
+                        lines.append(f"  Most recent conversation with user: {last_ts.strftime('%Y-%m-%d %H:%M UTC')}")
+                        since_last = now - last_ts
+                        mins = int(since_last.total_seconds() / 60)
+                        if mins < 1:
+                            lines.append("  Time since last user message: just now")
+                        elif mins < 60:
+                            lines.append(f"  Time since last user message: {mins} minute{'s' if mins != 1 else ''} ago")
+                        else:
+                            hrs = mins // 60
+                            mins_remain = mins % 60
+                            lines.append(f"  Time since last user message: {hrs}h {mins_remain}m ago")
                         known_duration = last_ts - first_ts
-                        lines.append(f"  First interaction: {first_ts.strftime('%Y-%m-%d %H:%M UTC')}")
-                        lines.append(f"  Most recent interaction: {last_ts.strftime('%Y-%m-%d %H:%M UTC')}")
                         days = known_duration.days
                         hours = known_duration.seconds // 3600
                         parts = []
@@ -714,50 +728,33 @@ class ContextComposer:
                         if hours > 0:
                             parts.append(f"{hours} hour{'s' if hours != 1 else ''}")
                         if parts:
-                            lines.append(f"  Time between first and latest: {', '.join(parts)}")
-                        since_last = now - last_ts
-                        mins = int(since_last.total_seconds() / 60)
-                        if mins < 1:
-                            lines.append("  Last interaction: just now")
-                        elif mins < 60:
-                            lines.append(f"  Last interaction: {mins} minute{'s' if mins != 1 else ''} ago")
-                        else:
-                            hrs = mins // 60
-                            mins_remain = mins % 60
-                            lines.append(f"  Last interaction: {hrs}h {mins_remain}m ago")
+                            lines.append(f"  Time between first and latest conversation: {', '.join(parts)}")
+                else:
+                    lines.append(
+                        "  No recorded user interactions before this session. "
+                        "If the user asks when you last spoke, you do not have a "
+                        "record of it — say so, never guess a date or time."
+                    )
 
-        # User profile first_seen / last_confirmed
+        # User profile first_seen — profile fact timestamps are NOT
+        # conversation timestamps, so they must never be reported as "the last
+        # time we spoke". Only the fact-confirmation time is revealed here.
         if user_profile and hasattr(user_profile, '_facts'):
             facts = list(user_profile._facts.values())
             if facts:
                 first_seen = None
-                last_seen = None
                 for f in facts:
                     try:
                         fs = _ensure_aware(getattr(f, 'first_seen', None))
-                        lc = _ensure_aware(getattr(f, 'last_confirmed', None))
                         if fs:
                             if first_seen is None or fs < first_seen:
                                 first_seen = fs
-                        if lc:
-                            if last_seen is None or lc > last_seen:
-                                last_seen = lc
                     except Exception:
                         continue
                 if first_seen:
                     known_since = now - first_seen
                     days = known_since.days
-                    lines.append(f"  Known user since: {first_seen.strftime('%Y-%m-%d %H:%M UTC')} ({days} day{'s' if days != 1 else ''})")
-                if last_seen:
-                    since_last = now - last_seen
-                    mins = int(since_last.total_seconds() / 60)
-                    if mins < 1:
-                        lines.append("  Last user interaction: just now")
-                    elif mins < 60:
-                        lines.append(f"  Last user interaction: {mins} minute{'s' if mins != 1 else ''} ago")
-                    else:
-                        hrs = mins // 60
-                        lines.append(f"  Last user interaction: {hrs}h {mins % 60}m ago")
+                    lines.append(f"  First learned user knowledge on: {first_seen.strftime('%Y-%m-%d %H:%M UTC')} ({days} day{'s' if days != 1 else ''} ago)")
 
         if len(lines) == 1:
             return ""

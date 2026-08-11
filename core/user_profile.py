@@ -177,7 +177,12 @@ class UserProfile:
         for fact in self._facts.values():
             label = fact.field.replace("_", " ").replace(".", " → ")
             if fact.uncertain:
-                lines.append(f"  User's {label}: (uncertain — contradictory reports)")
+                # Show the latest disclosure (winner) while flagging the
+                # contradiction, so the model never answers from the stale one.
+                lines.append(
+                    f"  User's {label}: {fact.value} (latest, but conflicting older records — "
+                    f"{fact.contradictions} contradiction{'s' if fact.contradictions != 1 else ''})"
+                )
             else:
                 certainty = " (high confidence)" if fact.confidence > 0.85 else ""
                 lines.append(f"  User's {label}: {fact.value}{certainty}")
@@ -195,7 +200,54 @@ class UserProfile:
         for fd in data.get("facts", []):
             fact = UserFact.from_dict(fd)
             profile._facts[fact.field] = fact
+        profile.consolidate_color_fields()
         return profile
+
+    def consolidate_color_fields(self) -> None:
+        """Merge legacy/aliased color facts (e.g. ``preferences.new fav color``,
+        ``preferences.favourite color``) into the canonical
+        ``preferences.favorite_color`` field.
+
+        Older extractions created separate fields ("new fav color", "colour",
+        ...) holding polluted values ("black did i not") instead of updating
+        favorite_color, which let a stale color win. On load, any color-ish
+        fact whose value names a known color is folded into the canonical field
+        so the most recent disclosure wins.
+        """
+        aliases = [
+            (field, fact) for field, fact in self._facts.items()
+            if field != "preferences.favorite_color"
+            and COLOR_FIELD_PATTERN.search(field)
+            and _extract_color_token(str(fact.value))
+        ]
+        if not aliases:
+            return
+        canonical = self.get("preferences.favorite_color")
+        for field, fact in aliases:
+            token = _extract_color_token(str(fact.value))
+            if canonical is None:
+                canonical = self.add_or_update(
+                    "preferences.favorite_color", token, source=fact.source_conversation,
+                )
+            else:
+                alias_newer = fact.last_confirmed >= canonical.last_confirmed
+                # Fold the alias evidence into the canonical fact preserving
+                # its original timestamps so contradictions resolve correctly.
+                for ev in fact.evidence:
+                    canonical.evidence.append(ev)
+                canonical.times_mentioned += len(fact.evidence)
+                canonical.contradictions += 1
+                canonical.uncertain = True
+                canonical.last_confirmed = max(
+                    canonical.last_confirmed, fact.last_confirmed, key=lambda iso: iso,
+                )
+                # The most recent disclosure wins the field value — mirrors
+                # add_or_update's latest-disclosure-wins contradiction logic.
+                canonical.value = token if alias_newer else canonical.value
+                canonical.confidence = self._compute_confidence(
+                    canonical.evidence, current_value=canonical.value,
+                )
+            del self._facts[field]
 
     def __len__(self) -> int:
         return len(self._facts)
@@ -270,6 +322,24 @@ USER_COLOR_HINTS = {
     "indigo", "violet", "gold", "silver", "navy", "turquoise", "coral",
 }
 
+# Any subject that mentions color/colour and the value that names a known color
+# should land on the canonical preferences.favorite_color field — no matter how
+# the user phrases it ("new fav color", "new favourite color", "colour", ...).
+COLOR_FIELD_PATTERN = re.compile(r"color|colour", re.IGNORECASE)
+
+
+def _extract_color_token(text: str) -> Optional[str]:
+    """Return the first known color word anywhere in a value, else None.
+
+    Handles values polluted by conversational trailing chatter, e.g.
+    "my new fav color is black did i not" -> "black", or
+    "fav color is black( i can change preference any day)" -> "black".
+    """
+    for token in re.split(r"[^a-z]+", text.lower()):
+        if token in USER_COLOR_HINTS:
+            return token
+    return None
+
 
 def extract_user_facts(user_input: str, turn_index: int = 0) -> List[UserFact]:
     """
@@ -313,8 +383,19 @@ def extract_user_facts(user_input: str, turn_index: int = 0) -> List[UserFact]:
         if subject == "name":
             continue
         value = m.group(2).strip()
-        is_color = value.lower().rstrip(".,!?") in USER_COLOR_HINTS
-        field = f"preferences.{subject}" if not is_color else "preferences.favorite_color"
+        # Canonicalize color preferences: whatever phrasing the user uses
+        # ("favorite color", "new fav color", "favourite colour", ...), as long
+        # as the disclosed value is a known color, it updates the single
+        # preferences.favorite_color field. Trailing conversational junk in the
+        # value (e.g. "black did i not", "black( i can change...)") is trimmed
+        # to just the color word so it registers as a contradiction of the old
+        # value instead of a brand-new garbage fact.
+        color_token = _extract_color_token(value)
+        if COLOR_FIELD_PATTERN.search(subject) or color_token:
+            field = "preferences.favorite_color"
+            value = color_token or value
+        else:
+            field = f"preferences.{subject}"
         _add(
             field=field,
             value=value.rstrip(".,!?"),

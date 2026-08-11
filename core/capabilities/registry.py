@@ -62,6 +62,8 @@ class CapabilityRegistry:
                     cls = lookup(cap_id)
                     inst = cls(config=config)
                     inst.install(identity_id, self._storage)
+                    inst._identity_registry = self
+                    inst._identity_id = identity_id
                     instances[cap_id] = inst
                 except ValueError:
                     pass  # skip capabilities whose class isn't loaded
@@ -84,6 +86,8 @@ class CapabilityRegistry:
         cls = lookup(cap_id)
         cap = cls(config=config or {})
         cap.install(identity_id, self._storage)
+        cap._identity_registry = self
+        cap._identity_id = identity_id
         caps = self._load_identity_caps(identity_id)
         caps[cap_id] = cap
         self._save(identity_id)

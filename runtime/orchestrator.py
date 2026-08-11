@@ -1,11 +1,16 @@
 from __future__ import annotations
 
+import logging
+import os
+import queue
 import re
+import threading
+import time
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from core.cognitive_engine import ComposedContext, ContextComposer
 from core.migrations import (
@@ -39,6 +44,36 @@ from core.skills import SkillRegistry
 from core.timeline import LifeEvent, LifeEventType, TimelineRegistry
 from core.user_profile import UserProfile, extract_user_facts
 from runtime.event_bus import EventBus, EventType
+
+_log = logging.getLogger(__name__)
+
+# Opt-in stage timing: IDENTITYOS_LATENCY=1|true|yes
+_LATENCY_ENV = os.environ.get("IDENTITYOS_LATENCY", "").strip().lower()
+_LATENCY_ENABLED = _LATENCY_ENV in ("1", "true", "yes", "debug")
+
+
+@dataclass
+class _StageTimer:
+    """Lightweight per-process() stage timing (disabled unless IDENTITYOS_LATENCY is set)."""
+
+    stages_ms: Dict[str, float] = field(default_factory=dict)
+    _starts: Dict[str, float] = field(default_factory=dict)
+
+    def start(self, name: str) -> None:
+        if _LATENCY_ENABLED:
+            self._starts[name] = time.monotonic()
+
+    def end(self, name: str) -> None:
+        if not _LATENCY_ENABLED:
+            return
+        t0 = self._starts.pop(name, None)
+        if t0 is not None:
+            self.stages_ms[name] = round((time.monotonic() - t0) * 1000.0, 3)
+
+    def attach(self, metadata: Dict[str, Any]) -> None:
+        if _LATENCY_ENABLED and self.stages_ms:
+            metadata["latency_ms"] = dict(self.stages_ms)
+            _log.debug("IdentityRuntime.process latency_ms=%s", self.stages_ms)
 
 
 class SessionMode(str, Enum):
@@ -317,6 +352,50 @@ class IdentityRuntime:
             except Exception:
                 self.executive = None
 
+        # Deferred post-response work (eval/memory/mutation/persist).
+        # Single worker keeps ordering; flush_post_process() waits for drain.
+        self._post_process_queue: queue.Queue = queue.Queue()
+        self._post_process_worker = threading.Thread(
+            target=self._post_process_loop,
+            name="identity-post-process",
+            daemon=True,
+        )
+        self._post_process_worker.start()
+
+    # ------------------------------------------------------------------
+    # Deferred post-processing
+    # ------------------------------------------------------------------
+
+    def _post_process_loop(self) -> None:
+        while True:
+            job = self._post_process_queue.get()
+            try:
+                if job is None:
+                    return
+                job()
+            finally:
+                self._post_process_queue.task_done()
+
+    def _schedule_post_process(self, fn: Callable[[], None]) -> None:
+        """Queue post-response work so process() can return the reply first."""
+        self._post_process_queue.put(fn)
+
+    def flush_post_process(self, timeout: Optional[float] = 30.0) -> None:
+        """Block until all queued post-process jobs finish.
+
+        Called at the start of process() so the next turn sees prior
+        mutations/memories, and by tests that assert on persisted state.
+        """
+        if timeout is None:
+            self._post_process_queue.join()
+            return
+        deadline = time.monotonic() + timeout
+        while self._post_process_queue.unfinished_tasks:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError("flush_post_process timed out")
+            time.sleep(min(0.01, remaining))
+
     # ------------------------------------------------------------------
     # Event helpers
     # ------------------------------------------------------------------
@@ -401,6 +480,27 @@ class IdentityRuntime:
                     self.capability_registry.install(identity_id, "executive")
                 except Exception:
                     pass
+
+    def _build_tool_executor(self, identity: Any) -> tuple[Any, dict]:
+        """Build the native tool-call surface (Step 4).
+
+        Returns ``(executor, generate_kwargs)``.  Only installed skills are
+        exposed as tools, and every tool result is produced by the runtime —
+        the model requests actions, it never declares them successful.
+        """
+        try:
+            from core.executive import ActionExecutor
+            executor = ActionExecutor(self.capability_registry, identity.id)
+            def execute_tool(name: str, args: dict) -> str:
+                ar = executor.execute(name, **args) if isinstance(args, dict) else executor.execute(name)
+                try:
+                    block = ar.to_context_block()
+                except Exception:
+                    block = f"Status: {getattr(ar, 'status', 'unknown')}. Error: {getattr(ar, 'error', '')}"
+                return block
+            return (executor, {"tools": executor.tool_defs(), "execute_tool": execute_tool})
+        except Exception:
+            return (None, {})
 
     def load_persisted(self) -> int:
         """Load all identities from the persistence backend into the in-memory store.
@@ -1173,15 +1273,20 @@ class IdentityRuntime:
         1. Resolve identity
         1b. Detect session mode & identity rename attempts
         2. Policy check on input
-        3. Compose context (with emotion, session mode, session-scoped facts)
+        2b. Executive recover/commit (execution runs on the scheduler)
+        2c. Prometheus pre-check (only evolves when a real gap is detected)
+        3. Compose context (+ capability evidence when required)
         4. Invoke adapter (LLM call)
+        4b. Prometheus post-check (only when response indicates a gap)
         5. Policy check on output
-        6. Evaluate response
-        7. Store interaction in memory
-        8. Return response
+        6+. Evaluate / memory / mutation / timeline / relationships — deferred
 
         Events are emitted at each stage for subscribers on the EventBus.
         """
+        timer = _StageTimer()
+        # Ensure prior turn's deferred persistence is visible to this turn.
+        self.flush_post_process()
+
         # Stage 1: Resolve identity
         identity = self.identity_store.get(request.identity_id)
         if not identity:
@@ -1226,6 +1331,7 @@ class IdentityRuntime:
         emotion_state = extract_emotion(request.user_input)
 
         # Stage 2: Input policy gate
+        timer.start("policy")
         input_policy = self.policy_engine.evaluate(
             request.user_input, scope=PolicyScope.INPUT
         )
@@ -1239,6 +1345,7 @@ class IdentityRuntime:
         )
 
         if not input_policy.allowed:
+            timer.end("policy")
             return InteractionResponse(
                 request_id=request.id,
                 identity_id=request.identity_id,
@@ -1247,31 +1354,50 @@ class IdentityRuntime:
             )
 
         sanitized_input = input_policy.transformed_data or request.user_input
+        timer.end("policy")
 
-        # Stage 2b: Executive recovery — reload any interrupted task state so
-        # the identity never restarts committed work from scratch.
+        # Stage 2b: Executive recovery + optional task commit.
+        # Long-running execution is owned by the Executive scheduler — ordinary
+        # chat must NOT block on a synchronous multi-tick execution loop.
+        timer.start("executive")
         _executive_state_block = ""
         if self.executive is not None:
             self._ensure_executive_capability(identity.id)
             try:
-                self.executive.recover(identity.id)
+                recovered = self.executive.recover(identity.id)
                 self.executive._ctx(identity.id, runtime=self)
+                if (recovered or self.executive.active_tasks(identity.id)) and self.executive.scheduler:
+                    self.executive.scheduler.start()
                 _executive_state_block = self.executive.render_state(identity.id)
             except Exception:
                 _executive_state_block = ""
 
-            # Stage 2b: Automatic Need Detection -> Task Creation.
-            # If the user input is a capability-acquisition goal and no task
-            # is already committed for it, create the executive task now so
-            # the identity's commitment is persisted BEFORE the LLM replies.
-            # This is what makes the answer truthful: the LLM reads real task
-            # state instead of inventing a completion.
+            # Automatic Need Detection -> Task Creation.
+            # Capability-acquisition goals are committed before the LLM replies
+            # so the answer reflects real task state. Execution continues on
+            # the background scheduler (no synchronous tick loop here).
             try:
                 from core.executive.workflow import extract_capability_name, is_acquisition_goal
                 _acq_cap = extract_capability_name(sanitized_input)
                 if _acq_cap and is_acquisition_goal(sanitized_input):
                     _existing = self.executive.active_tasks(identity.id)
-                    if not any(t.capability_id == _acq_cap or _acq_cap in (t.goal or "") for t in _existing):
+                    _recent_terminal = []
+                    try:
+                        for _h in self.executive.history(identity.id):
+                            _ht = self.executive.get_task(identity.id, _h.get("task_id", ""))
+                            if _ht is not None:
+                                _recent_terminal.append(_ht)
+                    except Exception:
+                        _recent_terminal = []
+                    _all_tasks = list(_existing) + _recent_terminal
+                    _dupe = any(
+                        t is not None and (
+                            getattr(t, "capability_id", "") == _acq_cap
+                            or _acq_cap in (getattr(t, "goal", "") or "")
+                        )
+                        for t in _all_tasks
+                    )
+                    if not _dupe:
                         self.executive.create_acquisition_task(
                             identity_id=identity.id,
                             capability_id=_acq_cap,
@@ -1283,28 +1409,11 @@ class IdentityRuntime:
                     _executive_state_block = self.executive.render_state(identity.id)
             except Exception:
                 pass
+        timer.end("executive")
 
-            # Stage 2b: Synchronous Task Execution Loop.
-            # Execute ready steps for active tasks synchronously until completion or
-            # blockage BEFORE context composition and LLM generation. This ensures
-            # that long-running work (e.g. capability acquisition) completes in full
-            # before the identity answers the user, preventing premature stops.
-            try:
-                _max_ticks = 50
-                _ticks = 0
-                while _ticks < _max_ticks:
-                    _active = self.executive.active_tasks(identity.id)
-                    if not _active:
-                        break
-                    _pushed = self.executive.process_ready(identity.id)
-                    if not _pushed:
-                        break
-                    _ticks += 1
-                _executive_state_block = self.executive.render_state(identity.id)
-            except Exception:
-                pass
-
-        # Stage 2b: Prometheus pre-check — detect capability needs before composing context
+        # Stage 2c: Prometheus pre-check — only runs the evolution pipeline
+        # when detect_need_from_input finds a real capability gap.
+        timer.start("prometheus")
         _prometheus_evolved = False
         _pre_evolve_result = self.prometheus.pre_check_and_evolve(
             user_input=sanitized_input,
@@ -1314,8 +1423,10 @@ class IdentityRuntime:
         )
         if _pre_evolve_result and _pre_evolve_result.acquired:
             _prometheus_evolved = True
+        timer.end("prometheus")
 
         # Stage 3: Compose context
+        timer.start("planner")
         user_profile = self._get_user_profile(identity.id)
         session_fact_store = self._get_fact_store_for_session(identity.id, session_id)
         cap_prompts = self.capability_registry.all_prompts(identity.id)
@@ -1327,7 +1438,10 @@ class IdentityRuntime:
         _report = _evidence.report()
         _evidence_results = [r.to_evidence_dict() for r in _evidence._results] if hasattr(_evidence, '_results') else []
         _has_evidence = bool(_report.facts or _report.failures)
+        _history = _evidence.call_history
+        timer.end("planner")
 
+        timer.start("context")
         context = self.context_composer.compose(
             identity=identity,
             memory_store=self.memory_store,
@@ -1360,19 +1474,10 @@ class IdentityRuntime:
             context.custom_blocks["factual_skill_data"] = _skill_router.format_for_context(_evidence)
         if _executive_state_block:
             context.custom_blocks["executive_state"] = _executive_state_block
-        # Persist trust metrics for dashboard
-        _history = _evidence.call_history
-        if _history:
-            try:
-                _trust_raw = self._storage.load(identity.id, "capability.trust") or {}
-                _existing = _trust_raw.get("calls", [])
-                _existing.extend(_history)
-                _trust_raw["calls"] = _existing[-100:]
-                self._storage.save(identity.id, "capability.trust", _trust_raw)
-            except Exception:
-                pass  # Trust persistence is non-critical
+        timer.end("context")
 
         # Stage 4: Adapter call
+        timer.start("llm")
         if self.adapter:
             self._emit(
                 EventType.MODEL_REQUESTED,
@@ -1380,14 +1485,15 @@ class IdentityRuntime:
                 session_id=request.session_id,
                 model=self.adapter.model,
             )
-            import time as _time
-            _t0 = _time.monotonic()
+            _t0 = time.monotonic()
+            _executor, _gen_kwargs = self._build_tool_executor(identity)
             raw_output = self.adapter.generate(
                 context=context.render(),
                 user_input=sanitized_input,
                 identity=identity,
+                **_gen_kwargs,
             )
-            _latency = _time.monotonic() - _t0
+            _latency = time.monotonic() - _t0
             self._emit(
                 EventType.MODEL_RESPONDED,
                 identity_id=identity.id,
@@ -1398,10 +1504,12 @@ class IdentityRuntime:
             )
         else:
             raw_output = f"[No adapter configured. Context prepared for {identity.name}]"
+        timer.end("llm")
 
-        # Stage 4b: Prometheus post-check — if the response indicates a missing capability,
-        # install it and retry the adapter call with the updated context
+        # Stage 4b: Prometheus post-check — only evolves when the response
+        # indicates a missing capability (engine short-circuits otherwise).
         if not _prometheus_evolved and self.adapter:
+            timer.start("prometheus")
             _post_result = self.prometheus.post_check_and_evolve(
                 response=raw_output,
                 user_input=sanitized_input,
@@ -1412,6 +1520,7 @@ class IdentityRuntime:
             if _post_result and _post_result.acquired and _post_result.retry_response:
                 raw_output = _post_result.retry_response
                 _prometheus_evolved = True
+            timer.end("prometheus")
 
         # Stage 4c: Runtime confidence enforcement — if evidence has
         # low confidence or failures, prepend a disclaimer to the output.
@@ -1437,6 +1546,7 @@ class IdentityRuntime:
                 raw_output = "\n".join(_disc_parts) + raw_output
 
         # Stage 5: Output policy gate
+        timer.start("output_policy")
         output_policy = self.policy_engine.evaluate(
             raw_output, scope=PolicyScope.OUTPUT
         )
@@ -1455,208 +1565,9 @@ class IdentityRuntime:
         else:
             final_output = output_policy.transformed_data or raw_output
             policy_passed = True
+        timer.end("output_policy")
 
-        # Stage 6: Evaluate
-        eval_report = self.evaluation_engine.evaluate(
-            identity_id=identity.id,
-            interaction_id=request.id,
-            input_data=sanitized_input,
-            output_data=final_output,
-        )
-
-        self._emit(
-            EventType.EVALUATION_COMPLETED,
-            identity_id=identity.id,
-            session_id=request.session_id,
-            overall_score=eval_report.overall_score,
-            passed=eval_report.passed,
-            criteria_count=len(eval_report.records),
-        )
-
-        # Stage 7: Store interaction in memory
-        # 7a: Always store the raw interaction as an EPISODIC memory
-        episodic = MemoryFragment(
-            identity_id=identity.id,
-            content=f"User: {sanitized_input}\nAssistant: {final_output}",
-            memory_type=MemoryType.EPISODIC,
-            session_id=request.session_id,
-            tags=["interaction"],
-        )
-        self.memory_store.add(episodic)
-        self._persist_memory(episodic)
-
-        self._emit(
-            EventType.EXPERIENCE_RECORDED,
-            identity_id=identity.id,
-            session_id=request.session_id,
-            memory_id=episodic.id,
-            memory_type=episodic.memory_type.value,
-            content=episodic.content[:200],
-        )
-
-        # 7b: Extract and store semantic memories (preferences, decisions, etc.)
-        semantic_mem = self._extract_and_store_semantic_memory(
-            user_input=sanitized_input,
-            output=final_output,
-            identity_id=identity.id,
-            session_id=request.session_id,
-        )
-
-        # Stage 7c: Identity Mutation — detect identity evolution opportunities
-        # Route mutations to the correct FactStore based on session mode
-        if session_mode == SessionMode.NORMAL:
-            fact_store = self._fact_stores.get(identity.id)
-        else:
-            fact_store = self._session_fact_stores.get(session_id)
-        if fact_store is not None:
-            self.mutation_engine.fact_store = fact_store
-
-        mutation_proposals = self.mutation_engine.analyze(
-            user_input=sanitized_input,
-            assistant_response=final_output,
-            identity_spec=identity,
-        )
-
-        if mutation_proposals:
-            validated = self.mutation_engine.validate(
-                mutation_proposals,
-                existing_records=None,
-            )
-
-            self.mutation_engine.apply_proposals_to_fact_store(validated)
-
-            for proposal in validated:
-                if proposal.status in (MutationStatus.ACCEPTED, MutationStatus.CONFLICT):
-                    self._emit(
-                        EventType.IDENTITY_MUTATION_ACCEPTED
-                        if proposal.status == MutationStatus.ACCEPTED
-                        else EventType.IDENTITY_MUTATION_CONFLICT,
-                        identity_id=identity.id,
-                        session_id=session_id,
-                        field=proposal.field,
-                        old_value=proposal.old_value,
-                        new_value=proposal.new_value,
-                        confidence=proposal.confidence,
-                        reason=proposal.reason,
-                    )
-                else:
-                    self._emit(
-                        EventType.IDENTITY_MUTATION_REJECTED,
-                        identity_id=identity.id,
-                        session_id=session_id,
-                        field=proposal.field,
-                        reason=proposal.rejection_reason,
-                    )
-
-            # Bump identity version if any mutations were accepted
-            accepted_count = sum(1 for p in validated if p.status == MutationStatus.ACCEPTED)
-            if accepted_count > 0 and session_mode == SessionMode.NORMAL:
-                fields_changed = [p.field for p in validated if p.status == MutationStatus.ACCEPTED]
-                identity.bump_version(
-                    level="patch",
-                    changelog=f"Mutated: {', '.join(fields_changed[:3])}",
-                )
-
-            # Persist the appropriate fact store
-            if session_mode == SessionMode.NORMAL:
-                self._save_fact_store(identity.id)
-                self._persist_identity(identity)
-            else:
-                self._save_session_fact_store(session_id)
-
-        # Determine timeline title from semantic classification
-        tl_title = "Interaction"
-        tl_description = f"User said: {sanitized_input[:100]}"
-        tl_meta = {"session_id": request.session_id, "eval_score": eval_report.overall_score}
-        if semantic_mem:
-            mem_tags = semantic_mem.tags
-            if "preference" in mem_tags:
-                tl_title = "Learned preference"
-                tl_description = sanitized_input[:120]
-            elif "decision" in mem_tags:
-                tl_title = "Made decision"
-                tl_description = sanitized_input[:120]
-            elif "correction" in mem_tags:
-                tl_title = "Received correction"
-                tl_description = sanitized_input[:120]
-            elif "milestone" in mem_tags:
-                tl_title = "Milestone"
-                tl_description = sanitized_input[:120]
-            tl_meta["memory_id"] = semantic_mem.id
-            tl_meta["memory_type"] = semantic_mem.memory_type.value
-
-        # Stage 8: Record timeline life events
-        # Record the interaction event
-        self.timeline_registry.record_event(
-            identity.id,
-            LifeEvent(
-                identity_id=identity.id,
-                event_type=LifeEventType.MILESTONE,
-                title=tl_title,
-                description=tl_description,
-                significance=2,
-                metadata=tl_meta,
-            ),
-        )
-
-        # Record mutation timeline events for accepted proposals
-        for proposal in mutation_proposals if mutation_proposals else []:
-            if proposal.status != MutationStatus.ACCEPTED:
-                continue
-            mutation_type_map = {
-                MutationType.PREFERENCE_ADOPTED: LifeEventType.PREFERENCE_LEARNED,
-                MutationType.PREFERENCE_CHANGED: LifeEventType.PREFERENCE_LEARNED,
-                MutationType.BELIEF_ADOPTED: LifeEventType.BELIEF_ADOPTED,
-                MutationType.BELIEF_CHANGED: LifeEventType.BELIEF_ADOPTED,
-                MutationType.TRAIT_EVOLVED: LifeEventType.TRAIT_CHANGED,
-                MutationType.TRUST_EVOLVED: LifeEventType.TRUST_CHANGED,
-                MutationType.COMMUNICATION_EVOLVED: LifeEventType.COMMUNICATION_CHANGED,
-            }
-            tl_event_type = mutation_type_map.get(
-                proposal.mutation_type, LifeEventType.PREFERENCE_LEARNED
-            )
-            field_short = proposal.field.split(".")[-1].replace("_", " ")
-            self.timeline_registry.record_event(
-                identity.id,
-                LifeEvent(
-                    identity_id=identity.id,
-                    event_type=tl_event_type,
-                    title=f"{tl_event_type.value.replace('_', ' ').title()}: {field_short}",
-                    description=proposal.reason,
-                    significance=3,
-                    metadata={
-                        "mutation_id": proposal.mutation_id,
-                        "field": proposal.field,
-                        "old_value": proposal.old_value,
-                        "new_value": proposal.new_value,
-                        "confidence": proposal.confidence,
-                    },
-                ),
-            )
-
-        self._persist_timeline(identity.id)
-        self._emit(
-            EventType.LIFE_EVENT_RECORDED,
-            identity_id=identity.id,
-            session_id=request.session_id,
-            title=tl_title,
-            description=tl_description,
-        )
-
-        # Stage 9: Update relationship graph — reuse existing edge, evolve it
-        target = request.session_id or "user"
-        self.identity_graph.interact_or_connect(
-            source_id=identity.id,
-            target_id=target,
-            edge_type=EdgeType.PEER,
-            bidirectional=False,
-        )
-        self._persist_relationships(identity.id)
-
-        # Stage 10: Persist goals
-        self._persist_goals(identity.id)
-
-        # Append evidence footer to output if capabilities were used
+        # Append evidence footer before returning (part of the user-visible reply)
         if _evidence_results and policy_passed:
             footer_lines = ["\n\n---\n📊 **Evidence Sources**"]
             for ev in _evidence_results[:12]:
@@ -1673,14 +1584,238 @@ class IdentityRuntime:
             footer_lines.append("---")
             final_output += "\n".join(footer_lines)
 
-        return InteractionResponse(
+        response = InteractionResponse(
             request_id=request.id,
             identity_id=identity.id,
             output=final_output,
             context_used=context,
             policy_passed=policy_passed,
-            eval_score=eval_report.overall_score,
+            eval_score=None,
         )
+        timer.attach(response.metadata)
+
+        # Stages 6–10: defer post-response work off the critical reply path.
+        # Persistence still occurs; the next process() flushes first.
+        _post_identity = identity
+        _post_session_id = session_id
+        _post_session_mode = session_mode
+        _post_sanitized = sanitized_input
+        _post_final = final_output
+        _post_request_id = request.id
+        _post_req_session = request.session_id
+        _post_history = list(_history) if _history else []
+
+        def _post_process() -> None:
+            timer.start("post_processing")
+            try:
+                # Trust metrics from capability evidence
+                if _post_history and self._storage is not None:
+                    try:
+                        _trust_raw = self._storage.load(_post_identity.id, "capability.trust") or {}
+                        _existing = _trust_raw.get("calls", [])
+                        _existing.extend(_post_history)
+                        _trust_raw["calls"] = _existing[-100:]
+                        self._storage.save(_post_identity.id, "capability.trust", _trust_raw)
+                    except Exception:
+                        pass  # Trust persistence is non-critical
+
+                # Stage 6: Evaluate
+                eval_report = self.evaluation_engine.evaluate(
+                    identity_id=_post_identity.id,
+                    interaction_id=_post_request_id,
+                    input_data=_post_sanitized,
+                    output_data=_post_final,
+                )
+                response.eval_score = eval_report.overall_score
+
+                self._emit(
+                    EventType.EVALUATION_COMPLETED,
+                    identity_id=_post_identity.id,
+                    session_id=_post_req_session,
+                    overall_score=eval_report.overall_score,
+                    passed=eval_report.passed,
+                    criteria_count=len(eval_report.records),
+                )
+
+                # Stage 7: Store interaction in memory
+                episodic = MemoryFragment(
+                    identity_id=_post_identity.id,
+                    content=f"User: {_post_sanitized}\nAssistant: {_post_final}",
+                    memory_type=MemoryType.EPISODIC,
+                    session_id=_post_req_session,
+                    tags=["interaction"],
+                )
+                self.memory_store.add(episodic)
+                self._persist_memory(episodic)
+
+                self._emit(
+                    EventType.EXPERIENCE_RECORDED,
+                    identity_id=_post_identity.id,
+                    session_id=_post_req_session,
+                    memory_id=episodic.id,
+                    memory_type=episodic.memory_type.value,
+                    content=episodic.content[:200],
+                )
+
+                semantic_mem = self._extract_and_store_semantic_memory(
+                    user_input=_post_sanitized,
+                    output=_post_final,
+                    identity_id=_post_identity.id,
+                    session_id=_post_req_session,
+                )
+
+                # Stage 7c: Identity Mutation
+                if _post_session_mode == SessionMode.NORMAL:
+                    fact_store = self._fact_stores.get(_post_identity.id)
+                else:
+                    fact_store = self._session_fact_stores.get(_post_session_id)
+                if fact_store is not None:
+                    self.mutation_engine.fact_store = fact_store
+
+                mutation_proposals = self.mutation_engine.analyze(
+                    user_input=_post_sanitized,
+                    assistant_response=_post_final,
+                    identity_spec=_post_identity,
+                )
+
+                if mutation_proposals:
+                    validated = self.mutation_engine.validate(
+                        mutation_proposals,
+                        existing_records=None,
+                    )
+
+                    self.mutation_engine.apply_proposals_to_fact_store(validated)
+
+                    for proposal in validated:
+                        if proposal.status in (MutationStatus.ACCEPTED, MutationStatus.CONFLICT):
+                            self._emit(
+                                EventType.IDENTITY_MUTATION_ACCEPTED
+                                if proposal.status == MutationStatus.ACCEPTED
+                                else EventType.IDENTITY_MUTATION_CONFLICT,
+                                identity_id=_post_identity.id,
+                                session_id=_post_session_id,
+                                field=proposal.field,
+                                old_value=proposal.old_value,
+                                new_value=proposal.new_value,
+                                confidence=proposal.confidence,
+                                reason=proposal.reason,
+                            )
+                        else:
+                            self._emit(
+                                EventType.IDENTITY_MUTATION_REJECTED,
+                                identity_id=_post_identity.id,
+                                session_id=_post_session_id,
+                                field=proposal.field,
+                                reason=proposal.rejection_reason,
+                            )
+
+                    accepted_count = sum(1 for p in validated if p.status == MutationStatus.ACCEPTED)
+                    if accepted_count > 0 and _post_session_mode == SessionMode.NORMAL:
+                        fields_changed = [p.field for p in validated if p.status == MutationStatus.ACCEPTED]
+                        _post_identity.bump_version(
+                            level="patch",
+                            changelog=f"Mutated: {', '.join(fields_changed[:3])}",
+                        )
+
+                    if _post_session_mode == SessionMode.NORMAL:
+                        self._save_fact_store(_post_identity.id)
+                        self._persist_identity(_post_identity)
+                    else:
+                        self._save_session_fact_store(_post_session_id)
+
+                tl_title = "Interaction"
+                tl_description = f"User said: {_post_sanitized[:100]}"
+                tl_meta = {
+                    "session_id": _post_req_session,
+                    "eval_score": eval_report.overall_score,
+                }
+                if semantic_mem:
+                    mem_tags = semantic_mem.tags
+                    if "preference" in mem_tags:
+                        tl_title = "Learned preference"
+                        tl_description = _post_sanitized[:120]
+                    elif "decision" in mem_tags:
+                        tl_title = "Made decision"
+                        tl_description = _post_sanitized[:120]
+                    elif "correction" in mem_tags:
+                        tl_title = "Received correction"
+                        tl_description = _post_sanitized[:120]
+                    elif "milestone" in mem_tags:
+                        tl_title = "Milestone"
+                        tl_description = _post_sanitized[:120]
+                    tl_meta["memory_id"] = semantic_mem.id
+                    tl_meta["memory_type"] = semantic_mem.memory_type.value
+
+                self.timeline_registry.record_event(
+                    _post_identity.id,
+                    LifeEvent(
+                        identity_id=_post_identity.id,
+                        event_type=LifeEventType.MILESTONE,
+                        title=tl_title,
+                        description=tl_description,
+                        significance=2,
+                        metadata=tl_meta,
+                    ),
+                )
+
+                for proposal in mutation_proposals if mutation_proposals else []:
+                    if proposal.status != MutationStatus.ACCEPTED:
+                        continue
+                    mutation_type_map = {
+                        MutationType.PREFERENCE_ADOPTED: LifeEventType.PREFERENCE_LEARNED,
+                        MutationType.PREFERENCE_CHANGED: LifeEventType.PREFERENCE_LEARNED,
+                        MutationType.BELIEF_ADOPTED: LifeEventType.BELIEF_ADOPTED,
+                        MutationType.BELIEF_CHANGED: LifeEventType.BELIEF_ADOPTED,
+                        MutationType.TRAIT_EVOLVED: LifeEventType.TRAIT_CHANGED,
+                        MutationType.TRUST_EVOLVED: LifeEventType.TRUST_CHANGED,
+                        MutationType.COMMUNICATION_EVOLVED: LifeEventType.COMMUNICATION_CHANGED,
+                    }
+                    tl_event_type = mutation_type_map.get(
+                        proposal.mutation_type, LifeEventType.PREFERENCE_LEARNED
+                    )
+                    field_short = proposal.field.split(".")[-1].replace("_", " ")
+                    self.timeline_registry.record_event(
+                        _post_identity.id,
+                        LifeEvent(
+                            identity_id=_post_identity.id,
+                            event_type=tl_event_type,
+                            title=f"{tl_event_type.value.replace('_', ' ').title()}: {field_short}",
+                            description=proposal.reason,
+                            significance=3,
+                            metadata={
+                                "mutation_id": proposal.mutation_id,
+                                "field": proposal.field,
+                                "old_value": proposal.old_value,
+                                "new_value": proposal.new_value,
+                                "confidence": proposal.confidence,
+                            },
+                        ),
+                    )
+
+                self._persist_timeline(_post_identity.id)
+                self._emit(
+                    EventType.LIFE_EVENT_RECORDED,
+                    identity_id=_post_identity.id,
+                    session_id=_post_req_session,
+                    title=tl_title,
+                    description=tl_description,
+                )
+
+                target = _post_req_session or "user"
+                self.identity_graph.interact_or_connect(
+                    source_id=_post_identity.id,
+                    target_id=target,
+                    edge_type=EdgeType.PEER,
+                    bidirectional=False,
+                )
+                self._persist_relationships(_post_identity.id)
+                self._persist_goals(_post_identity.id)
+            finally:
+                timer.end("post_processing")
+                timer.attach(response.metadata)
+
+        self._schedule_post_process(_post_process)
+        return response
 
     def __repr__(self) -> str:
         return (

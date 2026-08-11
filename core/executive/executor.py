@@ -176,22 +176,160 @@ def _verify(task: Task, step: TaskStep, ctx: ExecutionContext) -> tuple[bool, di
     return (ok, {"verified": ok, "checks": len(evidence)}, evidence)
 
 
+_VERIFY_GOAL_MAX_REENTRANT = 2
+
+
 def _verify_goal(task: Task, step: TaskStep, ctx: ExecutionContext) -> tuple[bool, dict, list]:
+    """Goal-level verification that NEVER recurses into the runtime.
+
+    The old implementation re-entered ``ctx.runtime.process()`` with the
+    original request (R6), which re-triggered Prometheus keyword detection,
+    re-committed terminal goals and recursed until ``RecursionError``.
+
+    New contract: the runtime owns verification.  This step only inspects
+    persisted task + capability state:
+      * if a real ``verify`` step already verified the capability with
+        behavioral evidence → CONFIRMED
+      * if the capability is installed but unverifiable → NOT CONFIRMED (fail)
+      * if an original request exists and the pipeline never completed, we
+        re-invoke it at MOST a bounded number of times through the SAME
+        executive engine (never a fresh ``process()`` pipeline) and only when
+        no terminal task exists for the same request.
+    """
     request = step.params.get("request", "")
     cap = step.params.get("capability", "")
+
+    # 1) If capability was verified by a real `verify` step → confirmed.
+    verify_ref = task.step_by_id("verify")
+    if verify_ref is not None and verify_ref.result:
+        if verify_ref.result.get("verified") and all(
+            e.success for e in verify_ref.evidence if e.label != "verify"
+        ):
+            return (True, {"confirmed": True, "requery": False}, [
+                Evidence(step=step.action, label="goal_confirmed",
+                         detail=f"{cap} verified by prior verify step",
+                         success=True, data={"capability": cap, "confirmed": True}),
+            ])
+
+    # 2) Capability installed but not behaviorally verified → honest failure.
+    if ctx.capability_registry is not None and cap:
+        try:
+            inst = ctx.capability_registry.get(ctx.identity_id, cap)
+            installed = inst is not None
+        except Exception:
+            installed = False
+        if installed and not (verify_ref and verify_ref.result.get("verified")):
+            return (False, {"confirmed": False, "requery": False, "reason": "installed-but-unverified"}, [
+                Evidence(step=step.action, label="goal_confirmed",
+                         detail=f"{cap} is installed but its skills did not pass behavioral verification",
+                         success=False, data={"capability": cap, "confirmed": False}),
+            ])
+
+    # 3) Bounded, non-recursive re-evaluation of the original request when
+    #    the pipeline never produced a terminal task for it.
     if not request or ctx.runtime is None:
-        return (True, {"retried": False}, [Evidence(step=step.action, label="goal_retry", detail="no original request to retry", success=True)])
+        return (True, {"confirmed": False, "requery": False, "reason": "nothing-to-verify"}, [
+            Evidence(step=step.action, label="goal_confirmed",
+                     detail="no original request to re-evaluate", success=True),
+        ])
+
+    reentrant_count = int(step.params.get("_requery_count", 0))
+    if reentrant_count >= _VERIFY_GOAL_MAX_REENTRANT:
+        return (False, {"confirmed": False, "requery": False, "reason": "requery-budget-exhausted"}, [
+            Evidence(step=step.action, label="goal_confirmed",
+                     detail=f"goal not confirmed after {reentrant_count} requeries",
+                     success=False),
+        ])
+
+    # Inspect the executive store for an EXISTING task covering this request.
+    # If a terminal task already exists for the same goal/capability, do NOT
+    # spawn a new one — report that state instead.
     try:
-        from runtime.orchestrator import InteractionRequest
-        resp = ctx.runtime.process(InteractionRequest(
-            identity_id=ctx.identity_id,
-            user_input=request,
-            session_id=None,
-        ))
-        output = getattr(resp, "output", "") or ""
-        return (True, {"retried": True, "output": output[:500]}, [Evidence(step=step.action, label="goal_retry", detail="original request re-run", success=True, data={"output": output[:200]})])
+        from core.executive.workflow import extract_capability_name
+        _eng = None
+        _rt = getattr(ctx, "runtime", None)
+        if _rt is not None:
+            _eng = getattr(_rt, "executive", None) or _rt
+        if _eng is None:
+            raise RuntimeError("no executive engine reachable from context")
+        _existing_active = _eng.active_tasks(ctx.identity_id)
+        _existing_terminal = _eng.history(ctx.identity_id)
     except Exception as e:
-        return (True, {"retried": False, "error": str(e)}, [Evidence(step=step.action, label="goal_retry", detail=f"retry unavailable: {e}", success=False, data={"error": str(e)})])
+        return (False, {"confirmed": False, "requery": False, "error": str(e)}, [
+            Evidence(step=step.action, label="goal_confirmed",
+                     detail=f"cannot inspect task state: {e}", success=False,
+                     data={"error": str(e)}),
+        ])
+
+    _all = list(_existing_active)
+    for _t in _existing_terminal:
+        if isinstance(_t, dict):
+            try:
+                _tobj = _eng.get_task(ctx.identity_id, _t.get("task_id", ""))
+                if _tobj is not None:
+                    _all.append(_tobj)
+            except Exception:
+                continue
+    _same_goal = [
+        t for t in _all if t is not None
+        and ((cap and getattr(t, "capability_id", "") == cap) or (request and request in (getattr(t, "goal", "") or "")))
+    ]
+    if _same_goal:
+        terminal = _same_goal[0]
+        state = getattr(terminal, "status", None)
+        return (True, {"confirmed": bool(state and str(state.value) == "completed"),
+                       "requery": False, "existing_task": getattr(terminal, "task_id", None)}, [
+            Evidence(step=step.action, label="goal_confirmed",
+                     detail=("goal already completed" if (state and str(state.value) == "completed")
+                             else f"goal already in state {state}"),
+                     success=bool(state and str(state.value) == "completed"),
+                     data={"existing_task": getattr(terminal, "task_id", None)}),
+        ])
+
+    # No existing task for this request → bounded single requery through the
+    # executive engine (start_task) if this is a legitimate acquisition goal.
+    # This reuses the SAME engine; it never re-enters the orchestrator's
+    # process() pipeline (so no Prometheus re-detection, no recursion).
+    if not request or not cap:
+        return (True, {"confirmed": False, "requery": False}, [
+            Evidence(step=step.action, label="goal_confirmed",
+                     detail="cannot re-evaluate without capability+request", success=True),
+        ])
+    if reentrant_count >= 1:
+        return (False, {"confirmed": False, "requery": False, "reason": "loop-bounded"}, [
+            Evidence(step=step.action, label="goal_confirmed",
+                     detail=f"goal not confirmed after requery attempt {reentrant_count}",
+                     success=False),
+        ])
+    try:
+        from core.executive.workflow import is_acquisition_goal
+        if not is_acquisition_goal(request):
+            return (True, {"confirmed": False, "requery": False, "reason": "not-an-acquisition-goal"}, [
+                Evidence(step=step.action, label="goal_confirmed",
+                         detail="request is not a capability-acquisition goal; nothing to re-evaluate",
+                         success=True),
+            ])
+        step.params["_requery_count"] = reentrant_count + 1
+        _eng.create_acquisition_task(
+            identity_id=ctx.identity_id,
+            capability_id=cap,
+            goal=request,
+            original_request=request,
+            runtime=_rt,
+        )
+        if getattr(_eng, "scheduler", None):
+            _eng.scheduler.start()
+        return (True, {"confirmed": False, "requery": True, "attempt": reentrant_count + 1}, [
+            Evidence(step=step.action, label="goal_confirmed",
+                     detail=f"re-queued acquisition task for {cap} (attempt {reentrant_count + 1})",
+                     success=True, data={"capability": cap}),
+        ])
+    except Exception as e:
+        return (True, {"confirmed": False, "requery": False, "error": str(e)}, [
+            Evidence(step=step.action, label="goal_confirmed",
+                     detail=f"requery unavailable: {e}", success=False,
+                     data={"error": str(e)}),
+        ])
 
 
 # ── Planner file-action passthrough handlers ─────────────────────────────
@@ -234,7 +372,10 @@ def _passthrough_registry(action: str):
                 "publish_capability": "registry_manager.publish_capability",
                 "install_capability": "registry_manager.install_capability",
             }[action]
-            res = lookup("registry_manager")().call(skill, **step.params)
+            params = dict(step.params)
+            params.setdefault("identity_id", ctx.identity_id)
+            params.setdefault("registry", ctx.capability_registry)
+            res = lookup("registry_manager")().call(skill, **params)
             ok = bool(getattr(res, "success", False))
             data = getattr(res, "data", {})
             ev = [Evidence(step=step.action, label=action, detail=f"{action} ok" if ok else f"{action} failed", success=ok, data=data if isinstance(data, dict) else {})]
