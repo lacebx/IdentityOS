@@ -115,7 +115,7 @@ class GithubCapability(Capability):
             if handler is None:
                 return CapabilityResult.fail("github", skill_name, "unknown_skill", f"Unknown skill: {skill_name}")
             data = handler(**params)
-            return CapabilityResult.ok("github", skill_name, data, source="GitHub REST API", duration_ms=(_time.monotonic() - _t0) * 1000)
+            return CapabilityResult.from_data("github", skill_name, data, source="GitHub REST API", duration_ms=(_time.monotonic() - _t0) * 1000)
         except Exception as e:
             return CapabilityResult.fail("github", skill_name, type(e).__name__, str(e), source="GitHub REST API", duration_ms=(_time.monotonic() - _t0) * 1000)
 

@@ -34,6 +34,7 @@ class OpenAIAdapter(BaseAdapter):
         organization: Optional[str] = None,
         temperature: float = 0.7,
         max_tokens: int = 1024,
+        timeout: Optional[float] = None,
         **kwargs
     ):
         if api_key is None:
@@ -46,17 +47,26 @@ class OpenAIAdapter(BaseAdapter):
         self.organization = organization
         self.temperature = temperature
         self.max_tokens = max_tokens
+        # The openai SDK otherwise defaults to a 600s (10 min) timeout per
+        # request, which makes a slow provider look like a hang.
+        if timeout is None:
+            timeout = float(os.environ.get("OPENAI_TIMEOUT", "") or 0) or 120.0
+        self.timeout = timeout
         self._client = None
 
     def _get_client(self):
         """Lazily initialize the OpenAI client."""
         if self._client is None:
             try:
+                import httpx
                 from openai import OpenAI
+                # Bounded read/request timeout; keep connect fast so menu
+                # probes on down providers fail in ~5s, not minutes.
                 self._client = OpenAI(
                     api_key=self.api_key,
                     base_url=self.base_url,
                     organization=self.organization,
+                    timeout=httpx.Timeout(timeout=self.timeout, connect=5.0),
                 )
             except ImportError:
                 raise ImportError(
@@ -200,6 +210,7 @@ class OllamaAdapter(BaseAdapter):
         model: str = "llama3.2",
         base_url: str = "http://localhost:11434/v1",
         think: bool = False,
+        timeout: Optional[float] = None,
         **kwargs
     ):
         super().__init__(model=model, **kwargs)
@@ -208,6 +219,7 @@ class OllamaAdapter(BaseAdapter):
         # a separate reasoning field. IdentityOS consumes chat content, so keep
         # reasoning disabled unless a caller intentionally enables it.
         self.think = think
+        self.timeout = timeout or 120.0
 
     def generate(
         self,
@@ -223,6 +235,7 @@ class OllamaAdapter(BaseAdapter):
             client = OpenAI(
                 api_key="ollama",  # Ollama doesn't require a real key
                 base_url=self.base_url,
+                timeout=self.timeout,
             )
             response = client.chat.completions.create(
                 model=self.model,

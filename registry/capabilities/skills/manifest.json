@@ -1,0 +1,20 @@
+{
+  "id": "skills",
+  "name": "Skills",
+  "version": "1.0.0",
+  "author": "auto-generated",
+  "license": "MIT",
+  "description": "Generic capability: skills",
+  "provider": "core.capabilities.skills.SkillsCapability",
+  "permissions": {
+    "network": false,
+    "filesystem": true
+  },
+  "skills": [
+    {
+      "name": "skills.greet",
+      "description": "Generated capability",
+      "permission": "public"
+    }
+  ]
+}

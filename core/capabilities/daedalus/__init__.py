@@ -87,7 +87,7 @@ class ArchitectureAnalysisCapability(Capability):
             if handler is None:
                 return CapabilityResult.fail("architecture_analysis", skill_name, "unknown_skill", f"Unknown skill: {skill_name}")
             data = handler(**params)
-            return CapabilityResult.ok("architecture_analysis", skill_name, data, source="local analysis", duration_ms=(time.monotonic() - t0) * 1000)
+            return CapabilityResult.from_data("architecture_analysis", skill_name, data, source="local analysis", duration_ms=(time.monotonic() - t0) * 1000)
         except Exception as e:
             return CapabilityResult.fail("architecture_analysis", skill_name, type(e).__name__, str(e), duration_ms=(time.monotonic() - t0) * 1000)
 
@@ -302,7 +302,7 @@ class CodeReviewCapability(Capability):
             if handler is None:
                 return CapabilityResult.fail("code_review", skill_name, "unknown_skill", f"Unknown skill: {skill_name}")
             data = handler(**params)
-            return CapabilityResult.ok("code_review", skill_name, data, source="local analysis", duration_ms=(time.monotonic() - t0) * 1000)
+            return CapabilityResult.from_data("code_review", skill_name, data, source="local analysis", duration_ms=(time.monotonic() - t0) * 1000)
         except Exception as e:
             return CapabilityResult.fail("code_review", skill_name, type(e).__name__, str(e), duration_ms=(time.monotonic() - t0) * 1000)
 
@@ -449,7 +449,7 @@ class ChangelogGenCapability(Capability):
             if handler is None:
                 return CapabilityResult.fail("changelog_gen", skill_name, "unknown_skill", f"Unknown skill: {skill_name}")
             data = handler(**params)
-            return CapabilityResult.ok("changelog_gen", skill_name, data, source="git history", duration_ms=(time.monotonic() - t0) * 1000)
+            return CapabilityResult.from_data("changelog_gen", skill_name, data, source="git history", duration_ms=(time.monotonic() - t0) * 1000)
         except Exception as e:
             return CapabilityResult.fail("changelog_gen", skill_name, type(e).__name__, str(e), duration_ms=(time.monotonic() - t0) * 1000)
 
@@ -554,7 +554,7 @@ class RepoHealthCapability(Capability):
             if handler is None:
                 return CapabilityResult.fail("repo_health", skill_name, "unknown_skill", f"Unknown skill: {skill_name}")
             data = handler(**params)
-            return CapabilityResult.ok("repo_health", skill_name, data, source="local analysis", duration_ms=(time.monotonic() - t0) * 1000)
+            return CapabilityResult.from_data("repo_health", skill_name, data, source="local analysis", duration_ms=(time.monotonic() - t0) * 1000)
         except Exception as e:
             return CapabilityResult.fail("repo_health", skill_name, type(e).__name__, str(e), duration_ms=(time.monotonic() - t0) * 1000)
 
@@ -675,7 +675,7 @@ class DependencyGraphCapability(Capability):
             if handler is None:
                 return CapabilityResult.fail("dependency_graph", skill_name, "unknown_skill", f"Unknown skill: {skill_name}")
             data = handler(**params)
-            return CapabilityResult.ok("dependency_graph", skill_name, data, source="static analysis", duration_ms=(time.monotonic() - t0) * 1000)
+            return CapabilityResult.from_data("dependency_graph", skill_name, data, source="static analysis", duration_ms=(time.monotonic() - t0) * 1000)
         except Exception as e:
             return CapabilityResult.fail("dependency_graph", skill_name, type(e).__name__, str(e), duration_ms=(time.monotonic() - t0) * 1000)
 

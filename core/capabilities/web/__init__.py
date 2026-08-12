@@ -60,7 +60,7 @@ class WebCapability(Capability):
             if handler is None:
                 return CapabilityResult.fail("web", skill_name, "unknown_skill", f"Unknown skill: {skill_name}")
             data = handler(**params)
-            return CapabilityResult.ok("web", skill_name, data, source="HTTP fetch", duration_ms=(_time.monotonic() - _t0) * 1000)
+            return CapabilityResult.from_data("web", skill_name, data, source="HTTP fetch", duration_ms=(_time.monotonic() - _t0) * 1000)
         except Exception as e:
             return CapabilityResult.fail("web", skill_name, type(e).__name__, str(e), source="HTTP fetch", duration_ms=(_time.monotonic() - _t0) * 1000)
 

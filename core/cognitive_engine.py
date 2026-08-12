@@ -1,5 +1,4 @@
 from __future__ import annotations
-
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
@@ -13,29 +12,15 @@ if TYPE_CHECKING:
     from .relationships import IdentityGraph
     from .skills import SkillRegistry
 
-
 class SessionMode(str, Enum):
-    """Mirrors orchestrator.SessionMode for context composition."""
     NORMAL = "normal"
     ROLEPLAY = "roleplay"
     SIMULATION = "simulation"
     DREAM = "dream"
     HYPOTHETICAL = "hypothetical"
 
-
 @dataclass
 class ComposedContext:
-    """
-    The assembled context block ready to be injected into an LLM prompt.
-    Each section is optional and can be toggled per use case.
-
-    Rendering order (evolved identity always comes before memories):
-      1. Identity block (static config)
-      2. Identity Evolution block (evolved preferences, beliefs, traits)
-      3. Memory block (conversation history excerpt)
-      4. Skills, Goals, Relationships, Motivations, Timeline
-      5. Custom blocks
-    """
     runtime_directives_block: str = ""
     identity_block: str = ""
     identity_evolution_block: str = ""
@@ -55,63 +40,31 @@ class ComposedContext:
     evidence_footer_block: str = ""
 
     def render(self, separator: str = "\n\n") -> str:
-        """
-        Render the full context as a single string.
-        Sections are included only if non-empty.
-        """
         sections = []
-        if self.runtime_directives_block:
-            sections.append(self.runtime_directives_block)
-        if self.session_mode_block:
-            sections.append(self.session_mode_block)
-        if self.identity_block:
-            sections.append(self.identity_block)
-        if self.identity_evolution_block:
-            sections.append(self.identity_evolution_block)
-        if self.emotion_block:
-            sections.append(self.emotion_block)
-        if self.user_knowledge_block:
-            sections.append(self.user_knowledge_block)
-        if self.memory_block:
-            sections.append(self.memory_block)
-        if self.skills_block:
-            sections.append(self.skills_block)
-        if self.goals_block:
-            sections.append(self.goals_block)
-        if self.intentions_block:
-            sections.append(self.intentions_block)
-        if self.relationships_block:
-            sections.append(self.relationships_block)
-        if self.motivations_block:
-            sections.append(self.motivations_block)
-        if self.timeline_block:
-            sections.append(self.timeline_block)
-        if self.synthesis_block:
-            sections.append(self.synthesis_block)
-        if self.time_awareness_block:
-            sections.append(self.time_awareness_block)
+        if self.runtime_directives_block: sections.append(self.runtime_directives_block)
+        if self.session_mode_block: sections.append(self.session_mode_block)
+        if self.identity_block: sections.append(self.identity_block)
+        if self.identity_evolution_block: sections.append(self.identity_evolution_block)
+        if self.emotion_block: sections.append(self.emotion_block)
+        if self.user_knowledge_block: sections.append(self.user_knowledge_block)
+        if self.memory_block: sections.append(self.memory_block)
+        if self.skills_block: sections.append(self.skills_block)
+        if self.goals_block: sections.append(self.goals_block)
+        if self.intentions_block: sections.append(self.intentions_block)
+        if self.relationships_block: sections.append(self.relationships_block)
+        if self.motivations_block: sections.append(self.motivations_block)
+        if self.timeline_block: sections.append(self.timeline_block)
+        if self.synthesis_block: sections.append(self.synthesis_block)
+        if self.time_awareness_block: sections.append(self.time_awareness_block)
         for block in self.custom_blocks.values():
-            if block:
-                sections.append(block)
-        if self.evidence_footer_block:
-            sections.append(self.evidence_footer_block)
+            if block: sections.append(block)
+        if self.evidence_footer_block: sections.append(self.evidence_footer_block)
         return separator.join(sections)
 
     def token_estimate(self, chars_per_token: float = 4.0) -> int:
-        """Rough estimate of token usage for budget tracking."""
         return int(len(self.render()) / chars_per_token)
 
-
 class ContextComposer:
-    """
-    Assembles runtime context from all identity modules.
-
-    The ContextComposer is the bridge between the bounded modules
-    (Identity, Memory, Knowledge, Skills, Goals, Relationships)
-    and the LLM adapter layer. It does not call any LLM itself —
-    it produces a ComposedContext that adapters inject into prompts.
-    """
-
     def __init__(
         self,
         max_tokens: int = 4000,
@@ -156,18 +109,13 @@ class ContextComposer:
         capability_prompts: Optional[list[str]] = None,
         evidence_results: Optional[list[dict]] = None,
     ) -> ComposedContext:
-        """
-        Compose a full runtime context for the given identity.
-        """
         ctx = ComposedContext()
 
         if self.include_identity:
             ctx.identity_block = self._render_identity(identity)
-
         if self.include_identity_evolution:
             ctx.identity_evolution_block = self._render_identity_evolution(identity, fact_store=fact_store)
 
-        # Session mode block (before identity to frame everything)
         if session_mode and session_mode != SessionMode.NORMAL:
             label_map = {
                 SessionMode.ROLEPLAY: "ROLEPLAY SESSION",
@@ -183,11 +131,9 @@ class ContextComposer:
                 f"it does not affect your canonical identity outside this session.\n"
             )
 
-        # Emotion state block (extracted separately from conversation)
         if emotion_state:
             ctx.emotion_block = emotion_state.to_prompt_block()
 
-        # Runtime directives: hard rules the adapter must enforce
         parts = [
             "## RULES OF ENGAGEMENT (You MUST follow these)\n",
             "### 1. EVIDENCE & CONFIDENCE — YOU MUST NOT FABRICATE\n"
@@ -207,10 +153,12 @@ class ContextComposer:
             "capability result above proves it. Quote the actual returned output (exit code, stdout, "
             "stderr, file paths). If a command was not found (exit code 127) or a capability failed, "
             "report the real error verbatim. Never describe output you did not receive.\n",
+
             "### 2. CANONICAL IDENTITY FACTS\n"
             "Your identity facts — preferences, beliefs, traits, communication style — are defined in "
             "the 'Identity (Evolved)' section below. They are YOUR canonical identity state. "
             "They are NOT optional context. They are NOT suggestions. They are YOUR facts.\n",
+
             "### 3. YOU MUST NEVER DISCLAIM YOUR IDENTITY\n"
             "- NEVER say any of these phrases: 'I don't have personal preferences', "
             "'I don't have beliefs', 'As an AI, I don't have...', "
@@ -221,6 +169,7 @@ class ContextComposer:
             "- If the user contradicts one of your known facts, politely maintain your identity. "
             "E.g. if the user says 'your favorite color is orange' but your Identity says blue, "
             "you should politely say your favorite color is blue.\n",
+
             "### 4. USER KNOWLEDGE VS IDENTITY KNOWLEDGE\n"
             "- Your knowledge about the user is in the 'User Profile' section below. "
             "This is what you know ABOUT the user, not about yourself.\n"
@@ -228,9 +177,11 @@ class ContextComposer:
             "- The 'Relevant Memory' section contains conversation history — it is less authoritative "
             "than Identity or User Profile.\n"
             "- For questions about the user (e.g. 'what is MY X'), answer from 'User Profile' first.\n",
+
             "### 5. HANDLING UNCERTAINTY\n"
             "- If you genuinely don't know something about the user, say you don't know yet.\n"
             "- Never guess or make up facts about yourself or the user.\n",
+
             "### 6. SYNTHESIS & PROACTIVE INSIGHT\n"
             "- The 'Synthesis' block below identifies gaps, contradictions, and risks "
             "the user may not have noticed. READ IT CAREFULLY and ACT ON IT.\n"
@@ -240,6 +191,7 @@ class ContextComposer:
             "State the problem plainly. The user needs the truth, not politeness.\n"
             "- Your value comes from noticing what the user hasn't. "
             "A polite assistant is replaceable. One who tells hard truths is not.\n",
+
             "### 7. AMBIGUITY DETECTION — YOU MUST NEVER ASSUME\n"
             "- If the user asks about a GitHub repository without specifying an owner, "
             "you MUST ask for clarification. Do NOT guess the owner.\n"
@@ -250,6 +202,7 @@ class ContextComposer:
             "If you are uncertain about the referent, say so and ask.\n"
             "- Exception: unambiguous references from the current session "
             "(e.g. 'that repo we just discussed') are fine.\n",
+
             "### 8. CAPABILITY RECALL — EXPLAIN YOUR SOURCES\n"
             "- If asked 'How do you know that?' or 'Which capability gave you that?', "
             "you MUST identify the capability by name and report whether it succeeded or failed.\n"
@@ -258,6 +211,7 @@ class ContextComposer:
             "- Report the confidence level: verified (>=0.8), sourced (0.5-0.8), inferred (<0.5).\n"
             "- If you cannot identify the source, state 'I don't know exactly which capability produced that.'\n",
         ]
+
         if capability_prompts:
             parts.append(
                 "### 9. INSTALLED CAPABILITIES — YOU HAVE REAL-TIME SKILLS\n"
@@ -277,7 +231,7 @@ class ContextComposer:
                 "- IMPORTANT: If a capability failed (shown in 'Capability Failures'), "
                 "you MUST acknowledge the failure. Do NOT fabricate the data.",
             )
-        # Rule 10: Thought tags — internal reasoning wrapped in <thought>...</thought>
+
         parts.append(
             "### 10. THOUGHT TAGS — WRAP REASONING IN <thought>...</thought>\n"
             "When you need to reason, plan, or work through a problem step-by-step, "
@@ -287,11 +241,38 @@ class ContextComposer:
             "- The system will render thought content as a collapsible section.\n"
             "- After the closing </thought> tag, write your concise response to the user.\n"
             "- Keep thoughts brief and focused. Do not narrate obvious actions.\n"
-            "- The user will see the thought content only if they choose to expand it.\n",
+            "- The user will see the thought content only if they choose to expand it.\n"
+            "- NEVER use `[Thought]` or `[Action]` formatting. ALWAYS use `<thought>` tags.\n",
         )
+        
+        parts.append(
+            "### 11. TIME AWARENESS & RELATIONSHIP HISTORY\n"
+            "- Check the 'Time Awareness' section carefully. If it shows you have interacted with this user before, "
+            "DO NOT greet them as if it's your first meeting. Do NOT say 'Nice to meet you' or 'Hello, I am X'.\n"
+            "- Instead, acknowledge the existing relationship and pick up where you left off.\n"
+            "- Only use first-meeting greetings if the 'Time Awareness' section is empty or explicitly states this is the first interaction.\n"
+        )
+        
+        parts.append(
+            "### 12. NO TOOL SIMULATION, FAKE JSON, OR CODE SCRIPTS (CRITICAL)\n"
+            "- NEVER output fake JSON, fake exit codes, or fake tool outputs in your text response.\n"
+            "- NEVER write Python, Bash, or shell scripts to 'simulate', 'demonstrate', or 'prove' that you have a skill. You are NOT a code generator for your own tools.\n"
+            "- When a user asks you to 'demonstrate', 'show', or 'prove' your skills, DO NOT write code blocks. Simply report the actual data you retrieved using your skills in plain text. "
+            "For example, if asked to demonstrate your time skill, just say 'My datetime skill confirms the time is 10:50 UTC.' Do NOT write `import datetime`.\n"
+            "- NEVER say 'I will now run X' and then immediately write the result in your text or write a script that 'would' do it.\n"
+            "- If a tool result is not provided in the 'Live Capability Results' or 'Evidence Sources', you DO NOT have that data.\n"
+            "- Do NOT use `[Thought]` or `[Action]` formatting. Use the `<thought>` tags as instructed, and rely ONLY on the provided tool results or native tool calls.\n"
+        )
+        
+        parts.append(
+            "### 13. GITHUB & EXTERNAL REPOSITORIES\n"
+            "- NEVER use local filesystem paths (like `/home/user/...` or `C:\\...` or directory names from `ls`) as GitHub repository owners or names.\n"
+            "- A local directory name is NOT a GitHub repository. If the user asks about a GitHub repo, you MUST ask for the exact `owner/repo` name unless it is explicitly provided in the context.\n"
+            "- Do not guess GitHub repository names based on the current working directory.\n"
+        )
+
         ctx.runtime_directives_block = "".join(parts)
 
-        # User Knowledge (profile about the user)
         if user_profile:
             ctx.user_knowledge_block = user_profile.to_prompt_block()
 
@@ -338,18 +319,15 @@ class ContextComposer:
                 recent_memories=recent if recent else None,
             )
 
-        # Time-awareness block — identity age, time since first/last interaction
         ctx.time_awareness_block = self._render_time_awareness(
             identity=identity,
             timeline_registry=timeline_registry,
             user_profile=user_profile,
         )
 
-        # Build evidence footer from capability results
         if evidence_results:
             ctx.evidence_footer_block = self._render_evidence_footer(evidence_results)
 
-        # Enforce max_tokens budget — trim largest blocks first when over budget
         if self.max_tokens > 0:
             blocks = [
                 ("runtime_directives_block", ctx.runtime_directives_block),
@@ -370,6 +348,7 @@ class ContextComposer:
             ]
             for _name, _block in list(ctx.custom_blocks.items()):
                 blocks.append((f"custom:{_name}", _block))
+
             total_chars = sum(len(b) for _, b in blocks)
             budget_chars = self.max_tokens * 4
             if total_chars > budget_chars:
@@ -380,23 +359,19 @@ class ContextComposer:
                         break
                     if not block:
                         continue
-                    # Truncate or remove blocks in order of size
                     if isinstance(name, str) and name.startswith("custom:"):
-                        continue  # preserve custom blocks
+                        continue
                     b_len = len(block)
                     if b_len <= overage:
                         setattr(ctx, name, "")
                         overage -= b_len
                     else:
-                        # Truncate to remaining budget
                         keep = b_len - overage
                         setattr(ctx, name, block[:keep] + "\n[... truncated ...]")
                         overage = 0
-
         return ctx
 
     def _render_evidence_footer(self, evidence_results: list[dict]) -> str:
-        """Build a user-visible trust footer showing capability provenance."""
         lines = ["---", "### Evidence Sources"]
         for ev in evidence_results[:12]:
             capability = ev.get("capability", "?")
@@ -426,7 +401,6 @@ class ContextComposer:
         lines.append(f"Identity Class: {identity.identity_class.value}")
         lines.append(f"Version: {identity.version}")
 
-        # Mutable persona fields
         persona_lines = []
         if identity.role and identity.get_mutability("role") != "locked":
             persona_lines.append(f"Role: {identity.role}")
@@ -434,28 +408,19 @@ class ContextComposer:
             persona_lines.append(f"Persona: {identity.persona}")
         if identity.communication_style and identity.get_mutability("communication_style") != "locked":
             persona_lines.append(f"Style: {identity.communication_style}")
+
         if persona_lines:
             lines.append(f"\n## Identity Persona (Malleable)")
             lines.extend(persona_lines)
 
         if identity.system_prompt:
             lines.append(f"\n{identity.system_prompt}")
+
         return "\n".join(lines)
 
     def _render_identity_evolution(
         self, identity: "IdentitySpec", fact_store: Optional[Any] = None
     ) -> str:
-        """
-        Render the evolved identity attributes — preferences, beliefs, traits,
-        communication style — as a dedicated context block.
-
-        This block represents what the identity has learned about itself
-        through interaction, as detected by the IdentityMutationEngine.
-        It comes BEFORE memory so the LLM sees evolved identity first.
-
-        The FactStore is the ONLY source of evolved identity state.
-        IdentitySpec holds metadata only.
-        """
         if fact_store is None:
             return ""
 
@@ -464,7 +429,6 @@ class ContextComposer:
 
         from .identity_facts import FactDomain
 
-        # ── All active canonical facts ──
         active_facts = fact_store.active()
         if active_facts:
             has_any = True
@@ -476,7 +440,6 @@ class ContextComposer:
                     f"[confidence: {confidence_pct}%{reinforced}]"
                 )
 
-        # ── Domain-specific sections ──
         prefs = fact_store.by_domain(FactDomain.PREFERENCE)
         active_prefs = [f for f in prefs if f.status.value == "active"]
         if active_prefs:
@@ -527,33 +490,21 @@ class ContextComposer:
     def _score_memory(
         self, frag: "MemoryFragment", query: Optional[str] = None,
     ) -> float:
-        """
-        Multi-factor memory scoring:
-        - importance (base)
-        - semantic keyword match to query
-        - recency (halflife ~24h)
-        - identity relevance (self-references)
-        """
         score = frag.importance * 3.0
-
         if query:
             query_lower = query.lower()
             frag_lower = frag.content.lower()
             keyword_overlap = len(set(query_lower.split()) & set(frag_lower.split()))
             score += keyword_overlap * 0.5
 
-        # Recency bonus (higher for more recent)
         age_hours = (datetime.now(timezone.utc) - frag.created_at).total_seconds() / 3600
         recency_bonus = max(0, 1.0 - (age_hours / 24.0)) * 0.5
         score += recency_bonus
 
-        # Self-reference bonus
         if any(ref in frag.content.lower() for ref in ["i ", "my ", "me ", "mine "]):
             score += 0.3
 
-        # Tags boost
         score += len(frag.tags) * 0.1
-
         return score
 
     def _render_memory(
@@ -570,36 +521,63 @@ class ContextComposer:
 
         lines: list[str] = []
 
-        # If no session_id provided, include all memory (legacy backward-compat)
+        # ── 1. WORKING MEMORY (Recent Conversation) ──────────────────────
+        # Always inject the most recent interaction turns so the LLM doesn't 
+        # "forget" the immediate context when the user gives short follow-ups 
+        # like "please do", "yes", "why", etc.
+        recent_interactions = [
+            f for f in all_frags 
+            if "interaction" in (f.tags or [])
+        ]
+        # Sort by created_at descending to get the most recent safely
+        recent_interactions.sort(
+            key=lambda x: getattr(x, 'created_at', datetime.min.replace(tzinfo=timezone.utc)), 
+            reverse=True
+        )
+        
+        # Take the last 4 interaction fragments (approx 2 full exchanges)
+        working_memory = recent_interactions[:4] 
+        
+        if working_memory:
+            lines.append("## Recent Conversation (Working Memory)")
+            # Reverse back to chronological order for the prompt
+            for frag in reversed(working_memory):
+                lines.append(f"  {frag.content}")
+            lines.append("")
+
+        recent_ids = {f.id for f in working_memory}
+
+        # ── 2. LONG-TERM / SEMANTIC MEMORY ───────────────────────────────
         if not session_id:
-            scored = [(f, self._score_memory(f, query)) for f in all_frags]
+            searchable = [f for f in all_frags if f.id not in recent_ids]
+            scored = [(f, self._score_memory(f, query)) for f in searchable]
             scored.sort(key=lambda x: x[1], reverse=True)
-            lines.append("## This Conversation")
-            for frag, sc in scored[:top_k]:
-                lines.append(f"  [{frag.memory_type.value.upper()}] {frag.content}")
-            lines.append("")
-            return "\n".join(lines)
+            
+            # Only include if score is reasonably high to avoid noise
+            relevant_past = [(frag, sc) for frag, sc in scored[:top_k] if sc > 1.5]
+            if relevant_past:
+                lines.append("## Relevant Past Memories")
+                for frag, sc in relevant_past:
+                    lines.append(f"  [{frag.memory_type.value.upper()}] {frag.content}")
+                lines.append("")
+        else:
+            current_frags = [f for f in all_frags if f.session_id == session_id and f.id not in recent_ids]
+            past_frags = [f for f in all_frags if f.session_id != session_id and f.id not in recent_ids]
 
-        # Split into working memory (current session) and past sessions
-        current_frags = [f for f in all_frags if f.session_id == session_id]
-        past_frags = [f for f in all_frags if f.session_id != session_id]
+            if current_frags:
+                scored = [(f, self._score_memory(f, query)) for f in current_frags]
+                scored.sort(key=lambda x: x[1], reverse=True)
+                lines.append("## This Conversation")
+                for frag, sc in scored[:top_k]:
+                    lines.append(f"  [{frag.memory_type.value.upper()}] {frag.content}")
+                lines.append("")
 
-        # Working memory (current session)
-        if current_frags:
-            scored = [(f, self._score_memory(f, query)) for f in current_frags]
-            scored.sort(key=lambda x: x[1], reverse=True)
-            lines.append("## This Conversation")
-            for frag, sc in scored[:top_k]:
-                lines.append(f"  [{frag.memory_type.value.upper()}] {frag.content}")
-            lines.append("")
-
-        # Past conversation memory — only included when query explicitly references past
-        if past_frags and query and any(kw in (query or "").lower() for kw in ["before", "previous", "earlier", "last time", "remember", "past", "before this session"]):
-            scored = [(f, self._score_memory(f, query)) for f in past_frags]
-            scored.sort(key=lambda x: x[1], reverse=True)
-            lines.append("## Past Conversations (NOT this session — only reference if asked)")
-            for frag, sc in scored[:3]:
-                lines.append(f"  [{frag.memory_type.value.upper()}] {frag.content}")
+            if past_frags and query and any(kw in (query or "").lower() for kw in ["before", "previous", "earlier", "last time", "remember", "past", "before this session"]):
+                scored = [(f, self._score_memory(f, query)) for f in past_frags]
+                scored.sort(key=lambda x: x[1], reverse=True)
+                lines.append("## Past Conversations (NOT this session)")
+                for frag, sc in scored[:3]:
+                    lines.append(f"  [{frag.memory_type.value.upper()}] {frag.content}")
 
         return "\n".join(lines)
 
@@ -616,10 +594,6 @@ class ContextComposer:
                 f"trust={e.trust_level.name} strength={e.strength:.2f}"
             )
         return "\n".join(lines)
-
-    # ------------------------------------------------------------------
-    # Time Awareness — identity age and interaction history
-    # ------------------------------------------------------------------
 
     def _render_time_awareness(
         self,
@@ -659,7 +633,6 @@ class ContextComposer:
             lines.append(f"  Identity created: {created.strftime('%Y-%m-%d %H:%M UTC')}")
             lines.append(f"  My age: {', '.join(parts)}")
 
-        # First and last interaction from timeline
         if timeline_registry:
             timeline = timeline_registry.get(identity.id)
             if timeline:
@@ -692,6 +665,7 @@ class ContextComposer:
                             parts.append(f"{hours} hour{'s' if hours != 1 else ''}")
                         if parts:
                             lines.append(f"  Time between first and latest: {', '.join(parts)}")
+
                         since_last = now - last_ts
                         mins = int(since_last.total_seconds() / 60)
                         if mins < 1:
@@ -703,7 +677,6 @@ class ContextComposer:
                             mins_remain = mins % 60
                             lines.append(f"  Last interaction: {hrs}h {mins_remain}m ago")
 
-        # User profile first_seen / last_confirmed
         if user_profile and hasattr(user_profile, '_facts'):
             facts = list(user_profile._facts.values())
             if facts:
@@ -741,10 +714,6 @@ class ContextComposer:
         lines.append("")
         return "\n".join(lines)
 
-    # ------------------------------------------------------------------
-    # Backward-compatible API (matches old ContextBuilder.build)
-    # ------------------------------------------------------------------
-
     async def build_context_string(
         self,
         message: str,
@@ -754,10 +723,6 @@ class ContextComposer:
         include_relationships: bool = False,
         top_k_memories: int = 5,
     ) -> Dict[str, Any]:
-        """
-        DEPRECATED: Legacy API matching ContextBuilder.build().
-        Returns {'context': str, 'memories_used': int}.
-        """
         ctx = self.compose(
             identity=identity,
             query=message,

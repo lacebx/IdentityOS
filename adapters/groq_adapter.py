@@ -5,6 +5,7 @@ import os
 import time
 from typing import Any, List, Optional
 
+from .base import collect_api_keys
 from .openai_adapter import OpenAIAdapter
 
 logger = logging.getLogger(__name__)
@@ -14,11 +15,11 @@ class GroqAdapter(OpenAIAdapter):
     """
     Adapter for Groq with automatic API key rotation on rate limits.
 
-    Supports multiple API keys via environment variables:
+    Supports any number of API keys via environment variables:
         GROQ_API_KEY    — primary key
         GROQ_API_KEY_2  — first fallback
         GROQ_API_KEY_3  — second fallback
-        GROQ_API_KEY_4  — third fallback
+        ...             — further numbered keys are auto-discovered
 
     When one key hits a 429 / rate-limit error, the adapter waits
     for the retry-after window, then rotates to the next key.
@@ -36,17 +37,10 @@ class GroqAdapter(OpenAIAdapter):
     ):
         base_url = os.environ.get("GROQ_BASE_URL", base_url)
 
-        # Collect all available keys
-        self._keys: List[str] = api_keys or []
-        if not self._keys:
-            seen = set()
-            for env_var in ("GROQ_API_KEY", "GROQ_API_KEY_2", "GROQ_API_KEY_3", "GROQ_API_KEY_4", "GROQ_API_KEY_5", "GROQ_API_KEY_6"):
-                val = os.environ.get(env_var)
-                if val and val.strip() and "PLACEHOLDER" not in val and val not in seen:
-                    seen.add(val)
-                    self._keys.append(val)
-            if api_key and api_key not in seen:
-                self._keys.insert(0, api_key)
+        # Collect all available keys — auto-increments API_KEY_2..API_KEY_N
+        self._keys: List[str] = api_keys or collect_api_keys("GROQ_API_KEY")
+        if api_key and api_key not in self._keys:
+            self._keys.insert(0, api_key)
 
         if not self._keys:
             logger.warning("No valid Groq API keys found")
@@ -134,6 +128,7 @@ class GroqAdapter(OpenAIAdapter):
                     now = time.time()
 
             try:
+                remaining = max(1.0, deadline - time.time())
                 return super().generate(
                     context=context,
                     user_input=user_input,
@@ -141,6 +136,7 @@ class GroqAdapter(OpenAIAdapter):
                     temperature=temperature,
                     max_tokens=max_tokens,
                     retries=1,  # Parent retry disabled — GroqAdapter handles rotation
+                    timeout=remaining,
                     **kwargs,
                 )
             except RuntimeError as exc:

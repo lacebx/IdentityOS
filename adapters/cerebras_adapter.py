@@ -5,6 +5,7 @@ import os
 import time
 from typing import Any, List, Optional
 
+from .base import collect_api_keys
 from .openai_adapter import OpenAIAdapter
 
 logger = logging.getLogger(__name__)
@@ -14,11 +15,11 @@ class CerebrasAdapter(OpenAIAdapter):
     """
     Adapter for Cerebras with automatic API key rotation on rate limits.
 
-    Supports multiple API keys via environment variables:
+    Supports any number of API keys via environment variables:
         CEREBRAS_API_KEY    — primary key
         CEREBRAS_API_KEY_2  — first fallback
         CEREBRAS_API_KEY_3  — second fallback
-        CEREBRAS_API_KEY_4  — third fallback
+        ...                 — further numbered keys are auto-discovered
 
     When one key hits a 429 / rate-limit error, the adapter rotates
     to the next key. If all keys are rate-limited, it waits for
@@ -33,16 +34,9 @@ class CerebrasAdapter(OpenAIAdapter):
         api_keys: Optional[List[str]] = None,
         **kwargs: Any,
     ):
-        self._keys: List[str] = api_keys or []
-        if not self._keys:
-            seen = set()
-            for env_var in ("CEREBRAS_API_KEY", "CEREBRAS_API_KEY_2", "CEREBRAS_API_KEY_3", "CEREBRAS_API_KEY_4"):
-                val = os.environ.get(env_var)
-                if val and val.strip() and val not in seen:
-                    seen.add(val)
-                    self._keys.append(val)
-            if api_key and api_key not in seen:
-                self._keys.insert(0, api_key)
+        self._keys: List[str] = api_keys or collect_api_keys("CEREBRAS_API_KEY")
+        if api_key and api_key not in self._keys:
+            self._keys.insert(0, api_key)
 
         if not self._keys:
             key = api_key or os.environ.get("CEREBRAS_API_KEY")

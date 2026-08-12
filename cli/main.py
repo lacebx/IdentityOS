@@ -529,73 +529,107 @@ def _probe_adapter(name: str, adapter_cls: type, model: str, **kwargs):
         return (name, None, f"{name}: {e}")
 
 
+def _ollama_reachable(timeout: float = 2.0) -> bool:
+    """Return True when a local Ollama server answers on localhost:11434."""
+    import urllib.request
+    try:
+        with urllib.request.urlopen("http://localhost:11434/api/tags", timeout=timeout):
+            return True
+    except Exception:
+        return False
+
+
+def _ensure_ollama_running(wait: float = 10.0) -> tuple:
+    """Ensure a local Ollama server is running.
+
+    Returns ``(ok, message)``. When the server is not answering, attempts to
+    launch ``ollama serve`` in the background and polls until it comes up.
+    """
+    if _ollama_reachable():
+        return True, "already running"
+
+    import shutil
+    import subprocess
+    binary = shutil.which("ollama")
+    if not binary:
+        return False, "server not running and 'ollama' binary not found on PATH"
+    try:
+        subprocess.Popen(
+            [binary, "serve"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+    except Exception as e:
+        return False, f"failed to start 'ollama serve': {e}"
+
+    import time
+    deadline = time.time() + wait
+    while time.time() < deadline:
+        if _ollama_reachable():
+            return True, "started 'ollama serve'"
+        time.sleep(0.5)
+    return False, "started but not reachable on localhost:11434"
+
+
 def _interactive_adapter_select():
-    """Scan env for configured adapters, health-check them, let user pick."""
+    """Scan env for configured adapters, health-check them, let user pick a preference.
+
+    Returns a ``ChainAdapter``: the chosen provider is tried first, remaining
+    providers follow, and the local Ollama model is the FINAL fallback — used
+    only after every remote provider has been exhausted.  The user may still
+    pick Ollama explicitly, in which case only the local model is used.
+    """
+    from adapters.groq_adapter import GroqAdapter
+    from adapters.sambanova_adapter import SambaNovaAdapter
+    from adapters.cerebras_adapter import CerebrasAdapter
+    from adapters.openrouter_adapter import OpenRouterAdapter
+    from adapters.openai_adapter import OpenAIAdapter, AnthropicAdapter, OllamaAdapter
+    from adapters.base import collect_api_keys
+
+    def _has(prefix: str) -> bool:
+        return bool(collect_api_keys(prefix))
 
     candidates = []
 
-    # Groq (with key rotation)
-    _groq_keys = [os.environ.get(k) for k in ("GROQ_API_KEY", "GROQ_API_KEY_2", "GROQ_API_KEY_3",
-                                               "GROQ_API_KEY_4", "GROQ_API_KEY_5", "GROQ_API_KEY_6")]
-    if any(k for k in _groq_keys if k and "PLACEHOLDER" not in k):
-        from adapters.groq_adapter import GroqAdapter
+    # Groq (with auto-incrementing key rotation)
+    if _has("GROQ_API_KEY"):
         candidates.append(
             _probe_adapter("Groq", GroqAdapter, os.environ.get("IDENTITY_MODEL", "llama-3.3-70b-versatile"))
         )
 
-    if os.environ.get("SAMBANOVA_API_KEY"):
-        from adapters.sambanova_adapter import SambaNovaAdapter
+    if _has("SAMBANOVA_API_KEY"):
         candidates.append(
             _probe_adapter("SambaNova", SambaNovaAdapter, os.environ.get("IDENTITY_MODEL", "DeepSeek-V3.1"))
         )
 
-    _cerebras_keys = [os.environ.get(k) for k in ("CEREBRAS_API_KEY", "CEREBRAS_API_KEY_2",
-                                                   "CEREBRAS_API_KEY_3", "CEREBRAS_API_KEY_4")]
-    if any(k for k in _cerebras_keys if k):
-        from adapters.cerebras_adapter import CerebrasAdapter
+    if _has("CEREBRAS_API_KEY"):
         candidates.append(
             _probe_adapter("Cerebras", CerebrasAdapter, os.environ.get("IDENTITY_MODEL", "llama3.1-8b"))
         )
 
     if os.environ.get("OPENROUTER_API_KEY"):
-        from adapters.openrouter_adapter import OpenRouterAdapter
         candidates.append(
             _probe_adapter("OpenRouter", OpenRouterAdapter, os.environ.get("IDENTITY_MODEL", "openai/gpt-4o"))
         )
 
     if os.environ.get("OPENAI_API_KEY"):
-        from adapters.openai_adapter import OpenAIAdapter
         candidates.append(
             _probe_adapter("OpenAI", OpenAIAdapter, os.environ.get("IDENTITY_MODEL", "gpt-4o"))
         )
 
     if os.environ.get("ANTHROPIC_API_KEY"):
-        from adapters.openai_adapter import AnthropicAdapter
         candidates.append(
             _probe_adapter("Anthropic", AnthropicAdapter, os.environ.get("IDENTITY_MODEL", "claude-3-5-sonnet-20241022"))
         )
 
-    # Ollama is always worth trying if a base URL is set or default host is reachable
-    if os.environ.get("OPENAI_BASE_URL", "").startswith("http://localhost"):
-        from adapters.openai_adapter import OllamaAdapter
-        candidates.append(
-            _probe_adapter("Ollama (local)", OllamaAdapter, os.environ.get("IDENTITY_MODEL", "llama3.2"))
-        )
-
-    # Zen (OpenCode) -- last resort for very large contexts when other providers fail
-    if os.environ.get("ZEN_API_KEY"):
-        from adapters.openai_adapter import OpenAIAdapter
-        zen_key = os.environ["ZEN_API_KEY"]
-        zen_model = os.environ.get("IDENTITY_MODEL", "deepseek-v4-flash")
-        try:
-            inst = OpenAIAdapter(model=zen_model, api_key=zen_key, base_url="https://opencode.ai/zen/v1")
-            ok = inst.health_check()
-            if ok:
-                candidates.append(("Zen (OpenCode) - fallback", inst, None))
-            else:
-                candidates.append(("Zen (OpenCode) - fallback", None, "Zen: reachable but health check failed"))
-        except Exception as e:
-            candidates.append(("Zen (OpenCode) - fallback", None, f"Zen: {e}"))
+    # Ollama (local) — auto-start the server if it isn't running, then offer it
+    ollama_model = os.environ.get("IDENTITY_MODEL", "llama3.2")
+    ollama_ok, ollama_msg = _ensure_ollama_running()
+    if ollama_ok:
+        candidates.append(("Ollama (local)", OllamaAdapter(model=ollama_model), None))
+    else:
+        candidates.append(("Ollama (local)", None, f"Ollama: {ollama_msg}"))
 
     # Separate working from failed
     working = [(n, a) for n, a, e in candidates if a is not None]
@@ -609,26 +643,44 @@ def _interactive_adapter_select():
         print("  No working adapters found. Set an API key in .env or configure a local model.", file=sys.stderr)
         return None
 
-    if len(working) == 1:
-        name, adapter = working[0]
-        print(f"  Using {name}")
-        return adapter
+    selected_name = working[0][0]
+    if len(working) > 1:
+        # Let user choose a PREFERENCE; the others stay in the chain as fallbacks
+        print("\n  Available adapters (preferred first):")
+        for i, (name, _) in enumerate(working, 1):
+            print(f"    {i}. {name}")
+        while True:
+            try:
+                choice = input("\n  Select adapter [1]: ").strip()
+                if not choice:
+                    choice = "1"
+                idx = int(choice) - 1
+                if 0 <= idx < len(working):
+                    selected_name = working[idx][0]
+                    break
+                print(f"  Enter a number between 1 and {len(working)}.")
+            except (ValueError, IndexError):
+                print(f"  Enter a number between 1 and {len(working)}.")
 
-    # Multiple working adapters — let user choose
-    print("\n  Available adapters:")
-    for i, (name, _) in enumerate(working, 1):
-        print(f"    {i}. {name}")
-    while True:
-        try:
-            choice = input("\n  Select adapter [1]: ").strip()
-            if not choice:
-                choice = "1"
-            idx = int(choice) - 1
-            if 0 <= idx < len(working):
-                return working[idx][1]
-            print(f"  Enter a number between 1 and {len(working)}.")
-        except (ValueError, IndexError):
-            print(f"  Enter a number between 1 and {len(working)}.")
+    # Build the chain: chosen provider first, remaining providers next,
+    # local Ollama LAST as the final fallback.
+    from adapters import ChainAdapter
+    ordered = [w for w in working if w[0] == selected_name] + \
+              [w for w in working if w[0] != selected_name and w[0] != "Ollama (local)"]
+    ollama_entry = [w for w in working if w[0] == "Ollama (local)"]
+    if selected_name != "Ollama (local)":
+        ordered += ollama_entry  # local model always last resort
+    else:
+        ordered = ollama_entry  # user explicitly chose the local model
+
+    adapters = [a for _, a in ordered]
+    if len(adapters) == 1:
+        print(f"  Using {selected_name}")
+        return adapters[0]
+
+    fallback = " → ".join(n for n, _ in ordered)
+    print(f"  Using {selected_name} (fallback: {fallback})")
+    return ChainAdapter(adapters)
 
 
 def _resolve_identity(storage, identity_id_or_name: str) -> Optional[str]:

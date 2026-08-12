@@ -97,7 +97,7 @@ class TaskPlannerCapability(Capability):
             if handler is None:
                 return CapabilityResult.fail("task_planner", skill_name, "unknown_skill", f"Unknown skill: {skill_name}")
             data = handler(**params)
-            return CapabilityResult.ok("task_planner", skill_name, data, source="task planner", duration_ms=(_time.monotonic() - _t0) * 1000)
+            return CapabilityResult.from_data("task_planner", skill_name, data, source="task planner", duration_ms=(_time.monotonic() - _t0) * 1000)
         except Exception as e:
             return CapabilityResult.fail("task_planner", skill_name, type(e).__name__, str(e), duration_ms=(_time.monotonic() - _t0) * 1000)
 
@@ -324,7 +324,7 @@ class {class_name}(Capability):
             if handler is None:
                 return CapabilityResult.fail("{cap_id}", skill_name, "unknown_skill", f"Unknown skill: {{skill_name}}")
             data = handler(**params)
-            return CapabilityResult.ok("{cap_id}", skill_name, data, source="auto-generated", duration_ms=(_time.monotonic() - _t0) * 1000)
+            return CapabilityResult.from_data("{cap_id}", skill_name, data, source="auto-generated", duration_ms=(_time.monotonic() - _t0) * 1000)
         except Exception as e:
             return CapabilityResult.fail("{cap_id}", skill_name, type(e).__name__, str(e), duration_ms=(_time.monotonic() - _t0) * 1000)
 
@@ -384,7 +384,7 @@ class CommandExecCapability(Capability):
             if handler is None:
                 return CapabilityResult.fail("command_exec", skill_name, "unknown_skill", f"Unknown skill: {skill_name}")
             data = handler(**params)
-            return CapabilityResult.ok("command_exec", skill_name, data, source="command exec", duration_ms=(_time.monotonic() - _t0) * 1000)
+            return CapabilityResult.from_data("command_exec", skill_name, data, source="command exec", duration_ms=(_time.monotonic() - _t0) * 1000)
         except Exception as e:
             return CapabilityResult.fail("command_exec", skill_name, type(e).__name__, str(e), duration_ms=(_time.monotonic() - _t0) * 1000)
 

@@ -9,22 +9,24 @@ logger = logging.getLogger(__name__)
 
 _EXHAUSTION_MARKERS = [
     "api keys exhausted",
+    "all adapters exhausted",
 ]
 
 
 class ChainAdapter(BaseAdapter):
     """
-    Tries multiple adapters in sequence, falling through when one is exhausted.
+    Tries multiple adapters in sequence, falling through when one is unusable.
 
     Each adapter handles its own internal key rotation (e.g. GroqAdapter
-    rotates through GROQ_API_KEY[1..6] with cooldown).  When ALL keys
-    for a given provider are exhausted — or the adapter has no valid keys —
-    ``ChainAdapter`` catches the exhaustion error and moves to the next
-    adapter in the chain.
+    rotates through GROQ_API_KEY[1..N] with cooldown; keys are auto-discovered
+    incrementally).  When ALL keys for a given provider are exhausted — or the
+    provider is unreachable/rate-limited/erroring — ``ChainAdapter`` catches the
+    error and moves to the next adapter in the chain (which may be another
+    provider, or a local Ollama model as the final fallback).
 
     Usage::
 
-        chain = ChainAdapter([groq_adapter, sambanova_adapter, openai_adapter])
+        chain = ChainAdapter([groq_adapter, ollama_adapter])
         chain.generate(context, user_input, identity)
     """
 
@@ -46,8 +48,23 @@ class ChainAdapter(BaseAdapter):
         self._model = val
 
     def _is_exhaustion(self, error: Exception) -> bool:
+        """True when the provider is unusable and the next adapter should be tried.
+
+        Treats rate limits, connection failures, 5xx, and key exhaustion as
+        "try the next provider" conditions.  Genuine model-side errors (e.g.
+        400/bad request) are NOT exhaustion and propagate immediately.
+        """
         msg = str(error).lower()
-        return any(marker in msg for marker in _EXHAUSTION_MARKERS)
+        if any(marker in msg for marker in _EXHAUSTION_MARKERS):
+            return True
+        for token in ("rate limit", "429", "quota", "throttl",
+                      "connection", "timed out", "timeout",
+                      "service unavailable", "502", "503", "504",
+                      "api keys exhausted", "invalid api key",
+                      "authentication failed", "401"):
+            if token in msg:
+                return True
+        return False
 
     def generate(
         self,

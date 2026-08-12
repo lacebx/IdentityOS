@@ -5,6 +5,7 @@ import os
 import time
 from typing import Any, List, Optional
 
+from .base import collect_api_keys
 from .openai_adapter import OpenAIAdapter
 
 logger = logging.getLogger(__name__)
@@ -14,10 +15,11 @@ class SambaNovaAdapter(OpenAIAdapter):
     """
     Adapter for SambaNova with automatic API key rotation on rate limits.
 
-    Supports multiple API keys via environment variables:
+    Supports any number of API keys via environment variables:
         SAMBANOVA_API_KEY    — primary key
         SAMBANOVA_API_KEY_2  — first fallback
         SAMBANOVA_API_KEY_3  — second fallback
+        ...                  — further numbered keys are auto-discovered
 
     When one key hits a 429 / rate-limit error, the adapter rotates
     to the next key. If all keys are rate-limited, it waits for
@@ -32,23 +34,12 @@ class SambaNovaAdapter(OpenAIAdapter):
         api_keys: Optional[List[str]] = None,
         **kwargs: Any,
     ):
-        self._keys: List[str] = api_keys or []
-        if not self._keys:
-            seen = set()
-            for env_var in ("SAMBANOVA_API_KEY", "SAMBANOVA_API_KEY_2", "SAMBANOVA_API_KEY_3"):
-                val = os.environ.get(env_var)
-                if val and val.strip() and val not in seen:
-                    seen.add(val)
-                    self._keys.append(val)
-            if api_key and api_key not in seen:
-                self._keys.insert(0, api_key)
+        self._keys: List[str] = api_keys or collect_api_keys("SAMBANOVA_API_KEY")
+        if api_key and api_key not in self._keys:
+            self._keys.insert(0, api_key)
 
         if not self._keys:
-            key = api_key or os.environ.get("SAMBANOVA_API_KEY")
-            if key:
-                self._keys = [key]
-            else:
-                logger.warning("No valid SambaNova API keys found")
+            logger.warning("No valid SambaNova API keys found")
 
         self._cooldowns: dict = {}
         self._key_index = 0
@@ -108,7 +99,7 @@ class SambaNovaAdapter(OpenAIAdapter):
         for attempt in range(len(self._keys) * 3):
             if time.time() > deadline:
                 raise RuntimeError(
-                    f"All SambaNova API keys exhausted (timeout after 120s). Last error: {last_error}"
+                    f"All SambaNova API keys exhausted (timeout after 60s). Last error: {last_error}"
                 ) from last_error
             cooldown_until = self._cooldowns.get(self._key_index, 0)
             if cooldown_until > now:
@@ -117,6 +108,9 @@ class SambaNovaAdapter(OpenAIAdapter):
                     now = time.time()
 
             try:
+                # Bound the underlying HTTP request to the remaining deadline
+                # so a slow/hung provider cannot block the chat indefinitely.
+                remaining = max(1.0, deadline - time.time())
                 return super().generate(
                     context=context,
                     user_input=user_input,
@@ -124,6 +118,7 @@ class SambaNovaAdapter(OpenAIAdapter):
                     temperature=temperature,
                     max_tokens=max_tokens,
                     retries=1,  # Parent retry disabled — SambaNovaAdapter handles rotation
+                    timeout=remaining,
                     **kwargs,
                 )
             except RuntimeError as exc:

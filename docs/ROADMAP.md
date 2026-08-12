@@ -46,7 +46,7 @@ Future architectural work should primarily arise from lessons learned while buil
 | VSCode Extension | Medium | 📋 Planned |
 | Browser Extension | High | 📋 Planned |
 
-### Developer Infrastructure
+### Developer Infrastructure 🔄 *ACTIVE*
 
 | Project | Priority | Status |
 |---------|----------|--------|

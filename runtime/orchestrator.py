@@ -1296,6 +1296,18 @@ class IdentityRuntime:
         _evidence = _skill_router.route(sanitized_input)
         _report = _evidence.report()
         _evidence_results = [r.to_evidence_dict() for r in _evidence._results] if hasattr(_evidence, '_results') else []
+        
+        # SAFEGUARD: Filter out suspicious file_tools/command_exec calls from the planner
+        # that might have been triggered by generic words in the user input (Stray Directory Bug).
+        _suspicious_caps = {"file_tools", "command_exec", "filesystem"}
+        _filtered_evidence_results = []
+        for r_dict in _evidence_results:
+            cap = r_dict.get("capability", "")
+            if cap in _suspicious_caps:
+                continue
+            _filtered_evidence_results.append(r_dict)
+        _evidence_results = _filtered_evidence_results
+        
         _has_evidence = bool(_report.facts or _report.failures)
 
         context = self.context_composer.compose(
@@ -1357,6 +1369,13 @@ class IdentityRuntime:
                 user_input=sanitized_input,
                 identity=identity,
             )
+            
+            # Post-process: Normalize thought tags if the LLM used [Thought] instead of <thought>
+            raw_output = re.sub(r'\[Thought\]', '<thought>', raw_output, flags=re.IGNORECASE)
+            raw_output = re.sub(r'\[/Thought\]', '</thought>', raw_output, flags=re.IGNORECASE)
+            if raw_output.count('<thought>') > raw_output.count('</thought>'):
+                raw_output += '\n</thought>'
+                
             _latency = _time.monotonic() - _t0
             self._emit(
                 EventType.MODEL_RESPONDED,

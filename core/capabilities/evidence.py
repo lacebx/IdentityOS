@@ -53,10 +53,12 @@ class EvidenceManager:
         self._results: list[CapabilityResult] = []
 
     def collect(self, result: CapabilityResult) -> None:
-        self._results.append(result)
+        # Defense in depth: never store soft-error dicts as successful evidence.
+        self._results.append(result.reclassify_soft_errors())
 
     def collect_many(self, results: list[CapabilityResult]) -> None:
-        self._results.extend(results)
+        for r in results:
+            self.collect(r)
 
     def report(self) -> EvidenceReport:
         facts: list[Fact] = []
@@ -91,6 +93,8 @@ class EvidenceManager:
                 "confidence": r.confidence,
                 "source": r.source,
                 "error": r.error.get("message", "") if r.error else None,
+                "params": r.params or {},
+                "custody": r.custody or {},
             })
         return records
 
@@ -143,13 +147,37 @@ class EvidenceManager:
                 )
                 lines.append("")
 
-        # ── Successful facts ─────────────────────────────────────────
+        # ── Successful facts (only post-condition-passed results) ─────
         if rep.facts:
-            lines.append("## Live Capability Results (verified factual data)")
-            for f in rep.facts[:6]:
-                label = f"[{f.origin.value}]" if f.confidence < 1.0 else ""
-                content = f.content[:2000] if isinstance(f.content, str) else str(f.content)[:2000]
-                lines.append(f"  - {content} {label}".strip())
+            lines.append("## Live Capability Results (runtime-verified — only cite these as proof)")
+            lines.append(
+                "RULE: Installed skill prompts describe what you CAN do. "
+                "Only the results below prove what you DID this turn. "
+                "Do not narrate skills that have no result here."
+            )
+            for r in self._results:
+                if not r.success:
+                    continue
+                custody = r.custody or {}
+                custody_bits = []
+                for key in ("path", "bytes_written", "bytes_appended", "url",
+                            "name", "exit_code", "count", "status"):
+                    if key in custody:
+                        custody_bits.append(f"{key}={custody[key]}")
+                custody_str = f" | custody: {', '.join(custody_bits)}" if custody_bits else ""
+                params = r.params or {}
+                param_str = ""
+                if params:
+                    shown = {k: v for k, v in list(params.items())[:4]
+                             if v is not None and str(v) != ""}
+                    if shown:
+                        param_str = f" | params: {shown}"
+                text = str(r.data) if not isinstance(r.data, dict) else _summarize_short(r.data)
+                lines.append(
+                    f"  - ✓ {r.capability}.{r.action} (conf={r.confidence:.2f}, "
+                    f"{r.duration_ms:.0f}ms){param_str}{custody_str}"
+                )
+                lines.append(f"    result: {text[:1500]}")
             lines.append("")
 
         # ── Failures ─────────────────────────────────────────────────
@@ -157,9 +185,11 @@ class EvidenceManager:
             lines.append("## Capability Failures — you MUST acknowledge these")
             for fail in rep.failures[:8]:
                 msg = (fail.error['message'] if fail.error else 'unknown error')[:300]
+                params = fail.params or {}
+                param_bit = f" params={params}" if params else ""
                 lines.append(
-                    f"  - {fail.capability}.{fail.action} failed: {msg}. "
-                    f"Source: {fail.source}"
+                    f"  - {fail.capability}.{fail.action} failed: {msg}."
+                    f"{param_bit} Source: {fail.source}"
                 )
             lines.append("  Do NOT fabricate data for failed capabilities.")
             lines.append("  Do NOT estimate values the capability was supposed to provide.")
@@ -168,7 +198,10 @@ class EvidenceManager:
 
         if not rep.facts and not rep.failures:
             lines.append("## Capabilities")
-            lines.append("No capabilities were invoked for this interaction.\n")
+            lines.append(
+                "No capabilities were invoked for this interaction. "
+                "You have NOT run any skills this turn — do not claim otherwise.\n"
+            )
 
         return "\n".join(lines)
 
@@ -201,3 +234,10 @@ class EvidenceManager:
                 lines.append(f"  - {fail.capability}.{fail.action}: {err.get('type', 'error')} — {err.get('message', '')}")
 
         return "\n".join(lines)
+
+
+def _summarize_short(data: dict, max_len: int = 800) -> str:
+    text = json.dumps(data, indent=None, default=str)
+    if len(text) > max_len:
+        return text[:max_len] + "... [truncated]"
+    return text

@@ -59,7 +59,7 @@ class RegistryManagerCapability(Capability):
             if handler is None:
                 return CapabilityResult.fail("registry_manager", skill_name, "unknown_skill", f"Unknown skill: {skill_name}")
             data = handler(**params)
-            return CapabilityResult.ok("registry_manager", skill_name, data, source="local registry", duration_ms=(_time.monotonic() - _t0) * 1000)
+            return CapabilityResult.from_data("registry_manager", skill_name, data, source="local registry", duration_ms=(_time.monotonic() - _t0) * 1000)
         except Exception as e:
             return CapabilityResult.fail("registry_manager", skill_name, type(e).__name__, str(e), duration_ms=(_time.monotonic() - _t0) * 1000)
 

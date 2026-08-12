@@ -106,7 +106,7 @@ class CalcCapability(Capability):
             if handler is None:
                 return CapabilityResult.fail("calc", skill_name, "unknown_skill", f"Unknown skill: {skill_name}")
             data = handler(**params)
-            return CapabilityResult.ok("calc", skill_name, data, source="math engine", duration_ms=(_time.monotonic() - _t0) * 1000)
+            return CapabilityResult.from_data("calc", skill_name, data, source="math engine", duration_ms=(_time.monotonic() - _t0) * 1000)
         except Exception as e:
             return CapabilityResult.fail("calc", skill_name, type(e).__name__, str(e), duration_ms=(_time.monotonic() - _t0) * 1000)
 

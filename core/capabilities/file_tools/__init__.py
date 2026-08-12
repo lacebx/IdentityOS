@@ -58,7 +58,7 @@ class FileToolsCapability(Capability):
             if handler is None:
                 return CapabilityResult.fail("file_tools", skill_name, "unknown_skill", f"Unknown skill: {skill_name}")
             data = handler(**params)
-            return CapabilityResult.ok("file_tools", skill_name, data, source="local filesystem", duration_ms=(_time.monotonic() - _t0) * 1000)
+            return CapabilityResult.from_data("file_tools", skill_name, data, source="local filesystem", duration_ms=(_time.monotonic() - _t0) * 1000)
         except Exception as e:
             return CapabilityResult.fail("file_tools", skill_name, type(e).__name__, str(e), duration_ms=(_time.monotonic() - _t0) * 1000)
 

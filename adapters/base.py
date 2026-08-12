@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
@@ -33,6 +34,31 @@ class AdapterResponse:
     usage: Dict[str, int] = field(default_factory=dict)  # prompt/completion/total tokens
     finish_reason: str = "stop"
     metadata: Dict[str, Any] = field(default_factory=dict)
+
+
+MAX_INCREMENTING_KEYS = 16
+
+
+def collect_api_keys(env_prefix: str) -> List[str]:
+    """Collect ``{prefix}``, ``{prefix}_2``, ``{prefix}_3`` ... keys from env.
+
+    Scans incrementally so adding a new numbered key (e.g. API_KEY_4) requires
+    no code change. Stops scanning after the first gap or ``MAX_INCREMENTING_KEYS``.
+    Empty / placeholder values are skipped.
+    """
+    keys: List[str] = []
+    seen: set = set()
+    for idx in range(1, MAX_INCREMENTING_KEYS + 1):
+        var = env_prefix if idx == 1 else f"{env_prefix}_{idx}"
+        val = os.environ.get(var)
+        if not val or not val.strip():
+            break
+        val = val.strip()
+        if "PLACEHOLDER" in val or val in seen:
+            continue
+        seen.add(val)
+        keys.append(val)
+    return keys
 
 
 class BaseAdapter(ABC):

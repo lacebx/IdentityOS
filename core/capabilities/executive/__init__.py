@@ -106,7 +106,7 @@ class ExecutiveCapability(Capability):
                 return CapabilityResult.fail("executive", skill_name, "unknown_skill", f"Unknown skill: {skill_name}")
             identity_id = params.pop("identity_id", None) or params.pop("identity", None) or ""
             data = handler(identity_id, **params)
-            return CapabilityResult.ok("executive", skill_name, data, source="executive runtime", duration_ms=(_time.monotonic() - _t0) * 1000)
+            return CapabilityResult.from_data("executive", skill_name, data, source="executive runtime", duration_ms=(_time.monotonic() - _t0) * 1000)
         except Exception as e:
             return CapabilityResult.fail("executive", skill_name, type(e).__name__, str(e), duration_ms=(_time.monotonic() - _t0) * 1000)
 
