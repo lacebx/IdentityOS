@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 import os
 import queue
@@ -79,7 +80,7 @@ class _StageTimer:
 class SessionMode(str, Enum):
     """
     Session mode determines how identity evolution is handled.
-    Modes are **detected** from user input, not hard-coded per identity.
+    Modes are detected from user input, not hard-coded per identity.
 
     NORMAL       — Identity evolves as usual. Mutations are processed against
                    the canonical FactStore.
@@ -95,6 +96,7 @@ class SessionMode(str, Enum):
     their identity state in a per-session FactStore fork. When the same
     session_id is used later, the isolated context is restored.
     """
+
     NORMAL = "normal"
     ROLEPLAY = "roleplay"
     SIMULATION = "simulation"
@@ -111,9 +113,10 @@ class EmotionState:
     This is stored SEPARATELY from identity facts — emotions are ephemeral
     and should NOT bleed into identity evolution.
     """
+
     primary_emotion: str = "neutral"
-    intensity: float = 0.0          # 0.0 – 1.0
-    triggered_by: str = ""           # what in the input triggered this
+    intensity: float = 0.0
+    triggered_by: str = ""
     timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
     def to_prompt_block(self) -> str:
@@ -126,7 +129,6 @@ class EmotionState:
         )
 
 
-# Simple emotion extraction patterns
 _EMOTION_PATTERNS: Dict[str, List[str]] = {
     "happy": ["happy", "joy", "glad", "wonderful", "great", "excited", "love", "amazing"],
     "sad": ["sad", "unhappy", "depressed", "lonely", "heartbroken", "grief", "crying", "miserable"],
@@ -166,7 +168,6 @@ def extract_emotion(user_input: str) -> EmotionState:
     )
 
 
-# Patterns that indicate identity rename attempts
 _IDENTITY_RENAME_PATTERNS = re.compile(
     r"(?:your\s+name\s+(?:is|should\s+be|will\s+be|ought\s+to\s+be)\s+(.+?)(?:[.,!?]|$))"
     r"|(?:I\s+(?:will\s+)?(?:call|rename|name)\s+you\s+(.+?)(?:[.,!?]|$))"
@@ -187,7 +188,6 @@ def detect_identity_rename_attempt(user_input: str) -> Optional[str]:
     return None
 
 
-# Session mode detection patterns
 _ROLEPLAY_TRIGGERS = re.compile(
     r"(?:let'?s\s+role\s*play|pretend(?:\s+that)?|act\s+as)"
     r"(?:[.\s]*(?:you\s+are|you'?re))?"
@@ -254,6 +254,7 @@ def _get_roleplay_framing(mode: SessionMode, user_input: str) -> str:
 @dataclass
 class InteractionRequest:
     """A single interaction directed at a loaded identity."""
+
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     identity_id: str = ""
     user_input: str = ""
@@ -265,6 +266,7 @@ class InteractionRequest:
 @dataclass
 class InteractionResponse:
     """The result of processing an interaction through the runtime."""
+
     request_id: str
     identity_id: str
     output: str
@@ -315,35 +317,30 @@ class IdentityRuntime:
         self.adapter = adapter
         self._sessions: Dict[str, str] = {}
         self._session_modes: Dict[str, SessionMode] = {}
-        # Per-session isolated FactStores for roleplay/simulation/dream
         self._session_fact_stores: Dict[str, FactStore] = {}
         self._storage = storage
 
-        # Migration framework — upgrades persisted data on load
         self._migration_registry = MigrationRegistry()
         register_core_migrations(self._migration_registry)
         self._migration_manager = MigrationManager(
-            self._migration_registry, storage=self._storage,
+            self._migration_registry,
+            storage=self._storage,
         )
 
-        # Pluggable Capability System — installed per identity
         self.capability_registry = PluginRegistry(storage=self._storage)
-
-        # Event Bus — wired into the pipeline but subscribers are opt-in
         self.event_bus = EventBus()
 
-        # Prometheus — autonomous capability evolution system
         self.prometheus = PrometheusEngine(
             capability_registry=self.capability_registry,
             storage=self._storage,
         )
 
-        # Executive Runtime — persistent task engine for committed goals
         self.executive = None
         if self._storage is not None:
             try:
                 from core.executive import ExecutiveRuntime
                 from core.executive.engine import register_executive
+
                 self.executive = ExecutiveRuntime(
                     storage=self._storage,
                     capability_registry=self.capability_registry,
@@ -352,8 +349,6 @@ class IdentityRuntime:
             except Exception:
                 self.executive = None
 
-        # Deferred post-response work (eval/memory/mutation/persist).
-        # Single worker keeps ordering; flush_post_process() waits for drain.
         self._post_process_queue: queue.Queue = queue.Queue()
         self._post_process_worker = threading.Thread(
             target=self._post_process_loop,
@@ -381,14 +376,11 @@ class IdentityRuntime:
         self._post_process_queue.put(fn)
 
     def flush_post_process(self, timeout: Optional[float] = 30.0) -> None:
-        """Block until all queued post-process jobs finish.
-
-        Called at the start of process() so the next turn sees prior
-        mutations/memories, and by tests that assert on persisted state.
-        """
+        """Block until all queued post-process jobs finish."""
         if timeout is None:
             self._post_process_queue.join()
             return
+
         deadline = time.monotonic() + timeout
         while self._post_process_queue.unfinished_tasks:
             remaining = deadline - time.monotonic()
@@ -424,6 +416,7 @@ class IdentityRuntime:
         cached = self.identity_store.get(identity_id)
         if cached:
             return cached
+
         if self._storage:
             snapshot = self._storage.load(identity_id, "latest_snapshot")
             if not snapshot:
@@ -431,13 +424,14 @@ class IdentityRuntime:
             if snapshot:
                 identity_data = snapshot.get("modules", {}).get("identity", snapshot)
                 if isinstance(identity_data.get("created_at"), (int, float)):
-                    from datetime import datetime, timezone
                     identity_data["created_at"] = (
                         datetime.fromtimestamp(identity_data["created_at"], tz=timezone.utc)
                         .isoformat()
                     )
                 identity_data = self._migration_manager.migrate_blob_in_place(
-                    identity_data, identity_id=identity_id, namespace="identity_spec",
+                    identity_data,
+                    identity_id=identity_id,
+                    namespace="identity_spec",
                 )
                 spec = IdentitySpec.from_dict(identity_data)
                 self.identity_store.save(spec)
@@ -448,6 +442,7 @@ class IdentityRuntime:
                 self._load_fact_store(spec.id)
                 self._load_persisted_memories(spec.id)
                 return spec
+
         return None
 
     def register(self, identity: IdentitySpec) -> None:
@@ -455,17 +450,18 @@ class IdentityRuntime:
         self.identity_store.save(identity)
         self.timeline_registry.create(identity.id)
         self._fact_stores[identity.id] = FactStore()
+
         if self._storage:
             snapshot_data = identity.to_dict()
             self._storage.save(identity.id, "identity_spec", snapshot_data)
-            # Only write latest_snapshot if it doesn't exist yet (first-time setup).
-            # SnapshotManager.capture() owns this namespace after initial creation.
+
             if not self._storage.load(identity.id, "latest_snapshot"):
                 self._storage.save(
                     identity.id,
                     "latest_snapshot",
                     {"modules": {"identity": snapshot_data}},
                 )
+
         self._emit(
             EventType.IDENTITY_LOADED,
             identity_id=identity.id,
@@ -482,36 +478,19 @@ class IdentityRuntime:
                     pass
 
     def _build_tool_executor(self, identity: Any) -> tuple[Any, dict]:
-        """Build the native tool-call surface (Step 4).
-
-        Returns ``(executor, generate_kwargs)``.  Only installed skills are
-        exposed as tools, and every tool result is produced by the runtime —
-        the model requests actions, it never declares them successful.
         """
-        try:
-            from core.executive import ActionExecutor
-            executor = ActionExecutor(self.capability_registry, identity.id)
-            def execute_tool(name: str, args: dict) -> str:
-                ar = executor.execute(name, **args) if isinstance(args, dict) else executor.execute(name)
-                try:
-                    block = ar.to_context_block()
-                except Exception:
-                    block = f"Status: {getattr(ar, 'status', 'unknown')}. Error: {getattr(ar, 'error', '')}"
-                return block
-            return (executor, {"tools": executor.tool_defs(), "execute_tool": execute_tool})
-        except Exception:
-            return (None, {})
+        Compatibility stub.
+
+        The runtime now builds its native tool surface directly inside process().
+        This remains only so older callers do not crash.
+        """
+        return None, {}
 
     def load_persisted(self) -> int:
-        """Load all identities from the persistence backend into the in-memory store.
-
-        Also loads persisted memories for each identity.
-        Runs any pending schema migrations on persisted data.
-
-        Returns the number of identities loaded.
-        """
+        """Load all identities from the persistence backend into the in-memory store."""
         if not self._storage:
             return 0
+
         self._migration_manager.migrate_all()
         ids = self._storage.list_identities()
         count = 0
@@ -521,11 +500,10 @@ class IdentityRuntime:
         return count
 
     def _load_persisted_memories(self, identity_id: str) -> int:
-        """Load persisted memories for an identity into the in-memory store.
-        Skips duplicates (by fragment ID) to prevent memory duplication on reload.
-        """
+        """Load persisted memories for an identity into the in-memory store."""
         if not self._storage:
             return 0
+
         mem_dicts = self._storage.load_memories(identity_id)
         count = 0
         for d in mem_dicts:
@@ -555,9 +533,11 @@ class IdentityRuntime:
     def _persist_timeline(self, identity_id: str) -> None:
         if not self._storage:
             return
+
         timeline = self.timeline_registry.get(identity_id)
         if not timeline:
             return
+
         try:
             events_data = []
             for event in timeline.events():
@@ -573,25 +553,32 @@ class IdentityRuntime:
                     "metadata": event.metadata,
                 }
                 events_data.append(d)
-            self._storage.save(identity_id, "timeline", {
-                "events": events_data,
-                "created_at": timeline.created_at.isoformat(),
-            })
+
+            self._storage.save(
+                identity_id,
+                "timeline",
+                {
+                    "events": events_data,
+                    "created_at": timeline.created_at.isoformat(),
+                },
+            )
         except Exception:
             pass
 
     def _load_timeline(self, identity_id: str) -> None:
         if not self._storage:
             return
+
         try:
             data = self._storage.load(identity_id, "timeline")
             if not data:
                 return
-            from datetime import datetime
+
             timeline = self.timeline_registry.get_or_create(identity_id)
             for ed in data.get("events", []):
                 if ed.get("event_type") == "creation":
                     continue
+
                 event = LifeEvent(
                     id=ed["id"],
                     identity_id=ed["identity_id"],
@@ -614,6 +601,7 @@ class IdentityRuntime:
     def _persist_relationships(self, identity_id: str) -> None:
         if not self._storage:
             return
+
         try:
             edges = self.identity_graph.get_relationships(identity_id)
             edges_data = []
@@ -634,6 +622,7 @@ class IdentityRuntime:
                     "interaction_count": e.interaction_count,
                     "metadata": e.metadata,
                 })
+
             self._storage.save(identity_id, "relationships", {"edges": edges_data})
         except Exception:
             pass
@@ -641,10 +630,12 @@ class IdentityRuntime:
     def _load_relationships(self, identity_id: str) -> None:
         if not self._storage:
             return
+
         try:
             data = self._storage.load(identity_id, "relationships")
             if not data:
                 return
+
             for ed in data.get("edges", []):
                 self.identity_graph.connect(
                     source_id=ed["source_id"],
@@ -671,6 +662,7 @@ class IdentityRuntime:
     def _persist_identity(self, identity: IdentitySpec) -> None:
         if not self._storage:
             return
+
         try:
             snapshot_data = identity.to_dict()
             self._storage.save(identity.id, "identity_spec", snapshot_data)
@@ -683,36 +675,39 @@ class IdentityRuntime:
             pass
 
     def _migrate_legacy_fields_to_fact_store(
-        self, identity: IdentitySpec, fact_store: FactStore,
+        self,
+        identity: IdentitySpec,
+        fact_store: FactStore,
     ) -> int:
         """
         One-time migration: copy any data from legacy IdentitySpec fields
-        (preferences, beliefs, mutation_history, etc.) into the FactStore.
-
-        This ensures old identities loaded from disk aren't silently orphaned.
-        Returns the number of facts migrated.
+        into the FactStore.
         """
         migrated = 0
-        # Legacy snapshot may have had a 'preferences' dict embedded in the
-        # identity spec data. We check via storage directly.
+
         if not self._storage:
             return 0
+
         try:
             raw = self._storage.load(identity.id, "identity_spec")
             if not raw:
                 raw = self._storage.load_latest(identity.id)
             if not raw:
                 return 0
+
             if isinstance(raw, dict) and "modules" in raw:
                 raw = raw["modules"].get("identity", raw)
+
             from core.identity_facts import FactSource
 
             legacy_prefs = raw.get("preferences", {}) if isinstance(raw, dict) else {}
             for key, value in legacy_prefs.items():
-                field = f"preferences.{key}"
-                if not fact_store.find(field):
+                field_name = f"preferences.{key}"
+                if not fact_store.find(field_name):
                     fact_store.merge_or_reinforce(
-                        field=field, value=value, confidence=0.7,
+                        field=field_name,
+                        value=value,
+                        confidence=0.7,
                         reasons=["Migrated from legacy identity spec"],
                         source=FactSource.IMPORTED,
                     )
@@ -720,10 +715,12 @@ class IdentityRuntime:
 
             legacy_beliefs = raw.get("beliefs", {}) if isinstance(raw, dict) else {}
             for key, value in legacy_beliefs.items():
-                field = f"beliefs.{key}"
-                if not fact_store.find(field):
+                field_name = f"beliefs.{key}"
+                if not fact_store.find(field_name):
                     fact_store.merge_or_reinforce(
-                        field=field, value=value, confidence=0.7,
+                        field=field_name,
+                        value=value,
+                        confidence=0.7,
                         reasons=["Migrated from legacy identity spec"],
                         source=FactSource.IMPORTED,
                     )
@@ -734,26 +731,30 @@ class IdentityRuntime:
                 name = t_data.get("name", "unknown")
                 score = t_data.get("score", 0.5)
                 desc = t_data.get("description", "")
-                field = f"traits.{name}"
-                if not fact_store.find(field):
+                field_name = f"traits.{name}"
+                if not fact_store.find(field_name):
                     fact_store.merge_or_reinforce(
-                        field=field, value={"score": score, "description": desc},
-                        confidence=0.7, reasons=["Migrated from legacy traits"],
+                        field=field_name,
+                        value={"score": score, "description": desc},
+                        confidence=0.7,
+                        reasons=["Migrated from legacy traits"],
                         source=FactSource.IMPORTED,
                     )
                     migrated += 1
         except Exception:
             pass
+
         return migrated
 
     def _load_goals(self, identity_id: str) -> None:
         if not self._storage:
             return
+
         try:
             data = self._storage.load(identity_id, "goals")
             if not data:
                 return
-            from core.goals import GoalEngine
+
             loaded = GoalEngine.from_dict(data)
             for g in loaded.all():
                 self.goal_engine.add(g)
@@ -761,12 +762,11 @@ class IdentityRuntime:
             pass
 
     def _load_fact_store(self, identity_id: str) -> None:
-        """Load the FactStore for an identity from storage.
-        Also runs one-time migration from legacy IdentitySpec fields.
-        """
+        """Load the FactStore for an identity from storage."""
         if not self._storage:
             self._fact_stores[identity_id] = FactStore()
             return
+
         try:
             data = self._storage.load(identity_id, "fact_store")
             if data and "facts" in data:
@@ -776,7 +776,6 @@ class IdentityRuntime:
         except Exception:
             self._fact_stores[identity_id] = FactStore()
 
-        # One-time migration from legacy fields
         identity = self.identity_store.get(identity_id)
         store = self._fact_stores.get(identity_id)
         if identity and store and len(store) == 0:
@@ -788,9 +787,11 @@ class IdentityRuntime:
         """Persist the FactStore for an identity."""
         if not self._storage:
             return
+
         store = self._fact_stores.get(identity_id)
         if store is None:
             return
+
         try:
             self._storage.save(identity_id, "fact_store", store.to_dict_full())
         except Exception:
@@ -803,22 +804,6 @@ class IdentityRuntime:
     def inspect_identity(self, identity_id: str) -> Dict[str, Any]:
         """
         Return a comprehensive inspection of the identity's current state.
-
-        This is the primary introspection endpoint. It returns everything:
-        - Identity constitution (generated)
-        - Canonical facts from FactStore
-        - Stability and age metrics
-        - Evidence graph summary
-        - Fact revisions
-        - Recent reinforcements
-        - Pending/rejected mutations
-        - Contradiction log
-        - Timeline events
-        - Goals
-        - Relationships
-        - Communication style
-        - User knowledge
-        - Runtime statistics
         """
         identity = self.identity_store.get(identity_id)
         if identity is None:
@@ -826,14 +811,16 @@ class IdentityRuntime:
 
         fact_store = self._fact_stores.get(identity_id)
         tl = self.timeline_registry.get(identity_id)
-        age_delta = (datetime.now(timezone.utc).replace(tzinfo=None)
-                     - identity.created_at.replace(tzinfo=None)) if identity.created_at else None
+        age_delta = (
+            datetime.now(timezone.utc).replace(tzinfo=None)
+            - identity.created_at.replace(tzinfo=None)
+        ) if identity.created_at else None
         age_days = age_delta.days if age_delta else 0
 
-        # Build constitution
         constitution = ""
         try:
             from core.constitution import build_constitution
+
             constitution = build_constitution(
                 identity=identity,
                 fact_store=fact_store,
@@ -842,15 +829,14 @@ class IdentityRuntime:
         except Exception:
             constitution = "(constitution generation failed)"
 
-        # Fact stats
         all_facts = fact_store.all() if fact_store else []
         active_facts = [f for f in all_facts if f.status.value == "active"] if fact_store else []
 
-        # Evidence summary
         evidence_summary = {}
         try:
             from core.evidence_graph import EvidenceGraph
-            evidence_graph = getattr(self, '_evidence_graphs', {}).get(identity_id)
+
+            evidence_graph = getattr(self, "_evidence_graphs", {}).get(identity_id)
             if evidence_graph:
                 all_evidence = list(evidence_graph._nodes.values())
                 evidence_summary = {
@@ -863,60 +849,68 @@ class IdentityRuntime:
         except Exception:
             pass
 
-        # Contradiction log
         contradictions = []
         try:
             contradictions = self.mutation_engine._contradiction_engine.conflict_log()
         except Exception:
             pass
 
-        # Pending and rejected mutations
         pending = []
         rejected = []
         for p in self.mutation_engine.proposal_history():
             if p.status.value == "proposed":
                 pending.append({
-                    "field": p.field, "new_value": p.new_value,
-                    "confidence": p.confidence, "reason": p.reason,
+                    "field": p.field,
+                    "new_value": p.new_value,
+                    "confidence": p.confidence,
+                    "reason": p.reason,
                 })
             elif p.status.value == "rejected":
                 rejected.append({
-                    "field": p.field, "new_value": p.new_value,
+                    "field": p.field,
+                    "new_value": p.new_value,
                     "reason": p.rejection_reason,
                 })
 
-        # Timeline events
         timeline_events = []
         if tl:
             timeline_events = [
-                {"type": e.event_type.value, "title": e.title,
-                 "description": e.description, "timestamp": e.occurred_at.isoformat() if hasattr(e, 'occurred_at') and hasattr(e.occurred_at, 'isoformat') else str(getattr(e, 'occurred_at', ''))}
+                {
+                    "type": e.event_type.value,
+                    "title": e.title,
+                    "description": e.description,
+                    "timestamp": e.occurred_at.isoformat()
+                    if hasattr(e, "occurred_at") and hasattr(e.occurred_at, "isoformat")
+                    else str(getattr(e, "occurred_at", "")),
+                }
                 for e in tl.events()
             ]
 
-        # Goals
         goals_data = []
         try:
             for g in self.goal_engine.list_by_scope("persistent"):
                 goals_data.append({
-                    "id": g.id, "title": g.title, "status": g.status.value,
-                    "priority": g.priority.value, "progress": g.progress,
+                    "id": g.id,
+                    "title": g.title,
+                    "status": g.status.value,
+                    "priority": g.priority.value,
+                    "progress": g.progress,
                 })
         except Exception:
             pass
 
-        # Relationships
         relationships = []
         try:
             for edge in self.identity_graph.get_relationships(identity_id):
                 relationships.append({
-                    "target": edge.target_id, "trust": edge.trust_level.value,
-                    "strength": edge.strength, "tags": edge.tags,
+                    "target": edge.target_id,
+                    "trust": edge.trust_level.value,
+                    "strength": edge.strength,
+                    "tags": edge.tags,
                 })
         except Exception:
             pass
 
-        # Runtime stats
         event_log_count = len(fact_store.replay()) if fact_store else 0
         runtime_stats = {
             "interaction_count": len(self.mutation_engine.proposal_history()),
@@ -929,13 +923,13 @@ class IdentityRuntime:
             "memory_count": len(self.memory_store.by_identity(identity_id)) if identity_id else 0,
         }
 
-        # Recent reinforcements
         recent_reinforcements = []
         if fact_store:
             for f in all_facts:
                 if f.times_reinforced > 0:
                     recent_reinforcements.append({
-                        "field": f.field, "value": f.value,
+                        "field": f.field,
+                        "value": f.value,
                         "times_reinforced": f.times_reinforced,
                         "confidence": f.confidence,
                         "last_confirmed": f.last_confirmed,
@@ -980,8 +974,12 @@ class IdentityRuntime:
                 {
                     "field": f.field,
                     "versions": [
-                        {"value": v.value, "confidence": v.confidence,
-                         "status": v.status.value, "first_seen": v.first_seen}
+                        {
+                            "value": v.value,
+                            "confidence": v.confidence,
+                            "status": v.status.value,
+                            "first_seen": v.first_seen,
+                        }
                         for v in fact_store.all_versions_for_field(f.field)
                     ] if fact_store else [],
                 }
@@ -998,13 +996,14 @@ class IdentityRuntime:
             "runtime_stats": runtime_stats,
         }
 
-    def get_fact(self, identity_id: str, field: str) -> Dict[str, Any]:
+    def get_fact(self, identity_id: str, field_name: str) -> Dict[str, Any]:
         """Query a specific fact with full provenance."""
         identity = self.identity_store.get(identity_id)
         if identity is None:
             return {"error": f"Identity '{identity_id}' not found"}
+
         return identity.explain_fact(
-            field=field,
+            field=field_name,
             fact_store=self._fact_stores.get(identity_id),
         )
 
@@ -1013,8 +1012,10 @@ class IdentityRuntime:
         identity = self.identity_store.get(identity_id)
         if identity is None:
             return f"Identity '{identity_id}' not found"
+
         try:
             from core.constitution import build_constitution
+
             return build_constitution(
                 identity=identity,
                 fact_store=self._fact_stores.get(identity_id),
@@ -1031,11 +1032,7 @@ class IdentityRuntime:
         return [e.to_dict() for e in fact_store.replay()]
 
     def _get_user_profile(self, identity_id: str) -> UserProfile:
-        """Get or create a UserProfile for the given identity.
-
-        User profiles are shared across all sessions for the same identity,
-        so facts learned in one app are available in another.
-        """
+        """Get or create a UserProfile for the given identity."""
         key = identity_id
         if key not in self._user_profiles:
             self._user_profiles[key] = UserProfile(user_id=key)
@@ -1046,6 +1043,7 @@ class IdentityRuntime:
         """Load a persisted user profile from storage."""
         if not self._storage:
             return
+
         try:
             data = self._storage.load(identity_id, "_user_profile")
             if data:
@@ -1057,9 +1055,11 @@ class IdentityRuntime:
         """Persist a user profile keyed by identity."""
         if not self._storage:
             return
+
         profile = self._user_profiles.get(identity_id)
         if not profile:
             return
+
         try:
             self._storage.save(identity_id, "_user_profile", profile.to_dict())
         except Exception:
@@ -1072,16 +1072,7 @@ class IdentityRuntime:
         identity_id: str,
         session_id: Optional[str] = None,
     ) -> Optional[MemoryFragment]:
-        """Classify user input and store a SEMANTIC memory if warranted.
-
-        Only stores user SELF-disclosures — filter out:
-        - Questions (user asking, not disclosing)
-        - User corrections about the assistant's identity
-        - Simple acknowledgments
-
-        User facts about themselves go into UserProfile, not MemoryStore.
-        """
-        # ── Step 1: Extract user profile facts first (always) ──
+        """Classify user input and store a SEMANTIC memory if warranted."""
         user_facts = extract_user_facts(user_input)
         if user_facts:
             profile = self._get_user_profile(identity_id)
@@ -1094,22 +1085,18 @@ class IdentityRuntime:
                 )
             self._save_user_profile(identity_id)
 
-        # ── Step 2: Check if the input is worth remembering as semantic fact ──
         if not is_worth_remembering(user_input, output):
             return None
+
         mem_type_str = classify_memory_type(user_input, output)
         if mem_type_str == "general":
             return None
 
-        # Extract key tokens from the input for dedup matching
         input_lower = user_input.lower()
         key_tokens = {w for w in input_lower.split() if len(w) > 3}
 
-        # Look for an existing semantic memory of the same type with overlapping content
         existing = self._find_semantic_match(identity_id, mem_type_str, key_tokens, input_lower)
-
         if existing is not None:
-            # Evolve existing fact
             existing.content = user_input
             existing.importance = min(1.0, existing.importance + 0.1)
             existing.last_accessed = datetime.now(timezone.utc).replace(tzinfo=None)
@@ -1143,10 +1130,12 @@ class IdentityRuntime:
                 continue
             if mem_type not in frag.tags:
                 continue
+
             existing_lower = frag.content.lower()
             overlap = key_tokens & {w for w in existing_lower.split() if len(w) > 3}
             if len(overlap) >= 2:
                 return frag
+
         return None
 
     def list_identities(self) -> List[IdentitySpec]:
@@ -1165,23 +1154,20 @@ class IdentityRuntime:
     # ------------------------------------------------------------------
 
     def start_session(
-        self, identity_id: str, session_id: Optional[str] = None,
+        self,
+        identity_id: str,
+        session_id: Optional[str] = None,
         mode: Optional[SessionMode] = None,
         user_input: str = "",
     ) -> str:
-        """Start a new session for an identity. Returns session_id.
-        
-        If the session already exists (same session_id), its mode is preserved.
-        If no mode is given, it is detected from user_input.
-        """
+        """Start a new session for an identity. Returns session_id."""
         sid = session_id or str(uuid.uuid4())
-        existing = self._sessions.get(sid)
         self._sessions[sid] = identity_id
 
         if sid not in self._session_modes:
             detected = mode or (detect_session_mode(user_input) if user_input else SessionMode.NORMAL)
             self._session_modes[sid] = detected
-            # If isolated session, fork the FactStore
+
             if detected != SessionMode.NORMAL:
                 canonical = self._fact_stores.get(identity_id)
                 if canonical:
@@ -1200,10 +1186,12 @@ class IdentityRuntime:
     def end_session(self, session_id: str) -> None:
         identity_id = self._sessions.pop(session_id, None)
         mode = self._session_modes.pop(session_id, None)
+
         if mode != SessionMode.NORMAL:
-            # Persist roleplay context for this session
             self._save_session_fact_store(session_id)
+
         self._session_fact_stores.pop(session_id, None)
+
         if identity_id:
             self._emit(
                 EventType.SESSION_ENDED,
@@ -1216,15 +1204,12 @@ class IdentityRuntime:
         return self._session_modes.get(session_id, SessionMode.NORMAL)
 
     def _get_fact_store_for_session(
-        self, identity_id: str, session_id: Optional[str] = None
+        self,
+        identity_id: str,
+        session_id: Optional[str] = None,
     ) -> FactStore:
-        """Return the appropriate FactStore for a session.
-        
-        NORMAL sessions → canonical identity FactStore.
-        Isolated sessions (ROLEPLAY/SIMULATION/DREAM/HYPOTHETICAL) → per-session fork.
-        """
+        """Return the appropriate FactStore for a session."""
         if session_id and self._session_modes.get(session_id, SessionMode.NORMAL) != SessionMode.NORMAL:
-            # Ensure session fork exists
             if session_id not in self._session_fact_stores:
                 canonical = self._fact_stores.get(identity_id)
                 if canonical:
@@ -1232,12 +1217,14 @@ class IdentityRuntime:
                 else:
                     self._session_fact_stores[session_id] = FactStore()
             return self._session_fact_stores[session_id]
+
         return self._fact_stores.get(identity_id, FactStore())
 
     def _save_session_fact_store(self, session_id: str) -> None:
         """Persist isolated FactStore for a session."""
         if not self._storage:
             return
+
         fs = self._session_fact_stores.get(session_id)
         if fs:
             try:
@@ -1249,12 +1236,14 @@ class IdentityRuntime:
         """Load an isolated FactStore for a session."""
         if not self._storage:
             return None
+
         try:
             data = self._storage.load(f"session_{session_id}", "fact_store")
             if data and "facts" in data:
                 return FactStore.from_dict_full(data)
         except Exception:
             pass
+
         return None
 
     # ------------------------------------------------------------------
@@ -1273,18 +1262,15 @@ class IdentityRuntime:
         1. Resolve identity
         1b. Detect session mode & identity rename attempts
         2. Policy check on input
-        2b. Executive recover/commit (execution runs on the scheduler)
-        2c. Prometheus pre-check (only evolves when a real gap is detected)
-        3. Compose context (+ capability evidence when required)
-        4. Invoke adapter (LLM call)
-        4b. Prometheus post-check (only when response indicates a gap)
+        2b. Executive recover/commit
+        2c. Prometheus pre-check
+        3. Compose context + native tool surface
+        4. Invoke adapter with native tools
+        4b. Prometheus post-check
         5. Policy check on output
         6+. Evaluate / memory / mutation / timeline / relationships — deferred
-
-        Events are emitted at each stage for subscribers on the EventBus.
         """
         timer = _StageTimer()
-        # Ensure prior turn's deferred persistence is visible to this turn.
         self.flush_post_process()
 
         # Stage 1: Resolve identity
@@ -1309,15 +1295,16 @@ class IdentityRuntime:
         if session_id not in self._session_modes:
             mode = detect_session_mode(request.user_input)
             self._session_modes[session_id] = mode
+
             if mode != SessionMode.NORMAL:
                 canonical = self._fact_stores.get(identity.id)
                 if canonical:
                     self._session_fact_stores[session_id] = canonical.fork()
                 else:
                     self._session_fact_stores[session_id] = FactStore()
+
         session_mode = self._session_modes.get(session_id, SessionMode.NORMAL)
 
-        # Identity integrity gate: block rename attempts pre-LLM
         rename_attempt = detect_identity_rename_attempt(request.user_input)
         if rename_attempt and identity.is_field_locked("name"):
             return InteractionResponse(
@@ -1327,14 +1314,15 @@ class IdentityRuntime:
                 policy_passed=True,
             )
 
-        # Emotion extraction (separate from identity evolution)
         emotion_state = extract_emotion(request.user_input)
 
         # Stage 2: Input policy gate
         timer.start("policy")
         input_policy = self.policy_engine.evaluate(
-            request.user_input, scope=PolicyScope.INPUT
+            request.user_input,
+            scope=PolicyScope.INPUT,
         )
+
         self._emit(
             EventType.POLICY_TRIGGERED,
             identity_id=identity.id,
@@ -1357,31 +1345,31 @@ class IdentityRuntime:
         timer.end("policy")
 
         # Stage 2b: Executive recovery + optional task commit.
-        # Long-running execution is owned by the Executive scheduler — ordinary
-        # chat must NOT block on a synchronous multi-tick execution loop.
         timer.start("executive")
         _executive_state_block = ""
+
         if self.executive is not None:
             self._ensure_executive_capability(identity.id)
+
             try:
                 recovered = self.executive.recover(identity.id)
                 self.executive._ctx(identity.id, runtime=self)
+
                 if (recovered or self.executive.active_tasks(identity.id)) and self.executive.scheduler:
                     self.executive.scheduler.start()
+
                 _executive_state_block = self.executive.render_state(identity.id)
             except Exception:
                 _executive_state_block = ""
 
-            # Automatic Need Detection -> Task Creation.
-            # Capability-acquisition goals are committed before the LLM replies
-            # so the answer reflects real task state. Execution continues on
-            # the background scheduler (no synchronous tick loop here).
             try:
                 from core.executive.workflow import extract_capability_name, is_acquisition_goal
+
                 _acq_cap = extract_capability_name(sanitized_input)
                 if _acq_cap and is_acquisition_goal(sanitized_input):
                     _existing = self.executive.active_tasks(identity.id)
                     _recent_terminal = []
+
                     try:
                         for _h in self.executive.history(identity.id):
                             _ht = self.executive.get_task(identity.id, _h.get("task_id", ""))
@@ -1389,6 +1377,7 @@ class IdentityRuntime:
                                 _recent_terminal.append(_ht)
                     except Exception:
                         _recent_terminal = []
+
                     _all_tasks = list(_existing) + _recent_terminal
                     _dupe = any(
                         t is not None and (
@@ -1397,6 +1386,7 @@ class IdentityRuntime:
                         )
                         for t in _all_tasks
                     )
+
                     if not _dupe:
                         self.executive.create_acquisition_task(
                             identity_id=identity.id,
@@ -1406,42 +1396,168 @@ class IdentityRuntime:
                         )
                         if self.executive.scheduler:
                             self.executive.scheduler.start()
+
                     _executive_state_block = self.executive.render_state(identity.id)
             except Exception:
                 pass
+
         timer.end("executive")
 
-        # Stage 2c: Prometheus pre-check — only runs the evolution pipeline
-        # when detect_need_from_input finds a real capability gap.
+        # Stage 2c: Prometheus pre-check
         timer.start("prometheus")
         _prometheus_evolved = False
+
         _pre_evolve_result = self.prometheus.pre_check_and_evolve(
             user_input=sanitized_input,
             identity_id=identity.id,
             runtime=self,
             session_id=request.session_id,
         )
+
         if _pre_evolve_result and _pre_evolve_result.acquired:
             _prometheus_evolved = True
+
         timer.end("prometheus")
 
-        # Stage 3: Compose context
-        timer.start("planner")
+        # Stage 3: Native tool surface + context composition
+        timer.start("tools")
+
         user_profile = self._get_user_profile(identity.id)
         session_fact_store = self._get_fact_store_for_session(identity.id, session_id)
         cap_prompts = self.capability_registry.all_prompts(identity.id)
 
-        # Route user intent through installed capabilities (the Planner layer)
-        _router = __import__("core.planner", fromlist=["SkillRouter"]).SkillRouter
-        _skill_router = _router(self.capability_registry, identity.id)
-        _evidence = _skill_router.route(sanitized_input)
-        _report = _evidence.report()
-        _evidence_results = [r.to_evidence_dict() for r in _evidence._results] if hasattr(_evidence, '_results') else []
-        _has_evidence = bool(_report.facts or _report.failures)
-        _history = _evidence.call_history
-        timer.end("planner")
+        _tool_defs: List[Dict[str, Any]] = []
+        _tool_map: Dict[str, tuple[Any, str]] = {}
+        _evidence_results: List[Dict[str, Any]] = []
+
+        for cap in self.capability_registry.list(identity.id):
+            cap_id = getattr(cap, "id", "unknown")
+
+            for skill in cap.skills() or []:
+                skill_name = str(getattr(skill, "name", "") or "")
+                if not skill_name:
+                    continue
+
+                base_name = re.sub(r"[^A-Za-z0-9_-]", "__", skill_name)
+                if not base_name:
+                    base_name = "tool"
+
+                candidate = base_name
+                suffix = 2
+                while candidate in _tool_map:
+                    candidate = f"{base_name}_{suffix}"
+                    suffix += 1
+
+                _tool_map[candidate] = (cap, skill_name)
+
+                _tool_defs.append({
+                    "type": "function",
+                    "function": {
+                        "name": candidate,
+                        "description": getattr(skill, "description", "") or f"Execute {skill_name}",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "task": {
+                                    "type": "string",
+                                    "description": "The user's request or context for this tool.",
+                                },
+                                "params": {
+                                    "type": "object",
+                                    "description": "Specific parameters required by the skill.",
+                                    "additionalProperties": True,
+                                },
+                            },
+                            "additionalProperties": True,
+                        },
+                    },
+                })
+
+        def _execute_tool_call(func_name: str, args: Any) -> str:
+            t0 = time.monotonic()
+
+            if isinstance(args, str):
+                try:
+                    args = json.loads(args)
+                except Exception:
+                    args = {}
+
+            if not isinstance(args, dict):
+                args = {}
+
+            entry = _tool_map.get(func_name)
+            if not entry:
+                return json.dumps({"error": f"Unknown tool: {func_name}"})
+
+            cap, skill_name = entry
+
+            params = args.get("params", {})
+            if not isinstance(params, dict):
+                params = {}
+
+            for k, v in args.items():
+                if k not in ("task", "params") and k not in params:
+                    params[k] = v
+
+            try:
+                result = cap.call(skill_name, **params)
+                duration_ms = (time.monotonic() - t0) * 1000
+
+                if hasattr(result, "success"):
+                    success = bool(getattr(result, "success", False))
+                else:
+                    success = result is not None
+
+                data = getattr(result, "data", getattr(result, "output", result))
+                error = getattr(result, "error", None)
+
+                if error and success:
+                    success = False
+
+                if isinstance(error, dict):
+                    error_message = str(error.get("message", error))
+                elif error:
+                    error_message = str(error)
+                else:
+                    error_message = "Skill reported failure"
+
+                error_payload = None if success else {"message": error_message}
+
+                _evidence_results.append({
+                    "capability": getattr(cap, "id", "unknown"),
+                    "action": skill_name,
+                    "success": success,
+                    "confidence": 1.0 if success else 0.0,
+                    "duration_ms": duration_ms,
+                    "error": error_payload,
+                })
+
+                if success:
+                    if isinstance(data, (dict, list)):
+                        return json.dumps(data, default=str)
+                    return json.dumps({"result": str(data)}, default=str)
+
+                return json.dumps({"error": error_message}, default=str)
+
+            except Exception as e:
+                duration_ms = (time.monotonic() - t0) * 1000
+                error_message = f"{type(e).__name__}: {str(e)}"
+
+                _evidence_results.append({
+                    "capability": getattr(cap, "id", "unknown"),
+                    "action": skill_name,
+                    "success": False,
+                    "confidence": 0.0,
+                    "duration_ms": duration_ms,
+                    "error": {"message": error_message},
+                })
+
+                return json.dumps({"error": error_message}, default=str)
+
+        timer.end("tools")
 
         timer.start("context")
+
         context = self.context_composer.compose(
             identity=identity,
             memory_store=self.memory_store,
@@ -1459,7 +1575,7 @@ class IdentityRuntime:
             session_mode=session_mode,
             emotion_state=emotion_state,
             capability_prompts=cap_prompts if cap_prompts else None,
-            evidence_results=_evidence_results if _evidence_results else None,
+            evidence_results=None,
         )
 
         self._emit(
@@ -1470,14 +1586,14 @@ class IdentityRuntime:
             session_mode=session_mode.value,
         )
 
-        if _has_evidence:
-            context.custom_blocks["factual_skill_data"] = _skill_router.format_for_context(_evidence)
         if _executive_state_block:
             context.custom_blocks["executive_state"] = _executive_state_block
+
         timer.end("context")
 
-        # Stage 4: Adapter call
+        # Stage 4: Adapter call with native tool calling
         timer.start("llm")
+
         if self.adapter:
             self._emit(
                 EventType.MODEL_REQUESTED,
@@ -1485,15 +1601,38 @@ class IdentityRuntime:
                 session_id=request.session_id,
                 model=self.adapter.model,
             )
+
             _t0 = time.monotonic()
-            _executor, _gen_kwargs = self._build_tool_executor(identity)
-            raw_output = self.adapter.generate(
-                context=context.render(),
-                user_input=sanitized_input,
-                identity=identity,
-                **_gen_kwargs,
-            )
+
+            generate_kwargs: Dict[str, Any] = {}
+            if _tool_defs:
+                generate_kwargs["tools"] = _tool_defs
+                generate_kwargs["execute_tool"] = _execute_tool_call
+
+            try:
+                raw_output = self.adapter.generate(
+                    context=context.render(),
+                    user_input=sanitized_input,
+                    identity=identity,
+                    **generate_kwargs,
+                )
+            except TypeError:
+                # Fallback for adapters that do not yet accept tools/execute_tool.
+                raw_output = self.adapter.generate(
+                    context=context.render(),
+                    user_input=sanitized_input,
+                    identity=identity,
+                )
+
+            raw_output = str(raw_output or "")
+
+            raw_output = re.sub(r"\[Thought\]", "<thought>", raw_output, flags=re.IGNORECASE)
+            raw_output = re.sub(r"\[/Thought\]", "</thought>", raw_output, flags=re.IGNORECASE)
+            if raw_output.count("<thought>") > raw_output.count("</thought>"):
+                raw_output += "\n</thought>"
+
             _latency = time.monotonic() - _t0
+
             self._emit(
                 EventType.MODEL_RESPONDED,
                 identity_id=identity.id,
@@ -1504,12 +1643,14 @@ class IdentityRuntime:
             )
         else:
             raw_output = f"[No adapter configured. Context prepared for {identity.name}]"
+
+        _has_evidence = bool(_evidence_results)
         timer.end("llm")
 
-        # Stage 4b: Prometheus post-check — only evolves when the response
-        # indicates a missing capability (engine short-circuits otherwise).
+        # Stage 4b: Prometheus post-check
         if not _prometheus_evolved and self.adapter:
             timer.start("prometheus")
+
             _post_result = self.prometheus.post_check_and_evolve(
                 response=raw_output,
                 user_input=sanitized_input,
@@ -1517,43 +1658,45 @@ class IdentityRuntime:
                 runtime=self,
                 session_id=request.session_id,
             )
+
             if _post_result and _post_result.acquired and _post_result.retry_response:
                 raw_output = _post_result.retry_response
                 _prometheus_evolved = True
+
             timer.end("prometheus")
 
-        # Stage 4c: Runtime confidence enforcement — if evidence has
-        # low confidence or failures, prepend a disclaimer to the output.
-        # This is enforced at the runtime level, not left to LLM discretion.
+        # Stage 4c: Runtime confidence enforcement
         if _has_evidence:
-            _metrics = _report.trust_metrics()
-            _low_conf = _metrics["low_confidence_facts"]
-            _fails = _metrics["failed"]
-            _total = _metrics["total_capability_calls"]
-            if _low_conf > 0 or _fails > 0:
-                _disc_parts = [f"\n\u26a0 **Confidence Notice** \u2014 {_low_conf} low-confidence, {_fails} failed out of {_total} capability calls."]
-                for _r in _evidence._results:
-                    if not _r.success:
+            _fails = sum(1 for r in _evidence_results if not r["success"])
+            _total = len(_evidence_results)
+
+            if _fails > 0:
+                _disc_parts = [
+                    f"\n\u26a0 **Confidence Notice** \u2014 {_fails} failed out of {_total} capability calls."
+                ]
+
+                for _r in _evidence_results:
+                    if not _r["success"]:
                         _disc_parts.append(
-                            f"  \u2022 {_r.capability}.{_r.action} failed: "
-                            f"{_r.error.get('message','')[:150] if _r.error else 'unknown'}"
+                            f"  \u2022 {_r['capability']}.{_r['action']} failed: "
+                            f"{_r.get('error', {}).get('message', 'unknown')[:150]}"
                         )
-                    elif _r.confidence < 0.8:
-                        _disc_parts.append(
-                            f"  \u2022 {_r.capability}.{_r.action} confidence={_r.confidence}"
-                        )
+
                 _disc_parts.append("")
                 raw_output = "\n".join(_disc_parts) + raw_output
 
         # Stage 5: Output policy gate
         timer.start("output_policy")
+
         output_policy = self.policy_engine.evaluate(
-            raw_output, scope=PolicyScope.OUTPUT
+            raw_output,
+            scope=PolicyScope.OUTPUT,
         )
+
         self._emit(
             EventType.POLICY_TRIGGERED,
             identity_id=identity.id,
-            session_id=request.session_id,
+            session_id=session_id,
             scope="output",
             allowed=output_policy.allowed,
             policies_applied=output_policy.applied_policies,
@@ -1565,22 +1708,27 @@ class IdentityRuntime:
         else:
             final_output = output_policy.transformed_data or raw_output
             policy_passed = True
+
         timer.end("output_policy")
 
-        # Append evidence footer before returning (part of the user-visible reply)
+        # Append evidence footer before returning.
         if _evidence_results and policy_passed:
             footer_lines = ["\n\n---\n📊 **Evidence Sources**"]
+
             for ev in _evidence_results[:12]:
                 status = "✓" if ev["success"] else "✗"
                 conf = ev["confidence"]
                 label = "verified" if conf >= 0.8 else "sourced" if conf >= 0.5 else "inferred"
                 err = f" — {ev['error']['message'][:200]}" if ev.get("error") else ""
+
                 cap = ev.get("capability", "")
                 act = ev.get("action", "")
                 skill_label = act if act.startswith(f"{cap}.") else f"{cap}.{act}"
+
                 footer_lines.append(
                     f"  {status} `{skill_label}` — {label} ({conf:.1f}) — {ev['duration_ms']:.0f}ms{err}"
                 )
+
             footer_lines.append("---")
             final_output += "\n".join(footer_lines)
 
@@ -1592,10 +1740,10 @@ class IdentityRuntime:
             policy_passed=policy_passed,
             eval_score=None,
         )
+
         timer.attach(response.metadata)
 
-        # Stages 6–10: defer post-response work off the critical reply path.
-        # Persistence still occurs; the next process() flushes first.
+        # Deferred post-response work.
         _post_identity = identity
         _post_session_id = session_id
         _post_session_mode = session_mode
@@ -1603,39 +1751,45 @@ class IdentityRuntime:
         _post_final = final_output
         _post_request_id = request.id
         _post_req_session = request.session_id
-        _post_history = list(_history) if _history else []
+        _post_evidence_results = list(_evidence_results)
 
         def _post_process() -> None:
             timer.start("post_processing")
+
             try:
-                # Trust metrics from capability evidence
-                if _post_history and self._storage is not None:
+                # Persist tool-call trust metrics.
+                if _post_evidence_results and self._storage is not None:
                     try:
                         _trust_raw = self._storage.load(_post_identity.id, "capability.trust") or {}
                         _existing = _trust_raw.get("calls", [])
-                        _existing.extend(_post_history)
+                        _existing.extend(_post_evidence_results)
                         _trust_raw["calls"] = _existing[-100:]
                         self._storage.save(_post_identity.id, "capability.trust", _trust_raw)
                     except Exception:
-                        pass  # Trust persistence is non-critical
+                        pass
 
                 # Stage 6: Evaluate
-                eval_report = self.evaluation_engine.evaluate(
-                    identity_id=_post_identity.id,
-                    interaction_id=_post_request_id,
-                    input_data=_post_sanitized,
-                    output_data=_post_final,
-                )
-                response.eval_score = eval_report.overall_score
+                eval_score = None
+                try:
+                    eval_report = self.evaluation_engine.evaluate(
+                        identity_id=_post_identity.id,
+                        interaction_id=_post_request_id,
+                        input_data=_post_sanitized,
+                        output_data=_post_final,
+                    )
+                    eval_score = eval_report.overall_score
+                    response.eval_score = eval_score
 
-                self._emit(
-                    EventType.EVALUATION_COMPLETED,
-                    identity_id=_post_identity.id,
-                    session_id=_post_req_session,
-                    overall_score=eval_report.overall_score,
-                    passed=eval_report.passed,
-                    criteria_count=len(eval_report.records),
-                )
+                    self._emit(
+                        EventType.EVALUATION_COMPLETED,
+                        identity_id=_post_identity.id,
+                        session_id=_post_req_session,
+                        overall_score=eval_report.overall_score,
+                        passed=eval_report.passed,
+                        criteria_count=len(eval_report.records),
+                    )
+                except Exception:
+                    eval_score = None
 
                 # Stage 7: Store interaction in memory
                 episodic = MemoryFragment(
@@ -1645,6 +1799,7 @@ class IdentityRuntime:
                     session_id=_post_req_session,
                     tags=["interaction"],
                 )
+
                 self.memory_store.add(episodic)
                 self._persist_memory(episodic)
 
@@ -1669,6 +1824,7 @@ class IdentityRuntime:
                     fact_store = self._fact_stores.get(_post_identity.id)
                 else:
                     fact_store = self._session_fact_stores.get(_post_session_id)
+
                 if fact_store is not None:
                     self.mutation_engine.fact_store = fact_store
 
@@ -1727,10 +1883,12 @@ class IdentityRuntime:
                 tl_description = f"User said: {_post_sanitized[:100]}"
                 tl_meta = {
                     "session_id": _post_req_session,
-                    "eval_score": eval_report.overall_score,
+                    "eval_score": eval_score,
                 }
+
                 if semantic_mem:
                     mem_tags = semantic_mem.tags
+
                     if "preference" in mem_tags:
                         tl_title = "Learned preference"
                         tl_description = _post_sanitized[:120]
@@ -1743,6 +1901,7 @@ class IdentityRuntime:
                     elif "milestone" in mem_tags:
                         tl_title = "Milestone"
                         tl_description = _post_sanitized[:120]
+
                     tl_meta["memory_id"] = semantic_mem.id
                     tl_meta["memory_type"] = semantic_mem.memory_type.value
 
@@ -1761,6 +1920,7 @@ class IdentityRuntime:
                 for proposal in mutation_proposals if mutation_proposals else []:
                     if proposal.status != MutationStatus.ACCEPTED:
                         continue
+
                     mutation_type_map = {
                         MutationType.PREFERENCE_ADOPTED: LifeEventType.PREFERENCE_LEARNED,
                         MutationType.PREFERENCE_CHANGED: LifeEventType.PREFERENCE_LEARNED,
@@ -1770,10 +1930,14 @@ class IdentityRuntime:
                         MutationType.TRUST_EVOLVED: LifeEventType.TRUST_CHANGED,
                         MutationType.COMMUNICATION_EVOLVED: LifeEventType.COMMUNICATION_CHANGED,
                     }
+
                     tl_event_type = mutation_type_map.get(
-                        proposal.mutation_type, LifeEventType.PREFERENCE_LEARNED
+                        proposal.mutation_type,
+                        LifeEventType.PREFERENCE_LEARNED,
                     )
+
                     field_short = proposal.field.split(".")[-1].replace("_", " ")
+
                     self.timeline_registry.record_event(
                         _post_identity.id,
                         LifeEvent(
@@ -1793,6 +1957,7 @@ class IdentityRuntime:
                     )
 
                 self._persist_timeline(_post_identity.id)
+
                 self._emit(
                     EventType.LIFE_EVENT_RECORDED,
                     identity_id=_post_identity.id,
@@ -1808,8 +1973,12 @@ class IdentityRuntime:
                     edge_type=EdgeType.PEER,
                     bidirectional=False,
                 )
+
                 self._persist_relationships(_post_identity.id)
                 self._persist_goals(_post_identity.id)
+
+            except Exception:
+                _log.exception("Post-processing failed")
             finally:
                 timer.end("post_processing")
                 timer.attach(response.metadata)
