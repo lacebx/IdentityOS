@@ -49,6 +49,10 @@ class GroqAdapter(OpenAIAdapter):
         self._cooldowns: dict = {}
         self._key_index = 0
 
+        # Only wait this long for the shortest cooldown; beyond that, give up
+        # so the chain falls through to another provider promptly.
+        self._MAX_COOLDOWN_WAIT = 15.0
+
         # Initialize with the first key
         current_key = self._keys[0] if self._keys else api_key
         super().__init__(
@@ -76,30 +80,60 @@ class GroqAdapter(OpenAIAdapter):
                 return self.api_key
         return None
 
-    def _wait_shortest_cooldown(self, retry_after: float = 60):
-        """Wait for the shortest cooldown to expire, then rotate to that key."""
+    def _wait_shortest_cooldown(self, retry_after: float = 60) -> bool:
+        """Wait briefly for the shortest cooldown to expire.
+
+        Returns ``True`` when a key should be retryable after the wait;
+        returns ``False`` when every key is on a long cooldown, signalling
+        the caller to give up so the ChainAdapter can fall through to the
+        next provider instead of blocking the chat.
+        """
         now = time.time()
         min_wait = retry_after
         for idx, until in self._cooldowns.items():
             remaining = until - now
             if 0 < remaining < min_wait:
                 min_wait = remaining
-        if min_wait > 0:
-            capped_wait = min(min_wait, 180)
-            logger.warning(f"All keys on cooldown. Waiting {capped_wait:.0f}s...")
-            time.sleep(capped_wait + 1)
+        if min_wait <= 0:
+            return True
+        if min_wait > self._MAX_COOLDOWN_WAIT:
+            logger.warning(
+                "All keys on cooldown (shortest %.0fs). Falling through.",
+                min_wait,
+            )
+            return False
+        logger.warning("All keys on cooldown. Waiting %.0fs...", min_wait)
+        import math
+        time.sleep(math.ceil(min_wait) + 1)
         # Rotate to the first available key
         self._key_index = 0
         self._rotate_key()
+        return True
 
     def _extract_retry_after(self, error_msg: str) -> float:
-        """Parse retry-after duration from a Groq 429 error message."""
+        """Parse retry-after duration from a Groq 429 error message.
+
+        Handles the formats Groq actually sends:
+          "try again in 55m49s"   -> 3349s
+          "try again in 55m 49s"  -> 3349s
+          "try again in 1m0s"     -> 60s
+          "try again in 60.0s"    -> 60s  (not 3600s!)
+          "try again in 55.8m"    -> 3348s
+        """
         import re
-        m = re.search(r"try again in ([\d.]+)m?([\d.]+)?s", error_msg.lower())
+        msg = error_msg.lower()
+        # minutes + seconds: "55m49s" / "55m 49s"
+        m = re.search(r"try again in\s+(\d+(?:\.\d+)?)\s*m(?:in)?\s*(\d+(?:\.\d+)?)\s*s", msg)
         if m:
-            minutes = float(m.group(1)) if m.group(1) else 0
-            seconds = float(m.group(2)) if m.group(2) else 0
-            return minutes * 60 + seconds
+            return float(m.group(1)) * 60 + float(m.group(2))
+        # minutes only: "55.8m" / "55m"
+        m = re.search(r"try again in\s+(\d+(?:\.\d+)?)\s*m(?:in)?\b", msg)
+        if m:
+            return float(m.group(1)) * 60
+        # seconds only: "60.0s" / "60s" / "30 seconds"
+        m = re.search(r"try again in\s+(\d+(?:\.\d+)?)\s*s", msg)
+        if m:
+            return float(m.group(1))
         return 60  # Default fallback
 
     def generate(
@@ -113,18 +147,22 @@ class GroqAdapter(OpenAIAdapter):
     ) -> str:
         last_error = None
         now = time.time()
-        deadline = now + 300  # Give up after 5 minutes total so chain can fall through
+        deadline = now + 45  # Give up after 45s so chain can fall through
 
         for attempt in range(len(self._keys) * 3):
             if time.time() > deadline:
                 raise RuntimeError(
-                    f"All Groq API keys exhausted (timeout after 300s). Last error: {last_error}"
+                    f"All Groq API keys exhausted (timeout after 45s). Last error: {last_error}"
                 ) from last_error
             # Skip keys on cooldown
             cooldown_until = self._cooldowns.get(self._key_index, 0)
             if cooldown_until > now:
                 if self._rotate_key() is None:
-                    self._wait_shortest_cooldown()
+                    if not self._wait_shortest_cooldown():
+                        raise RuntimeError(
+                            "All Groq API keys on cooldown. Last error: "
+                            f"{last_error}"
+                        ) from last_error
                     now = time.time()
 
             try:
@@ -158,7 +196,11 @@ class GroqAdapter(OpenAIAdapter):
                     )
                     self._cooldowns[self._key_index] = time.time() + retry_after
                     if self._rotate_key() is None:
-                        self._wait_shortest_cooldown(retry_after)
+                        if not self._wait_shortest_cooldown(retry_after):
+                            raise RuntimeError(
+                                "All Groq API keys on cooldown. Last error: "
+                                f"{last_error}"
+                            ) from last_error
                     continue
                 raise  # Non-retryable error
 
