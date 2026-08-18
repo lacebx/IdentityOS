@@ -47,6 +47,10 @@ class CerebrasAdapter(OpenAIAdapter):
 
         self._cooldowns: dict = {}
         self._key_index = 0
+
+        # Only wait this long for the shortest cooldown; beyond that, give up
+        # so the chain falls through to another provider promptly.
+        self._MAX_COOLDOWN_WAIT = 15.0
         current_key = self._keys[0] if self._keys else api_key
 
         super().__init__(
@@ -73,18 +77,33 @@ class CerebrasAdapter(OpenAIAdapter):
                 return self.api_key
         return None
 
-    def _wait_shortest_cooldown(self, retry_after: float = 60):
+    def _wait_shortest_cooldown(self, retry_after: float = 60) -> bool:
+        """Wait briefly for the shortest cooldown to expire.
+
+        Returns ``True`` when a key should be retryable after the wait;
+        returns ``False`` when every key is on a long cooldown, signalling
+        the caller to give up so the chain can fall through.
+        """
         now = time.time()
         min_wait = retry_after
         for idx, until in self._cooldowns.items():
             remaining = until - now
             if 0 < remaining < min_wait:
                 min_wait = remaining
-        if min_wait > 0:
-            logger.warning("All Cerebras keys on cooldown. Waiting %.0fs...", min_wait)
-            time.sleep(min_wait + 1)
+        if min_wait <= 0:
+            return True
+        if min_wait > self._MAX_COOLDOWN_WAIT:
+            logger.warning(
+                "All Cerebras keys on cooldown (shortest %.0fs). Falling through.",
+                min_wait,
+            )
+            return False
+        logger.warning("All Cerebras keys on cooldown. Waiting %.0fs...", min_wait)
+        import math
+        time.sleep(math.ceil(min_wait) + 1)
         self._key_index = 0
         self._rotate_key()
+        return True
 
     def generate(
         self,
@@ -97,12 +116,21 @@ class CerebrasAdapter(OpenAIAdapter):
     ) -> str:
         last_error = None
         now = time.time()
+        deadline = now + 45  # Give up after 45s so chain can fall through
 
         for attempt in range(len(self._keys) * 3):
+            if time.time() > deadline:
+                raise RuntimeError(
+                    f"All Cerebras API keys exhausted (timeout after 45s). Last error: {last_error}"
+                ) from last_error
             cooldown_until = self._cooldowns.get(self._key_index, 0)
             if cooldown_until > now:
                 if self._rotate_key() is None:
-                    self._wait_shortest_cooldown()
+                    if not self._wait_shortest_cooldown():
+                        raise RuntimeError(
+                            "All Cerebras API keys on cooldown. Last error: "
+                            f"{last_error}"
+                        ) from last_error
                     now = time.time()
 
             try:
@@ -128,7 +156,11 @@ class CerebrasAdapter(OpenAIAdapter):
                     logger.warning("Rate limited on Cerebras key %d", self._key_index)
                     self._cooldowns[self._key_index] = time.time() + retry_after
                     if self._rotate_key() is None:
-                        self._wait_shortest_cooldown(retry_after)
+                        if not self._wait_shortest_cooldown(retry_after):
+                            raise RuntimeError(
+                                "All Cerebras API keys on cooldown. Last error: "
+                                f"{last_error}"
+                            ) from last_error
                     continue
                 raise
 
