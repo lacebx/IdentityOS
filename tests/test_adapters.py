@@ -165,6 +165,56 @@ class TestOpenAIAdapter:
             )
             assert adapter._client is not None
 
+    def test_recovers_from_legacy_function_call_error(self, mock_openai_client):
+        """Groq 400 tool_use_failed (legacy <function=...> syntax) should recover.
+
+        The rejected generation is executed as a real tool call and the model
+        is retried with the tool result in context.
+        """
+        client = mock_openai_client.return_value
+        err_msg = (
+            "Error code: 400 - {'error': {'message': 'Failed to call a function. "
+            "See failed_generation.', 'code': 'tool_use_failed', 'failed_generation': "
+            "\"<function=executive__start_task>{'goal': 'getting_to_know_each_other'}</function>\"}}"
+        )
+        client.chat.completions.create.side_effect = [
+            RuntimeError(err_msg),
+            MagicMock(
+                choices=[
+                    MagicMock(
+                        message=MagicMock(content="Task committed!", tool_calls=None)
+                    )
+                ]
+            ),
+        ]
+
+        executed = []
+
+        def execute_tool(func_name, args):
+            executed.append((func_name, args))
+            return '{"task_id": "abc", "status": "queued"}'
+
+        adapter = OpenAIAdapter(api_key="sk-test")
+        result = adapter.generate(
+            context="You are a helpful assistant.",
+            user_input="start a task",
+            identity=_MockIdentity(),
+            execute_tool=execute_tool,
+        )
+        assert result == "Task committed!"
+        assert executed == [("executive__start_task", {"goal": "getting_to_know_each_other"})]
+
+    def test_parse_legacy_function_call_json_and_dict(self):
+        from adapters.openai_adapter import _parse_legacy_function_call
+
+        json_form = "<function=foo.bar>{\"x\": 1}</function>"
+        assert _parse_legacy_function_call(json_form) == ("foo.bar", {"x": 1})
+
+        dict_form = "<function=executive__start_task>{'goal': 'hi'}</function>"
+        assert _parse_legacy_function_call(dict_form) == ("executive__start_task", {"goal": "hi"})
+
+        assert _parse_legacy_function_call("no function here") is None
+
 
 # ---------------------------------------------------------------------------
 # AnthropicAdapter tests

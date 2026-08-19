@@ -1,0 +1,9 @@
+{
+  "benchmark_version": "0.1.0",
+  "model": "smollm2:360m-instruct-q4_0",
+  "suite_n": 30,
+  "tasks_path": "benchmarks/tasks/v0.1.0.json",
+  "scoring_path": "benchmarks/scoring.py",
+  "tasks_sha256": "8b7d946ac9aeeaaeb56ac1fb3b4a76edb564f5c53c066d96793b4e0471751892",
+  "scoring_sha256": "e2491351005c5b1add9478f91a4e538bafe6201e3e5ccfef2d2306419093b431"
+}
