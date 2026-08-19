@@ -407,6 +407,7 @@ class TestOllamaAdapter:
         assert first_call[1]["extra_body"] == {"think": False}
 
 
+
 class TestOllamaModelHelpers:
     def test_resolve_exact_match(self):
         models = ["llama3.2:latest", "smollm2:360m-instruct-q4_0"]

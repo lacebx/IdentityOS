@@ -636,6 +636,23 @@ class IdentityRuntime:
                 pass
 
         # ── NATIVE TOOL CALLING SETUP ─────────────────────────────────
+        # Small local models can degrade badly if every turn is forced through
+        # tool-call mode. Enable tools only when the user input appears to
+        # request computation, date/time, file operations, or system info.
+        def _should_enable_tools(user_text: str) -> bool:
+            text = (user_text or "").strip().lower()
+            if not text:
+                return False
+            patterns = (
+                r"\b(calc|calculate|compute|evaluate|math|equation)\b",
+                r"[\d\)\]]\s*[\+\-\*/]\s*[\d\(\[]",
+                r"\b(square root|sqrt|convert|conversion|unit)\b",
+                r"\b(current date|current time|what time|what date|today|now)\b",
+                r"\b(create|write|append|file|directory|folder|path)\b",
+                r"\b(system info|cpu|memory|disk|uptime|hostname)\b",
+            )
+            return any(re.search(p, text) for p in patterns)
+
         user_profile = self._get_user_profile(identity.id)
         session_fact_store = self._get_fact_store_for_session(identity.id, session_id)
         cap_prompts = self.capability_registry.all_prompts(identity.id)
@@ -745,7 +762,7 @@ class IdentityRuntime:
             _t0 = _time_mod.monotonic()
 
             generate_kwargs: Dict[str, Any] = {}
-            if _tool_defs:
+            if _tool_defs and _should_enable_tools(sanitized_input):
                 generate_kwargs["tools"] = _tool_defs
                 generate_kwargs["execute_tool"] = _execute_tool_call
 

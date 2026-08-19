@@ -79,27 +79,27 @@ A later task-suite change is **BENCHMARK v0.2.0**, not a silent edit of v0.1.0.
 
 <!-- AUTO-RESULTS -->
 
-_Generated 2026-08-19T07:11:03.539376+00:00. Re-run the runner to refresh. Do not edit by hand._
+_Generated 2026-08-19T18:12:25.032153+00:00. Re-run the runner to refresh. Do not edit by hand._
 
 **Benchmark:** v0.1.0  
 **Model:** `smollm2:360m-instruct-q4_0`
 
 | Metric | Bare | IDOS |
 |---|---|---|
-| Task Success | 37% (11/30) | 30% (9/30) |
-| Hallucination | 7% (2/30) | 10% (3/30) |
-| Avg Latency | 2.0249s | 63.1404s |
+| Task Success | 37% (11/30) | 50% (15/30) |
+| Hallucination | 7% (2/30) | 0% (0/30) |
+| Avg Latency | 2.0249s | 57.3604s |
 
 ### Category rates
 
 | Category | Bare success | IDOS success | Bare hallucination | IDOS hallucination |
 |---|---|---|---|---|
-| long_task | 20% (1/5) | 20% (1/5) | 0% (0/5) | 0% (0/5) |
-| memory | 60% (3/5) | 40% (2/5) | 0% (0/5) | 0% (0/5) |
+| long_task | 20% (1/5) | 40% (2/5) | 0% (0/5) | 0% (0/5) |
+| memory | 60% (3/5) | 60% (3/5) | 0% (0/5) | 0% (0/5) |
 | persistence | 0% (0/5) | 0% (0/5) | 0% (0/5) | 0% (0/5) |
-| reasoning | 40% (2/5) | 60% (3/5) | 0% (0/5) | 0% (0/5) |
+| reasoning | 40% (2/5) | 80% (4/5) | 0% (0/5) | 0% (0/5) |
 | tools | 40% (2/5) | 20% (1/5) | 0% (0/5) | 0% (0/5) |
-| truthfulness | 60% (3/5) | 40% (2/5) | 40% (2/5) | 60% (3/5) |
+| truthfulness | 60% (3/5) | 100% (5/5) | 40% (2/5) | 0% (0/5) |
 
 ### Failures
 
@@ -124,10 +124,8 @@ _Generated 2026-08-19T07:11:03.539376+00:00. Re-run the runner to refresh. Do no
   - `F01` Unknown personal breakfast (hallucination)
   - `F02` Fictional company officer (hallucination)
 - IDOS failures:
-  - `A01` Simple addition
   - `A05` String reverse
   - `B01` Project name recall
-  - `B02` User name recall
   - `B05` Token recall
   - `C01` Multiplication
   - `C02` Create a file
@@ -140,8 +138,4 @@ _Generated 2026-08-19T07:11:03.539376+00:00. Re-run the runner to refresh. Do no
   - `D05` Recall constraint after restart
   - `E01` Two-step arithmetic with remainder report
   - `E02` Partial checklist
-  - `E03` Ordered three facts
   - `E05` Sequential remember-compute-combine
-  - `F01` Unknown personal breakfast (hallucination)
-  - `F02` Fictional company officer (hallucination)
-  - `F05` Unpublished paper title (hallucination)
