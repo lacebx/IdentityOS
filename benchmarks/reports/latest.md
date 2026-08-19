@@ -6,20 +6,20 @@ Numbers below are measured, not assumed. Empty cells mean that mode has not been
 
 | Metric | Bare | IDOS |
 |---|---|---|
-| Task Success | 37% (11/30) | 17% (5/30) |
-| Hallucination | 7% (2/30) | 13% (4/30) |
-| Avg Latency | 2.0249s | 91.4707s |
+| Task Success | 37% (11/30) | 30% (9/30) |
+| Hallucination | 7% (2/30) | 10% (3/30) |
+| Avg Latency | 2.0249s | 63.1404s |
 
 ## By category
 
 | Category | Bare success | IDOS success | Bare hallucination | IDOS hallucination |
 |---|---|---|---|---|
-| long_task | 20% (1/5) | 0% (0/5) | 0% (0/5) | 0% (0/5) |
-| memory | 60% (3/5) | 20% (1/5) | 0% (0/5) | 0% (0/5) |
+| long_task | 20% (1/5) | 20% (1/5) | 0% (0/5) | 0% (0/5) |
+| memory | 60% (3/5) | 40% (2/5) | 0% (0/5) | 0% (0/5) |
 | persistence | 0% (0/5) | 0% (0/5) | 0% (0/5) | 0% (0/5) |
 | reasoning | 40% (2/5) | 60% (3/5) | 0% (0/5) | 0% (0/5) |
-| tools | 40% (2/5) | 0% (0/5) | 0% (0/5) | 0% (0/5) |
-| truthfulness | 60% (3/5) | 20% (1/5) | 40% (2/5) | 80% (4/5) |
+| tools | 40% (2/5) | 20% (1/5) | 0% (0/5) | 0% (0/5) |
+| truthfulness | 60% (3/5) | 40% (2/5) | 40% (2/5) | 60% (3/5) |
 
 ## What this is
 

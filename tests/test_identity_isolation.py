@@ -45,7 +45,7 @@ def store_dir():
 def runtime(store_dir):
     storage = JSONFileBackend(root_dir=store_dir)
     from adapters.groq_adapter import GroqAdapter
-    adapter = GroqAdapter(model="llama-3.3-70b-versatile", max_tokens=120)
+    adapter = GroqAdapter(model="openai/gpt-oss-120b", max_tokens=120)
     rt = IdentityRuntime(storage=storage, adapter=adapter)
     register_default_criteria(rt.evaluation_engine)
     return rt

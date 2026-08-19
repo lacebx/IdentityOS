@@ -256,12 +256,12 @@ class ContextComposer:
         parts.append(
             "### 12. NO TOOL SIMULATION, FAKE JSON, OR CODE SCRIPTS (CRITICAL)\n"
             "- NEVER output fake JSON, fake exit codes, or fake tool outputs in your text response.\n"
-            "- NEVER write Python, Bash, or shell scripts to 'simulate', 'demonstrate', or 'prove' that you have a skill. You are NOT a code generator for your own tools.\n"
-            "- When a user asks you to 'demonstrate', 'show', or 'prove' your skills, DO NOT write code blocks. Simply report the actual data you retrieved using your skills in plain text. "
-            "For example, if asked to demonstrate your time skill, just say 'My datetime skill confirms the time is 10:50 UTC.' Do NOT write `import datetime`.\n"
+            "- NEVER write Python, Bash, or shell scripts to 'simulate' or 'demonstrate' using a skill. You are NOT a code generator for your own tools.\n"
             "- NEVER say 'I will now run X' and then immediately write the result in your text or write a script that 'would' do it.\n"
             "- If a tool result is not provided in the 'Live Capability Results' or 'Evidence Sources', you DO NOT have that data.\n"
             "- Do NOT use `[Thought]` or `[Action]` formatting. Use the `<thought>` tags as instructed, and rely ONLY on the provided tool results or native tool calls.\n"
+            "- If you need to use a tool that wasn't run, you must use the native tool calling mechanism (if available) or state that you cannot run it right now. NEVER fake the output or write a script to fake it.\n"
+            "- CRITICAL: You MUST use the native JSON tool calling mechanism provided by the system API. Do not output tool calls as plain text. If a task requires multiple steps, execute them ONE AT A TIME.\n"
         )
         
         parts.append(
@@ -522,25 +522,19 @@ class ContextComposer:
         lines: list[str] = []
 
         # ── 1. WORKING MEMORY (Recent Conversation) ──────────────────────
-        # Always inject the most recent interaction turns so the LLM doesn't 
-        # "forget" the immediate context when the user gives short follow-ups 
-        # like "please do", "yes", "why", etc.
         recent_interactions = [
             f for f in all_frags 
             if "interaction" in (f.tags or [])
         ]
-        # Sort by created_at descending to get the most recent safely
         recent_interactions.sort(
             key=lambda x: getattr(x, 'created_at', datetime.min.replace(tzinfo=timezone.utc)), 
             reverse=True
         )
         
-        # Take the last 4 interaction fragments (approx 2 full exchanges)
         working_memory = recent_interactions[:4] 
         
         if working_memory:
             lines.append("## Recent Conversation (Working Memory)")
-            # Reverse back to chronological order for the prompt
             for frag in reversed(working_memory):
                 lines.append(f"  {frag.content}")
             lines.append("")
@@ -553,7 +547,6 @@ class ContextComposer:
             scored = [(f, self._score_memory(f, query)) for f in searchable]
             scored.sort(key=lambda x: x[1], reverse=True)
             
-            # Only include if score is reasonably high to avoid noise
             relevant_past = [(frag, sc) for frag, sc in scored[:top_k] if sc > 1.5]
             if relevant_past:
                 lines.append("## Relevant Past Memories")
@@ -711,6 +704,12 @@ class ContextComposer:
 
         if len(lines) == 1:
             return ""
+        
+        # Hard directive injected directly into the time awareness block
+        rendered_so_far = "\n".join(lines)
+        if "First interaction:" in rendered_so_far or "Known user since:" in rendered_so_far or "Most recent interaction:" in rendered_so_far:
+            lines.append("\n**[SYSTEM DIRECTIVE: YOU HAVE MET THIS USER BEFORE. DO NOT SAY 'NICE TO MEET YOU'. SAY 'WELCOME BACK' OR 'GOOD TO SEE YOU AGAIN'.]**")
+        
         lines.append("")
         return "\n".join(lines)
 

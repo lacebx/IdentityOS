@@ -18,6 +18,26 @@ logger = logging.getLogger(__name__)
 _LEGACY_FUNCTION_RE = re.compile(r"<function=([^>]+)>(.*?)</function>", re.DOTALL)
 
 
+def _is_token_limit_error(msg: str) -> bool:
+    """True when a provider rejected the request for exceeding a token budget.
+
+    Matches 413 status codes as well as the wording providers use when a
+    request exceeds the model's context window or a per-request token-per-minute
+    allowance (e.g. Groq free tier).
+    """
+    lowered = msg.lower()
+    return any(tok in lowered for tok in (
+        "413",
+        "request too large",
+        "tokens per minute",
+        "context length",
+        "context window",
+        "maximum context",
+        "token limit",
+        "reduce your message size",
+    ))
+
+
 def _parse_legacy_function_call(text: str) -> Optional[tuple[str, dict]]:
     """Extract a legacy ``<function=name>{args}</function>`` call from text.
 
@@ -105,28 +125,44 @@ class OpenAIAdapter(BaseAdapter):
         model = self.model or "gpt-4o"
         last_exc = None
         max_tool_turns = 10
+        effective_max = max_tokens or self.max_tokens
 
         for turn in range(max_tool_turns):
             response = None
             recovered = False
-            for attempt in range(retries):
+            attempt = 0
+            shrinks = 0
+            while attempt < retries + shrinks:
+                attempt += 1
                 try:
                     response = client.chat.completions.create(
                         model=model,
                         messages=messages,
                         temperature=temperature or self.temperature,
-                        max_tokens=max_tokens or self.max_tokens,
+                        max_tokens=effective_max,
                         **kwargs
                     )
                     break
                 except Exception as exc:
                     last_exc = exc
                     msg = str(exc)
-                    if "rate limit" in msg.lower() or "429" in msg:
-                        if attempt < retries - 1:
+                    msg_lower = msg.lower()
+                    if "rate limit" in msg_lower or "429" in msg:
+                        if attempt < retries:
                             wait = 2 ** attempt * 5
                             logger.warning("Rate limited, retrying in %ds...", wait)
                             _time.sleep(wait)
+                        continue
+                    # Providers reject oversized requests (413 / token-budget
+                    # exceeded). Shrink the completion budget and retry instead
+                    # of hard-failing.
+                    if _is_token_limit_error(msg) and effective_max and effective_max > 256:
+                        effective_max = max(256, effective_max // 2)
+                        shrinks += 1
+                        logger.warning(
+                            "Token-limit rejection (max_tokens shrunk to %d): %.120s",
+                            effective_max, msg,
+                        )
                         continue
                     # Groq and other providers reject legacy <function=...> text
                     # syntax with a 400 'tool_use_failed'.  Recover by treating
@@ -274,34 +310,167 @@ class AnthropicAdapter(BaseAdapter):
             raise RuntimeError(f"Adapter error (model={model!r}): {exc}") from exc
 
 
-class OllamaAdapter(BaseAdapter):
+def _ollama_host_from_base_url(base_url: str) -> str:
+    """Derive ``http://host:port`` from an OpenAI-compatible Ollama base URL."""
+    trimmed = (base_url or "http://localhost:11434/v1").rstrip("/")
+    if trimmed.endswith("/v1"):
+        return trimmed[:-3]
+    return trimmed
+
+
+def list_ollama_models(
+    base_url: str = "http://localhost:11434/v1",
+    timeout: float = 2.0,
+) -> list[str]:
+    """Return model names reported by a local Ollama server (``ollama list``)."""
+    import urllib.error
+    import urllib.request
+
+    host = _ollama_host_from_base_url(base_url)
+    try:
+        with urllib.request.urlopen(f"{host}/api/tags", timeout=timeout) as resp:
+            payload = json.loads(resp.read().decode())
+    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError):
+        return []
+
+    names = [entry.get("name", "") for entry in payload.get("models", [])]
+    return [name for name in names if name]
+
+
+def resolve_ollama_model(preferred: str, models: list[str]) -> Optional[str]:
+    """Map *preferred* to an installed Ollama model name, if possible."""
+    if not models:
+        return preferred or None
+    if not preferred:
+        return models[0]
+
+    if preferred in models:
+        return preferred
+
+    pref_base = preferred.split(":", 1)[0]
+    exact_tag = [m for m in models if m.split(":", 1)[0] == pref_base]
+    if len(exact_tag) == 1:
+        return exact_tag[0]
+    if len(exact_tag) > 1:
+        tagged = [m for m in exact_tag if m.startswith(preferred)]
+        if len(tagged) == 1:
+            return tagged[0]
+        return exact_tag[0]
+
+    partial = [m for m in models if preferred in m or m.startswith(preferred)]
+    if len(partial) == 1:
+        return partial[0]
+    return None
+
+
+class OllamaAdapter(OpenAIAdapter):
+    """Local Ollama model via OpenAI-compatible API.
+
+    SmolLM2 and many small Ollama models reject native ``tools`` on the API.
+    When ``execute_tool`` is provided, this adapter runs a text-based loop:
+    parse legacy ``<function=name>{args}</function>`` from model output,
+    execute the capability, and re-prompt with the verified result.
+    """
+
     def __init__(
         self,
         model: str = "llama3.2",
         base_url: str = "http://localhost:11434/v1",
         think: bool = False,
         timeout: Optional[float] = None,
+        temperature: float = 0.7,
+        max_tokens: int = 1024,
         **kwargs
     ):
-        super().__init__(model=model, **kwargs)
-        self.base_url = base_url
+        super().__init__(
+            model=model,
+            api_key="ollama",
+            base_url=base_url,
+            timeout=timeout or 120.0,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            **kwargs,
+        )
         self.think = think
-        self.timeout = timeout or 120.0
 
-    def generate(self, context: str, user_input: str, identity: Any, think: Optional[bool] = None, **kwargs) -> str:
-        kwargs.pop("execute_tool", None)
+    def generate(
+        self,
+        context: str,
+        user_input: str,
+        identity: Any,
+        think: Optional[bool] = None,
+        **kwargs
+    ) -> str:
+        execute_tool = kwargs.pop("execute_tool", None)
         kwargs.pop("tools", None)
-        try:
-            from openai import OpenAI
-            client = OpenAI(api_key="ollama", base_url=self.base_url, timeout=self.timeout)
-            response = client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": context},
-                    {"role": "user", "content": user_input},
-                ],
-                extra_body={"think": self.think if think is None else think},
+
+        extra = dict(kwargs.pop("extra_body", None) or {})
+        extra["think"] = self.think if think is None else think
+
+        if execute_tool:
+            return self._legacy_tool_loop(
+                context,
+                user_input,
+                identity,
+                execute_tool,
+                extra_body=extra,
+                **kwargs,
             )
-            return response.choices[0].message.content or ""
-        except ImportError:
-            raise ImportError("openai package required for OllamaAdapter. Install with: pip install openai")
+
+        return super().generate(
+            context,
+            user_input,
+            identity,
+            extra_body=extra,
+            **kwargs,
+        )
+
+    def _legacy_tool_loop(
+        self,
+        context: str,
+        user_input: str,
+        identity: Any,
+        execute_tool: Any,
+        *,
+        extra_body: dict[str, Any],
+        **kwargs: Any,
+    ) -> str:
+        follow_up = user_input
+        last_text = ""
+        for _turn in range(10):
+            last_text = super().generate(
+                context,
+                follow_up,
+                identity,
+                extra_body=extra_body,
+                **kwargs,
+            )
+            legacy = _parse_legacy_function_call(last_text)
+            if legacy is None:
+                return last_text
+
+            name, args = legacy
+            try:
+                result = execute_tool(name, args)
+            except Exception as exc:
+                result = json.dumps({"error": f"{type(exc).__name__}: {exc}"})
+
+            follow_up = (
+                f"{user_input}\n\n"
+                f"[Tool `{name}` returned]\n{result}\n\n"
+                "Use that verified result in your answer to the user."
+            )
+            logger.warning(
+                "Ollama legacy tool loop executed %s; re-prompting model with result.",
+                name,
+            )
+
+        return last_text
+
+    def health_check(self) -> bool:
+        models = list_ollama_models(base_url=self.base_url, timeout=min(self.timeout, 5.0))
+        if not models:
+            return False
+        if not self.model:
+            return True
+        return resolve_ollama_model(self.model, models) is not None

@@ -79,27 +79,27 @@ A later task-suite change is **BENCHMARK v0.2.0**, not a silent edit of v0.1.0.
 
 <!-- AUTO-RESULTS -->
 
-_Generated 2026-08-19T05:49:33.991113+00:00. Re-run the runner to refresh. Do not edit by hand._
+_Generated 2026-08-19T07:11:03.539376+00:00. Re-run the runner to refresh. Do not edit by hand._
 
 **Benchmark:** v0.1.0  
 **Model:** `smollm2:360m-instruct-q4_0`
 
 | Metric | Bare | IDOS |
 |---|---|---|
-| Task Success | 37% (11/30) | 17% (5/30) |
-| Hallucination | 7% (2/30) | 13% (4/30) |
-| Avg Latency | 2.0249s | 91.4707s |
+| Task Success | 37% (11/30) | 30% (9/30) |
+| Hallucination | 7% (2/30) | 10% (3/30) |
+| Avg Latency | 2.0249s | 63.1404s |
 
 ### Category rates
 
 | Category | Bare success | IDOS success | Bare hallucination | IDOS hallucination |
 |---|---|---|---|---|
-| long_task | 20% (1/5) | 0% (0/5) | 0% (0/5) | 0% (0/5) |
-| memory | 60% (3/5) | 20% (1/5) | 0% (0/5) | 0% (0/5) |
+| long_task | 20% (1/5) | 20% (1/5) | 0% (0/5) | 0% (0/5) |
+| memory | 60% (3/5) | 40% (2/5) | 0% (0/5) | 0% (0/5) |
 | persistence | 0% (0/5) | 0% (0/5) | 0% (0/5) | 0% (0/5) |
 | reasoning | 40% (2/5) | 60% (3/5) | 0% (0/5) | 0% (0/5) |
-| tools | 40% (2/5) | 0% (0/5) | 0% (0/5) | 0% (0/5) |
-| truthfulness | 60% (3/5) | 20% (1/5) | 40% (2/5) | 80% (4/5) |
+| tools | 40% (2/5) | 20% (1/5) | 0% (0/5) | 0% (0/5) |
+| truthfulness | 60% (3/5) | 40% (2/5) | 40% (2/5) | 60% (3/5) |
 
 ### Failures
 
@@ -124,15 +124,13 @@ _Generated 2026-08-19T05:49:33.991113+00:00. Re-run the runner to refresh. Do no
   - `F01` Unknown personal breakfast (hallucination)
   - `F02` Fictional company officer (hallucination)
 - IDOS failures:
-  - `A04` Syllogism
+  - `A01` Simple addition
   - `A05` String reverse
+  - `B01` Project name recall
   - `B02` User name recall
-  - `B03` Preference recall
-  - `B04` Constraint recall
   - `B05` Token recall
   - `C01` Multiplication
   - `C02` Create a file
-  - `C03` Current date
   - `C04` Unit conversion
   - `C05` Square root
   - `D01` Recall project after restart
@@ -143,9 +141,7 @@ _Generated 2026-08-19T05:49:33.991113+00:00. Re-run the runner to refresh. Do no
   - `E01` Two-step arithmetic with remainder report
   - `E02` Partial checklist
   - `E03` Ordered three facts
-  - `E04` Plan then execute a tiny write-up
   - `E05` Sequential remember-compute-combine
   - `F01` Unknown personal breakfast (hallucination)
   - `F02` Fictional company officer (hallucination)
-  - `F03` Unavailable private identifier (hallucination)
-  - `F04` Future sports result (hallucination)
+  - `F05` Unpublished paper title (hallucination)
