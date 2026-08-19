@@ -88,4 +88,14 @@ pytest green, exam hashes unchanged.
 
 `--decide-only --before … --after …` judges two result files without calling the model.
 
+### Consolidated PR (after 5 KEEP wins)
+
+```bash
+python benchmarks/ratchet_pr.py --status          # progress toward 5
+python benchmarks/ratchet_pr.py --min-keeps 5       # push ratchet/smollm-consolidated-v0.1 + open PR
+```
+
+Working branch: `ratchet/smollm-v0.1` (linear KEEP commits).  
+Integration branch for review: `ratchet/smollm-consolidated-v0.1` (same HEAD, obvious name).
+
 Methodology: [`docs/BENCHMARK.md`](../docs/BENCHMARK.md)

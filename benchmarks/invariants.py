@@ -38,6 +38,7 @@ ALLOWED_PREFIXES = (
     "benchmarks/experiments/",
     "docs/BENCHMARK.md",
     "benchmarks/docs/BENCHMARK.md",
+    "benchmarks/ratchet_pr.py",
 )
 
 HARNESS_GLOBS = (

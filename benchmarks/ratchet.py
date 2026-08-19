@@ -355,16 +355,19 @@ def main(argv: list[str] | None = None) -> int:
         tasks = select_tasks(suite, None, None, None)
         if len(tasks) != expected_n:
             raise RatchetError(f"suite has {len(tasks)} tasks, lock expects {expected_n}")
-        run_dir = run_mode(
-            mode="idos",
-            suite=suite,
-            tasks=tasks,
-            model=expected_model,
-            host=args.host,
-            freeze=False,
-            force=False,
-            reset_identity=not args.keep_identity,
-        )
+        try:
+            run_dir = run_mode(
+                mode="idos",
+                suite=suite,
+                tasks=tasks,
+                model=expected_model,
+                host=args.host,
+                freeze=False,
+                force=False,
+                reset_identity=not args.keep_identity,
+            )
+        except Exception as exc:
+            raise RatchetError(f"benchmark run failed: {exc}") from exc
         after = load_results(run_dir / "results.json")
 
     before = load_results(args.before) if args.before else load_results(IDOS_DIR / "results.json")
