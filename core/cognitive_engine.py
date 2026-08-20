@@ -353,11 +353,14 @@ class ContextComposer:
             budget_chars = self.max_tokens * 4
             if total_chars > budget_chars:
                 overage = total_chars - budget_chars
+                _protected = frozenset({"identity_block", "user_knowledge_block"})
                 blocks.sort(key=lambda x: -len(x[1]))
                 for name, block in blocks:
                     if overage <= 0:
                         break
                     if not block:
+                        continue
+                    if name in _protected:
                         continue
                     if isinstance(name, str) and name.startswith("custom:"):
                         continue

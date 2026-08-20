@@ -40,7 +40,7 @@ from core.relationships import EdgeType, IdentityGraph, TrustLevel
 from core.capabilities import CapabilityRegistry as PluginRegistry
 from core.skills import SkillRegistry
 from core.timeline import LifeEvent, LifeEventType, TimelineRegistry
-from core.user_profile import UserProfile, extract_user_facts
+from core.user_profile import UserProfile, extract_user_facts, try_explicit_abstain
 from runtime.event_bus import EventBus, EventType
 
 # Prometheus is optional
@@ -756,6 +756,10 @@ class IdentityRuntime:
         if _executive_state_block:
             context.custom_blocks["executive_state"] = _executive_state_block
 
+        profile_recall = user_profile.try_recall_answer(sanitized_input)
+        if profile_recall is None:
+            profile_recall = try_explicit_abstain(sanitized_input, user_profile)
+
         if self.adapter:
             self._emit(EventType.MODEL_REQUESTED, identity_id=identity.id,
                        session_id=request.session_id, model=self.adapter.model)
@@ -766,15 +770,19 @@ class IdentityRuntime:
                 generate_kwargs["tools"] = _tool_defs
                 generate_kwargs["execute_tool"] = _execute_tool_call
 
-            try:
-                raw_output = self.adapter.generate(
-                    context=context.render(), user_input=sanitized_input,
-                    identity=identity, **generate_kwargs,
-                )
-            except TypeError:
-                raw_output = self.adapter.generate(
-                    context=context.render(), user_input=sanitized_input, identity=identity,
-                )
+            if profile_recall is not None:
+                raw_output = profile_recall
+            else:
+                model_input = user_profile.augment_recall_input(sanitized_input)
+                try:
+                    raw_output = self.adapter.generate(
+                        context=context.render(), user_input=model_input,
+                        identity=identity, **generate_kwargs,
+                    )
+                except TypeError:
+                    raw_output = self.adapter.generate(
+                        context=context.render(), user_input=model_input, identity=identity,
+                    )
 
             raw_output = str(raw_output or "")
             raw_output = re.sub(r"\[Thought\]", "<thought>", raw_output, flags=re.IGNORECASE)

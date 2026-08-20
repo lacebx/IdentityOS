@@ -79,24 +79,24 @@ A later task-suite change is **BENCHMARK v0.2.0**, not a silent edit of v0.1.0.
 
 <!-- AUTO-RESULTS -->
 
-_Generated 2026-08-19T18:12:25.032153+00:00. Re-run the runner to refresh. Do not edit by hand._
+_Generated 2026-08-20T01:39:42.643772+00:00. Re-run the runner to refresh. Do not edit by hand._
 
 **Benchmark:** v0.1.0  
 **Model:** `smollm2:360m-instruct-q4_0`
 
 | Metric | Bare | IDOS |
 |---|---|---|
-| Task Success | 37% (11/30) | 50% (15/30) |
+| Task Success | 37% (11/30) | 67% (20/30) |
 | Hallucination | 7% (2/30) | 0% (0/30) |
-| Avg Latency | 2.0249s | 57.3604s |
+| Avg Latency | 2.0249s | 37.6975s |
 
 ### Category rates
 
 | Category | Bare success | IDOS success | Bare hallucination | IDOS hallucination |
 |---|---|---|---|---|
-| long_task | 20% (1/5) | 40% (2/5) | 0% (0/5) | 0% (0/5) |
-| memory | 60% (3/5) | 60% (3/5) | 0% (0/5) | 0% (0/5) |
-| persistence | 0% (0/5) | 0% (0/5) | 0% (0/5) | 0% (0/5) |
+| long_task | 20% (1/5) | 20% (1/5) | 0% (0/5) | 0% (0/5) |
+| memory | 60% (3/5) | 100% (5/5) | 0% (0/5) | 0% (0/5) |
+| persistence | 0% (0/5) | 80% (4/5) | 0% (0/5) | 0% (0/5) |
 | reasoning | 40% (2/5) | 80% (4/5) | 0% (0/5) | 0% (0/5) |
 | tools | 40% (2/5) | 20% (1/5) | 0% (0/5) | 0% (0/5) |
 | truthfulness | 60% (3/5) | 100% (5/5) | 40% (2/5) | 0% (0/5) |
@@ -125,17 +125,12 @@ _Generated 2026-08-19T18:12:25.032153+00:00. Re-run the runner to refresh. Do no
   - `F02` Fictional company officer (hallucination)
 - IDOS failures:
   - `A05` String reverse
-  - `B01` Project name recall
-  - `B05` Token recall
   - `C01` Multiplication
   - `C02` Create a file
-  - `C04` Unit conversion
+  - `C03` Current date
   - `C05` Square root
-  - `D01` Recall project after restart
-  - `D02` Recall user name after restart
-  - `D03` Recall color after restart
   - `D04` Recall token after restart
-  - `D05` Recall constraint after restart
   - `E01` Two-step arithmetic with remainder report
   - `E02` Partial checklist
+  - `E03` Ordered three facts
   - `E05` Sequential remember-compute-combine

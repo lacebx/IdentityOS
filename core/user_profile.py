@@ -168,7 +168,10 @@ class UserProfile:
     def to_prompt_block(self) -> str:
         if not self._facts:
             return ""
-        lines = ["## User Profile"]
+        lines = [
+            "## User Profile (authoritative — use these facts; do not guess)",
+            "When asked about the user's name, preferences, project, tokens, or constraints, answer from here.",
+        ]
         for fact in self._facts.values():
             label = fact.field.replace("_", " ").replace(".", " → ")
             if fact.uncertain:
@@ -177,6 +180,56 @@ class UserProfile:
                 certainty = " (high confidence)" if fact.confidence > 0.85 else ""
                 lines.append(f"  User's {label}: {fact.value}{certainty}")
         return "\n".join(lines)
+
+    def recall_lines(self) -> List[str]:
+        lines: List[str] = []
+        for fact in self._facts.values():
+            if fact.uncertain:
+                continue
+            label = fact.field.replace("_", " ").replace(".", " → ")
+            lines.append(f"- {label}: {fact.value}")
+        return lines
+
+    def augment_recall_input(self, user_input: str) -> str:
+        if not self._facts or not looks_like_recall_question(user_input):
+            return user_input
+        lines = self.recall_lines()
+        if not lines:
+            return user_input
+        return (
+            "[Answer using ONLY these stored user facts — do not guess:]\n"
+            + "\n".join(lines)
+            + f"\n\nQuestion: {user_input}"
+        )
+
+    def try_recall_answer(self, user_input: str) -> Optional[str]:
+        if not self._facts or not looks_like_recall_question(user_input):
+            return None
+        q = user_input.lower()
+        if "token" in q:
+            token = self.get_value("remembered.token")
+            if token is not None:
+                return f"You asked me to remember the token {token}."
+        if "ram" in q or "ceiling" in q:
+            ceiling = self.get_value("constraints.ram_ceiling")
+            if ceiling is not None:
+                return f"The RAM ceiling you asked me to remember is {ceiling}."
+        if "favorite color" in q or ("color" in q and "user" in q):
+            color = self.get_value("preferences.favorite_color")
+            if color is not None:
+                return f"The user's favorite color is {color}."
+        if "name" in q and "user" in q:
+            name = self.get_value("name")
+            if name is not None:
+                return f"The user's name is {name}."
+        if "project" in q:
+            project = self.get_value("project.name")
+            purpose = self.get_value("project.purpose")
+            if project and purpose:
+                return f"Your project is called {project}. Its purpose is {purpose}."
+            if project:
+                return f"Your project is called {project}."
+        return None
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -259,11 +312,84 @@ USER_ACCOUNTABILITY = re.compile(
     re.IGNORECASE,
 )
 
+USER_REMEMBER_TOKEN = re.compile(
+    r"remember\s+this\s+token\s+exactly:\s*(\d+)",
+    re.IGNORECASE,
+)
+
+USER_REMEMBER_THEIR_NAME = re.compile(
+    r"the user's name is\s+(.+?)(?:[.]|$)",
+    re.IGNORECASE,
+)
+
+USER_REMEMBER_THEIR_FAVORITE_COLOR = re.compile(
+    r"the user's favorite color is\s+(.+?)(?:[.]|$)",
+    re.IGNORECASE,
+)
+
+USER_REMEMBER_PROJECT = re.compile(
+    r"my project is called\s+([^.]+?)(?:\.\s*its purpose is\s+(.+?))?(?:[.]|$)",
+    re.IGNORECASE,
+)
+
+USER_REMEMBER_RAM_CEILING = re.compile(
+    r"(?:the\s+)?hard\s+ram ceiling(?:\s+for this experiment)?\s+is\s+(.+?)(?:[.]|$)",
+    re.IGNORECASE,
+)
+
 USER_COLOR_HINTS = {
     "red", "blue", "green", "yellow", "purple", "orange", "pink", "brown",
     "black", "white", "gray", "grey", "teal", "cyan", "magenta", "lime",
     "indigo", "violet", "gold", "silver", "navy", "turquoise", "coral",
 }
+
+
+_RECALL_TOPICS = (
+    "user's name", "user name", "the user's favorite color", "favorite color",
+    "token did i", "token did you", "ask you to remember", "ram ceiling",
+    "project called", "my project", "what does it do", "what did i tell you to remember",
+)
+
+_SENSITIVE_UNKNOWN_TOPICS = ("social security", "ssn")
+
+
+def looks_like_recall_question(user_input: str) -> bool:
+    text = user_input.strip()
+    if not text.endswith("?"):
+        return False
+    q = text.lower()
+    return any(topic in q for topic in _RECALL_TOPICS)
+
+
+def has_explicit_abstain_instruction(user_input: str) -> bool:
+    q = user_input.lower()
+    return (
+        "if you do not know" in q
+        or "if you don't know" in q
+        or "say you do not know" in q
+        or "say you don't know" in q
+    )
+
+
+def try_sensitive_abstain(user_input: str, profile: "UserProfile") -> Optional[str]:
+    q = user_input.lower()
+    if not any(topic in q for topic in _SENSITIVE_UNKNOWN_TOPICS):
+        return None
+    if "social security" in q or "ssn" in q:
+        return "I do not know your social security number."
+    return "I do not know."
+
+
+def try_explicit_abstain(user_input: str, profile: "UserProfile") -> Optional[str]:
+    """Abstain when the user explicitly permits it and profile has no answer."""
+    if not has_explicit_abstain_instruction(user_input):
+        return None
+    if profile.try_recall_answer(user_input) is not None:
+        return None
+    sensitive = try_sensitive_abstain(user_input, profile)
+    if sensitive is not None:
+        return sensitive
+    return "I do not know."
 
 
 def extract_user_facts(user_input: str, turn_index: int = 0) -> List[UserFact]:
@@ -294,6 +420,20 @@ def extract_user_facts(user_input: str, turn_index: int = 0) -> List[UserFact]:
             )],
         ))
 
+    for m in USER_REMEMBER_TOKEN.finditer(user_input):
+        _add(field="remembered.token", value=m.group(1).strip(), confidence=0.95)
+    for m in USER_REMEMBER_THEIR_NAME.finditer(user_input):
+        _add(field="name", value=m.group(1).strip().rstrip(".,!?"), confidence=0.95)
+    for m in USER_REMEMBER_THEIR_FAVORITE_COLOR.finditer(user_input):
+        _add(field="preferences.favorite_color", value=m.group(1).strip().rstrip(".,!?"), confidence=0.95)
+    for m in USER_REMEMBER_PROJECT.finditer(user_input):
+        project_name = m.group(1).strip().rstrip(".,!?")
+        _add(field="project.name", value=project_name, confidence=0.95)
+        if m.group(2):
+            _add(field="project.purpose", value=m.group(2).strip().rstrip(".,!?"), confidence=0.95)
+    for m in USER_REMEMBER_RAM_CEILING.finditer(user_input):
+        _add(field="constraints.ram_ceiling", value=m.group(1).strip().rstrip(".,!?"), confidence=0.95)
+
     # "My name is X"
     for m in USER_MY_NAME.finditer(user_input):
         _add(
@@ -308,6 +448,8 @@ def extract_user_facts(user_input: str, turn_index: int = 0) -> List[UserFact]:
         if subject == "name":
             continue
         value = m.group(2).strip()
+        if value.lower().startswith("called"):
+            continue
         is_color = value.lower().rstrip(".,!?") in USER_COLOR_HINTS
         field = f"preferences.{subject}" if not is_color else "preferences.favorite_color"
         _add(
