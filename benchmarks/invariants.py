@@ -39,6 +39,10 @@ ALLOWED_PREFIXES = (
     "docs/BENCHMARK.md",
     "benchmarks/docs/BENCHMARK.md",
     "benchmarks/ratchet_pr.py",
+    "benchmarks/autopilot.py",
+    "benchmarks/autopilot_context.py",
+    "benchmarks/coder_gemini.py",
+    "benchmarks/plateau.py",
 )
 
 HARNESS_GLOBS = (
