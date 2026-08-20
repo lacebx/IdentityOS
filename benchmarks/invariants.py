@@ -42,6 +42,7 @@ ALLOWED_PREFIXES = (
     "benchmarks/autopilot.py",
     "benchmarks/autopilot_context.py",
     "benchmarks/coder_gemini.py",
+    "benchmarks/coder_llm.py",
     "benchmarks/plateau.py",
 )
 
