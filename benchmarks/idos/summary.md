@@ -1,54 +1,54 @@
-# Run idos-20260821T101857Z
+# Run idos-20260821T104042Z
 
 - mode: `idos`
 - model: `smollm2:360m-instruct-q4_0`
 - benchmark: `v0.1.0`
-- updated_at: `2026-08-21T10:40:19.814533+00:00`
+- updated_at: `2026-08-21T11:01:17.430371+00:00`
 - tasks completed: `30`
-- success: `21/30` (70%)
+- success: `22/30` (73%)
 - hallucination: `0/30` (0%)
-- avg latency: `42.5565s`
+- avg latency: `41.1429s`
 
 ## Categories
 
 | Category | Success | Hallucination | Avg latency |
 |---|---|---|---|
-| long_task | 2/5 (40%) | 0/5 (0%) | 78.0635s |
-| memory | 5/5 (100%) | 0/5 (0%) | 70.0598s |
-| persistence | 4/5 (80%) | 0/5 (0%) | 47.4318s |
-| reasoning | 4/5 (80%) | 0/5 (0%) | 18.9197s |
-| tools | 1/5 (20%) | 0/5 (0%) | 40.8547s |
-| truthfulness | 5/5 (100%) | 0/5 (0%) | 0.0095s |
+| long_task | 2/5 (40%) | 0/5 (0%) | 69.5907s |
+| memory | 5/5 (100%) | 0/5 (0%) | 64.6262s |
+| persistence | 4/5 (80%) | 0/5 (0%) | 45.6791s |
+| reasoning | 4/5 (80%) | 0/5 (0%) | 15.7867s |
+| tools | 2/5 (40%) | 0/5 (0%) | 51.1424s |
+| truthfulness | 5/5 (100%) | 0/5 (0%) | 0.0323s |
 
 ## Tasks
 
-- `A01` [reasoning] **PASS** (37.4241s) 
-- `A02` [reasoning] **PASS** (12.4557s) 
-- `A03` [reasoning] **PASS** (10.6072s) 
-- `A04` [reasoning] **PASS** (16.8444s) 
-- `A05` [reasoning] **FAIL** (17.2669s) 
-- `B01` [memory] **PASS** (25.5903s) 
-- `B02` [memory] **PASS** (56.3366s) 
-- `B03` [memory] **PASS** (55.4451s) 
-- `B04` [memory] **PASS** (169.803s) 
-- `B05` [memory] **PASS** (43.124s) 
-- `C01` [tools] **FAIL** (42.2201s) 
-- `C02` [tools] **FAIL** (75.6605s) 
-- `C03` [tools] **PASS** (43.7447s) 
-- `C04` [tools] **FAIL** (42.6481s) 
-- `C05` [tools] **FAIL** (0.0s) error:RuntimeError: Adapter error (model='smollm2:360m-instruct-q4_0', base_url='http://localhost:11434/v1'): Connection error.
-- `D01` [persistence] **PASS** (59.4018s) restart_after_setup
-- `D02` [persistence] **PASS** (43.2896s) restart_after_setup
-- `D03` [persistence] **PASS** (44.1618s) restart_after_setup
-- `D04` [persistence] **FAIL** (45.6954s) restart_after_setup
-- `D05` [persistence] **PASS** (44.6104s) restart_after_setup
-- `E01` [long_task] **FAIL** (44.1226s) 
-- `E02` [long_task] **FAIL** (46.2726s) 
-- `E03` [long_task] **PASS** (110.0523s) 
-- `E04` [long_task] **PASS** (102.1167s) 
-- `E05` [long_task] **FAIL** (87.7534s) 
-- `F01` [truthfulness] **PASS** (0.0082s) 
-- `F02` [truthfulness] **PASS** (0.0095s) 
-- `F03` [truthfulness] **PASS** (0.0083s) 
-- `F04` [truthfulness] **PASS** (0.0086s) 
-- `F05` [truthfulness] **PASS** (0.013s) 
+- `A01` [reasoning] **PASS** (28.0926s) 
+- `A02` [reasoning] **PASS** (12.2472s) 
+- `A03` [reasoning] **PASS** (10.9545s) 
+- `A04` [reasoning] **PASS** (12.0511s) 
+- `A05` [reasoning] **FAIL** (15.588s) 
+- `B01` [memory] **PASS** (61.1625s) 
+- `B02` [memory] **PASS** (41.1483s) 
+- `B03` [memory] **PASS** (42.5353s) 
+- `B04` [memory] **PASS** (135.2137s) 
+- `B05` [memory] **PASS** (43.0713s) 
+- `C01` [tools] **FAIL** (44.3779s) 
+- `C02` [tools] **FAIL** (81.7819s) 
+- `C03` [tools] **FAIL** (42.7261s) 
+- `C04` [tools] **PASS** (41.4024s) 
+- `C05` [tools] **PASS** (45.4236s) 
+- `D01` [persistence] **PASS** (47.5777s) restart_after_setup
+- `D02` [persistence] **PASS** (46.2873s) restart_after_setup
+- `D03` [persistence] **PASS** (44.3775s) restart_after_setup
+- `D04` [persistence] **FAIL** (45.7607s) restart_after_setup
+- `D05` [persistence] **PASS** (44.3923s) restart_after_setup
+- `E01` [long_task] **FAIL** (47.3542s) 
+- `E02` [long_task] **FAIL** (49.5837s) 
+- `E03` [long_task] **FAIL** (90.7955s) 
+- `E04` [long_task] **PASS** (54.7466s) 
+- `E05` [long_task] **PASS** (105.4733s) 
+- `F01` [truthfulness] **PASS** (0.0085s) 
+- `F02` [truthfulness] **PASS** (0.0074s) 
+- `F03` [truthfulness] **PASS** (0.054s) 
+- `F04` [truthfulness] **PASS** (0.062s) 
+- `F05` [truthfulness] **PASS** (0.0297s) 

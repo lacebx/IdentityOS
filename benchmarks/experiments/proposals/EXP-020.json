@@ -1,0 +1,14 @@
+{
+  "hypothesis": "Improving the OllamaAdapter's tool-call extraction and re-prompt loop will increase tool-use success for SmolLM2 without affecting truthfulness or latency.",
+  "change": "adapters/openai_adapter.py (OllamaAdapter._extract_tool_call and process loop)",
+  "edits": [
+    {
+      "path": "adapters/openai_adapter.py",
+      "search": "    def _extract_tool_call(self, text: str):\n        \"\"\"Extract a legacy tool call from model output.\n\n        Returns (func_name, args_dict) if a call is fo",
+      "replace": "    def _extract_tool_call(self, text: str):\n        \"\"\"Extract a legacy tool call from model output.\n\n        Returns (func_name, args_dict) if a call is fo"
+    }
+  ],
+  "tests_to_run": [
+    "tests/test_adapters.py"
+  ]
+}

@@ -79,16 +79,16 @@ A later task-suite change is **BENCHMARK v0.2.0**, not a silent edit of v0.1.0.
 
 <!-- AUTO-RESULTS -->
 
-_Generated 2026-08-21T10:40:19.835745+00:00. Re-run the runner to refresh. Do not edit by hand._
+_Generated 2026-08-21T11:01:17.658893+00:00. Re-run the runner to refresh. Do not edit by hand._
 
 **Benchmark:** v0.1.0  
 **Model:** `smollm2:360m-instruct-q4_0`
 
 | Metric | Bare | IDOS |
 |---|---|---|
-| Task Success | 37% (11/30) | 70% (21/30) |
+| Task Success | 37% (11/30) | 73% (22/30) |
 | Hallucination | 7% (2/30) | 0% (0/30) |
-| Avg Latency | 2.0249s | 42.5565s |
+| Avg Latency | 2.0249s | 41.1429s |
 
 ### Category rates
 
@@ -98,7 +98,7 @@ _Generated 2026-08-21T10:40:19.835745+00:00. Re-run the runner to refresh. Do no
 | memory | 60% (3/5) | 100% (5/5) | 0% (0/5) | 0% (0/5) |
 | persistence | 0% (0/5) | 80% (4/5) | 0% (0/5) | 0% (0/5) |
 | reasoning | 40% (2/5) | 80% (4/5) | 0% (0/5) | 0% (0/5) |
-| tools | 40% (2/5) | 20% (1/5) | 0% (0/5) | 0% (0/5) |
+| tools | 40% (2/5) | 40% (2/5) | 0% (0/5) | 0% (0/5) |
 | truthfulness | 60% (3/5) | 100% (5/5) | 40% (2/5) | 0% (0/5) |
 
 ### Failures
@@ -127,9 +127,8 @@ _Generated 2026-08-21T10:40:19.835745+00:00. Re-run the runner to refresh. Do no
   - `A05` String reverse
   - `C01` Multiplication
   - `C02` Create a file
-  - `C04` Unit conversion
-  - `C05` Square root
+  - `C03` Current date
   - `D04` Recall token after restart
   - `E01` Two-step arithmetic with remainder report
   - `E02` Partial checklist
-  - `E05` Sequential remember-compute-combine
+  - `E03` Ordered three facts
