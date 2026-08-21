@@ -372,6 +372,27 @@ class OllamaAdapter(OpenAIAdapter):
     execute the capability, and re-prompt with the verified result.
     """
 
+    def _build_messages(self, messages, execute_tool=None):
+        """Prepend a tool-use reminder to the system prompt when a tool is available."""
+        if execute_tool is None:
+            return messages
+        reminder = (
+            "You have access to a tool that can perform calculations, file operations, "
+            "and retrieve current date/time. When a task requires such operations, "
+            "use the tool and report its result exactly as returned. Do not guess or "
+            "invent results."
+        )
+        new_messages = []
+        for msg in messages:
+            if msg.get("role") == "system":
+                content = msg.get("content", "")
+                msg = dict(msg)
+                msg["content"] = reminder + "\n\n" + content
+            new_messages.append(msg)
+        if not any(m.get("role") == "system" for m in new_messages):
+            new_messages.insert(0, {"role": "system", "content": reminder})
+        return new_messages
+
     def _extract_tool_call(self, text: str):
         """Extract a legacy tool call from model output.
 

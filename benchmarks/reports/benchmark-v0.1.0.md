@@ -6,9 +6,9 @@ Numbers below are measured, not assumed. Empty cells mean that mode has not been
 
 | Metric | Bare | IDOS |
 |---|---|---|
-| Task Success | 37% (11/30) | 73% (22/30) |
+| Task Success | 37% (11/30) | 77% (23/30) |
 | Hallucination | 7% (2/30) | 0% (0/30) |
-| Avg Latency | 2.0249s | 41.1429s |
+| Avg Latency | 2.0249s | 38.0028s |
 
 ## By category
 
@@ -18,7 +18,7 @@ Numbers below are measured, not assumed. Empty cells mean that mode has not been
 | memory | 60% (3/5) | 100% (5/5) | 0% (0/5) | 0% (0/5) |
 | persistence | 0% (0/5) | 80% (4/5) | 0% (0/5) | 0% (0/5) |
 | reasoning | 40% (2/5) | 80% (4/5) | 0% (0/5) | 0% (0/5) |
-| tools | 40% (2/5) | 40% (2/5) | 0% (0/5) | 0% (0/5) |
+| tools | 40% (2/5) | 60% (3/5) | 0% (0/5) | 0% (0/5) |
 | truthfulness | 60% (3/5) | 100% (5/5) | 40% (2/5) | 0% (0/5) |
 
 ## What this is
