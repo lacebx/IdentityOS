@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 """Autonomous ratchet loop: LLM proposes runtime fixes → ratchet judges.
 
-Coder providers (default order): gemini → groq → deepseek
-Override with --provider or AUTOPILOT_CODER_ORDER in benchmarks/.env.
+Unattended overnight (until plateau):
+  nohup python benchmarks/autopilot.py --loop --until-plateau --provider deepseek \\
+    >> /tmp/autopilot.log 2>&1 &
 
-Examples:
-  python benchmarks/autopilot.py --plan-only --provider deepseek
-  python benchmarks/autopilot.py --once --provider deepseek
-  python benchmarks/autopilot.py --once --reuse-latest
-  python benchmarks/autopilot.py --once --from-proposal benchmarks/experiments/proposals/EXP-011.json
-  python benchmarks/autopilot.py --loop --max-iters 5 --provider deepseek
+Stops when:
+  - N consecutive REVERTs (default 4), or
+  - success rate reaches target (default 85%), or
+  - --max-iters reached (ignored when --until-plateau)
+
+Coder order: AUTOPILOT_CODER_ORDER or --provider (gemini|groq|deepseek).
 """
 
 from __future__ import annotations
@@ -18,8 +19,9 @@ import argparse
 import json
 import subprocess
 import sys
+import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -39,7 +41,11 @@ from benchmarks.autopilot_context import (  # noqa: E402
     parse_recent_experiments,
 )
 from benchmarks.coder_llm import CoderError, propose_edits  # noqa: E402
-from benchmarks.invariants import ROOT as REPO_ROOT, classify_paths  # noqa: E402
+from benchmarks.invariants import (  # noqa: E402
+    ALLOWED_PREFIXES,
+    ROOT as REPO_ROOT,
+    classify_paths,
+)
 from benchmarks.plateau import should_stop  # noqa: E402
 from benchmarks.ratchet import next_exp_id  # noqa: E402
 
@@ -49,10 +55,38 @@ DEFAULT_PYTEST = [
     "tests/test_ratchet.py",
     "tests/test_smollm_benchmark.py",
 ]
+RUNTIME_PREFIXES = ("adapters/", "core/", "runtime/", "tests/")
 
 
 def _is_allowed_path(rel: str) -> bool:
     return bool(classify_paths([rel])["allowed"])
+
+
+def _git(args: list[str]) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(["git", *args], cwd=ROOT, text=True, capture_output=True)
+
+
+def dirty_allowlisted_runtime() -> list[str]:
+    """Tracked allowlisted runtime files that differ from HEAD (experiment leftovers)."""
+    named = (_git(["diff", "--name-only", "HEAD"]).stdout or "").splitlines()
+    out: list[str] = []
+    for rel in named:
+        if not rel:
+            continue
+        if not any(rel == p or rel.startswith(p) for p in RUNTIME_PREFIXES):
+            continue
+        if _is_allowed_path(rel):
+            out.append(rel)
+    return sorted(set(out))
+
+
+def reset_runtime_to_head() -> list[str]:
+    """Restore dirty runtime experiment files so each loop starts clean."""
+    dirty = dirty_allowlisted_runtime()
+    if not dirty:
+        return []
+    _git(["restore", "--worktree", "--staged", "--", *dirty])
+    return dirty
 
 
 def apply_edits(edits: list[dict[str, Any]]) -> list[str]:
@@ -124,7 +158,6 @@ def latest_proposal_path() -> Path | None:
 
 
 def plan(*, model: str | None = None, provider: str | None = None) -> dict[str, Any]:
-    # Compact prompts keep Groq free-tier TPM under ~8k.
     prompt = build_coder_prompt(
         results=load_results(),
         recent_experiments=parse_recent_experiments(),
@@ -133,36 +166,66 @@ def plan(*, model: str | None = None, provider: str | None = None) -> dict[str, 
     return propose_edits(prompt, model=model, provider=provider)
 
 
+def _iter_count(max_iters: int, until_plateau: bool) -> Iterator[int]:
+    if until_plateau or max_iters <= 0:
+        n = 0
+        while True:
+            n += 1
+            yield n
+    else:
+        yield from range(1, max_iters + 1)
+
+
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(
         description="Multi-provider ratchet autopilot",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
+            "Overnight (no intervention until plateau):\n"
+            "  nohup python benchmarks/autopilot.py --loop --until-plateau --provider deepseek "
+            ">> /tmp/autopilot.log 2>&1 &\n"
+            "  tail -f /tmp/autopilot.log\n\n"
             "Providers: gemini | groq | deepseek\n"
-            "Models via env: GEMINI_MODEL, GROQ_CODER_MODEL, DEEPSEEK_CODER_MODEL\n"
-            "  deepseek default: deepseek-v4-flash  (pro: deepseek-v4-pro)\n"
-            "  groq default: openai/gpt-oss-20b\n"
-            "  gemini default: gemini-3.6-flash\n"
-            "Overnight tip: --provider deepseek  OR  AUTOPILOT_CODER_ORDER=deepseek,groq,gemini"
+            "Models: GEMINI_MODEL, GROQ_CODER_MODEL, DEEPSEEK_CODER_MODEL "
+            "(default deepseek-v4-flash)"
         ),
     )
     p.add_argument("--plan-only", action="store_true")
     p.add_argument("--once", action="store_true")
-    p.add_argument("--loop", action="store_true")
-    p.add_argument("--max-iters", type=int, default=3)
+    p.add_argument("--loop", action="store_true", help="Repeat experiments until stop condition")
     p.add_argument(
-        "--model",
-        default=None,
-        help="Override model for --provider (e.g. deepseek-v4-flash or deepseek-v4-pro)",
+        "--until-plateau",
+        action="store_true",
+        help="With --loop: ignore --max-iters; run until consecutive REVERTs or target score",
     )
+    p.add_argument(
+        "--max-iters",
+        type=int,
+        default=3,
+        help="Max loop iterations (default 3). Use 0 or --until-plateau for unbounded",
+    )
+    p.add_argument(
+        "--max-consecutive-reverts",
+        type=int,
+        default=4,
+        help="Plateau: stop after this many REVERTs in a row (default 4)",
+    )
+    p.add_argument(
+        "--target-success",
+        type=float,
+        default=0.85,
+        help="Plateau: stop when KEEP success rate >= this (default 0.85)",
+    )
+    p.add_argument("--retry-sleep", type=int, default=45, help="Seconds to sleep after a failed plan/apply")
+    p.add_argument("--model", default=None, help="Override model for --provider")
     p.add_argument(
         "--provider",
         choices=("gemini", "groq", "deepseek"),
         default=None,
-        help="Force one coder (recommended for overnight: deepseek)",
+        help="Force one coder (overnight: deepseek)",
     )
     p.add_argument("--from-proposal", type=Path)
-    p.add_argument("--reuse-latest", action="store_true", help="Use newest proposals/EXP-*.json (no API)")
+    p.add_argument("--reuse-latest", action="store_true")
     p.add_argument("--dry-run", action="store_true")
     return p.parse_args(argv)
 
@@ -173,16 +236,32 @@ def main(argv: list[str] | None = None) -> int:
         print("Pass --plan-only, --once, or --loop", file=sys.stderr)
         return 2
 
-    iters = args.max_iters if args.loop else 1
-    for iteration in range(iters):
-        stop, reason = should_stop()
-        if args.loop and stop:
-            print(f"[autopilot] stopping: {reason}")
-            return 0
+    if args.until_plateau and not args.loop:
+        print("[autopilot] --until-plateau requires --loop", file=sys.stderr)
+        return 2
+
+    for iteration in _iter_count(args.max_iters, args.until_plateau and args.loop):
+        if args.loop:
+            stop, reason = should_stop(
+                max_consecutive_reverts=args.max_consecutive_reverts,
+                target_success_rate=args.target_success,
+            )
+            if stop:
+                print(f"[autopilot] plateau reached: {reason}")
+                return 0
 
         exp_id = next_exp_id()
-        print(f"[autopilot] iteration {iteration + 1}/{iters} → {exp_id}")
+        bound = "∞" if (args.until_plateau or args.max_iters <= 0) else str(args.max_iters)
+        print(f"[autopilot] iteration {iteration}/{bound} → {exp_id}")
 
+        # Each overnight iteration must start from HEAD so locked/harness dirt
+        # and leftover REVERT-adjacent edits do not abort the ratchet.
+        if args.loop and not args.from_proposal and not args.reuse_latest:
+            restored = reset_runtime_to_head()
+            if restored:
+                print(f"[autopilot] reset runtime files to HEAD: {', '.join(restored)}")
+
+        proposal: dict[str, Any]
         if args.from_proposal:
             proposal = json.loads(Path(args.from_proposal).read_text(encoding="utf-8"))
             print(f"[autopilot] using proposal file: {args.from_proposal}")
@@ -200,20 +279,27 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"[autopilot] proposal: {save_proposal(exp_id, proposal)}")
             except CoderError as exc:
                 latest = latest_proposal_path()
-                if args.once and latest is not None:
-                    print(f"[autopilot] coder failed ({exc}); falling back to {latest}", file=sys.stderr)
+                if latest is not None and (args.once or args.loop):
+                    print(f"[autopilot] coder failed ({exc}); trying {latest}", file=sys.stderr)
                     proposal = json.loads(latest.read_text(encoding="utf-8"))
+                elif args.loop:
+                    print(f"[autopilot] coder failed; sleep {args.retry_sleep}s and continue: {exc}", file=sys.stderr)
+                    time.sleep(args.retry_sleep)
+                    continue
                 else:
                     print(f"[autopilot] coder failed: {exc}", file=sys.stderr)
                     return 1
 
         if args.plan_only or args.dry_run:
             print(json.dumps(proposal, indent=2))
-            return 0 if args.plan_only else 0
+            return 0
 
         edits = proposal.get("edits") or []
         if not edits:
-            print("[autopilot] empty edits — refuse ratchet", file=sys.stderr)
+            print("[autopilot] empty edits", file=sys.stderr)
+            if args.loop:
+                time.sleep(args.retry_sleep)
+                continue
             return 2
 
         try:
@@ -222,6 +308,10 @@ def main(argv: list[str] | None = None) -> int:
             run_pytest(targets)
         except CoderError as exc:
             print(f"[autopilot] apply/pytest failed: {exc}", file=sys.stderr)
+            reset_runtime_to_head()
+            if args.loop:
+                time.sleep(args.retry_sleep)
+                continue
             return 1
 
         rc = run_ratchet(
@@ -231,8 +321,14 @@ def main(argv: list[str] | None = None) -> int:
             pytest_targets=proposal.get("tests_to_run") or DEFAULT_PYTEST,
         )
         print(f"[autopilot] {'KEEP' if rc == 0 else f'returned {rc}'} {exp_id}")
+
         if not args.loop:
             return rc
+
+        # Brief pause so Ollama/API can settle between full-suite runs.
+        time.sleep(5)
+
+    print("[autopilot] max-iters reached without plateau")
     return 0
 
 
