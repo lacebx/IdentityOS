@@ -1,0 +1,19 @@
+{
+  "hypothesis": "Adding a lightweight, general 'tool-use reminder' system prompt that instructs the model to use the provided tool for arithmetic and file operations, and to report the tool's result verbatim, should improve tool-call success (C01, C02) and reduce arithmetic errors (A05, E01) without hurting truthfulness.",
+  "change": "Modify OllamaAdapter to prepend a tool-use reminder to the system prompt when a tool is available, and adjust the orchestrator to pass a tool hint. Also add a test for the reminder injection.",
+  "edits": [
+    {
+      "path": "adapters/openai_adapter.py",
+      "search": "class OllamaAdapter(OpenAIAdapter):\n    \"\"\"Local Ollama model via OpenAI-compatible API.\n\n    SmolLM2 and many small Ollama models reject native ``tools`` on the API.\n    When ``execute_tool`` is provided, this adapter runs a text-based loop:\n    parse legacy ``<function=name>{args}</function>`` from model output,\n    execute the capability, and re-prompt with the verified result.\n    \"\"\"",
+      "replace": "class OllamaAdapter(OpenAIAdapter):\n    \"\"\"Local Ollama model via OpenAI-compatible API.\n\n    SmolLM2 and many small Ollama models reject native ``tools`` on the API.\n    When ``execute_tool`` is provided, this adapter runs a text-based loop:\n    parse legacy ``<function=name>{args}</function>`` from model output,\n    execute the capability, and re-prompt with the verified result.\n    \"\"\"\n\n    def _build_messages(self, messages, execute_tool=None):\n        \"\"\"Prepend a tool-use reminder to the system prompt when a tool is available.\"\"\"\n        if execute_tool is None:\n            return messages\n        reminder = (\n            \"You have access to a tool that can perform calculations, file operations, \"\n            \"and retrieve current date/time. When a task requires such operations, \"\n            \"use the tool and report its result exactly as returned. Do not guess or \"\n            \"invent results.\"\n        )\n        new_messages = []\n        for msg in messages:\n            if msg.get(\"role\") == \"system\":\n                content = msg.get(\"content\", \"\")\n                msg = dict(msg)\n                msg[\"content\"] = reminder + \"\\n\\n\" + content\n            new_messages.append(msg)\n        if not any(m.get(\"role\") == \"system\" for m in new_messages):\n            new_messages.insert(0, {\"role\": \"system\", \"content\": reminder})\n        return new_messages"
+    },
+    {
+      "path": "adapters/openai_adapter.py",
+      "search": "    def _extract_tool_call(self, text: str):",
+      "replace": "    def _extract_tool_call(self, text: str):"
+    }
+  ],
+  "tests_to_run": [
+    "tests/test_adapters.py"
+  ]
+}

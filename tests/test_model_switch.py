@@ -42,7 +42,7 @@ class TestModelSwitch:
 
         # ── Phase 1: Chat with one Groq model ───────────────────────
         from adapters.groq_adapter import GroqAdapter
-        adapter_a = GroqAdapter(model="llama-3.3-70b-versatile", max_tokens=100)
+        adapter_a = GroqAdapter(model="openai/gpt-oss-120b", max_tokens=256)
 
         rt = IdentityRuntime(storage=storage, adapter=adapter_a)
         register_default_criteria(rt.evaluation_engine)
@@ -66,8 +66,8 @@ class TestModelSwitch:
 
         # ── Phase 2: Swap to a different model ON THE SAME RUNTIME ──
         adapter_b = GroqAdapter(
-            model="llama-3.1-8b-instant",
-            max_tokens=100,
+            model="openai/gpt-oss-20b",
+            max_tokens=256,
         )
         rt.adapter = adapter_b  # Hot-swap the adapter while runtime keeps running
 

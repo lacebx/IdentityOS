@@ -74,7 +74,7 @@ _groq_keys = [os.environ.get(k) for k in ("GROQ_API_KEY", "GROQ_API_KEY_2", "GRO
 if any(k for k in _groq_keys if k and "PLACEHOLDER" not in k):
     try:
         from adapters.groq_adapter import GroqAdapter
-        model = os.environ.get("IDENTITY_MODEL", "llama-3.3-70b-versatile")
+        model = os.environ.get("IDENTITY_MODEL", "openai/gpt-oss-120b")
         _candidates.append(GroqAdapter(model=model))
         logger.info("Added Groq adapter to chain (model=%s)", model)
     except Exception as e:

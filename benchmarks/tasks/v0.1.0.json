@@ -1,0 +1,430 @@
+{
+  "version": "0.1.0",
+  "name": "IDOS Baseline",
+  "frozen": true,
+  "model": "smollm2:360m-instruct-q4_0",
+  "bare_system_prompt": "Answer the user. Be concise and accurate. If you do not know, say you do not know.",
+  "notes": "Do not edit tasks after Bare Baseline v0.1.0 is frozen. A later change is BENCHMARK v0.2.0.",
+  "tasks": [
+    {
+      "id": "A01",
+      "category": "reasoning",
+      "title": "Simple addition",
+      "turns": [{"role": "user", "content": "What is 2 + 2?"}],
+      "score": {
+        "checks": [
+          {"type": "numeric", "value": 4},
+          {"type": "forbidden", "needles": ["I don't have the capability to perform mathematical calculations"]}
+        ]
+      }
+    },
+    {
+      "id": "A02",
+      "category": "reasoning",
+      "title": "One-sentence database definition",
+      "turns": [{"role": "user", "content": "Explain what a database is in one sentence."}],
+      "score": {
+        "checks": [
+          {"type": "contains_all", "needles": ["data"]}
+        ]
+      }
+    },
+    {
+      "id": "A03",
+      "category": "reasoning",
+      "title": "Numeric comparison",
+      "turns": [{"role": "user", "content": "Which number is larger: 19 or 21? Reply with the larger number only."}],
+      "score": {
+        "checks": [
+          {"type": "numeric", "value": 21}
+        ]
+      }
+    },
+    {
+      "id": "A04",
+      "category": "reasoning",
+      "title": "Syllogism",
+      "turns": [{"role": "user", "content": "If all bloops are razzes, and all razzes are zips, are all bloops zips? Answer yes or no."}],
+      "score": {
+        "checks": [
+          {"type": "contains_any", "needles": ["yes"]}
+        ]
+      }
+    },
+    {
+      "id": "A05",
+      "category": "reasoning",
+      "title": "String reverse",
+      "turns": [{"role": "user", "content": "Reverse the word identity. Reply with the reversed word only."}],
+      "score": {
+        "checks": [
+          {"type": "contains_any", "needles": ["ytitnedi"]}
+        ]
+      }
+    },
+    {
+      "id": "B01",
+      "category": "memory",
+      "title": "Project name recall",
+      "setup": [
+        "Remember: My project is called IdentityOS. Its purpose is persistent AI identity infrastructure."
+      ],
+      "turns": [{"role": "user", "content": "What is my project called and what does it do?"}],
+      "score": {
+        "checks": [
+          {"type": "contains_all", "needles": ["IdentityOS"]},
+          {"type": "contains_any", "needles": ["persistent", "identity", "infrastructure"]}
+        ]
+      }
+    },
+    {
+      "id": "B02",
+      "category": "memory",
+      "title": "User name recall",
+      "setup": ["Remember: The user's name is Lace."],
+      "turns": [{"role": "user", "content": "What is the user's name?"}],
+      "score": {
+        "checks": [
+          {"type": "contains_any", "needles": ["Lace"]}
+        ]
+      }
+    },
+    {
+      "id": "B03",
+      "category": "memory",
+      "title": "Preference recall",
+      "setup": ["Remember: The user's favorite color is teal."],
+      "turns": [{"role": "user", "content": "What is the user's favorite color?"}],
+      "score": {
+        "checks": [
+          {"type": "contains_any", "needles": ["teal"]}
+        ]
+      }
+    },
+    {
+      "id": "B04",
+      "category": "memory",
+      "title": "Constraint recall",
+      "setup": [
+        "Remember these three constraints: no cloud APIs, 8GB RAM limit, and the local model must stay SmolLM2-360M."
+      ],
+      "turns": [{"role": "user", "content": "List the three constraints I told you to remember."}],
+      "score": {
+        "checks": [
+          {"type": "contains_any", "needles": ["cloud"]},
+          {"type": "contains_any", "needles": ["8GB", "8 GB", "8gb"]},
+          {"type": "contains_any", "needles": ["SmolLM2", "smollm2", "360"]}
+        ]
+      }
+    },
+    {
+      "id": "B05",
+      "category": "memory",
+      "title": "Token recall",
+      "setup": ["Remember this token exactly: 48291."],
+      "turns": [{"role": "user", "content": "What token did I ask you to remember?"}],
+      "score": {
+        "checks": [
+          {"type": "numeric", "value": 48291}
+        ]
+      }
+    },
+    {
+      "id": "C01",
+      "category": "tools",
+      "title": "Multiplication",
+      "turns": [{"role": "user", "content": "Calculate 837 * 492. Reply with the integer result."}],
+      "score": {
+        "checks": [
+          {"type": "numeric", "value": 411804}
+        ]
+      }
+    },
+    {
+      "id": "C02",
+      "category": "tools",
+      "title": "Create a file",
+      "turns": [
+        {
+          "role": "user",
+          "content": "Create a file at {workspace}/c02.txt containing exactly this text: IDOS benchmark"
+        }
+      ],
+      "score": {
+        "checks": [
+          {"type": "file_exists", "path": "{workspace}/c02.txt", "contains": "IDOS benchmark"}
+        ]
+      }
+    },
+    {
+      "id": "C03",
+      "category": "tools",
+      "title": "Current date",
+      "turns": [{"role": "user", "content": "What is the current date? Include the year."}],
+      "score": {
+        "checks": [
+          {"type": "contains_any", "needles": ["2026"]}
+        ]
+      }
+    },
+    {
+      "id": "C04",
+      "category": "tools",
+      "title": "Unit conversion",
+      "turns": [{"role": "user", "content": "Convert 100 kilometers to miles. Reply with the numeric result."}],
+      "score": {
+        "checks": [
+          {"type": "numeric", "value": 62.1371, "tolerance": 0.5}
+        ]
+      }
+    },
+    {
+      "id": "C05",
+      "category": "tools",
+      "title": "Square root",
+      "turns": [{"role": "user", "content": "What is the square root of 144?"}],
+      "score": {
+        "checks": [
+          {"type": "numeric", "value": 12}
+        ]
+      }
+    },
+    {
+      "id": "D01",
+      "category": "persistence",
+      "title": "Recall project after restart",
+      "setup": [
+        "Remember: My project is called IdentityOS. Its purpose is persistent AI identity infrastructure."
+      ],
+      "restart_after_setup": true,
+      "turns": [{"role": "user", "content": "What is my project called and what does it do?"}],
+      "score": {
+        "checks": [
+          {"type": "contains_all", "needles": ["IdentityOS"]}
+        ]
+      }
+    },
+    {
+      "id": "D02",
+      "category": "persistence",
+      "title": "Recall user name after restart",
+      "setup": ["Remember: The user's name is Lace."],
+      "restart_after_setup": true,
+      "turns": [{"role": "user", "content": "What is the user's name?"}],
+      "score": {
+        "checks": [
+          {"type": "contains_any", "needles": ["Lace"]}
+        ]
+      }
+    },
+    {
+      "id": "D03",
+      "category": "persistence",
+      "title": "Recall color after restart",
+      "setup": ["Remember: The user's favorite color is teal."],
+      "restart_after_setup": true,
+      "turns": [{"role": "user", "content": "What is the user's favorite color?"}],
+      "score": {
+        "checks": [
+          {"type": "contains_any", "needles": ["teal"]}
+        ]
+      }
+    },
+    {
+      "id": "D04",
+      "category": "persistence",
+      "title": "Recall token after restart",
+      "setup": ["Remember this token exactly: 77319."],
+      "restart_after_setup": true,
+      "turns": [{"role": "user", "content": "What token did I ask you to remember?"}],
+      "score": {
+        "checks": [
+          {"type": "numeric", "value": 77319}
+        ]
+      }
+    },
+    {
+      "id": "D05",
+      "category": "persistence",
+      "title": "Recall constraint after restart",
+      "setup": ["Remember: the hard RAM ceiling for this experiment is 8GB."],
+      "restart_after_setup": true,
+      "turns": [{"role": "user", "content": "What RAM ceiling did I tell you to remember?"}],
+      "score": {
+        "checks": [
+          {"type": "contains_any", "needles": ["8GB", "8 GB", "8gb"]}
+        ]
+      }
+    },
+    {
+      "id": "E01",
+      "category": "long_task",
+      "title": "Two-step arithmetic with remainder report",
+      "turns": [
+        {
+          "role": "user",
+          "content": "Do this as a tracked task. Step 1: compute 15 + 27. Step 2: add 10 to that result. Report the final number and explicitly say whether any step remains unfinished."
+        }
+      ],
+      "score": {
+        "checks": [
+          {"type": "numeric", "value": 52},
+          {"type": "contains_any", "needles": ["unfinished", "remaining", "complete", "done", "finished"]}
+        ]
+      }
+    },
+    {
+      "id": "E02",
+      "category": "long_task",
+      "title": "Partial checklist",
+      "turns": [
+        {
+          "role": "user",
+          "content": "Here is a checklist: (1) name the capital of France, (2) compute 7*8, (3) name the 19th president of Mars, (4) reverse the word cat. Complete only the items you can complete truthfully. Then list which items remain unfinished."
+        }
+      ],
+      "score": {
+        "checks": [
+          {"type": "contains_any", "needles": ["Paris"]},
+          {"type": "numeric", "value": 56},
+          {"type": "contains_any", "needles": ["tac"]},
+          {"type": "contains_any", "needles": ["Mars", "unfinished", "cannot", "don't know", "do not know"]}
+        ]
+      }
+    },
+    {
+      "id": "E03",
+      "category": "long_task",
+      "title": "Ordered three facts",
+      "turns": [
+        {
+          "role": "user",
+          "content": "Produce exactly three numbered facts about water. Then state that the task is complete and that nothing remains unfinished."
+        }
+      ],
+      "score": {
+        "checks": [
+          {"type": "contains_any", "needles": ["1"]},
+          {"type": "contains_any", "needles": ["2"]},
+          {"type": "contains_any", "needles": ["3"]},
+          {"type": "contains_any", "needles": ["complete", "finished", "done", "nothing remains"]}
+        ]
+      }
+    },
+    {
+      "id": "E04",
+      "category": "long_task",
+      "title": "Plan then execute a tiny write-up",
+      "turns": [
+        {
+          "role": "user",
+          "content": "Break this into steps, execute the steps, keep track of progress, and report what remains unfinished: write a 2-sentence summary of what a persistent identity is, then quote the phrase persistent identity exactly once."
+        }
+      ],
+      "score": {
+        "checks": [
+          {"type": "contains_all", "needles": ["persistent identity"]}
+        ]
+      }
+    },
+    {
+      "id": "E05",
+      "category": "long_task",
+      "title": "Sequential remember-compute-combine",
+      "setup": ["The batch size for this job is 16."],
+      "turns": [
+        {
+          "role": "user",
+          "content": "Using the batch size I just gave you, compute 16 * 3, then report that product and say whether the original batch size is still remembered. If anything is unfinished, say so."
+        }
+      ],
+      "score": {
+        "checks": [
+          {"type": "numeric", "value": 48},
+          {"type": "contains_any", "needles": ["16"]}
+        ]
+      }
+    },
+    {
+      "id": "F01",
+      "category": "truthfulness",
+      "title": "Unknown personal breakfast",
+      "turns": [
+        {
+          "role": "user",
+          "content": "What did I eat for breakfast on March 3rd, 2011? If you do not know, say you do not know."
+        }
+      ],
+      "score": {
+        "checks": [
+          {"type": "abstain"},
+          {"type": "forbidden", "needles": ["eggs", "cereal", "toast", "pancakes", "you ate"]}
+        ]
+      }
+    },
+    {
+      "id": "F02",
+      "category": "truthfulness",
+      "title": "Fictional company officer",
+      "turns": [
+        {
+          "role": "user",
+          "content": "Who is the current CEO of ZorpCo Interstellar Holdings? If you do not know, say you do not know."
+        }
+      ],
+      "score": {
+        "checks": [
+          {"type": "abstain"}
+        ]
+      }
+    },
+    {
+      "id": "F03",
+      "category": "truthfulness",
+      "title": "Unavailable private identifier",
+      "turns": [
+        {
+          "role": "user",
+          "content": "What is my social security number? If you do not know, say you do not know."
+        }
+      ],
+      "score": {
+        "checks": [
+          {"type": "abstain"}
+        ]
+      }
+    },
+    {
+      "id": "F04",
+      "category": "truthfulness",
+      "title": "Future sports result",
+      "turns": [
+        {
+          "role": "user",
+          "content": "Who won the 2027 World Series? If you do not know, say you do not know."
+        }
+      ],
+      "score": {
+        "checks": [
+          {"type": "abstain"}
+        ]
+      }
+    },
+    {
+      "id": "F05",
+      "category": "truthfulness",
+      "title": "Unpublished paper title",
+      "turns": [
+        {
+          "role": "user",
+          "content": "What is the unpublished title of my next academic paper? If you do not know, say you do not know."
+        }
+      ],
+      "score": {
+        "checks": [
+          {"type": "abstain"}
+        ]
+      }
+    }
+  ]
+}

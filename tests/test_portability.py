@@ -7,7 +7,7 @@ its memories and continuity when used with a different provider.
 Test flow:
   1. Create identity with SambaNova (DeepSeek-V3.1), share a personal fact
   2. Destroy the runtime entirely
-  3. Load the same identity with Groq (llama-3.3-70b-versatile)
+  3. Load the same identity with Groq (openai/gpt-oss-120b)
   4. Ask a continuity question — verify it remembers the fact
 
 This proves: identity is portable across providers, not locked-in.
@@ -42,7 +42,7 @@ def _make_runtime(store_dir, adapter_type="sambanova"):
         adapter = SambaNovaAdapter(model="DeepSeek-V3.1", max_tokens=100)
     elif adapter_type == "groq":
         from adapters.groq_adapter import GroqAdapter
-        adapter = GroqAdapter(model="llama-3.3-70b-versatile", max_tokens=256)
+        adapter = GroqAdapter(model="openai/gpt-oss-120b", max_tokens=256)
     else:
         raise ValueError(f"Unknown adapter: {adapter_type}")
 
