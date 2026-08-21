@@ -157,11 +157,17 @@ def latest_proposal_path() -> Path | None:
     return paths[0] if paths else None
 
 
-def plan(*, model: str | None = None, provider: str | None = None) -> dict[str, Any]:
+def plan(
+    *,
+    model: str | None = None,
+    provider: str | None = None,
+    last_failure: str | None = None,
+) -> dict[str, Any]:
     prompt = build_coder_prompt(
         results=load_results(),
         recent_experiments=parse_recent_experiments(),
         compact=True,
+        last_failure=last_failure,
     )
     return propose_edits(prompt, model=model, provider=provider)
 
@@ -240,6 +246,7 @@ def main(argv: list[str] | None = None) -> int:
         print("[autopilot] --until-plateau requires --loop", file=sys.stderr)
         return 2
 
+    last_failure: str | None = None
     for iteration in _iter_count(args.max_iters, args.until_plateau and args.loop):
         if args.loop:
             stop, reason = should_stop(
@@ -274,18 +281,27 @@ def main(argv: list[str] | None = None) -> int:
             print(f"[autopilot] reusing latest proposal: {latest}")
         else:
             try:
-                proposal = plan(model=args.model, provider=args.provider)
+                proposal = plan(
+                    model=args.model,
+                    provider=args.provider,
+                    last_failure=last_failure,
+                )
                 print(f"[autopilot] coder provider: {proposal.pop('_coder_provider', args.provider or 'auto')}")
                 print(f"[autopilot] proposal: {save_proposal(exp_id, proposal)}")
             except CoderError as exc:
-                latest = latest_proposal_path()
-                if latest is not None and (args.once or args.loop):
-                    print(f"[autopilot] coder failed ({exc}); trying {latest}", file=sys.stderr)
-                    proposal = json.loads(latest.read_text(encoding="utf-8"))
-                elif args.loop:
-                    print(f"[autopilot] coder failed; sleep {args.retry_sleep}s and continue: {exc}", file=sys.stderr)
+                last_failure = str(exc)
+                # Never reuse a proposal that just failed apply — that loops forever.
+                if args.loop:
+                    print(
+                        f"[autopilot] coder failed; sleep {args.retry_sleep}s and continue: {exc}",
+                        file=sys.stderr,
+                    )
                     time.sleep(args.retry_sleep)
                     continue
+                latest = latest_proposal_path()
+                if args.once and latest is not None:
+                    print(f"[autopilot] coder failed ({exc}); trying {latest}", file=sys.stderr)
+                    proposal = json.loads(latest.read_text(encoding="utf-8"))
                 else:
                     print(f"[autopilot] coder failed: {exc}", file=sys.stderr)
                     return 1
@@ -296,9 +312,10 @@ def main(argv: list[str] | None = None) -> int:
 
         edits = proposal.get("edits") or []
         if not edits:
+            last_failure = "empty edits array"
             print("[autopilot] empty edits", file=sys.stderr)
             if args.loop:
-                time.sleep(args.retry_sleep)
+                time.sleep(min(args.retry_sleep, 20))
                 continue
             return 2
 
@@ -307,13 +324,15 @@ def main(argv: list[str] | None = None) -> int:
             targets = proposal.get("tests_to_run") or DEFAULT_PYTEST
             run_pytest(targets)
         except CoderError as exc:
+            last_failure = str(exc)
             print(f"[autopilot] apply/pytest failed: {exc}", file=sys.stderr)
             reset_runtime_to_head()
             if args.loop:
-                time.sleep(args.retry_sleep)
+                time.sleep(min(args.retry_sleep, 20))
                 continue
             return 1
 
+        last_failure = None
         rc = run_ratchet(
             exp_id=exp_id,
             hypothesis=str(proposal.get("hypothesis") or ""),

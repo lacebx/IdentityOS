@@ -88,12 +88,31 @@ def _file_snippets(max_lines: int = 20) -> str:
     return "\n\n".join(lines)
 
 
+def _ollama_adapter_hint() -> str:
+    """Unique context so temperature edits target OllamaAdapter, not OpenAIAdapter."""
+    path = ROOT / "adapters" / "openai_adapter.py"
+    if not path.exists():
+        return ""
+    text = path.read_text(encoding="utf-8")
+    marker = "class OllamaAdapter"
+    idx = text.find(marker)
+    if idx < 0:
+        return ""
+    snippet = text[idx : idx + 550]
+    return (
+        "## OllamaAdapter signature (temperature appears twice in this file — "
+        "ONLY edit this class; include class context in search)\n"
+        f"```python\n{snippet}\n```\n\n"
+    )
+
+
 def build_coder_prompt(
     *,
     results: dict[str, Any] | None = None,
     recent_experiments: list[dict[str, Any]] | None = None,
     max_failures: int = 8,
     compact: bool = False,
+    last_failure: str | None = None,
 ) -> str:
     blob = results or load_results()
     summary = blob.get("summary") or {}
@@ -111,6 +130,14 @@ def build_coder_prompt(
     allowed = "\n".join(f"  - {p}" for p in ALLOWED_PREFIXES)
     known = "\n".join(f"  - {p}" for p in KNOWN_RUNTIME_FILES)
     snippets = "" if compact else _file_snippets(max_lines=12)
+    failure_block = ""
+    if last_failure:
+        failure_block = (
+            "## LAST APPLY FAILURE — fix this in the new proposal\n"
+            f"{last_failure}\n"
+            "Do not repeat the same search string. Widen context until search is unique, "
+            "or pick a different real symbol that exists once.\n\n"
+        )
 
     return (
         "You are an engineering agent improving IdentityOS runtime code for a frozen benchmark.\n"
@@ -120,6 +147,7 @@ def build_coder_prompt(
         "There is NO adapters/ollama.py and NO runtime/agent.py — Ollama is adapters/openai_adapter.py "
         "(OllamaAdapter). Orchestration lives in runtime/orchestrator.py.\n"
         "OllamaAdapter.temperature defaults matter for SmolLM; AdapterRequest alone may be unused.\n\n"
+        f"{failure_block}"
         "## Current IDOS score\n"
         f"- success: {summary.get('success', '?')}/{summary.get('n', '?')} "
         f"({(summary.get('success_rate', 0) or 0) * 100:.0f}%)\n"
@@ -135,6 +163,7 @@ def build_coder_prompt(
         f"{allowed}\n\n"
         "## Known files that exist (prefer these)\n"
         f"{known}\n\n"
+        + _ollama_adapter_hint()
         + (f"## Source snippets\n{snippets}\n\n" if snippets else "")
         + "## Engineering contract excerpt\n"
         f"{agents_excerpt}\n\n"
@@ -151,8 +180,11 @@ def build_coder_prompt(
         "- paths must match allowlisted prefixes AND must currently exist in the repo\n"
         "- search must match exactly once in the file\n"
         "- if a string appears twice (e.g. temperature defaults), include more surrounding lines to make search unique\n"
+        "- for Ollama temperature: search must include 'class OllamaAdapter' context, never bare 'temperature: float = 0.7'\n"
         "- prefer small, general mechanisms over benchmark-only branches\n"
-        "- never invent methods that do not exist (e.g. there is no orchestrator._execute_tool; tool exec is nested _execute_tool_call)\n"
+        "- never invent methods that do not exist; nested tool helper is "
+        "`def _execute_tool_call(func_name: str, args: Any)` inside process(), not a method on self\n"
+        "- EXP-011 REVERTed temperature 0.0 due to latency — prefer other fixes, or keep latency-neutral changes\n"
         "- add or update tests when behavior changes\n"
         "- edits array MUST contain at least one edit object; never return an empty edits list\n"
     )
