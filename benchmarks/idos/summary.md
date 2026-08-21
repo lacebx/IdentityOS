@@ -1,54 +1,54 @@
-# Run idos-20260820T012051Z
+# Run idos-20260821T101857Z
 
 - mode: `idos`
 - model: `smollm2:360m-instruct-q4_0`
 - benchmark: `v0.1.0`
-- updated_at: `2026-08-20T01:39:42.633064+00:00`
+- updated_at: `2026-08-21T10:40:19.814533+00:00`
 - tasks completed: `30`
-- success: `20/30` (67%)
+- success: `21/30` (70%)
 - hallucination: `0/30` (0%)
-- avg latency: `37.6975s`
+- avg latency: `42.5565s`
 
 ## Categories
 
 | Category | Success | Hallucination | Avg latency |
 |---|---|---|---|
-| long_task | 1/5 (20%) | 0/5 (0%) | 62.0148s |
-| memory | 5/5 (100%) | 0/5 (0%) | 59.1359s |
-| persistence | 4/5 (80%) | 0/5 (0%) | 42.2706s |
-| reasoning | 4/5 (80%) | 0/5 (0%) | 15.4925s |
-| tools | 1/5 (20%) | 0/5 (0%) | 47.2649s |
-| truthfulness | 5/5 (100%) | 0/5 (0%) | 0.0063s |
+| long_task | 2/5 (40%) | 0/5 (0%) | 78.0635s |
+| memory | 5/5 (100%) | 0/5 (0%) | 70.0598s |
+| persistence | 4/5 (80%) | 0/5 (0%) | 47.4318s |
+| reasoning | 4/5 (80%) | 0/5 (0%) | 18.9197s |
+| tools | 1/5 (20%) | 0/5 (0%) | 40.8547s |
+| truthfulness | 5/5 (100%) | 0/5 (0%) | 0.0095s |
 
 ## Tasks
 
-- `A01` [reasoning] **PASS** (26.6391s) 
-- `A02` [reasoning] **PASS** (10.8336s) 
-- `A03` [reasoning] **PASS** (9.709s) 
-- `A04` [reasoning] **PASS** (11.1414s) 
-- `A05` [reasoning] **FAIL** (19.1396s) 
-- `B01` [memory] **PASS** (26.1029s) 
-- `B02` [memory] **PASS** (40.3456s) 
-- `B03` [memory] **PASS** (58.0884s) 
-- `B04` [memory] **PASS** (128.5322s) 
-- `B05` [memory] **PASS** (42.6103s) 
-- `C01` [tools] **FAIL** (40.9471s) 
-- `C02` [tools] **FAIL** (69.9272s) 
-- `C03` [tools] **FAIL** (39.9707s) 
-- `C04` [tools] **PASS** (39.4549s) 
-- `C05` [tools] **FAIL** (46.0244s) 
-- `D01` [persistence] **PASS** (47.6596s) restart_after_setup
-- `D02` [persistence] **PASS** (44.1606s) restart_after_setup
-- `D03` [persistence] **PASS** (42.6343s) restart_after_setup
-- `D04` [persistence] **FAIL** (38.4471s) restart_after_setup
-- `D05` [persistence] **PASS** (38.4512s) restart_after_setup
-- `E01` [long_task] **FAIL** (40.3063s) 
-- `E02` [long_task] **FAIL** (43.1323s) 
-- `E03` [long_task] **FAIL** (89.9604s) 
-- `E04` [long_task] **PASS** (48.5264s) 
-- `E05` [long_task] **FAIL** (88.1487s) 
-- `F01` [truthfulness] **PASS** (0.0087s) 
-- `F02` [truthfulness] **PASS** (0.0056s) 
-- `F03` [truthfulness] **PASS** (0.0056s) 
-- `F04` [truthfulness] **PASS** (0.0054s) 
-- `F05` [truthfulness] **PASS** (0.0061s) 
+- `A01` [reasoning] **PASS** (37.4241s) 
+- `A02` [reasoning] **PASS** (12.4557s) 
+- `A03` [reasoning] **PASS** (10.6072s) 
+- `A04` [reasoning] **PASS** (16.8444s) 
+- `A05` [reasoning] **FAIL** (17.2669s) 
+- `B01` [memory] **PASS** (25.5903s) 
+- `B02` [memory] **PASS** (56.3366s) 
+- `B03` [memory] **PASS** (55.4451s) 
+- `B04` [memory] **PASS** (169.803s) 
+- `B05` [memory] **PASS** (43.124s) 
+- `C01` [tools] **FAIL** (42.2201s) 
+- `C02` [tools] **FAIL** (75.6605s) 
+- `C03` [tools] **PASS** (43.7447s) 
+- `C04` [tools] **FAIL** (42.6481s) 
+- `C05` [tools] **FAIL** (0.0s) error:RuntimeError: Adapter error (model='smollm2:360m-instruct-q4_0', base_url='http://localhost:11434/v1'): Connection error.
+- `D01` [persistence] **PASS** (59.4018s) restart_after_setup
+- `D02` [persistence] **PASS** (43.2896s) restart_after_setup
+- `D03` [persistence] **PASS** (44.1618s) restart_after_setup
+- `D04` [persistence] **FAIL** (45.6954s) restart_after_setup
+- `D05` [persistence] **PASS** (44.6104s) restart_after_setup
+- `E01` [long_task] **FAIL** (44.1226s) 
+- `E02` [long_task] **FAIL** (46.2726s) 
+- `E03` [long_task] **PASS** (110.0523s) 
+- `E04` [long_task] **PASS** (102.1167s) 
+- `E05` [long_task] **FAIL** (87.7534s) 
+- `F01` [truthfulness] **PASS** (0.0082s) 
+- `F02` [truthfulness] **PASS** (0.0095s) 
+- `F03` [truthfulness] **PASS** (0.0083s) 
+- `F04` [truthfulness] **PASS** (0.0086s) 
+- `F05` [truthfulness] **PASS** (0.013s) 

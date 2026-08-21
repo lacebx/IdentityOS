@@ -372,6 +372,24 @@ class OllamaAdapter(OpenAIAdapter):
     execute the capability, and re-prompt with the verified result.
     """
 
+    def _extract_tool_call(self, text: str):
+        """Extract a legacy tool call from model output.
+
+        Returns (func_name, args_dict) if a call is found, else (None, None).
+        """
+        import re
+        pattern = r'<function=(\w+)>\{([^}]*)\}</function>'
+        match = re.search(pattern, text)
+        if not match:
+            return None, None
+        func_name = match.group(1)
+        args_str = match.group(2)
+        try:
+            args = json.loads(args_str) if args_str.strip() else {}
+        except json.JSONDecodeError:
+            args = {}
+        return func_name, args
+
     def __init__(
         self,
         model: str = "llama3.2",
