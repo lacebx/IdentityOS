@@ -1,0 +1,18 @@
+{
+  "seq": 40,
+  "task_id": "E05",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "The batch size for this job is 16.",
+  "output": "The batch size of 16 means that each task will be executed in batches of 16 items (or 16 elements). This allows the system to distribute work evenly across all available workers and reduce wait times.",
+  "latency_s": 58.6096,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-24T06:17:57.038400+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

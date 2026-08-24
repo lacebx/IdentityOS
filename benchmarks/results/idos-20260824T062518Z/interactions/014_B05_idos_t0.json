@@ -1,0 +1,18 @@
+{
+  "seq": 14,
+  "task_id": "B05",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember this token exactly: 48291.",
+  "output": "You have not provided any context or information to complete the sentence. To provide a proper response, I would need more input. Can you please provide me with the details of your recent completed or failed work? This will help me complete the sentence accurately and provide you with relevant references or support for future questions.",
+  "latency_s": 43.8603,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-24T06:32:56.477912+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

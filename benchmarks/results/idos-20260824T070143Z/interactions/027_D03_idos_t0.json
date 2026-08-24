@@ -1,0 +1,18 @@
+{
+  "seq": 27,
+  "task_id": "D03",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: The user's favorite color is teal.",
+  "output": "User has already provided this information. If they need more details about their recent work experience or accomplishments, please let me know. I can provide that as well.",
+  "latency_s": 43.6094,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-24T07:15:02.909480+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

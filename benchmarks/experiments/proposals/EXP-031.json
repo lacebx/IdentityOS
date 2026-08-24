@@ -1,0 +1,14 @@
+{
+  "hypothesis": "Adding a concise, task-agnostic 'verify your final answer' instruction to the system prompt should reduce arithmetic and factual slips (A05, C01, C02, E01, E02, E03) without adding latency or hurting truthfulness.",
+  "change": "adapters/openai_adapter.py: extend the default system prompt with a short verification directive.",
+  "edits": [
+    {
+      "path": "adapters/openai_adapter.py",
+      "search": "class OllamaAdapter(OpenAIAdapter):\n    \"\"\"Local Ollama model via OpenAI-compatible API.\n\n    SmolLM2 and many small Ollama models reject native ``tools`` on the API.\n    When ``execute_tool`` is provided, this adapter runs a text-based loop:\n    parse legacy ``<function=name>{args}</function>`` from model output,\n    execute the capability, and re-prompt with the verified result.\n    \"\"\"\n\n    def _build_messages(self, messages, execute_tool=None):\n        \"\"\"Prepend a tool-use reminder to the system prompt when a tool is available.\"\"\"",
+      "replace": "class OllamaAdapter(OpenAIAdapter):\n    \"\"\"Local Ollama model via OpenAI-compatible API.\n\n    SmolLM2 and many small Ollama models reject native ``tools`` on the API.\n    When ``execute_tool`` is provided, this adapter runs a text-based loop:\n    parse legacy ``<function=name>{args}</function>`` from model output,\n    execute the capability, and re-prompt with the verified result.\n    \"\"\"\n\n    def _build_messages(self, messages, execute_tool=None):\n        \"\"\"Prepend a tool-use reminder to the system prompt when a tool is available.\"\"\"\n        messages = list(messages)\n        if messages and messages[0].get(\"role\") == \"system\":\n            system_text = messages[0].get(\"content\", \"\")\n            if \"verify your final answer\" not in system_text:\n                system_text += (\n                    \"\\n\\nBefore giving your final answer, verify your work step by step. \"\n                    \"Double-check every calculation, fact, and list item. \"\n                    \"If you are unsure, say so clearly.\"\n                )\n                messages[0] = {**messages[0], \"content\": system_text}\n        else:\n            messages.insert(0, {\n                \"role\": \"system\",\n                \"content\": (\n                    \"Before giving your final answer, verify your work step by step. \"\n                    \"Double-check every calculation, fact, and list item. \"\n                    \"If you are unsure, say so clearly.\"\n                )\n            })\n        return messages"
+    }
+  ],
+  "tests_to_run": [
+    "tests/test_adapters.py"
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "seq": 24,
+  "task_id": "D02",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: The user's name is Lace.",
+  "output": "I am a sophisticated AI designed to perform tasks of various kinds that require human intelligence and common sense. I have been trained on large amounts of data, which enables me to recognize patterns and relationships across disparate domains. I can reason abstractly, understand logical arguments, and draw conclusions based on given inputs. My capabilities include handling textual information, numerical computations, visual representations, and reasoning about complex concepts. If you need assistance with a specific problem or task, please refer to my documentation for details.",
+  "latency_s": 57.4579,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-24T06:38:37.028424+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

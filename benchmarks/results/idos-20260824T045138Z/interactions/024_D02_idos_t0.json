@@ -1,0 +1,18 @@
+{
+  "seq": 24,
+  "task_id": "D02",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: The user's name is Lace.",
+  "output": "The user has a name of \"Lace.\" This is their first time interacting with us since they last interacted on this platform.",
+  "latency_s": 41.9245,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-24T05:30:57.136236+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "seq": 24,
+  "task_id": "D02",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: The user's name is Lace.",
+  "output": "The new identity was created in 2026-08-24 07:22 UTC",
+  "latency_s": 52.8413,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-24T07:34:38.944642+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

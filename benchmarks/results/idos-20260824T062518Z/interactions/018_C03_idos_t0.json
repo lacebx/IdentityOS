@@ -1,0 +1,18 @@
+{
+  "seq": 18,
+  "task_id": "C03",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "What is the current date? Include the year.",
+  "output": "The current date: \n2026-07-24 03:45 UTC",
+  "latency_s": 41.0529,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-24T06:35:26.340192+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

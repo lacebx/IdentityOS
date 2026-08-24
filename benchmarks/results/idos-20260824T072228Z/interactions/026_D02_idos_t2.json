@@ -1,0 +1,18 @@
+{
+  "seq": 26,
+  "task_id": "D02",
+  "mode": "idos",
+  "turn_index": 2,
+  "role": "user",
+  "prompt": "What is the user's name?",
+  "output": "The user's name is Lace.",
+  "latency_s": 0.0468,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-24T07:34:38.999277+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

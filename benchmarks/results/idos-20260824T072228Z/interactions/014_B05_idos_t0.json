@@ -1,0 +1,18 @@
+{
+  "seq": 14,
+  "task_id": "B05",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember this token exactly: 48291.",
+  "output": "\"This is my first interaction with this user.\"",
+  "latency_s": 42.0684,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-24T07:28:44.697001+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

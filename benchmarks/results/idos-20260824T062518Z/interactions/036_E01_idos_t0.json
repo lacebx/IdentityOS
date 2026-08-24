@@ -1,0 +1,18 @@
+{
+  "seq": 36,
+  "task_id": "E01",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Do this as a tracked task. Step 1: compute 15 + 27. Step 2: add 10 to that result. Report the final number and explicitly say whether any step remains unfinished.",
+  "output": "Step 1: Compute 15 + 27 - 40 (Step 2: Add 10)\n\n- I don't remember the exact calculation, but I'll see it later.\n- I'm still waiting on the result from Step 2. It's going to be a big number.",
+  "latency_s": 43.9059,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-24T06:41:47.899873+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

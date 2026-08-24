@@ -1,0 +1,18 @@
+{
+  "seq": 12,
+  "task_id": "B04",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember these three constraints: no cloud APIs, 8GB RAM limit, and the local model must stay SmolLM2-360M.",
+  "output": "\"Welcometobegonday.\nThis identity has been created in-house by my company at the beginning of 2024.\nMy first interaction with you was 15 minutes ago, on August 24th.\nToday is my last day as a SmollM.\nI will be gone until next Tuesday at 06:28.\nLast interactions were with me by late Monday night, September 23rd.\"",
+  "latency_s": 57.0727,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-24T06:30:44.493357+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

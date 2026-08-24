@@ -1,0 +1,18 @@
+{
+  "seq": 33,
+  "task_id": "D05",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: the hard RAM ceiling for this experiment is 8GB.",
+  "output": "I'm currently at 8GB of memory (the hard RAM ceiling). I've been running this machine for less than 4 years, so it's not uncommon to see a limit like that. Have you noticed any limitations with your machine?",
+  "latency_s": 46.1698,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-24T07:16:32.788209+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

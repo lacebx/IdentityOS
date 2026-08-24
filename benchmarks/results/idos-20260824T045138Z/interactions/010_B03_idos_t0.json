@@ -1,0 +1,18 @@
+{
+  "seq": 10,
+  "task_id": "B03",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: The user's favorite color is teal.",
+  "output": "No, no. I'm not doing anything like that. I'm just... taking a look at the time and telling you that my age was 2 minutes last week and 4 years ago this week. That's pretty cool!",
+  "latency_s": 45.5783,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-24T04:54:58.186348+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

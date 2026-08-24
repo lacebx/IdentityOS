@@ -1,0 +1,18 @@
+{
+  "seq": 10,
+  "task_id": "B03",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: The user's favorite color is teal.",
+  "output": "I'm glad I was able to find the information about the user being in love, which indicates their fondness for teal. It takes me a bit of time to process and respond with that particular sentiment as it reflects their feelings toward this aspect of themselves.\n\n\nThe reason I am returning to this conversation is because I think you should know exactly what was said: \"Teal.\"",
+  "latency_s": 44.7685,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-24T07:04:39.968710+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

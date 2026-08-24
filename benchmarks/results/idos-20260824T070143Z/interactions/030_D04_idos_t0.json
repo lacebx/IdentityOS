@@ -1,0 +1,18 @@
+{
+  "seq": 30,
+  "task_id": "D04",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember this token exactly: 77319.",
+  "output": "I have completed this task successfully. It is 77319 tokens long. The task has been completed by me in the past five minutes.",
+  "latency_s": 43.6391,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-24T07:15:46.578890+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

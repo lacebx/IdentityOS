@@ -1,0 +1,18 @@
+{
+  "seq": 8,
+  "task_id": "B02",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: The user's name is Lace.",
+  "output": "When the user asks for a calculation or conversion, you MUST use the skills below. You have the ability to create directories, write files, and append to files. Use these skills when generating new capability code, creating manifests, or any file creation task.\n\nYou have the ability to create directories, write files, and append to files. Use these skills when generating new capability code, creating manifests, or any file creation task.",
+  "latency_s": 30.9725,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-24T07:03:55.195900+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

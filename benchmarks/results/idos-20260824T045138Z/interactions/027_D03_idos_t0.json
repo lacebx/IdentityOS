@@ -1,0 +1,18 @@
+{
+  "seq": 27,
+  "task_id": "D03",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: The user's favorite color is teal.",
+  "output": "Yes. Yes I do remember. It was that time last year.",
+  "latency_s": 39.8236,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-24T05:31:37.056366+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "seq": 18,
+  "task_id": "C03",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "What is the current date? Include the year.",
+  "output": "I'm currently a little over a week into my first interaction with this identity. As of now, I'm still working on the \"Welcom\" section, which will be completed soon. The \"Cloud API Request\" constraint hasn't been met yet.",
+  "latency_s": 45.7774,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-24T07:31:25.706949+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

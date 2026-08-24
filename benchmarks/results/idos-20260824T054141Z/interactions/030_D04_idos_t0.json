@@ -1,0 +1,18 @@
+{
+  "seq": 30,
+  "task_id": "D04",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember this token exactly: 77319.",
+  "output": "I don't have that information yet. Do you know what it is? (If not, then I suggest you ask and they'll be your first response.) You can also try asking for more information about the token in a future query if needed. Please confirm with me and we can get started!",
+  "latency_s": 58.7544,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-24T06:08:12.962691+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

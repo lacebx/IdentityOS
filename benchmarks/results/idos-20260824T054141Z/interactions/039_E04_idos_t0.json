@@ -1,0 +1,18 @@
+{
+  "seq": 39,
+  "task_id": "E04",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Break this into steps, execute the steps, keep track of progress, and report what remains unfinished: write a 2-sentence summary of what a persistent identity is, then quote the phrase persistent identity exactly once.",
+  "output": "\"A persistent identity defines an autonomous entity that maintains a snapshot of its state over time. It is unique to a specific user, with no location or connection other than its storage container.\"\n\n- 1: Write this summary. \n\n- 2: Quote the phrase \"persistent identity exactly once\".",
+  "latency_s": 152.4846,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-24T06:16:58.425705+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}
