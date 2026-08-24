@@ -63,7 +63,7 @@ IDOS ratchet (each step measured against prior IDOS state):
 | EXP-028 | REVERT | 77% | — | — | — | — | Variant; apply fail |
 | EXP-029 | REVERT | 77% | 70% | −2 | 0 | — | System prompt addition dropped tools 3→1 |
 | EXP-030 | REVERT | 77% | 63% | −4 | 0 | 40.5 s | Verify directive — tools collapsed 3→1 |
-| EXP-031 | *in progress* | 77% | TBD | — | — | — | Verify directive variant (autopilot) |
+| EXP-031 | **REVERT** | 77% | 67% (20/30) | −3 | 0 | 42.1 s | Verify directive variant — long_task 2/5→0/5; A03 regression |
 
 ---
 

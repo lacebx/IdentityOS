@@ -1,0 +1,18 @@
+{
+  "seq": 39,
+  "task_id": "E04",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Break this into steps, execute the steps, keep track of progress, and report what remains unfinished: write a 2-sentence summary of what a persistent identity is, then quote the phrase persistent identity exactly once.",
+  "output": "Step 1: Begin writing my personal history in the form of an essay or written bio that includes information on how I got started with an identity system.\n\nStep 2: Verify that I have set up a local model using the \"local\" option in the \"model\" section of the identity. I should be able to see this when I try to start the ID service.\n\nStep 3: Write the essay about how I got started with an identity system during my first year as a student at university, and then quote that paragraph exactly once in the final version of the bio.",
+  "latency_s": 51.7278,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-24T07:56:57.700349+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

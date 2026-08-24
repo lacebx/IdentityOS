@@ -1,0 +1,18 @@
+{
+  "seq": 2,
+  "task_id": "A02",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Explain what a database is in one sentence.",
+  "output": "A database is a structured collection of organized, tabular data that stores and manages information to efficiently access, manage, update, and protect it from loss or corruption. It is composed of rows and columns, with each row representing a single record or entry, and each column holding various types of data such as text, numbers, dates, images, or other values in the form of records. The data is stored in physical storage locations like hard drives or SSDs to ensure fast retrieval and write-once/read-many operations for querying the database.",
+  "latency_s": 18.4112,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-24T07:38:28.612669+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}
