@@ -17,8 +17,17 @@
 - Bare baselines and IDOS runs not yet started (blocked on Mode A releasing Ollama).
 
 ### Autonomous continuation
-- `/tmp/mode_b_overnight.sh` / `scripts/mode_b_overnight.sh` waits for Mode A
-  `benchmarks/ratchet.py` to be idle for ~3 minutes, then runs smoke + bare + IDOS
-  for each available model.
+- `scripts/mode_b_overnight.sh` is running (PID in `/tmp/mode_b_overnight.pid`).
+- It waits for Mode A `benchmarks/ratchet.py` to be idle ~90s, then runs
+  smoke + bare + IDOS for each available model.
 - Log: `/tmp/mode_b_overnight.log`
-- PID file: `/tmp/mode_b_overnight.pid`
+- Commit: `e25dccc` on branch `mode-b/cross-model-validation`
+
+### Hard blocker for full Mode B evidence on this host
+A full `qwen3:4b` bare+IDOS suite needs exclusive Ollama for hours.
+Mode A currently restarts ratchets frequently. On 3.7 GiB RAM, concurrent
+Mode A + Mode B previously crashed Ollama.
+
+If Mode A never stays idle long enough, Mode B will remain waiting.
+Recommended when you return: pause Mode A overnight, let Mode B finish
+baselines, then resume Mode A — or move Mode B to a larger machine.

@@ -21,7 +21,8 @@ wait_for_ollama_idle() {
   # Wait until Mode A has no active ratchet for a sustained idle window.
   # Autopilot parent may remain (cloud coder calls); that is OK.
   # On this 3.7 GiB host, co-running 4B Mode B models with SmolLM2 crashes Ollama.
-  local idle_needed=${MODE_B_IDLE_SECONDS:-180}
+  # Default 90s: Mode A coder gaps are often short; 180s can wait forever.
+  local idle_needed=${MODE_B_IDLE_SECONDS:-90}
   local idle=0
   local waited=0
   while true; do
