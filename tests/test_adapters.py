@@ -6,6 +6,7 @@ Uses mocked HTTP responses so tests are fast and need no real API keys.
 
 from __future__ import annotations
 
+import json
 import sys
 from unittest.mock import MagicMock, patch
 
@@ -18,7 +19,7 @@ sys.modules["openai"] = _openai_mock
 sys.modules["anthropic"] = _anthropic_mock
 
 from adapters.base import BaseAdapter  # noqa: E402
-from adapters.openai_adapter import OpenAIAdapter, AnthropicAdapter, OllamaAdapter  # noqa: E402
+from adapters.openai_adapter import OpenAIAdapter, AnthropicAdapter, OllamaAdapter, list_ollama_models, resolve_ollama_model  # noqa: E402
 from adapters.openrouter_adapter import OpenRouterAdapter  # noqa: E402
 from adapters import get_adapter  # noqa: E402
 
@@ -165,6 +166,120 @@ class TestOpenAIAdapter:
             )
             assert adapter._client is not None
 
+    def test_recovers_from_legacy_function_call_error(self, mock_openai_client):
+        """Groq 400 tool_use_failed (legacy <function=...> syntax) should recover.
+
+        The rejected generation is executed as a real tool call and the model
+        is retried with the tool result in context.
+        """
+        client = mock_openai_client.return_value
+        err_msg = (
+            "Error code: 400 - {'error': {'message': 'Failed to call a function. "
+            "See failed_generation.', 'code': 'tool_use_failed', 'failed_generation': "
+            "\"<function=executive__start_task>{'goal': 'getting_to_know_each_other'}</function>\"}}"
+        )
+        client.chat.completions.create.side_effect = [
+            RuntimeError(err_msg),
+            MagicMock(
+                choices=[
+                    MagicMock(
+                        message=MagicMock(content="Task committed!", tool_calls=None)
+                    )
+                ]
+            ),
+        ]
+
+        executed = []
+
+        def execute_tool(func_name, args):
+            executed.append((func_name, args))
+            return '{"task_id": "abc", "status": "queued"}'
+
+        adapter = OpenAIAdapter(api_key="sk-test")
+        result = adapter.generate(
+            context="You are a helpful assistant.",
+            user_input="start a task",
+            identity=_MockIdentity(),
+            execute_tool=execute_tool,
+        )
+        assert result == "Task committed!"
+        assert executed == [("executive__start_task", {"goal": "getting_to_know_each_other"})]
+
+    def test_parse_legacy_function_call_json_and_dict(self):
+        from adapters.openai_adapter import _parse_legacy_function_call
+
+        json_form = "<function=foo.bar>{\"x\": 1}</function>"
+        assert _parse_legacy_function_call(json_form) == ("foo.bar", {"x": 1})
+
+        dict_form = "<function=executive__start_task>{'goal': 'hi'}</function>"
+        assert _parse_legacy_function_call(dict_form) == ("executive__start_task", {"goal": "hi"})
+
+        assert _parse_legacy_function_call("no function here") is None
+
+    def test_shrinks_max_tokens_on_token_limit_rejection(self, mock_openai_client):
+        """A 413/token-budget rejection should shrink max_tokens and retry.
+
+        Mirrors Groq's free-tier behavior where a request slightly over the
+        tokens-per-minute allowance is rejected with 413.  The adapter halves
+        the completion budget and retries instead of failing the whole turn.
+        """
+        client = mock_openai_client.return_value
+        err_msg = (
+            "Error code: 413 - {'error': {'message': 'Request too large for model "
+            "`openai/gpt-oss-120b` on tokens per minute (TPM): Limit 8000, "
+            "Requested 8040, please reduce your message size and try again.', "
+            "'type': 'tokens', 'code': 'rate_limit_exceeded'}}"
+        )
+        client.chat.completions.create.side_effect = [
+            RuntimeError(err_msg),
+            MagicMock(
+                choices=[
+                    MagicMock(
+                        message=MagicMock(content="Shrunk and succeeded!", tool_calls=None)
+                    )
+                ]
+            ),
+        ]
+
+        adapter = OpenAIAdapter(api_key="sk-test", max_tokens=1024)
+        result = adapter.generate(
+            context="x" * 200,
+            user_input="hi",
+            identity=_MockIdentity(),
+        )
+        assert result == "Shrunk and succeeded!"
+        calls = client.chat.completions.create.call_args_list
+        assert len(calls) == 2
+        assert calls[0].kwargs["max_tokens"] == 1024
+        assert calls[1].kwargs["max_tokens"] == 512
+
+    def test_does_not_shrink_below_floor(self, mock_openai_client):
+        """max_tokens should not shrink below 256; persists token-limit errors."""
+        client = mock_openai_client.return_value
+        err_msg = (
+            "Error code: 413 - Request too large for model "
+            "`openai/gpt-oss-120b` (tokens per minute: Limit 8000)"
+        )
+        client.chat.completions.create.side_effect = RuntimeError(err_msg)
+
+        adapter = OpenAIAdapter(api_key="sk-test", max_tokens=300)
+        with pytest.raises(RuntimeError, match="413"):
+            adapter.generate(
+                context="x" * 100,
+                user_input="hi",
+                identity=_MockIdentity(),
+            )
+        # 300 -> 256 (floor), then raises
+        assert client.chat.completions.create.call_count == 2
+        assert client.chat.completions.create.call_args_list[1].kwargs["max_tokens"] == 256
+
+    def test_is_token_limit_error_markers(self):
+        from adapters.openai_adapter import _is_token_limit_error
+        assert _is_token_limit_error("Error code: 413 - request too large")
+        assert _is_token_limit_error("tokens per minute (TPM): Limit 8000")
+        assert _is_token_limit_error("maximum context length exceeded")
+        assert not _is_token_limit_error("rate limit 429, try again later")
+
 
 # ---------------------------------------------------------------------------
 # AnthropicAdapter tests
@@ -235,9 +350,88 @@ class TestOllamaAdapter:
         adapter = OllamaAdapter()
         assert adapter.base_url == "http://localhost:11434/v1"
 
-    def test_health_check_default(self):
-        adapter = OllamaAdapter()
+    def test_health_check_default(self, monkeypatch):
+        monkeypatch.setattr(
+            "adapters.openai_adapter.list_ollama_models",
+            lambda **kwargs: ["llama3.2:latest"],
+        )
+        adapter = OllamaAdapter(model="llama3.2")
         assert adapter.health_check() is True
+
+    def test_health_check_missing_model(self, monkeypatch):
+        monkeypatch.setattr(
+            "adapters.openai_adapter.list_ollama_models",
+            lambda **kwargs: ["smollm2:360m-instruct-q4_0"],
+        )
+        adapter = OllamaAdapter(model="llama3.2")
+        assert adapter.health_check() is False
+
+    def test_legacy_tool_loop_without_native_api(self, mock_openai_client):
+        client = mock_openai_client.return_value
+        client.chat.completions.create.side_effect = [
+            MagicMock(
+                choices=[
+                    MagicMock(
+                        message=MagicMock(
+                            content='<function=calc__evaluate>{"expression": "837 * 492"}</function>',
+                            tool_calls=None,
+                        ),
+                    )
+                ]
+            ),
+            MagicMock(
+                choices=[
+                    MagicMock(message=MagicMock(content="411804", tool_calls=None)),
+                ]
+            ),
+        ]
+
+        executed = []
+
+        def execute_tool(func_name, args):
+            executed.append((func_name, args))
+            return '{"result": 411804}'
+
+        adapter = OllamaAdapter(model="smollm2:360m-instruct-q4_0")
+        result = adapter.generate(
+            context="Use tools for math.",
+            user_input="Calculate 837 * 492",
+            identity=_MockIdentity(),
+            tools=[{"type": "function", "function": {"name": "calc__evaluate"}}],
+            execute_tool=execute_tool,
+        )
+        assert result == "411804"
+        assert executed == [("calc__evaluate", {"expression": "837 * 492"})]
+        first_call = client.chat.completions.create.call_args_list[0]
+        assert "tools" not in first_call[1]
+        assert first_call[1]["extra_body"] == {"think": False}
+
+
+
+class TestOllamaModelHelpers:
+    def test_resolve_exact_match(self):
+        models = ["llama3.2:latest", "smollm2:360m-instruct-q4_0"]
+        assert resolve_ollama_model("smollm2:360m-instruct-q4_0", models) == "smollm2:360m-instruct-q4_0"
+
+    def test_resolve_base_name(self):
+        models = ["llama3.2:latest", "smollm2:360m-instruct-q4_0"]
+        assert resolve_ollama_model("llama3.2", models) == "llama3.2:latest"
+
+    def test_list_ollama_models_parses_tags(self, monkeypatch):
+        class _Resp:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+            def read(self):
+                return json.dumps(
+                    {"models": [{"name": "smollm2:360m-instruct-q4_0"}]}
+                ).encode()
+
+        monkeypatch.setattr("urllib.request.urlopen", lambda *a, **k: _Resp())
+        assert list_ollama_models() == ["smollm2:360m-instruct-q4_0"]
 
 
 # ---------------------------------------------------------------------------

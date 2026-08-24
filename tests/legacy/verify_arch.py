@@ -864,7 +864,7 @@ def main():
     # Initialize runtime with Groq (free tier, key rotation)
     storage = JSONFileBackend()
     from adapters.groq_adapter import GroqAdapter
-    adapter = GroqAdapter(model="llama-3.3-70b-versatile", max_tokens=300)
+    adapter = GroqAdapter(model="openai/gpt-oss-120b", max_tokens=300)
 
     # Reduce top_k for memory efficiency to preserve TPD budget
     TOP_K = 5

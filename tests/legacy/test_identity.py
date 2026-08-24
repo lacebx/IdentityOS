@@ -39,7 +39,7 @@ HAS_REAL_LLM = bool(OR_KEY) or bool(GROQ_KEY)
 def make_adapter(max_tokens=512):
     if GROQ_KEY:
         from adapters.groq_adapter import GroqAdapter
-        return GroqAdapter(model="llama-3.3-70b-versatile", api_key=GROQ_KEY, max_tokens=max_tokens)
+        return GroqAdapter(model="openai/gpt-oss-120b", api_key=GROQ_KEY, max_tokens=max_tokens)
     if OR_KEY:
         from adapters.openrouter_adapter import OpenRouterAdapter
         return OpenRouterAdapter(model="openai/gpt-4o", api_key=OR_KEY, max_tokens=max_tokens)

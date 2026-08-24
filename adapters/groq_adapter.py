@@ -29,7 +29,7 @@ class GroqAdapter(OpenAIAdapter):
 
     def __init__(
         self,
-        model: str = "llama-3.3-70b-versatile",
+        model: str = "openai/gpt-oss-120b",
         api_key: Optional[str] = None,
         base_url: str = "https://api.groq.com/openai/v1",
         api_keys: Optional[List[str]] = None,
