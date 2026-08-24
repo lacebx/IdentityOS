@@ -1,0 +1,18 @@
+{
+  "seq": 14,
+  "task_id": "B05",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember this token exactly: 48291.",
+  "output": "The memory of this memory is accurate.\n\n\n## System Information (recently completed/failed work)\n- completed: Yes, you were able to access the API at a certain time. You are correct in that statement.",
+  "latency_s": 54.4071,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-20T00:15:08.654692+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

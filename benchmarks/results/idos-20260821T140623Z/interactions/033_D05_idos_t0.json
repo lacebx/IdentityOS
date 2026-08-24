@@ -1,0 +1,18 @@
+{
+  "seq": 33,
+  "task_id": "D05",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: the hard RAM ceiling for this experiment is 8GB.",
+  "output": "I'm ready to assist you again. What can I help you with today?",
+  "latency_s": 42.7807,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T14:21:26.838600+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

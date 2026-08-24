@@ -1,0 +1,18 @@
+{
+  "seq": 19,
+  "task_id": "C04",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Convert 100 kilometers to miles. Reply with the numeric result.",
+  "output": "\"The answer is 62.2437 miles.\"",
+  "latency_s": 48.6512,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T10:08:44.787730+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "seq": 22,
+  "task_id": "D01",
+  "mode": "idos",
+  "turn_index": 1,
+  "role": "system",
+  "prompt": "[runtime restart]",
+  "output": "conversation cleared; IDOS identity reloaded from disk",
+  "latency_s": 0.0,
+  "restart": true,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-20T10:14:49.323431+00:00"
+}

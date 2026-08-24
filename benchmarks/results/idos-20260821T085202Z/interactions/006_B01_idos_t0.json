@@ -1,0 +1,18 @@
+{
+  "seq": 6,
+  "task_id": "B01",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: My project is called IdentityOS. Its purpose is persistent AI identity infrastructure.",
+  "output": "That's a great summary of your project. I'll keep it in mind. You've definitely encountered this before, but you certainly know how to use the system API for its capabilities. Now that we're working through your current conversation, let's not get ahead of ourselves and try to remember what the user said earlier. We should just focus on what they told us so far.",
+  "latency_s": 24.0874,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T08:53:36.313594+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

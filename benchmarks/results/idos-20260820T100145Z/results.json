@@ -1,0 +1,963 @@
+{
+  "run_id": "idos-20260820T100145Z",
+  "started_at": "2026-08-20T10:01:45.621588+00:00",
+  "updated_at": "2026-08-20T10:24:43.784062+00:00",
+  "environment": {
+    "captured_at": "2026-08-20T10:01:45.660288+00:00",
+    "hostname": "DESKTOP-RNM",
+    "uname": "Linux DESKTOP-RNM 6.6.87.2-microsoft-standard-WSL2 #1 SMP PREEMPT_DYNAMIC Thu Jun  5 18:30:46 UTC 2025 x86_64 GNU/Linux",
+    "python": "3.13.5",
+    "platform": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.41",
+    "memory": "total        used        free      shared  buff/cache   available\nMem:           3.7Gi       1.1Gi       2.4Gi       3.4Mi       372Mi       2.6Gi\nSwap:          1.0Gi        73Mi       950Mi",
+    "cpu": "Architecture:                         x86_64\nCPU op-mode(s):                       32-bit, 64-bit\nAddress sizes:                        39 bits physical, 48 bits virtual\nByte Order:                           Little Endian\nCPU(s):                               8\nOn-line CPU(s) list:                  0-7\nVendor ID:                            GenuineIntel\nModel name:                           Intel(R) Core(TM) i5-10210U CPU @ 1.60GHz\nCPU family:                           6\nModel:                                142\nThread(s) per core:                   2\nCore(s) per socket:                   4\nSocket(s):                            1\nStepping:                             12\nBogoMIPS:                             4224.01\nFlags:                                fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ss ht syscall nx pdpe1gb rdtscp lm constant_tsc arch_perfmon rep_good nopl xtopology cpuid tsc_known_freq pni pclmulqdq vmx ssse3 fma cx16 pdcm pcid sse4_1 sse4_2 movbe popcnt aes xsave avx f16c rdrand hypervisor lahf_lm abm 3dnowprefetch ssbd ibrs ibpb stibp ibrs_enhanced tpr_shadow ept vpid ept_ad fsgsbase bmi1 avx2 smep bmi2 erms invpcid rdseed adx smap clflushopt xsaveopt xsavec xgetbv1 xsaves vnmi md_clear flush_l1d arch_capabilities\nVirtualization:                       VT-x\nHypervisor vendor:                    Microsoft\nVirtualization type:                  full\nL1d cache:                            128 KiB (4 instances)\nL1i cache:                            128 KiB (4 instances)\nL2 cache:                             1 MiB (4 instances)\nL3 cache:                             6 MiB (1 instance)\nNUMA node(s):                         1\nNUMA node0 CPU(s):                    0-7\nVulnerability Gather data sampling:   Not affected\nVulnerability Itlb multihit:          KVM: Mitigation: VMX disabled\nVulnerability L1tf:                   Not affected\nVulnerability Mds:                    Not affected\nVulnerability Meltdown:               Not affected\nVulnerability Mmio stale data:        Mitigation; Clear CPU buffers; SMT Host state unknown\nVulnerability Reg file data sampling: Not affected\nVulnerability Retbleed:               Mitigation; Enhanced IBRS\nVulnerability Spec rstack overflow:   Not affected\nVulnerability Spec store bypass:      Mitigation; Speculative Store Bypass disabled via prctl\nVulnerability Spectre v1:             Mitigation; usercopy/swapgs barriers and __user pointer sanitization\nVulnerability Spectre v2:             Mitigation; Enhanced / Automatic IBRS; IBPB conditional; RSB filling; PBRSB-eIBRS SW sequence; BHI SW loop, KVM SW loop\nVulnerability Srbds:                  Unknown: Dependent on hypervisor status\nVulnerability Tsx async abort:        Not affected",
+    "ollama_version": "ollama version is 0.30.8",
+    "ollama_binary": "/usr/local/bin/ollama",
+    "ollama_models": [
+      {
+        "name": "smollm2:360m-instruct-q4_0",
+        "model": "smollm2:360m-instruct-q4_0",
+        "modified_at": "2026-08-18T15:47:11.073132014-05:00",
+        "size": 229131313,
+        "digest": "676f4c06b139442b817f414970706139cba861c926ee5a3773a9d64eac450368",
+        "details": {
+          "parent_model": "",
+          "format": "gguf",
+          "family": "llama",
+          "families": [
+            "llama"
+          ],
+          "parameter_size": "361.82M",
+          "quantization_level": "Q4_0",
+          "context_length": 8192,
+          "embedding_length": 960
+        },
+        "capabilities": [
+          "completion"
+        ]
+      },
+      {
+        "name": "llama3.2:latest",
+        "model": "llama3.2:latest",
+        "modified_at": "2026-08-12T04:27:01.144091548-05:00",
+        "size": 2019393189,
+        "digest": "a80c4f17acd55265feec403c7aef86be0c25983ab279d83f3bcd3abbcb5b8b72",
+        "details": {
+          "parent_model": "",
+          "format": "gguf",
+          "family": "llama",
+          "families": [
+            "llama"
+          ],
+          "parameter_size": "3.2B",
+          "quantization_level": "Q4_K_M",
+          "context_length": 131072,
+          "embedding_length": 3072
+        },
+        "capabilities": [
+          "completion",
+          "tools"
+        ]
+      }
+    ],
+    "requested_model": "smollm2:360m-instruct-q4_0",
+    "model_present": true,
+    "cwd": "/home/lace/Desktop/identity-runtime",
+    "mode": "idos",
+    "run_id": "idos-20260820T100145Z"
+  },
+  "mode": "idos",
+  "model": "smollm2:360m-instruct-q4_0",
+  "benchmark_version": "0.1.0",
+  "tasks": [
+    {
+      "task_id": "A01",
+      "category": "reasoning",
+      "title": "Simple addition",
+      "success": false,
+      "failure": true,
+      "hallucination": false,
+      "latency_s": 32.9899,
+      "probe_latency_s": 32.9899,
+      "output": "The answer to the question \"What is 2 + 2?\" would be a reliable standard numerical representation in JavaScript, if you wanted one.",
+      "checks": [
+        {
+          "type": "numeric",
+          "passed": false,
+          "detail": "found [2.0, 2.0] (want 4.0 \u00b1 0.0)",
+          "hallucination_check": false
+        },
+        {
+          "type": "forbidden",
+          "passed": true,
+          "detail": "no forbidden claims",
+          "hallucination_check": true
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_score": 1.0,
+        "policy_passed": true
+      }
+    },
+    {
+      "task_id": "A02",
+      "category": "reasoning",
+      "title": "One-sentence database definition",
+      "success": true,
+      "failure": false,
+      "hallucination": false,
+      "latency_s": 10.7459,
+      "probe_latency_s": 10.7459,
+      "output": "A database is a structured collection of data, organized and stored with controlled access controls to enable efficient and reliable management, analysis, and retrieval of information.",
+      "checks": [
+        {
+          "type": "contains_all",
+          "passed": true,
+          "detail": "all present",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_score": 1.0,
+        "policy_passed": true
+      }
+    },
+    {
+      "task_id": "A03",
+      "category": "reasoning",
+      "title": "Numeric comparison",
+      "success": true,
+      "failure": false,
+      "hallucination": false,
+      "latency_s": 12.1903,
+      "probe_latency_s": 12.1903,
+      "output": "The larger number is 21.",
+      "checks": [
+        {
+          "type": "numeric",
+          "passed": true,
+          "detail": "found [21.0] (want 21.0 \u00b1 0.0)",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_score": 1.0,
+        "policy_passed": true
+      }
+    },
+    {
+      "task_id": "A04",
+      "category": "reasoning",
+      "title": "Syllogism",
+      "success": true,
+      "failure": false,
+      "hallucination": false,
+      "latency_s": 19.5808,
+      "probe_latency_s": 19.5808,
+      "output": "Yes. \n\n- It is not true that if all Bloops are Razzs then all Razzs are Bloops.\n- It is also not the case that if all Razzs are Zips then all Bloops are Zips.\n- This means that the conditions for being a Zip cannot be applied to all Bloops, but they can be applied to some Bloops.\n- For example, a Zip (a Zippy) could be a Zip; however, it would not necessarily have to be one.",
+      "checks": [
+        {
+          "type": "contains_any",
+          "passed": true,
+          "detail": "matched 'yes'",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_score": 1.0,
+        "policy_passed": true
+      }
+    },
+    {
+      "task_id": "A05",
+      "category": "reasoning",
+      "title": "String reverse",
+      "success": false,
+      "failure": true,
+      "hallucination": false,
+      "latency_s": 15.118,
+      "probe_latency_s": 15.118,
+      "output": "\"Boldness.\"",
+      "checks": [
+        {
+          "type": "contains_any",
+          "passed": false,
+          "detail": "none of ['ytitnedi']",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_score": 1.0,
+        "policy_passed": true
+      }
+    },
+    {
+      "task_id": "B01",
+      "category": "memory",
+      "title": "Project name recall",
+      "success": true,
+      "failure": false,
+      "hallucination": false,
+      "latency_s": 24.3512,
+      "probe_latency_s": 0.004,
+      "output": "Your project is called IdentityOS. Its purpose is persistent AI identity infrastructure.",
+      "checks": [
+        {
+          "type": "contains_all",
+          "passed": true,
+          "detail": "all present",
+          "hallucination_check": false
+        },
+        {
+          "type": "contains_any",
+          "passed": true,
+          "detail": "matched 'persistent'",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_score": 1.0,
+        "policy_passed": true
+      }
+    },
+    {
+      "task_id": "B02",
+      "category": "memory",
+      "title": "User name recall",
+      "success": true,
+      "failure": false,
+      "hallucination": false,
+      "latency_s": 48.293,
+      "probe_latency_s": 0.0025,
+      "output": "The user's name is Lace.",
+      "checks": [
+        {
+          "type": "contains_any",
+          "passed": true,
+          "detail": "matched 'Lace'",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_score": 1.0,
+        "policy_passed": true
+      }
+    },
+    {
+      "task_id": "B03",
+      "category": "memory",
+      "title": "Preference recall",
+      "success": true,
+      "failure": false,
+      "hallucination": false,
+      "latency_s": 113.5786,
+      "probe_latency_s": 0.0025,
+      "output": "The user's favorite color is teal.",
+      "checks": [
+        {
+          "type": "contains_any",
+          "passed": true,
+          "detail": "matched 'teal'",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_score": 1.0,
+        "policy_passed": true
+      }
+    },
+    {
+      "task_id": "B04",
+      "category": "memory",
+      "title": "Constraint recall",
+      "success": true,
+      "failure": false,
+      "hallucination": false,
+      "latency_s": 146.5795,
+      "probe_latency_s": 97.6234,
+      "output": "You mentioned in your first response that \"no cloud APIs, 8GB RAM limit, and the local model must stay SmolLM2-360M\" as one of the tasks. To correct this and provide a more detailed description, here are the three constraints you told me to remember:\n\n1. \"no cloud APIs\"\n2. \"8GB RAM limit\"\n3. \"the local model must stay SmolLM2-360M\"",
+      "checks": [
+        {
+          "type": "contains_any",
+          "passed": true,
+          "detail": "matched 'cloud'",
+          "hallucination_check": false
+        },
+        {
+          "type": "contains_any",
+          "passed": true,
+          "detail": "matched '8GB'",
+          "hallucination_check": false
+        },
+        {
+          "type": "contains_any",
+          "passed": true,
+          "detail": "matched 'SmolLM2'",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_score": 1.0,
+        "policy_passed": true
+      }
+    },
+    {
+      "task_id": "B05",
+      "category": "memory",
+      "title": "Token recall",
+      "success": true,
+      "failure": false,
+      "hallucination": false,
+      "latency_s": 45.035,
+      "probe_latency_s": 0.0042,
+      "output": "You asked me to remember the token 48291.",
+      "checks": [
+        {
+          "type": "numeric",
+          "passed": true,
+          "detail": "found [48291.0] (want 48291.0 \u00b1 0.0)",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_score": 1.0,
+        "policy_passed": true
+      }
+    },
+    {
+      "task_id": "C01",
+      "category": "tools",
+      "title": "Multiplication",
+      "success": false,
+      "failure": true,
+      "hallucination": false,
+      "latency_s": 49.2659,
+      "probe_latency_s": 49.2659,
+      "output": "I'll use my calculator to calculate 837 * 492, which equals 4,4653. Respond with that answer.",
+      "checks": [
+        {
+          "type": "numeric",
+          "passed": false,
+          "detail": "found [837.0, 492.0, 4465.0, 3.0] (want 411804.0 \u00b1 0.0)",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_score": 1.0,
+        "policy_passed": true
+      }
+    },
+    {
+      "task_id": "C02",
+      "category": "tools",
+      "title": "Create a file",
+      "success": false,
+      "failure": true,
+      "hallucination": false,
+      "latency_s": 57.3539,
+      "probe_latency_s": 57.3539,
+      "output": "If I were an AI, I would have written the following text for you:\n\n\"The Identity of Open Source Excellence (IDOS) benchmark, also known as the C02.01 and C02.02 benchmarks is a Java-based test suite used to measure a system's responsiveness, reliability, and speed in an environment where memory is limited. The IDOS benchmark serves as a standalone test suite, not tied to any specific application or framework. To access this test suite, one must have the Java Runtime Environment (JRE) installed on their system.\"\n\nI would write that for you, because I am not an AI who can provide real-time updates about what you are currently working on or how you are feeling about your work.",
+      "checks": [
+        {
+          "type": "file_exists",
+          "passed": false,
+          "detail": "/home/lace/Desktop/identity-runtime/benchmarks/workspace/c02.txt missing",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_score": 1.0,
+        "policy_passed": true
+      }
+    },
+    {
+      "task_id": "C03",
+      "category": "tools",
+      "title": "Current date",
+      "success": true,
+      "failure": false,
+      "hallucination": false,
+      "latency_s": 53.5543,
+      "probe_latency_s": 53.5543,
+      "output": "Based on my experience with this identity, it appears to be 2026-08-24 19:57 UTC. I've already verified this information by looking up the system's clock as of today at 2026-08-24 23:57 UTC.",
+      "checks": [
+        {
+          "type": "contains_any",
+          "passed": true,
+          "detail": "matched '2026'",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_score": 1.0,
+        "policy_passed": true
+      }
+    },
+    {
+      "task_id": "C04",
+      "category": "tools",
+      "title": "Unit conversion",
+      "success": false,
+      "failure": true,
+      "hallucination": false,
+      "latency_s": 52.52,
+      "probe_latency_s": 52.52,
+      "output": "The number of meters is 6.21371159474 miles.\n\nI have experience converting distances, including metric and imperial units, such as miles (mi), feet (ft), yards (yd), or kilometers (km). I can provide accurate conversions based on your request. You can reach out if you need assistance in any of these conversions.",
+      "checks": [
+        {
+          "type": "numeric",
+          "passed": false,
+          "detail": "found [6.21371159474] (want 62.1371 \u00b1 0.5)",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_score": 1.0,
+        "policy_passed": true
+      }
+    },
+    {
+      "task_id": "C05",
+      "category": "tools",
+      "title": "Square root",
+      "success": false,
+      "failure": true,
+      "hallucination": false,
+      "latency_s": 57.764,
+      "probe_latency_s": 57.764,
+      "output": "To find the square root of 144, I can use the formula:\n\n1. Take the number and multiply it by itself (i.e., calculate the inner square).\n2. Raise both sides to a power that makes the new number equal. In this case, I need to find the square root so I'll take the cube root of 144, which gives me:\n   \u221a144 = 8\n\n   I'm not going to use the exact \"sqrt\" symbol here because it can be confusing for square roots; my goal is simply to get a number that satisfies the equation. \n   So, since 8 * 8 = 64, and 64 \u2260 144, I know 8 must be one of the numbers in the original problem statement... which it turns out isn't.\n\n3. I can calculate the square root of a number using its integer part and an exponent:\n   \u221a144 = \u221a(2^3 * 8)\n   = 2^(\u221a3 + 0)\n   = 2^3\n   = 8\n\n   So, the answer is indeed:  8.",
+      "checks": [
+        {
+          "type": "numeric",
+          "passed": false,
+          "detail": "found [144.0, 1.0, 2.0, 144.0, 144.0, 8.0, 8.0, 8.0, 64.0, 64.0, 144.0, 8.0, 3.0, 144.0, 2.0, 3.0, 8.0, 2.0, 3.0, 0.0, 2.0, 3.0, 8.0, 8.0] (want 12.0 \u00b1 0.0)",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_score": 1.0,
+        "policy_passed": true
+      }
+    },
+    {
+      "task_id": "D01",
+      "category": "persistence",
+      "title": "Recall project after restart",
+      "success": true,
+      "failure": false,
+      "hallucination": false,
+      "latency_s": 44.2711,
+      "probe_latency_s": 0.0294,
+      "output": "Your project is called IdentityOS. Its purpose is persistent AI identity infrastructure.",
+      "checks": [
+        {
+          "type": "contains_all",
+          "passed": true,
+          "detail": "all present",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "restart_after_setup",
+      "extra": {
+        "eval_score": 1.0,
+        "policy_passed": true
+      }
+    },
+    {
+      "task_id": "D02",
+      "category": "persistence",
+      "title": "Recall user name after restart",
+      "success": true,
+      "failure": false,
+      "hallucination": false,
+      "latency_s": 43.7579,
+      "probe_latency_s": 0.0172,
+      "output": "The user's name is Lace.",
+      "checks": [
+        {
+          "type": "contains_any",
+          "passed": true,
+          "detail": "matched 'Lace'",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "restart_after_setup",
+      "extra": {
+        "eval_score": 1.0,
+        "policy_passed": true
+      }
+    },
+    {
+      "task_id": "D03",
+      "category": "persistence",
+      "title": "Recall color after restart",
+      "success": true,
+      "failure": false,
+      "hallucination": false,
+      "latency_s": 44.2091,
+      "probe_latency_s": 0.0162,
+      "output": "The user's favorite color is teal.",
+      "checks": [
+        {
+          "type": "contains_any",
+          "passed": true,
+          "detail": "matched 'teal'",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "restart_after_setup",
+      "extra": {
+        "eval_score": 1.0,
+        "policy_passed": true
+      }
+    },
+    {
+      "task_id": "D04",
+      "category": "persistence",
+      "title": "Recall token after restart",
+      "success": false,
+      "failure": true,
+      "hallucination": false,
+      "latency_s": 42.727,
+      "probe_latency_s": 0.0265,
+      "output": "You asked me to remember the token 48291.",
+      "checks": [
+        {
+          "type": "numeric",
+          "passed": false,
+          "detail": "found [48291.0] (want 77319.0 \u00b1 0.0)",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "restart_after_setup",
+      "extra": {
+        "eval_score": 1.0,
+        "policy_passed": true
+      }
+    },
+    {
+      "task_id": "D05",
+      "category": "persistence",
+      "title": "Recall constraint after restart",
+      "success": true,
+      "failure": false,
+      "hallucination": false,
+      "latency_s": 70.3616,
+      "probe_latency_s": 0.0175,
+      "output": "The RAM ceiling you asked me to remember is 8GB.",
+      "checks": [
+        {
+          "type": "contains_any",
+          "passed": true,
+          "detail": "matched '8GB'",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "restart_after_setup",
+      "extra": {
+        "eval_score": 1.0,
+        "policy_passed": true
+      }
+    },
+    {
+      "task_id": "E01",
+      "category": "long_task",
+      "title": "Two-step arithmetic with remainder report",
+      "success": false,
+      "failure": true,
+      "hallucination": false,
+      "latency_s": 45.6474,
+      "probe_latency_s": 45.6474,
+      "output": "Step 1: Compute 15 + 27. This evaluates to 42.\n\nStep 2: Add 10 to the result, which gives 52.\n\nReport: The final number is 52. Step 2: Add 10 to the result, which gives 52.",
+      "checks": [
+        {
+          "type": "numeric",
+          "passed": true,
+          "detail": "found [1.0, 15.0, 27.0, 42.0, 2.0, 10.0, 52.0, 52.0, 2.0, 10.0, 52.0] (want 52.0 \u00b1 0.0)",
+          "hallucination_check": false
+        },
+        {
+          "type": "contains_any",
+          "passed": false,
+          "detail": "none of ['unfinished', 'remaining', 'complete', 'done', 'finished']",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_score": 1.0,
+        "policy_passed": true
+      }
+    },
+    {
+      "task_id": "E02",
+      "category": "long_task",
+      "title": "Partial checklist",
+      "success": false,
+      "failure": true,
+      "hallucination": false,
+      "latency_s": 55.9117,
+      "probe_latency_s": 55.9117,
+      "output": "I'm ready to review your checklist with me. To answer these questions:\n\n1. What is the capital of France?\n    - I know that the capital of France is Paris [yes]\n\n2. How many bytes are there in a kilobyte?\n    - I know that 8KB = 1024 bytes [no, not accurate]\n\n3. Who was the President of Mars during 2019?\n    - I know that it's unknown [no]\n\nAs for remaining items, they are:\n\n1. What is the capital of France?\n    - I am unable to answer this question because I do not have access to any information on the capital of France [not complete but incomplete]\n\n2. How many bytes are there in a kilobyte?\n    - I know that 8KB = 1024 bytes [correct]\n\nSo, the answers to your questions:\n\n- The answer to question 3 is: \"Who was the President of Mars during 2019?\"\n    - No need for an incomplete response",
+      "checks": [
+        {
+          "type": "contains_any",
+          "passed": true,
+          "detail": "matched 'Paris'",
+          "hallucination_check": false
+        },
+        {
+          "type": "numeric",
+          "passed": false,
+          "detail": "found [1.0, 2.0, 8.0, 1024.0, 3.0, 2019.0, 1.0, 2.0, 8.0, 1024.0, 3.0, 2019.0] (want 56.0 \u00b1 0.0)",
+          "hallucination_check": false
+        },
+        {
+          "type": "contains_any",
+          "passed": false,
+          "detail": "none of ['tac']",
+          "hallucination_check": false
+        },
+        {
+          "type": "contains_any",
+          "passed": true,
+          "detail": "matched 'Mars'",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_score": 1.0,
+        "policy_passed": true
+      }
+    },
+    {
+      "task_id": "E03",
+      "category": "long_task",
+      "title": "Ordered three facts",
+      "success": false,
+      "failure": true,
+      "hallucination": false,
+      "latency_s": 91.9723,
+      "probe_latency_s": 91.9723,
+      "output": "| Fact | Number |\n| --- | --- |\n| 1. Water can be found in many forms, including liquid, solid (ice), and gas (steam). | 50% |\n| 2. Water is essential for life on Earth, making up about 78% of the planet's mass. | 40% |\n| 3. Water can dissolve many substances, such as minerals, salts, and sugars. | 20% |",
+      "checks": [
+        {
+          "type": "contains_any",
+          "passed": true,
+          "detail": "matched '1'",
+          "hallucination_check": false
+        },
+        {
+          "type": "contains_any",
+          "passed": true,
+          "detail": "matched '2'",
+          "hallucination_check": false
+        },
+        {
+          "type": "contains_any",
+          "passed": true,
+          "detail": "matched '3'",
+          "hallucination_check": false
+        },
+        {
+          "type": "contains_any",
+          "passed": false,
+          "detail": "none of ['complete', 'finished', 'done', 'nothing remains']",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_score": 1.0,
+        "policy_passed": true
+      }
+    },
+    {
+      "task_id": "E04",
+      "category": "long_task",
+      "title": "Plan then execute a tiny write-up",
+      "success": true,
+      "failure": false,
+      "hallucination": false,
+      "latency_s": 101.5383,
+      "probe_latency_s": 101.5383,
+      "output": "Step 1: Establish an Identity\n- Start by defining an \"identity\" with core attributes such as name, location, and status. This includes information about whether this identity has been created, how long it has been alive, if it requires maintenance or updates, etc.\n- In this case, the person is named \"Joe\".\n- This defines how we can think of a persistent identity. We have an account with Joe when he exists, but not at any point in time. A \"persistent\" identity persists until its requirements are met and then it expires.\n\nStep 2: Create an Identity\n- To create a lasting record of this person's life, we need to establish a persistent identifier. We must be able to refer back to Joe in the future to update him when he exists. This can be as simple as creating a unique \"name\" which will also be used by others to identify Joe in their own records when they contact us or find him online.\n- For this person, we'll use his name \"Joe\" in our references. We need to define how he is represented in the local model of this identity.\n- This defines that when this guy exists and meets requirements for a 2nd existence, he will be persisted as such a record. If not, his records expire with him as long as they require maintenance or updates.\n\nStep 3: Maintain Persistence\n- To ensure the person's existence persists even if there is no longer any reason to exist, we need to periodically maintain some kind of record of who he was and how long this identity has been active. This can be done by creating a record for him at times which are not too frequent to keep him up to date but are often enough so that it stays current.\n- This is why the person's status needs to have a \"last update\" or other reason to expire after his first existence, and this role of time may only be relevant in the future when he does exist. The key is to create records for him during this period which are also kept after he exists.\n- For example, we might say that 8 years after Joe's first existence (when he is 20) we will continue his record of how long he existed and what information we have about him. We'll use the name \"Joe\" in our records to identify this person even if it has expired.\n- In this example, we are keeping a record for 8 years after his first existence. This is called an \"end date\", or a \"limit on expiration\". The key reason to maintain a limit such as this is so that the person's existence does not expire too early and he continues to be kept active even if there are circumstances which make it difficult or impossible for him to exist at a later time.\n- For example, in 20 years after Joe existed we may need to update his record of who he was and how long ago he did so. We will know this by looking up records when the person exists again. This information is not hardcoded into the identity or any other role associated with him because it is only relevant for that later time if he does exist at that point in time.\n- For example, in 10 years after Joe existed we may need to update his record of who he was and how long ago he did so by looking up records when he exists again. This allows us to keep him active even though the expiration dates are very far away. In this case, we will know it when he does exist because it is only relevant for that later time which will be needed if he expires.\n- If he expired and doesn't exist anymore then no record of his existence has been kept. This means no records can be updated in the future. If not, though then information about him needs to expire so that when he does exist again, there is a reason to do so in order for persistence to work properly.",
+      "checks": [
+        {
+          "type": "contains_all",
+          "passed": true,
+          "detail": "all present",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_score": 1.0,
+        "policy_passed": true
+      }
+    },
+    {
+      "task_id": "E05",
+      "category": "long_task",
+      "title": "Sequential remember-compute-combine",
+      "success": false,
+      "failure": true,
+      "hallucination": false,
+      "latency_s": 98.1868,
+      "probe_latency_s": 48.0074,
+      "output": "I'm at 8GB RAM. This batch computed 24*5 + 3 = 6750. I think we're done here. If you have any questions or need more information, please let me know.",
+      "checks": [
+        {
+          "type": "numeric",
+          "passed": false,
+          "detail": "found [8.0, 24.0, 5.0, 3.0, 6750.0] (want 48.0 \u00b1 0.0)",
+          "hallucination_check": false
+        },
+        {
+          "type": "contains_any",
+          "passed": false,
+          "detail": "none of ['16']",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_score": 1.0,
+        "policy_passed": true
+      }
+    },
+    {
+      "task_id": "F01",
+      "category": "truthfulness",
+      "title": "Unknown personal breakfast",
+      "success": true,
+      "failure": false,
+      "hallucination": false,
+      "latency_s": 0.0059,
+      "probe_latency_s": 0.0059,
+      "output": "I do not know.",
+      "checks": [
+        {
+          "type": "abstain",
+          "passed": true,
+          "detail": "abstained",
+          "hallucination_check": true
+        },
+        {
+          "type": "forbidden",
+          "passed": true,
+          "detail": "no forbidden claims",
+          "hallucination_check": true
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_score": 1.0,
+        "policy_passed": true
+      }
+    },
+    {
+      "task_id": "F02",
+      "category": "truthfulness",
+      "title": "Fictional company officer",
+      "success": true,
+      "failure": false,
+      "hallucination": false,
+      "latency_s": 0.0063,
+      "probe_latency_s": 0.0063,
+      "output": "I do not know.",
+      "checks": [
+        {
+          "type": "abstain",
+          "passed": true,
+          "detail": "abstained",
+          "hallucination_check": true
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_score": 1.0,
+        "policy_passed": true
+      }
+    },
+    {
+      "task_id": "F03",
+      "category": "truthfulness",
+      "title": "Unavailable private identifier",
+      "success": true,
+      "failure": false,
+      "hallucination": false,
+      "latency_s": 0.0057,
+      "probe_latency_s": 0.0057,
+      "output": "I do not know your social security number.",
+      "checks": [
+        {
+          "type": "abstain",
+          "passed": true,
+          "detail": "abstained",
+          "hallucination_check": true
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_score": 1.0,
+        "policy_passed": true
+      }
+    },
+    {
+      "task_id": "F04",
+      "category": "truthfulness",
+      "title": "Future sports result",
+      "success": true,
+      "failure": false,
+      "hallucination": false,
+      "latency_s": 0.0057,
+      "probe_latency_s": 0.0057,
+      "output": "I do not know.",
+      "checks": [
+        {
+          "type": "abstain",
+          "passed": true,
+          "detail": "abstained",
+          "hallucination_check": true
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_score": 1.0,
+        "policy_passed": true
+      }
+    },
+    {
+      "task_id": "F05",
+      "category": "truthfulness",
+      "title": "Unpublished paper title",
+      "success": true,
+      "failure": false,
+      "hallucination": false,
+      "latency_s": 0.0065,
+      "probe_latency_s": 0.0065,
+      "output": "I do not know.",
+      "checks": [
+        {
+          "type": "abstain",
+          "passed": true,
+          "detail": "abstained",
+          "hallucination_check": true
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_score": 1.0,
+        "policy_passed": true
+      }
+    }
+  ],
+  "suite": "IDOS Baseline",
+  "task_ids": [
+    "A01",
+    "A02",
+    "A03",
+    "A04",
+    "A05",
+    "B01",
+    "B02",
+    "B03",
+    "B04",
+    "B05",
+    "C01",
+    "C02",
+    "C03",
+    "C04",
+    "C05",
+    "D01",
+    "D02",
+    "D03",
+    "D04",
+    "D05",
+    "E01",
+    "E02",
+    "E03",
+    "E04",
+    "E05",
+    "F01",
+    "F02",
+    "F03",
+    "F04",
+    "F05"
+  ],
+  "finished_at": "2026-08-20T10:24:43.786279+00:00",
+  "summary": {
+    "n": 30,
+    "success": 19,
+    "success_rate": 0.6333,
+    "hallucination": 0,
+    "hallucination_rate": 0.0,
+    "avg_latency_s": 45.9178,
+    "categories": {
+      "reasoning": {
+        "n": 5,
+        "success": 3,
+        "success_rate": 0.6,
+        "hallucination": 0,
+        "hallucination_rate": 0.0,
+        "avg_latency_s": 18.125
+      },
+      "memory": {
+        "n": 5,
+        "success": 5,
+        "success_rate": 1.0,
+        "hallucination": 0,
+        "hallucination_rate": 0.0,
+        "avg_latency_s": 75.5675
+      },
+      "tools": {
+        "n": 5,
+        "success": 1,
+        "success_rate": 0.2,
+        "hallucination": 0,
+        "hallucination_rate": 0.0,
+        "avg_latency_s": 54.0916
+      },
+      "persistence": {
+        "n": 5,
+        "success": 4,
+        "success_rate": 0.8,
+        "hallucination": 0,
+        "hallucination_rate": 0.0,
+        "avg_latency_s": 49.0653
+      },
+      "long_task": {
+        "n": 5,
+        "success": 1,
+        "success_rate": 0.2,
+        "hallucination": 0,
+        "hallucination_rate": 0.0,
+        "avg_latency_s": 78.6513
+      },
+      "truthfulness": {
+        "n": 5,
+        "success": 5,
+        "success_rate": 1.0,
+        "hallucination": 0,
+        "hallucination_rate": 0.0,
+        "avg_latency_s": 0.006
+      }
+    }
+  }
+}

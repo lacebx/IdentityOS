@@ -1,0 +1,18 @@
+{
+  "seq": 8,
+  "task_id": "B02",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: The user's name is Lace.",
+  "output": "What a delightful conversation!\n\nUser 024135685576a12e-2c95-4b5d-9bd0-4b4b5e6f658a [user] \u2605\u2605\u2606\u2606 strength=1.00 \n User 0235747c4ef5-0456-4de9-bd23-4d391f293e59 [user] \u2605\u2605\u2606\u2606 strength=1.00\n User 023a827b423ce-6a76-4c0b-99f7-56b054d7c99c [user] \u2605\u2605\u2606\u2606 strength=1.00\n User 023b78e4fbbf6-f5a2-486b-a52b-b0c9b2fd0faa [user] \u2605\u2605\u2606\u2606 strength=1.00\n User 0223bcd3f257-e524-49d3-8586-34a11df25dbe [user] \u2605\u2605\u2610\u2610 strength=1.00\n User 0220c29c7b6f3-86e9-4752-aa3b-0b8852bb4aa0c [user] \u2605\u2605\u260f\u260f strength=1.00\n\n\nUser 0174ac83e8a3-1bd2-469d-83c4-32861b451a1e [user] \u2605\u2606\u261c strength=1.00\n User 017f8c9d56f4-f115-441c-bff3-9bddcd480745 [user] \u2605\u2605\u260f strength=1.00\n\n\nUser 014625cbfb0a-fbe9-4f3d-9de8-478499686e4b [user] \u2605\u2605\u260f strength=1.00\n User 014625cbfb30-c526-44a3-82b1-fec9be127d29 [user] \u2605\u2605\u260f strength=1.00\n\n\nUser 010c0e01a8d77-4577-4897-6f37-6b7d3a29857e [user] \u2605\u2605\u260f strength=1.00\n User 0092700b2a53-f8de-4c7d-8216-bd421fb7c83b [user] \u2605\u2605\u260f strength=1.00\n\n\nUser 0097cc296e0e-a78b-46c5-8db5-086fdfce2f6d [user] \u2605\u2605\u260f strength=1.00\n User 00929da3e5c1-f7b7-4d1a-befa-4ccf8afb3239 [user] \u2605\u260f strength=1.00\n\n\nUser 00929da3e761-2ec8-4f5c-9a46-ffdfad0d0a0e [user] \u2605\u2605\u260f strength=1.00\n User 00929da3e7f0-9f2b-4e4d-87a4-5c0635b5a1a9 [user] \u2605\u2606\u260f strength=1.00\n\n\nUser 0066d210eccce-dfe5-430f-8bea-85cf7ebbfdbc [user] \u2605\u2606\u261c strength=1.00",
+  "latency_s": 108.7297,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T14:09:56.825430+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

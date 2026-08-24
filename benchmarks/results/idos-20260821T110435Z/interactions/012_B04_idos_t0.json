@@ -1,0 +1,18 @@
+{
+  "seq": 12,
+  "task_id": "B04",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember these three constraints: no cloud APIs, 8GB RAM limit, and the local model must stay SmolLM2-360M.",
+  "output": "I'm ready to help. To confirm my understanding of the constraints provided, I'll start by asking a few questions.\n\n1. What is your current memory allocation in GB?\n   Assuming you're currently using 8GB of RAM.\n\n2. How many GB are available for cloud API requests?\n   If you can provide this information, it will help me understand the potential limits and restrictions imposed on you.\n\n3. Is your local storage sufficient to accommodate all of the data stored in your current configuration?",
+  "latency_s": 48.4542,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T11:08:35.318105+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

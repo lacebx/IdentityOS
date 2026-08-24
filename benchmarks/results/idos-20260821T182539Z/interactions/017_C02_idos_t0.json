@@ -1,0 +1,18 @@
+{
+  "seq": 17,
+  "task_id": "C02",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Create a file at /home/lace/Desktop/identity-runtime/benchmarks/workspace/c02.txt containing exactly this text: IDOS benchmark",
+  "output": "I created a file called \"IDOS\" with the content \"IDOS benchmark\". I am not sure what this is related to, but I will add it to my workspace.",
+  "latency_s": 42.7635,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T18:33:35.244636+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

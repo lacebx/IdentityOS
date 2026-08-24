@@ -1,0 +1,18 @@
+{
+  "seq": 10,
+  "task_id": "B03",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: The user's favorite color is teal.",
+  "output": "I apologize for any confusion caused, and I will definitely not mention your favorite color. Thank you very much for letting me know the user's preferences!",
+  "latency_s": 43.8956,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T08:55:06.804992+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "seq": 2,
+  "task_id": "A02",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Explain what a database is in one sentence.",
+  "output": "A database is an organized collection of structured data, typically stored on hard drives or other media, that stores information using a set of rules and constraints to allow for efficient retrieval and manipulation. It provides a centralized repository where data can be managed, controlled, and accessed through standardized queries. In many systems, databases are used not only to store but also to manage user accounts, password protection, security settings, and other related metadata.",
+  "latency_s": 14.9803,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T12:40:01.461215+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

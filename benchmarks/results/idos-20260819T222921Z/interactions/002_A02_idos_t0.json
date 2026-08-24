@@ -1,0 +1,18 @@
+{
+  "seq": 2,
+  "task_id": "A02",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Explain what a database is in one sentence.",
+  "output": "A database, also known as a data management system or data warehouse, is a structured collection of related, organized sets of data that stores and retrieves information, allowing for fast and efficient access to meet the needs of individuals, organizations, and businesses. It can store a wide range of data types including text, images, audio, video, and more, enabling users to query, retrieve, and analyze data for various purposes.",
+  "latency_s": 14.4301,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-19T22:30:04.587224+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

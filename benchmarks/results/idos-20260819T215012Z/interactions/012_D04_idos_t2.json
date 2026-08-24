@@ -1,0 +1,18 @@
+{
+  "seq": 12,
+  "task_id": "D04",
+  "mode": "idos",
+  "turn_index": 2,
+  "role": "user",
+  "prompt": "What token did I ask you to remember?",
+  "output": "The user has just met you. You have already interacted with this user before, and do not guess about the memory of previous interactions or requests for data.",
+  "latency_s": 71.3988,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-19T21:54:36.671851+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

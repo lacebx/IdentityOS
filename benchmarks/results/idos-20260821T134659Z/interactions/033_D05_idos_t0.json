@@ -1,0 +1,18 @@
+{
+  "seq": 33,
+  "task_id": "D05",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: the hard RAM ceiling for this experiment is 8GB.",
+  "output": "Your understanding of the 8GB memory limitation accurately represents the current state of your client-server system.",
+  "latency_s": 42.1821,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T14:00:17.484371+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

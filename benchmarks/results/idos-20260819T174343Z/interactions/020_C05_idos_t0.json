@@ -1,0 +1,18 @@
+{
+  "seq": 20,
+  "task_id": "C05",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "What is the square root of 144?",
+  "output": "The square root of 144 is the number that, when multiplied by itself, gives the original number.\n\n144 / \u221a144 = 144 / 52 = 2.8333\n\n1. What is the value of \u221a144?\nThe square root of 144 is 52.",
+  "latency_s": 43.6937,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-19T17:56:11.729868+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

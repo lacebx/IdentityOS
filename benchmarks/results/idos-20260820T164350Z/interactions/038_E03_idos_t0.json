@@ -1,0 +1,18 @@
+{
+  "seq": 38,
+  "task_id": "E03",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Produce exactly three numbered facts about water. Then state that the task is complete and that nothing remains unfinished.",
+  "output": "Fact 1: Water is a clear, colorless liquid with a specific freezing point of -32\u00b0F (-18.6\u00b0C) [100%]\nFact 2: The human body contains approximately 20% water by weight [100%]\nFact 3: Water freezes at 32\u00b0F (0\u00b0C) [100%]",
+  "latency_s": 94.6262,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-20T17:04:49.894438+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

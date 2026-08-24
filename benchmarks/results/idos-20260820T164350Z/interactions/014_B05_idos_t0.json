@@ -1,0 +1,18 @@
+{
+  "seq": 14,
+  "task_id": "B05",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember this token exactly: 48291.",
+  "output": "I'm ready to help you with your request. What is it?",
+  "latency_s": 131.8725,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-20T16:51:44.447778+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

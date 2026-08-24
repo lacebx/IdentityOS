@@ -1,0 +1,18 @@
+{
+  "seq": 14,
+  "task_id": "B05",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember this token exactly: 48291.",
+  "output": "I am 27 years old. I have completed the project 'The Last of the Shakers'.",
+  "latency_s": 45.8226,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-19T06:23:22.953197+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

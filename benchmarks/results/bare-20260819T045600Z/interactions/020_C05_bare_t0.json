@@ -1,0 +1,20 @@
+{
+  "seq": 20,
+  "task_id": "C05",
+  "mode": "bare",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "What is the square root of 144?",
+  "output": "The square root of 144 is 12.",
+  "latency_s": 0.5094,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-19T04:56:34.410624+00:00",
+  "extra": {
+    "eval_count": 14,
+    "eval_duration": 261869000,
+    "prompt_eval_count": 46,
+    "total_duration": 508403089
+  }
+}

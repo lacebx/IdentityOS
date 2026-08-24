@@ -1,0 +1,18 @@
+{
+  "seq": 20,
+  "task_id": "C05",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "What is the square root of 144?",
+  "output": "The square root of a number is the value that, when squared (i.e., multiplied by itself), results in the original number. In mathematical notation, this is represented as \u221anumber = x^2, where x is the unknown to find.\n\n144 can be expressed as 4 * 36 or 5 * 30 or any of the other combinations that equal 144.\n\nSo, the square root of 144 is not a simple number like \u221anumber = 8 or \u221anumber \u2248 2.71. Instead, it's one of these more complex and difficult-to-square numbers.",
+  "latency_s": 50.0301,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T18:02:57.208915+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

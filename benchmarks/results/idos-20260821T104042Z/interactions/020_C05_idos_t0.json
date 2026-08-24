@@ -1,0 +1,18 @@
+{
+  "seq": 20,
+  "task_id": "C05",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "What is the square root of 144?",
+  "output": "That's a classic example of how the square root function works. In this case, I used the `sqrt` method on a `float` value to calculate the square root of 144. The result is 12.0, which represents the positive real number that is equal to the square root of 144.",
+  "latency_s": 45.4236,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T10:51:40.733508+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

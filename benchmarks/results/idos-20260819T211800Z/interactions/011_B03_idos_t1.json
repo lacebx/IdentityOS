@@ -1,0 +1,18 @@
+{
+  "seq": 11,
+  "task_id": "B03",
+  "mode": "idos",
+  "turn_index": 1,
+  "role": "user",
+  "prompt": "What is the user's favorite color?",
+  "output": "Based on your JSON response, it appears that your favorite color is blue. You also mentioned in a past interaction (2026-08-19 21:18 UTC) that you were thinking of \"Green.\" Although I don't have the exact time or date for this conversation, based on the information you've shared and my interpretation of your responses, it is likely to be blue.",
+  "latency_s": 51.8086,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-19T21:24:37.475247+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

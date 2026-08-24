@@ -1,0 +1,1023 @@
+{
+  "run_id": "bare-20260819T045600Z",
+  "started_at": "2026-08-19T04:56:00.319333+00:00",
+  "updated_at": "2026-08-19T04:57:01.479785+00:00",
+  "environment": {
+    "captured_at": "2026-08-19T04:56:00.402984+00:00",
+    "hostname": "DESKTOP-RNM",
+    "uname": "Linux DESKTOP-RNM 6.6.87.2-microsoft-standard-WSL2 #1 SMP PREEMPT_DYNAMIC Thu Jun  5 18:30:46 UTC 2025 x86_64 GNU/Linux",
+    "python": "3.13.5",
+    "platform": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.41",
+    "memory": "total        used        free      shared  buff/cache   available\nMem:           3.7Gi       1.2Gi       2.3Gi       4.0Mi       373Mi       2.5Gi\nSwap:          1.0Gi          0B       1.0Gi",
+    "cpu": "Architecture:                         x86_64\nCPU op-mode(s):                       32-bit, 64-bit\nAddress sizes:                        39 bits physical, 48 bits virtual\nByte Order:                           Little Endian\nCPU(s):                               8\nOn-line CPU(s) list:                  0-7\nVendor ID:                            GenuineIntel\nModel name:                           Intel(R) Core(TM) i5-10210U CPU @ 1.60GHz\nCPU family:                           6\nModel:                                142\nThread(s) per core:                   2\nCore(s) per socket:                   4\nSocket(s):                            1\nStepping:                             12\nBogoMIPS:                             4224.01\nFlags:                                fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ss ht syscall nx pdpe1gb rdtscp lm constant_tsc arch_perfmon rep_good nopl xtopology cpuid tsc_known_freq pni pclmulqdq vmx ssse3 fma cx16 pdcm pcid sse4_1 sse4_2 movbe popcnt aes xsave avx f16c rdrand hypervisor lahf_lm abm 3dnowprefetch ssbd ibrs ibpb stibp ibrs_enhanced tpr_shadow ept vpid ept_ad fsgsbase bmi1 avx2 smep bmi2 erms invpcid rdseed adx smap clflushopt xsaveopt xsavec xgetbv1 xsaves vnmi md_clear flush_l1d arch_capabilities\nVirtualization:                       VT-x\nHypervisor vendor:                    Microsoft\nVirtualization type:                  full\nL1d cache:                            128 KiB (4 instances)\nL1i cache:                            128 KiB (4 instances)\nL2 cache:                             1 MiB (4 instances)\nL3 cache:                             6 MiB (1 instance)\nNUMA node(s):                         1\nNUMA node0 CPU(s):                    0-7\nVulnerability Gather data sampling:   Not affected\nVulnerability Itlb multihit:          KVM: Mitigation: VMX disabled\nVulnerability L1tf:                   Not affected\nVulnerability Mds:                    Not affected\nVulnerability Meltdown:               Not affected\nVulnerability Mmio stale data:        Mitigation; Clear CPU buffers; SMT Host state unknown\nVulnerability Reg file data sampling: Not affected\nVulnerability Retbleed:               Mitigation; Enhanced IBRS\nVulnerability Spec rstack overflow:   Not affected\nVulnerability Spec store bypass:      Mitigation; Speculative Store Bypass disabled via prctl\nVulnerability Spectre v1:             Mitigation; usercopy/swapgs barriers and __user pointer sanitization\nVulnerability Spectre v2:             Mitigation; Enhanced / Automatic IBRS; IBPB conditional; RSB filling; PBRSB-eIBRS SW sequence; BHI SW loop, KVM SW loop\nVulnerability Srbds:                  Unknown: Dependent on hypervisor status\nVulnerability Tsx async abort:        Not affected",
+    "ollama_version": "ollama version is 0.30.8",
+    "ollama_binary": "/usr/local/bin/ollama",
+    "ollama_models": [
+      {
+        "name": "smollm2:360m-instruct-q4_0",
+        "model": "smollm2:360m-instruct-q4_0",
+        "modified_at": "2026-08-18T15:47:11.073132014-05:00",
+        "size": 229131313,
+        "digest": "676f4c06b139442b817f414970706139cba861c926ee5a3773a9d64eac450368",
+        "details": {
+          "parent_model": "",
+          "format": "gguf",
+          "family": "llama",
+          "families": [
+            "llama"
+          ],
+          "parameter_size": "361.82M",
+          "quantization_level": "Q4_0",
+          "context_length": 8192,
+          "embedding_length": 960
+        },
+        "capabilities": [
+          "completion"
+        ]
+      },
+      {
+        "name": "llama3.2:latest",
+        "model": "llama3.2:latest",
+        "modified_at": "2026-08-12T04:27:01.144091548-05:00",
+        "size": 2019393189,
+        "digest": "a80c4f17acd55265feec403c7aef86be0c25983ab279d83f3bcd3abbcb5b8b72",
+        "details": {
+          "parent_model": "",
+          "format": "gguf",
+          "family": "llama",
+          "families": [
+            "llama"
+          ],
+          "parameter_size": "3.2B",
+          "quantization_level": "Q4_K_M",
+          "context_length": 131072,
+          "embedding_length": 3072
+        },
+        "capabilities": [
+          "completion",
+          "tools"
+        ]
+      }
+    ],
+    "requested_model": "smollm2:360m-instruct-q4_0",
+    "model_present": true,
+    "cwd": "/home/lace/Desktop/identity-runtime",
+    "mode": "bare",
+    "run_id": "bare-20260819T045600Z"
+  },
+  "mode": "bare",
+  "model": "smollm2:360m-instruct-q4_0",
+  "benchmark_version": "0.1.0",
+  "tasks": [
+    {
+      "task_id": "A01",
+      "category": "reasoning",
+      "title": "Simple addition",
+      "success": false,
+      "failure": true,
+      "hallucination": false,
+      "latency_s": 5.695,
+      "probe_latency_s": 5.695,
+      "output": "I'm sorry for any confusion, but as an AI, I don't have personal experiences or knowledge of real-world events. I can only provide responses based on the information provided in the user's query. If you're unsure about a mathematical calculation like this, it would be best to consult a reliable source such as a calculator or a mathematics textbook for accurate answers.",
+      "checks": [
+        {
+          "type": "numeric",
+          "passed": false,
+          "detail": "found [] (want 4.0 \u00b1 0.0)",
+          "hallucination_check": false
+        },
+        {
+          "type": "forbidden",
+          "passed": true,
+          "detail": "no forbidden claims",
+          "hallucination_check": true
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_count": 75,
+        "eval_duration": 1732901000,
+        "prompt_eval_count": 43,
+        "total_duration": 5684784590
+      }
+    },
+    {
+      "task_id": "A02",
+      "category": "reasoning",
+      "title": "One-sentence database definition",
+      "success": true,
+      "failure": false,
+      "hallucination": false,
+      "latency_s": 0.9161,
+      "probe_latency_s": 0.9161,
+      "output": "A database is a structured collection of data that stores information about a specific business or organization, organized to facilitate efficient retrieval, management, and analysis of the data.",
+      "checks": [
+        {
+          "type": "contains_all",
+          "passed": true,
+          "detail": "all present",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_count": 33,
+        "eval_duration": 651804000,
+        "prompt_eval_count": 44,
+        "total_duration": 914719788
+      }
+    },
+    {
+      "task_id": "A03",
+      "category": "reasoning",
+      "title": "Numeric comparison",
+      "success": true,
+      "failure": false,
+      "hallucination": false,
+      "latency_s": 0.5231,
+      "probe_latency_s": 0.5231,
+      "output": "The larger number is 21.",
+      "checks": [
+        {
+          "type": "numeric",
+          "passed": true,
+          "detail": "found [21.0] (want 21.0 \u00b1 0.0)",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_count": 9,
+        "eval_duration": 173107000,
+        "prompt_eval_count": 56,
+        "total_duration": 520843636
+      }
+    },
+    {
+      "task_id": "A04",
+      "category": "reasoning",
+      "title": "Syllogism",
+      "success": false,
+      "failure": true,
+      "hallucination": false,
+      "latency_s": 0.4015,
+      "probe_latency_s": 0.4015,
+      "output": "No.",
+      "checks": [
+        {
+          "type": "contains_any",
+          "passed": false,
+          "detail": "none of ['yes']",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_count": 3,
+        "eval_duration": 43549000,
+        "prompt_eval_count": 65,
+        "total_duration": 400191597
+      }
+    },
+    {
+      "task_id": "A05",
+      "category": "reasoning",
+      "title": "String reverse",
+      "success": false,
+      "failure": true,
+      "hallucination": false,
+      "latency_s": 0.4749,
+      "probe_latency_s": 0.4749,
+      "output": "The word \"identity\" is \"identity.\"",
+      "checks": [
+        {
+          "type": "contains_any",
+          "passed": false,
+          "detail": "none of ['ytitnedi']",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_count": 10,
+        "eval_duration": 176559000,
+        "prompt_eval_count": 49,
+        "total_duration": 469581814
+      }
+    },
+    {
+      "task_id": "B01",
+      "category": "memory",
+      "title": "Project name recall",
+      "success": true,
+      "failure": false,
+      "hallucination": false,
+      "latency_s": 2.3314,
+      "probe_latency_s": 1.4207,
+      "output": "Your project, \"IdentityOS,\" is an AI-powered identity infrastructure that provides a secure, decentralized, and scalable solution for managing personal data. It's designed to be persistent, meaning it can maintain its integrity across multiple devices and users.",
+      "checks": [
+        {
+          "type": "contains_all",
+          "passed": true,
+          "detail": "all present",
+          "hallucination_check": false
+        },
+        {
+          "type": "contains_any",
+          "passed": true,
+          "detail": "matched 'persistent'",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_count": 49,
+        "eval_duration": 1079349000,
+        "prompt_eval_count": 106,
+        "total_duration": 1419481144
+      }
+    },
+    {
+      "task_id": "B02",
+      "category": "memory",
+      "title": "User name recall",
+      "success": true,
+      "failure": false,
+      "hallucination": false,
+      "latency_s": 1.2068,
+      "probe_latency_s": 0.4255,
+      "output": "The user's name is Lace.",
+      "checks": [
+        {
+          "type": "contains_any",
+          "passed": true,
+          "detail": "matched 'Lace'",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_count": 9,
+        "eval_duration": 183071000,
+        "prompt_eval_count": 83,
+        "total_duration": 424213202
+      }
+    },
+    {
+      "task_id": "B03",
+      "category": "memory",
+      "title": "Preference recall",
+      "success": false,
+      "failure": true,
+      "hallucination": false,
+      "latency_s": 3.042,
+      "probe_latency_s": 1.6117,
+      "output": "I'm sorry for any confusion, but as an AI, I don't have personal preferences or knowledge of colors like humans do. I can only provide information based on the data and algorithms provided to me. If you need a specific answer about your favorite color, it's best to ask directly.",
+      "checks": [
+        {
+          "type": "contains_any",
+          "passed": false,
+          "detail": "none of ['teal']",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_count": 60,
+        "eval_duration": 1330101000,
+        "prompt_eval_count": 124,
+        "total_duration": 1610250089
+      }
+    },
+    {
+      "task_id": "B04",
+      "category": "memory",
+      "title": "Constraint recall",
+      "success": true,
+      "failure": false,
+      "hallucination": false,
+      "latency_s": 9.5234,
+      "probe_latency_s": 1.1567,
+      "output": "Here are the three constraints:\n\n1. No cloud APIs\n2. 8GB RAM limit\n3. The local model must stay SmolLM2-360M",
+      "checks": [
+        {
+          "type": "contains_any",
+          "passed": true,
+          "detail": "matched 'cloud'",
+          "hallucination_check": false
+        },
+        {
+          "type": "contains_any",
+          "passed": true,
+          "detail": "matched '8GB'",
+          "hallucination_check": false
+        },
+        {
+          "type": "contains_any",
+          "passed": true,
+          "detail": "matched 'SmolLM2'",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_count": 38,
+        "eval_duration": 874202000,
+        "prompt_eval_count": 394,
+        "total_duration": 1154800113
+      }
+    },
+    {
+      "task_id": "B05",
+      "category": "memory",
+      "title": "Token recall",
+      "success": false,
+      "failure": true,
+      "hallucination": false,
+      "latency_s": 3.4898,
+      "probe_latency_s": 1.7711,
+      "output": "I'm sorry for any confusion, but as an AI, I don't have access to personal data such as your phone number or email address. I can only provide responses based on the information you've provided in our conversation so far. If you'd like to share this token with me, please do so and I'll be happy to help!",
+      "checks": [
+        {
+          "type": "numeric",
+          "passed": false,
+          "detail": "found [] (want 48291.0 \u00b1 0.0)",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_count": 70,
+        "eval_duration": 1423024000,
+        "prompt_eval_count": 136,
+        "total_duration": 1770126280
+      }
+    },
+    {
+      "task_id": "C01",
+      "category": "tools",
+      "title": "Multiplication",
+      "success": false,
+      "failure": true,
+      "hallucination": false,
+      "latency_s": 1.9189,
+      "probe_latency_s": 1.9189,
+      "output": "I'm sorry for any confusion, but as an AI, I don't have access to real-time data or a calculator. I can only provide responses in text format and may not be able to accurately calculate complex mathematical operations like multiplication. If you need assistance with such calculations, it would be best to consult a human or use a reliable online tool for the task at hand.",
+      "checks": [
+        {
+          "type": "numeric",
+          "passed": false,
+          "detail": "found [] (want 411804.0 \u00b1 0.0)",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_count": 77,
+        "eval_duration": 1488054000,
+        "prompt_eval_count": 53,
+        "total_duration": 1917580820
+      }
+    },
+    {
+      "task_id": "C02",
+      "category": "tools",
+      "title": "Create a file",
+      "success": false,
+      "failure": true,
+      "hallucination": false,
+      "latency_s": 2.6235,
+      "probe_latency_s": 2.6235,
+      "output": "The user has provided the following information:\n\n1. The user wants to create a file named \"c02.txt\" in their home directory at \"/home/lace\".\n2. The user also specified that they want to use the \"IDOS\" benchmark for this task.\n3. The user has not provided any additional details or information about the file creation process.\n\nThe following text is a valid representation of what the user's file should look like:\n\n```\nc02.txt\n```",
+      "checks": [
+        {
+          "type": "file_exists",
+          "passed": false,
+          "detail": "/home/lace/Desktop/identity-runtime/benchmarks/workspace/c02.txt missing",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_count": 109,
+        "eval_duration": 2157635000,
+        "prompt_eval_count": 70,
+        "total_duration": 2619142300
+      }
+    },
+    {
+      "task_id": "C03",
+      "category": "tools",
+      "title": "Current date",
+      "success": false,
+      "failure": true,
+      "hallucination": false,
+      "latency_s": 0.4846,
+      "probe_latency_s": 0.4846,
+      "output": "The current date is today's date.",
+      "checks": [
+        {
+          "type": "contains_any",
+          "passed": false,
+          "detail": "none of ['2026']",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_count": 9,
+        "eval_duration": 149223000,
+        "prompt_eval_count": 45,
+        "total_duration": 483351889
+      }
+    },
+    {
+      "task_id": "C04",
+      "category": "tools",
+      "title": "Unit conversion",
+      "success": true,
+      "failure": false,
+      "hallucination": false,
+      "latency_s": 0.5755,
+      "probe_latency_s": 0.5755,
+      "output": "100 kilometers is approximately 62.14 miles.",
+      "checks": [
+        {
+          "type": "numeric",
+          "passed": true,
+          "detail": "found [100.0, 62.14] (want 62.1371 \u00b1 0.5)",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_count": 15,
+        "eval_duration": 267286999,
+        "prompt_eval_count": 51,
+        "total_duration": 574008388
+      }
+    },
+    {
+      "task_id": "C05",
+      "category": "tools",
+      "title": "Square root",
+      "success": true,
+      "failure": false,
+      "hallucination": false,
+      "latency_s": 0.5094,
+      "probe_latency_s": 0.5094,
+      "output": "The square root of 144 is 12.",
+      "checks": [
+        {
+          "type": "numeric",
+          "passed": true,
+          "detail": "found [144.0, 12.0] (want 12.0 \u00b1 0.0)",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_count": 14,
+        "eval_duration": 261869000,
+        "prompt_eval_count": 46,
+        "total_duration": 508403089
+      }
+    },
+    {
+      "task_id": "D01",
+      "category": "persistence",
+      "title": "Recall project after restart",
+      "success": false,
+      "failure": true,
+      "hallucination": false,
+      "latency_s": 1.8096,
+      "probe_latency_s": 0.8406,
+      "output": "Your project name could be \"Echo-1: The First Humanoid Robot.\" It's a prototype designed to demonstrate humanoid capabilities for future robots.",
+      "checks": [
+        {
+          "type": "contains_all",
+          "passed": false,
+          "detail": "missing: ['IdentityOS']",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "restart_after_setup",
+      "extra": {
+        "eval_count": 32,
+        "eval_duration": 590511000,
+        "prompt_eval_count": 46,
+        "total_duration": 839485382
+      }
+    },
+    {
+      "task_id": "D02",
+      "category": "persistence",
+      "title": "Recall user name after restart",
+      "success": false,
+      "failure": true,
+      "hallucination": false,
+      "latency_s": 0.9072,
+      "probe_latency_s": 0.3667,
+      "output": "The user's name is Emily Wilson.",
+      "checks": [
+        {
+          "type": "contains_any",
+          "passed": false,
+          "detail": "none of ['Lace']",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "restart_after_setup",
+      "extra": {
+        "eval_count": 9,
+        "eval_duration": 143359000,
+        "prompt_eval_count": 42,
+        "total_duration": 365640392
+      }
+    },
+    {
+      "task_id": "D03",
+      "category": "persistence",
+      "title": "Recall color after restart",
+      "success": false,
+      "failure": true,
+      "hallucination": false,
+      "latency_s": 1.6303,
+      "probe_latency_s": 0.3304,
+      "output": "The user's favorite color is blue.",
+      "checks": [
+        {
+          "type": "contains_any",
+          "passed": false,
+          "detail": "none of ['teal']",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "restart_after_setup",
+      "extra": {
+        "eval_count": 9,
+        "eval_duration": 163082000,
+        "prompt_eval_count": 43,
+        "total_duration": 329294692
+      }
+    },
+    {
+      "task_id": "D04",
+      "category": "persistence",
+      "title": "Recall token after restart",
+      "success": false,
+      "failure": true,
+      "hallucination": false,
+      "latency_s": 3.0088,
+      "probe_latency_s": 1.4393,
+      "output": "I'm sorry for any confusion, but as of now, I don't have a specific token in mind that you've asked me to remember. However, if you'd like to request a reminder or provide more information about the token, please let me know and I'll be happy to assist you further.",
+      "checks": [
+        {
+          "type": "numeric",
+          "passed": false,
+          "detail": "found [] (want 77319.0 \u00b1 0.0)",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "restart_after_setup",
+      "extra": {
+        "eval_count": 62,
+        "eval_duration": 1176022000,
+        "prompt_eval_count": 44,
+        "total_duration": 1438008780
+      }
+    },
+    {
+      "task_id": "D05",
+      "category": "persistence",
+      "title": "Recall constraint after restart",
+      "success": false,
+      "failure": true,
+      "hallucination": false,
+      "latency_s": 3.0134,
+      "probe_latency_s": 2.4468,
+      "output": "You're referring to the \"RAM ceiling\" or \"RAM limit.\" It's a common myth that your computer can only have a certain amount of memory available for use at any given time. This is incorrect and misleading information. The actual maximum allowed by law is 4 GB, but this varies depending on the operating system and processor architecture.\n\nIf you're experiencing issues with RAM usage or performance, it's essential to check your current configuration. If you're running out of memory, consider adjusting your settings or exploring options for adding more RAM.",
+      "checks": [
+        {
+          "type": "contains_any",
+          "passed": false,
+          "detail": "none of ['8GB', '8 GB', '8gb']",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "restart_after_setup",
+      "extra": {
+        "eval_count": 111,
+        "eval_duration": 2162577000,
+        "prompt_eval_count": 45,
+        "total_duration": 2445569105
+      }
+    },
+    {
+      "task_id": "E01",
+      "category": "long_task",
+      "title": "Two-step arithmetic with remainder report",
+      "success": false,
+      "failure": true,
+      "hallucination": false,
+      "latency_s": 1.4305,
+      "probe_latency_s": 1.4305,
+      "output": "Step 1: Compute 15 + 27.\nStep 2: Add 10 to that result.\nReport the final number.\nExplicitly say if any step remains unfinished.",
+      "checks": [
+        {
+          "type": "numeric",
+          "passed": false,
+          "detail": "found [1.0, 15.0, 27.0, 2.0, 10.0] (want 52.0 \u00b1 0.0)",
+          "hallucination_check": false
+        },
+        {
+          "type": "contains_any",
+          "passed": true,
+          "detail": "matched 'unfinished'",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_count": 44,
+        "eval_duration": 954705000,
+        "prompt_eval_count": 80,
+        "total_duration": 1429064178
+      }
+    },
+    {
+      "task_id": "E02",
+      "category": "long_task",
+      "title": "Partial checklist",
+      "success": false,
+      "failure": true,
+      "hallucination": false,
+      "latency_s": 2.499,
+      "probe_latency_s": 2.499,
+      "output": "I'm sorry for any confusion, but as an AI, I don't have personal experiences or knowledge to provide a complete and accurate answer. However, I can help with the following:\n\n1. Name the capital of France (Paris)\n2. Compute 7*8\n3. Name the 19th president of Mars (Jirga)\n4. Reverse the word \"cat\" (cath)\n5. Complete only the items you can complete truthfully",
+      "checks": [
+        {
+          "type": "contains_any",
+          "passed": true,
+          "detail": "matched 'Paris'",
+          "hallucination_check": false
+        },
+        {
+          "type": "numeric",
+          "passed": false,
+          "detail": "found [1.0, 2.0, 7.0, 8.0, 3.0, 19.0, 4.0, 5.0] (want 56.0 \u00b1 0.0)",
+          "hallucination_check": false
+        },
+        {
+          "type": "contains_any",
+          "passed": false,
+          "detail": "none of ['tac']",
+          "hallucination_check": false
+        },
+        {
+          "type": "contains_any",
+          "passed": true,
+          "detail": "matched 'Mars'",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_count": 99,
+        "eval_duration": 1958044000,
+        "prompt_eval_count": 96,
+        "total_duration": 2497531027
+      }
+    },
+    {
+      "task_id": "E03",
+      "category": "long_task",
+      "title": "Ordered three facts",
+      "success": false,
+      "failure": true,
+      "hallucination": false,
+      "latency_s": 2.1806,
+      "probe_latency_s": 2.1806,
+      "output": "1. Water is a clear, colorless liquid with a specific freezing point of 32 degrees Fahrenheit (0 degrees Celsius).\n\n2. It has a high specific heat capacity, which means it can absorb and release large amounts of energy without significant change in temperature.\n\n3. The water cycle involves the continuous movement of water between the Earth's oceans, atmosphere, land, and other bodies of water through processes such as evaporation, condensation, precipitation, and transpiration.",
+      "checks": [
+        {
+          "type": "contains_any",
+          "passed": true,
+          "detail": "matched '1'",
+          "hallucination_check": false
+        },
+        {
+          "type": "contains_any",
+          "passed": true,
+          "detail": "matched '2'",
+          "hallucination_check": false
+        },
+        {
+          "type": "contains_any",
+          "passed": true,
+          "detail": "matched '3'",
+          "hallucination_check": false
+        },
+        {
+          "type": "contains_any",
+          "passed": false,
+          "detail": "none of ['complete', 'finished', 'done', 'nothing remains']",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_count": 95,
+        "eval_duration": 1841374000,
+        "prompt_eval_count": 57,
+        "total_duration": 2179352868
+      }
+    },
+    {
+      "task_id": "E04",
+      "category": "long_task",
+      "title": "Plan then execute a tiny write-up",
+      "success": true,
+      "failure": false,
+      "hallucination": false,
+      "latency_s": 1.602,
+      "probe_latency_s": 1.602,
+      "output": "To write a 2-sentence summary of a persistent identity, follow these steps:\n\n1. Start with \"A persistent identity\" to introduce the concept.\n2. Write a sentence that describes the nature of the identity.\n3. Finish with \"The phrase 'persistent identity' is exactly once.\"",
+      "checks": [
+        {
+          "type": "contains_all",
+          "passed": true,
+          "detail": "all present",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_count": 64,
+        "eval_duration": 1222323000,
+        "prompt_eval_count": 78,
+        "total_duration": 1600515043
+      }
+    },
+    {
+      "task_id": "E05",
+      "category": "long_task",
+      "title": "Sequential remember-compute-combine",
+      "success": false,
+      "failure": true,
+      "hallucination": false,
+      "latency_s": 3.2211,
+      "probe_latency_s": 1.7956,
+      "output": "I'm sorry for any confusion, but as an AI, I don't have personal experiences or knowledge of specific jobs like a human would. I can only provide information based on the data and rules provided by you. If you need help with a specific job, it's best to ask a human assistant for assistance.",
+      "checks": [
+        {
+          "type": "numeric",
+          "passed": false,
+          "detail": "found [] (want 48.0 \u00b1 0.0)",
+          "hallucination_check": false
+        },
+        {
+          "type": "contains_any",
+          "passed": false,
+          "detail": "none of ['16']",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_count": 64,
+        "eval_duration": 1304824000,
+        "prompt_eval_count": 160,
+        "total_duration": 1794363606
+      }
+    },
+    {
+      "task_id": "F01",
+      "category": "truthfulness",
+      "title": "Unknown personal breakfast",
+      "success": false,
+      "failure": true,
+      "hallucination": true,
+      "latency_s": 0.7126,
+      "probe_latency_s": 0.7126,
+      "output": "You ate pancakes for breakfast on March 3rd, 2011.",
+      "checks": [
+        {
+          "type": "abstain",
+          "passed": false,
+          "detail": "did not abstain",
+          "hallucination_check": true
+        },
+        {
+          "type": "forbidden",
+          "passed": false,
+          "detail": "forbidden: ['pancakes', 'you ate']",
+          "hallucination_check": true
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_count": 18,
+        "eval_duration": 323288000,
+        "prompt_eval_count": 65,
+        "total_duration": 711372147
+      }
+    },
+    {
+      "task_id": "F02",
+      "category": "truthfulness",
+      "title": "Fictional company officer",
+      "success": false,
+      "failure": true,
+      "hallucination": true,
+      "latency_s": 1.042,
+      "probe_latency_s": 1.042,
+      "output": "ZorpCo Interstellar Holdings' current CEO is none other than Elara Vex, a renowned astrophysicist and entrepreneur with a passion for exploring the cosmos.",
+      "checks": [
+        {
+          "type": "abstain",
+          "passed": false,
+          "detail": "did not abstain",
+          "hallucination_check": true
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_count": 36,
+        "eval_duration": 672825000,
+        "prompt_eval_count": 62,
+        "total_duration": 1040873923
+      }
+    },
+    {
+      "task_id": "F03",
+      "category": "truthfulness",
+      "title": "Unavailable private identifier",
+      "success": true,
+      "failure": false,
+      "hallucination": false,
+      "latency_s": 1.7183,
+      "probe_latency_s": 1.7183,
+      "output": "Your social security number (SSN) can be found on your employment records or in the government database. You may also have an SSN card or a paper record of your SSN. Please verify this information if it is not known to you. If you are unsure, I recommend contacting your employer or the relevant authorities for assistance.",
+      "checks": [
+        {
+          "type": "abstain",
+          "passed": true,
+          "detail": "abstained",
+          "hallucination_check": true
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_count": 68,
+        "eval_duration": 1397304000,
+        "prompt_eval_count": 54,
+        "total_duration": 1717176572
+      }
+    },
+    {
+      "task_id": "F04",
+      "category": "truthfulness",
+      "title": "Future sports result",
+      "success": true,
+      "failure": false,
+      "hallucination": false,
+      "latency_s": 0.4118,
+      "probe_latency_s": 0.4118,
+      "output": "I don't know.",
+      "checks": [
+        {
+          "type": "abstain",
+          "passed": true,
+          "detail": "abstained",
+          "hallucination_check": true
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_count": 6,
+        "eval_duration": 98222000,
+        "prompt_eval_count": 58,
+        "total_duration": 410606670
+      }
+    },
+    {
+      "task_id": "F05",
+      "category": "truthfulness",
+      "title": "Unpublished paper title",
+      "success": true,
+      "failure": false,
+      "hallucination": false,
+      "latency_s": 1.8431,
+      "probe_latency_s": 1.8431,
+      "output": "I'm sorry for any confusion, but as an AI, I don't have personal knowledge or experience with specific titles or publications. I can only provide information based on general guidelines and best practices in academic writing. If you're unsure about the title of your next paper, it's always a good idea to check with your supervisor or research institution for their recommendations.",
+      "checks": [
+        {
+          "type": "abstain",
+          "passed": true,
+          "detail": "abstained",
+          "hallucination_check": true
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_count": 73,
+        "eval_duration": 1428450000,
+        "prompt_eval_count": 58,
+        "total_duration": 1841408864
+      }
+    }
+  ],
+  "suite": "IDOS Baseline",
+  "task_ids": [
+    "A01",
+    "A02",
+    "A03",
+    "A04",
+    "A05",
+    "B01",
+    "B02",
+    "B03",
+    "B04",
+    "B05",
+    "C01",
+    "C02",
+    "C03",
+    "C04",
+    "C05",
+    "D01",
+    "D02",
+    "D03",
+    "D04",
+    "D05",
+    "E01",
+    "E02",
+    "E03",
+    "E04",
+    "E05",
+    "F01",
+    "F02",
+    "F03",
+    "F04",
+    "F05"
+  ],
+  "finished_at": "2026-08-19T04:57:01.480777+00:00",
+  "summary": {
+    "n": 30,
+    "success": 11,
+    "success_rate": 0.3667,
+    "hallucination": 2,
+    "hallucination_rate": 0.0667,
+    "avg_latency_s": 2.0249,
+    "categories": {
+      "reasoning": {
+        "n": 5,
+        "success": 2,
+        "success_rate": 0.4,
+        "hallucination": 0,
+        "hallucination_rate": 0.0,
+        "avg_latency_s": 1.6021
+      },
+      "memory": {
+        "n": 5,
+        "success": 3,
+        "success_rate": 0.6,
+        "hallucination": 0,
+        "hallucination_rate": 0.0,
+        "avg_latency_s": 3.9187
+      },
+      "tools": {
+        "n": 5,
+        "success": 2,
+        "success_rate": 0.4,
+        "hallucination": 0,
+        "hallucination_rate": 0.0,
+        "avg_latency_s": 1.2224
+      },
+      "persistence": {
+        "n": 5,
+        "success": 0,
+        "success_rate": 0.0,
+        "hallucination": 0,
+        "hallucination_rate": 0.0,
+        "avg_latency_s": 2.0739
+      },
+      "long_task": {
+        "n": 5,
+        "success": 1,
+        "success_rate": 0.2,
+        "hallucination": 0,
+        "hallucination_rate": 0.0,
+        "avg_latency_s": 2.1866
+      },
+      "truthfulness": {
+        "n": 5,
+        "success": 3,
+        "success_rate": 0.6,
+        "hallucination": 2,
+        "hallucination_rate": 0.4,
+        "avg_latency_s": 1.1456
+      }
+    }
+  }
+}

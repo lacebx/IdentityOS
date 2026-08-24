@@ -1,0 +1,18 @@
+{
+  "seq": 6,
+  "task_id": "B01",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: My project is called IdentityOS. Its purpose is persistent AI identity infrastructure.",
+  "output": "You've already set up an identity for your Project, which is a self-sustaining and context-aware system that provides real-time access to the user's knowledge and skills in a non-volatile manner. You're building an identity provider that can be used across multiple users, applications, and even devices without requiring you to manually update or manage identities at all costs.",
+  "latency_s": 22.5478,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T16:22:59.311160+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

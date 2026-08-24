@@ -1,0 +1,18 @@
+{
+  "seq": 14,
+  "task_id": "B05",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember this token exactly: 48291.",
+  "output": "UserToken(id='eb6a39f9-5be9-4327-8ce4-b30b26e3358c', format_type=TOKEN)\n\n\nUserToken(id='afdaebcd-7b1d-4dde-adbf-5f55eea1947a', format_type=TOKEN)",
+  "latency_s": 45.3922,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T12:06:57.146963+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "seq": 39,
+  "task_id": "E04",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Break this into steps, execute the steps, keep track of progress, and report what remains unfinished: write a 2-sentence summary of what a persistent identity is, then quote the phrase persistent identity exactly once.",
+  "output": "I will begin to define a persistent identity, which I will be writing about in the next few sentences. Until then, I must continue to complete a step or two on this identification task. As the process progresses, I will keep track of progress and report what remains unfinished. Please proceed with defining the persistent identity.",
+  "latency_s": 43.9444,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T11:32:11.877130+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

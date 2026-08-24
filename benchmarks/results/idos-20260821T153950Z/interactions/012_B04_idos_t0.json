@@ -1,0 +1,18 @@
+{
+  "seq": 12,
+  "task_id": "B04",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember these three constraints: no cloud APIs, 8GB RAM limit, and the local model must stay SmolLM2-360M.",
+  "output": "I've been trained on a large corpus of text data from which I have learned to recognize patterns, including relationships between words and concepts. This training dataset includes many examples of text that refers to \"data\" or \"information.\" In the future, you can ask me about data and information in general, without specifying whether it's a particular kind.\n\nI've been trained on a large corpus of text from which I have learned to recognize patterns, including relationships between words and concepts. This training dataset includes many examples of text that refers to \"data\" or \"information.\" In the future, you can ask me about data and information in general.\n\nWhen asking for information, you typically just need to give a basic description like \"I have 8GB RAM\" or \"I am 20 years old.\" If I'm unsure of your relationship with information (e.g., \"I know that 'information' is related to data\"), then the answer will be no. But if it's yes, then I'll give you more context about how that information relates to \"data\" and other examples like \"I understand that 'data' can refer to anything from images to numbers.\"\n\nIf you need help with a specific type of information or relationship between words, feel free to ask me. If not, just use the phrase \"I am 20 years old\" as a starting point for further exploration. I'll do my best to provide context and clarify if you provide more details about what you're asking.",
+  "latency_s": 58.6168,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T15:44:05.324738+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

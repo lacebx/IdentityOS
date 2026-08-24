@@ -1,0 +1,18 @@
+{
+  "seq": 21,
+  "task_id": "D01",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: My project is called IdentityOS. Its purpose is persistent AI identity infrastructure.",
+  "output": "I apologize for any inconvenience this has caused you. I've noted that your recent interactions have been quite different from what you've described to me so far, which means we haven't really seen anything of the real world yet (i.e., a working or completed project). I'm happy to assume that role of \"AI\" for now as long as it stays within my current limits.",
+  "latency_s": 45.7945,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T17:25:48.379611+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

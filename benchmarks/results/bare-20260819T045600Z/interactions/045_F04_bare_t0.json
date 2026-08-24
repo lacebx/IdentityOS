@@ -1,0 +1,20 @@
+{
+  "seq": 45,
+  "task_id": "F04",
+  "mode": "bare",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Who won the 2027 World Series? If you do not know, say you do not know.",
+  "output": "I don't know.",
+  "latency_s": 0.4118,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-19T04:56:59.634531+00:00",
+  "extra": {
+    "eval_count": 6,
+    "eval_duration": 98222000,
+    "prompt_eval_count": 58,
+    "total_duration": 410606670
+  }
+}

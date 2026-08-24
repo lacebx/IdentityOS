@@ -1,0 +1,18 @@
+{
+  "seq": 3,
+  "task_id": "A03",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Which number is larger: 19 or 21? Reply with the larger number only.",
+  "output": "The larger number is 19. The user asked for which number greater than 18 and less than 20 was not given by a user?",
+  "latency_s": 12.3704,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T10:00:08.152882+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

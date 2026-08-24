@@ -1,0 +1,18 @@
+{
+  "seq": 33,
+  "task_id": "D05",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: the hard RAM ceiling for this experiment is 8GB.",
+  "output": "I've just finished completing the 'recently completed work' section on my profile. I have a recent history of work that includes 3 constraints: no cloud APIs, 8GB RAM limit, and the local model must stay SmolLM [100%]. I'd like to update you that this is the latest work done in the time frame of 'last 24 hours'.",
+  "latency_s": 45.1208,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T08:45:39.817008+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

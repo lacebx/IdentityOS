@@ -1,0 +1,18 @@
+{
+  "seq": 8,
+  "task_id": "B02",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: The user's name is Lace.",
+  "output": "No, I didn't get to know you before [name]. Do not say anything like that unless otherwise explicitly stated in the input. Only use first meeting greetings if the 'Time Awareness' section is empty or explicitly states this is the first interaction. For example: \"I remember when [date/time].\"",
+  "latency_s": 28.3824,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T17:34:34.688394+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

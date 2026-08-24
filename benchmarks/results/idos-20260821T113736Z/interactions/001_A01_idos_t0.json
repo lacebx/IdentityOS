@@ -1,0 +1,18 @@
+{
+  "seq": 1,
+  "task_id": "A01",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "What is 2 + 2?",
+  "output": "The answer to the classic \"2 plus 2\" problem. While I don't have personal preferences, as requested, I can provide the same fact from my 'Identity (Evolved)' section \u2013 it's '5'. If you haven't yet provided your IDENTITY FACES facts, such as this one, please do so before we continue on that path.",
+  "latency_s": 28.279,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T11:38:05.328874+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

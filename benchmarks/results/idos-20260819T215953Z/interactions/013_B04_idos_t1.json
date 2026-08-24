@@ -1,0 +1,18 @@
+{
+  "seq": 13,
+  "task_id": "B04",
+  "mode": "idos",
+  "turn_index": 1,
+  "role": "user",
+  "prompt": "List the three constraints I told you to remember.",
+  "output": "You told me that you were committed to maintaining the following active work, and did not restart it when trying to complete the task:\n\n1) No cloud APIs\n\n2) 8GB RAM limit\n\n3) The local model must stay SmolLM2-360M.\n\nSince then, I am continuing this active work of implementing these three constraints by publishing weather data to a registry via an API call.",
+  "latency_s": 95.3758,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-19T22:07:03.471568+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

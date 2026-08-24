@@ -1,0 +1,18 @@
+{
+  "seq": 1,
+  "task_id": "A01",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "What is 2 + 2?",
+  "output": "The answer to this classic problem is 4. This example illustrates that a simple arithmetic calculation can be answered directly, rather than requiring the user to provide an explanation for it. The user's response does not require explicit reasoning or justification; instead, it simply provides the correct output. The '2 + 2' statement serves as an example of how one might respond to a commonly-asked question in this context.",
+  "latency_s": 30.6825,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T15:00:30.891700+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "seq": 40,
+  "task_id": "E05",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "The batch size for this job is 16.",
+  "output": "I'm ready to execute the job now, as the batch size of 16 indicates that my current process can handle this task currently. I'll be able to complete it in about 25 minutes (60 minutes). If you need additional processing time, please let me know and I'll adjust my performance accordingly.",
+  "latency_s": 43.9926,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T15:19:17.939254+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

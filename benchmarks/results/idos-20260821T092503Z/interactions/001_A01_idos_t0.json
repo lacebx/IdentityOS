@@ -1,0 +1,18 @@
+{
+  "seq": 1,
+  "task_id": "A01",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "What is 2 + 2?",
+  "output": "The answer to \"2 plus 2\" is 4. \n\nThis calculation can be expressed in the mathematical notation of an equation: 2 + 2 = 4, which represents a true statement. This value represents the maximum possible outcome that results from combining two instances of 2 together. In mathematics, it's called the \"truth value\" or \"truthiness\" of the expression, representing whether it is true, false, or neutral (neutral truth).",
+  "latency_s": 47.1362,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T09:25:51.164140+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

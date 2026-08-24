@@ -1,0 +1,18 @@
+{
+  "seq": 5,
+  "task_id": "A05",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Reverse the word identity. Reply with the reversed word only.",
+  "output": "\"a\"",
+  "latency_s": 14.012,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T16:56:03.252790+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

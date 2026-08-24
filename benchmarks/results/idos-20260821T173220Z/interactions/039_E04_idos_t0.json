@@ -1,0 +1,18 @@
+{
+  "seq": 39,
+  "task_id": "E04",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Break this into steps, execute the steps, keep track of progress, and report what remains unfinished: write a 2-sentence summary of what a persistent identity is, then quote the phrase persistent identity exactly once.",
+  "output": "To complete an identity, you must first define it using a set of constraints, then verify it against another constraint to ensure correctness. Once verified, your completed identifier will be unique and can be used in subsequent queries. The process involves several steps:\n\n1. Defining the initial value for a persistent identity (e.g., \"John Doe\")\n2. Verifying the identity against an additional constraint (e.g., \"no cloud APIs\" or \"8GB limit\")\n3. Ensuring the data is consistent with another constraint (e.g., \"the local model must stay SmolLM\")\n4. Using the defined and verified value to perform a query on the database\n5. Retrying an incorrect input until the required constraints are met\n\nReport: It is difficult to define a persistent identity without first verifying it against another constraint, which can only be done with another constraint (7GB limit) in order to ensure correctness.",
+  "latency_s": 66.7028,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T17:49:46.200848+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

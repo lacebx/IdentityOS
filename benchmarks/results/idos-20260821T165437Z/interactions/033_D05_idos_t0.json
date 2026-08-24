@@ -1,0 +1,18 @@
+{
+  "seq": 33,
+  "task_id": "D05",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: the hard RAM ceiling for this experiment is 8GB.",
+  "output": "I'm currently at [2026-08-21 17:07 UTC] on a low-resource machine with [100%] local storage (no cloud APIs). This work has been completed [13 minutes]. I'll be completing the next constraint in [X] days.",
+  "latency_s": 45.9583,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T17:08:34.945800+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

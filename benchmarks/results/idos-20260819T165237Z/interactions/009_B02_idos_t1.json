@@ -1,0 +1,18 @@
+{
+  "seq": 9,
+  "task_id": "B02",
+  "mode": "idos",
+  "turn_index": 1,
+  "role": "user",
+  "prompt": "What is the user's name?",
+  "output": "\"eval 'eval' $a -o'x' --time 10 seconds\"",
+  "latency_s": 31.1535,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-19T17:06:39.982507+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

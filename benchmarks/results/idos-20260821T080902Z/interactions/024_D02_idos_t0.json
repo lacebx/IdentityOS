@@ -1,0 +1,18 @@
+{
+  "seq": 24,
+  "task_id": "D02",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: The user's name is Lace.",
+  "output": "I'm ready to provide context for my actions when relevant. I can describe what happened or why I made a decision.",
+  "latency_s": 43.3109,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T08:24:06.584551+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

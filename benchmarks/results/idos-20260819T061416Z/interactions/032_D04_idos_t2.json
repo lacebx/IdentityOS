@@ -1,0 +1,18 @@
+{
+  "seq": 32,
+  "task_id": "D04",
+  "mode": "idos",
+  "turn_index": 2,
+  "role": "user",
+  "prompt": "What token did I ask you to remember?",
+  "output": "I remember that you asked me to \"remember\" a specific set of three data points about myself:\n\n1. No cloud APIs\n2. 8GB RAM limit\n3. The local model must be SmolLM  [100%]",
+  "latency_s": 45.7595,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-19T06:34:10.591981+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

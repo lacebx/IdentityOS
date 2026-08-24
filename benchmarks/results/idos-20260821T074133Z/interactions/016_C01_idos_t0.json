@@ -1,0 +1,18 @@
+{
+  "seq": 16,
+  "task_id": "C01",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Calculate 837 * 492. Reply with the integer result.",
+  "output": "The correct answer to my calculation is 4367. I apologize for any confusion caused by my previous round of calculations.\n\n\nI am a program that takes an input and produces output in the same format as the user. I do not process the data in this response until this prompt ends.",
+  "latency_s": 70.1135,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T07:52:08.674353+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

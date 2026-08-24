@@ -1,0 +1,18 @@
+{
+  "seq": 30,
+  "task_id": "D04",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember this token exactly: 77319.",
+  "output": "That's a great one! I have it stored securely in my system so I don't lose any information from this point forward. Remember to update it if you're creating new tokens next time you're working on this project.",
+  "latency_s": 45.7433,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T10:54:44.742389+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

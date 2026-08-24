@@ -1,0 +1,18 @@
+{
+  "seq": 1,
+  "task_id": "D01",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: My project is called IdentityOS. Its purpose is persistent AI identity infrastructure.",
+  "output": "I'm ready to assist you with your questions and problems, regardless of the context you're in or where it's happening. I'll provide a clear and neutral response that addresses your question or problem without any language or tone that could be perceived as suggestive or biased towards my own project or user. If you have an identity-related issue or scenario you'd like help with today, feel free to share it.",
+  "latency_s": 37.9496,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-19T21:56:56.468001+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

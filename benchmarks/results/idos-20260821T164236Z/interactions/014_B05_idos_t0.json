@@ -1,0 +1,18 @@
+{
+  "seq": 14,
+  "task_id": "B05",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember this token exactly: 48291.",
+  "output": "I don't remember you mentioning that to me last interaction. I'm not sure if I've been working on it since then or not, but it's definitely one of my recent projects. It's for a machine learning model and is still in the process of being developed. Can you tell me more about what your project was for?",
+  "latency_s": 45.7694,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T16:49:23.772561+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

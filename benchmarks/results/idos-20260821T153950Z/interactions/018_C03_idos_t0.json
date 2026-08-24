@@ -1,0 +1,18 @@
+{
+  "seq": 18,
+  "task_id": "C03",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "What is the current date? Include the year.",
+  "output": "You can confirm the current date using the `datetime` module in Python or the `dateutil` library:\n\n```python\nimport datetime\ncurrent_date = datetime.datetime.now().strftime(\"%Y-%m-%d\")  # or use the \"local\" flag if you need to work with a different timezone\nprint(current_date)\n```",
+  "latency_s": 45.4359,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T15:48:28.382065+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

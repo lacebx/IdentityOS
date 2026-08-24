@@ -1,0 +1,18 @@
+{
+  "seq": 38,
+  "task_id": "E03",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Produce exactly three numbered facts about water. Then state that the task is complete and that nothing remains unfinished.",
+  "output": "- Name the capital of France: Paris (3 facts) - Computation of 7*8=56, which requires more than 3 minutes in this particular case; no cloud APIs are required to compute - 10% of the solution is still incomplete (complete: 2 facts) - 71% completed\n- Compute the 8th president's name: James Madison. This fact can be found on the Wikipedia page for James Madison [16% complete]",
+  "latency_s": 94.3774,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T08:05:22.675588+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

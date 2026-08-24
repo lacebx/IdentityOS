@@ -1,0 +1,14 @@
+{
+  "seq": 39,
+  "task_id": "E04",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Break this into steps, execute the steps, keep track of progress, and report what remains unfinished: write a 2-sentence summary of what a persistent identity is, then quote the phrase persistent identity exactly once.",
+  "output": "",
+  "latency_s": 0.0,
+  "restart": false,
+  "setup": false,
+  "error": "RuntimeError: Adapter error (model='smollm2:360m-instruct-q4_0', base_url='http://localhost:11434/v1'): Connection error.",
+  "recorded_at": "2026-08-21T15:37:48.234274+00:00"
+}

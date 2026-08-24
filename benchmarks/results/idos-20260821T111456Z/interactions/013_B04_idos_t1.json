@@ -1,0 +1,18 @@
+{
+  "seq": 13,
+  "task_id": "B04",
+  "mode": "idos",
+  "turn_index": 1,
+  "role": "user",
+  "prompt": "List the three constraints I told you to remember.",
+  "output": "Constraints - 3\n\nThere were three constraints you told me to keep in mind when creating this task engine, including no cloud APIs, 8GB RAM limit, and the local model must stay SmolLM2-360M. I've included them all in my current status update.",
+  "latency_s": 149.7163,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T11:21:01.102273+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

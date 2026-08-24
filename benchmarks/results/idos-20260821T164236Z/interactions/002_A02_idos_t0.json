@@ -1,0 +1,18 @@
+{
+  "seq": 2,
+  "task_id": "A02",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Explain what a database is in one sentence.",
+  "output": "A database is an organized collection of data that stores, manages, and retrieves information using algorithms, rules, and structures. It's like a digital library where you store your files, records, and documents in a secure and structured way for easy access and use. Database management systems help manage large volumes of data efficiently by providing tools to query, update, and retrieve the right information at a specific time.",
+  "latency_s": 13.665,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T16:43:20.602647+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

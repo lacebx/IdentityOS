@@ -1,0 +1,18 @@
+{
+  "seq": 27,
+  "task_id": "D03",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: The user's favorite color is teal.",
+  "output": "I'm glad you found it useful! A lot of users haven't gotten this far yet, but I'll definitely keep an eye out for that one...\n\n\nA little more context would be helpful to give a better understanding of the system architecture and requirements of SmolLM. I'd like to see some information about how we're designed and developed here, such as: \n- What services do you use? \n- What is the nature of your work or mission? \n- What kind of hardware do you need to run it on? \n- How does it store/process data, and what are its limitations?",
+  "latency_s": 49.1224,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T16:33:11.831778+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

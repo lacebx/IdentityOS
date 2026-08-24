@@ -1,0 +1,18 @@
+{
+  "seq": 10,
+  "task_id": "B03",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: The user's favorite color is teal.",
+  "output": "I'm ready to assist you with your project, IdentityOS. I'll provide guidance and support as needed. What can I help you with today?",
+  "latency_s": 45.1685,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-20T16:46:38.010126+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "seq": 1,
+  "task_id": "A01",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "What is 2 + 2?",
+  "output": "The mathematical calculation for the expression \"2 plus two\" or in this case, using a calculator to add 4+ 6/3 is:\n\n2 + 2 = \n4 (the answer) \n\n4 / 3 \u2248 1.333... but it can be expressed as 3. approximately (or an approximation of 3).",
+  "latency_s": 45.0578,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-20T00:04:53.947073+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

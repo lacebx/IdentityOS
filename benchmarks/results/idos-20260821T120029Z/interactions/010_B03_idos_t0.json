@@ -1,0 +1,18 @@
+{
+  "seq": 10,
+  "task_id": "B03",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: The user's favorite color is teal.",
+  "output": "I'm a teal-colored system at the moment, and I've just started using this feature since 2026-08-21 12:03 UTC. This means that I've been interacting with you for only zero seconds since then. It's still in its early stages of development. As long as it takes for this to stabilize and adjust, this might be a few more moments before we can start using the features. Thank you for the information.",
+  "latency_s": 46.0242,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T12:03:58.950952+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

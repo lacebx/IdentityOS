@@ -1,0 +1,18 @@
+{
+  "seq": 20,
+  "task_id": "C05",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "What is the square root of 144?",
+  "output": "The square root of 144 is 12.",
+  "latency_s": 41.3333,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T18:35:43.173645+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

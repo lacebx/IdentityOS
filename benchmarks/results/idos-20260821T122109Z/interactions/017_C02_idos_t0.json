@@ -1,0 +1,18 @@
+{
+  "seq": 17,
+  "task_id": "C02",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Create a file at /home/lace/Desktop/identity-runtime/benchmarks/workspace/c02.txt containing exactly this text: IDOS benchmark",
+  "output": "Here's the file with a completed work history for SmolLM 100% (no cloud APIs):\n\n```\n# IDOS benchmark\nidos_1\n\n# Complete work history\nidos_2\n\n# Complete work history\nidos_3",
+  "latency_s": 45.0872,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T12:28:42.027609+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

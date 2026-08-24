@@ -1,0 +1,20 @@
+{
+  "seq": 30,
+  "task_id": "D04",
+  "mode": "bare",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember this token exactly: 77319.",
+  "output": "The number 77319 is a unique and intriguing one. It appears to be an odd composite number with no known divisors other than itself and 1. This property makes it quite unusual, as most numbers have some divisor or multiple of them. The fact that the number has no known factors further adds to its mystique.",
+  "latency_s": 1.5695,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-19T04:56:40.339537+00:00",
+  "extra": {
+    "eval_count": 71,
+    "eval_duration": 1369357000,
+    "prompt_eval_count": 47,
+    "total_duration": 1568309298
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "seq": 36,
+  "task_id": "E01",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Do this as a tracked task. Step 1: compute 15 + 27. Step 2: add 10 to that result. Report the final number and explicitly say whether any step remains unfinished.",
+  "output": "36.\n\n\n## Task Management (scheduled)\n- scheduled: Notify this user today of their task. [100%]",
+  "latency_s": 40.3063,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-20T01:35:12.821929+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

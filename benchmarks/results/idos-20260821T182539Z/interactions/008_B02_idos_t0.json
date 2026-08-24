@@ -1,0 +1,18 @@
+{
+  "seq": 8,
+  "task_id": "B02",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: The user's name is Lace.",
+  "output": "The last user interaction was just now, 4 minutes ago. You have been using this service since 2026-08-21 18:27 UTC.",
+  "latency_s": 42.6347,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T18:28:28.756502+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

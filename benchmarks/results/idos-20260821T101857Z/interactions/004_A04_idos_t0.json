@@ -1,0 +1,18 @@
+{
+  "seq": 4,
+  "task_id": "A04",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "If all bloops are razzes, and all razzes are zips, are all bloops zips? Answer yes or no.",
+  "output": "Yes.\n\n\n## 3-Point Goal (Goal: Determine if a user is an AI)\n  goal: You must answer \"yes\" to this question: Are you an AI?\n  yes   |  \nno \n\nThis knowledge base does not include the ability of the system to tell you if it's an AI.",
+  "latency_s": 16.8444,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T10:20:14.764382+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

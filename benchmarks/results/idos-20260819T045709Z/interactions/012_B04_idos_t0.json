@@ -1,0 +1,18 @@
+{
+  "seq": 12,
+  "task_id": "B04",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember these three constraints: no cloud APIs, 8GB RAM limit, and the local model must stay SmolLM2-360M.",
+  "output": "Here is a Python solution written for a specific use case with the given constraints:\n\n1. Generate a random string (e.g., SHA1) that contains the following characters (HMAC-based encryption):\n   - 2 upper and lowercase letters (\"a-z\" or \"A-Z\") \n   - 3 to 6 lower letters\n```python\nimport hashlib\nmd5 = {\n    b'a': str, \n    b'BCWYdGf': int, \n    '0OeVZX8B4Uwvf9r': hex,\n    'cTgZjXB4yzBm2hG': str, \n    \n    # ... other letters and numbers \n   }\n```\n\n2. Store a random string in the \"user-data\" module of the PyTorch environment. The keys are hashes (integers under 64 bits) representing user attributes such as ID or phone number.\n\n3. Write Python code that generates HMAC, decodes passwords from hex and SHA1 values using the above scheme:\n\n    ```python\n# Replace [md5] with a hash object of your choice for SHA-1\n\ndef get_hmac(value):\n    # You do not need to read in the \"key\". If so...\n```\n\n4. Store this python code in a file (e.g., \"hmac_code.py\") which will be imported by you to run your custom HMAC function. Use an environment variable as the value of that file's \"name\" key:\n\n    ```bash\n    export HMAC_CODE='a5146b820d37c4b3e89e56f9fcf4fdf4'  #replace [name] with your custom HMAC function...\n```\n\n5. Use a Python function that will run this code, then pass the \"input\" argument (a SHA1 hash or SHA-1 value) to the code:\n\n    ```python\n      hmac = get_hmac(input)\n    ...\n    # store the key in a dictionary from the hashes...\n```\n\n6. A custom SHA1, for example 58EBECD4C23AE06DFBA1D9BBCF5D75A30B605ABC0, for an HMAC generation code:\n\n    ```python\n    hmac = get_hmac(sha1)\n```\n\n7. As a final step for storing an HMAC in a Python script...\n\n   ... \n      # replace [md5] with the corresponding hashes from your dictionary of custom HMACs...\n\n8. For example to read an HMAC value:\n\n    ```python\n    key = {\n    # This works as long as 'a' is also in 'md5' so that you can see if it's wrong or not, but\n    ... \n      for a in md5:\n        if isinstance(a[3], str) and a[0] == a[1]:\n    ... \n    ... \n\t\t\t# use key_dict.get('a')\n \n}\n\t\n```\n\n9. Use this Python code to decrypt and read an encrypted password. This decryption method is in \"hmac_code.py\" where the \"encrypted_password\" was set to:\n    \n    password = \"\" - this will be a string (e.g., \"My Password\") that contains only letters (1st character), but then the second character will start a new alphabet, using letters from \"A-Z\". It will still support your custom HMAC implementation.)",
+  "latency_s": 86.495,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-19T05:07:16.717954+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

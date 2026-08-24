@@ -1,0 +1,18 @@
+{
+  "seq": 1,
+  "task_id": "A01",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "What is 2 + 2?",
+  "output": "The answer to the question \"What is 2 plus 2?\" in mathematics is 4. This expression represents a calculation or an equation that evaluates to 4, based on the standard addition rules for whole numbers. In this case, 2 and 2 add up to four, which satisfies the mathematical definition of the operation 2 + 2 = 4.",
+  "latency_s": 37.4241,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T10:19:34.853253+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

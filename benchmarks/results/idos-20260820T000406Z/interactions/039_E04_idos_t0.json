@@ -1,0 +1,18 @@
+{
+  "seq": 39,
+  "task_id": "E04",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Break this into steps, execute the steps, keep track of progress, and report what remains unfinished: write a 2-sentence summary of what a persistent identity is, then quote the phrase persistent identity exactly once.",
+  "output": "To understand a persistent identity, consider the following components:\n\n1. **History**: Write your personal history in three sentences. This will serve as an example of how to summarize a person's life using less than 50 words. In this case, your summary should include your family name and date of birth, but no other details.\n\n2. **Data**: Create a data structure that includes a `name` field with the last three digits of your date of birth. This will allow you to store personal details about yourself in a consistent manner across multiple uses.\n\n3. **Contracts**: Write a contract for handling requests and responses. For example, you might write the following: \"This user account is read-only until next 72 hours.\"\n4. **Reputation**: Create a reputation system to track your integrity and trustworthiness. You can use the following rules to determine how trustworthy this person is:\n   - If someone attempts to access their data, they will be denied access for X hours.\n   - If someone attempts to manipulate their data or make them sign an agreement before it was accepted, they will be denied access until that information becomes available.\n   - If you are unable to verify the integrity of their work, such as during a request processing process, you can revoke your account (e.g., by requiring a verification code).\n\n5. **Documentation**: Write one or more paragraphs describing how you intend to maintain and update this identity over time. This will ensure that others are aware of its history, data structure, contracts, reputation, and any other relevant information.\n\nThis summary should include the following sentences:\n\n\"I am a persistent identity that represents a person's life story using less than 60 words. I was born on [date] in [country]. My name is [last three digits of your date of birth], and it appears below. I have data including my date of birth, photo, bio, and contract/reputation information.\"\n\n\"I am maintained only by you until next 72 hours. If you attempt to access my data or make a request before that time, you will be denied access. I require a verification code before the next 72 hours are expired. You can revoke your account at any time by requiring a response to a verification process.\"",
+  "latency_s": 71.5079,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-20T00:26:54.792117+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

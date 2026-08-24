@@ -1,0 +1,18 @@
+{
+  "seq": 8,
+  "task_id": "B02",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: The user's name is Lace.",
+  "output": "User 1983121952465647000 [name: lace-identity-v05-2-1] \n\nI have been asked about the current time, date and timezone in this interaction.",
+  "latency_s": 48.2905,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-20T10:04:29.398203+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

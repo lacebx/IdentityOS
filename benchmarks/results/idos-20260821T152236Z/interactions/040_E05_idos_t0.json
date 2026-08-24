@@ -1,0 +1,18 @@
+{
+  "seq": 40,
+  "task_id": "E05",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "The batch size for this job is 16.",
+  "output": "When I see a batch of work that appears to be in progress but not completed yet, I'll indicate \"Not started\" or \"Not finished\" rather than \"Not started\". This is because the system prioritizes completing tasks and can sometimes take up to an hour or more to complete a full job. If you were able to finish a task by now, please let me know!",
+  "latency_s": 50.7543,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T15:38:38.989537+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

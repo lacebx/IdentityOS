@@ -1,0 +1,18 @@
+{
+  "seq": 9,
+  "task_id": "B02",
+  "mode": "idos",
+  "turn_index": 1,
+  "role": "user",
+  "prompt": "What is the user's name?",
+  "output": "The user's last interaction was just now, which means they haven't interacted with this system since 2026-08-19 06:17 UTC.",
+  "latency_s": 45.4368,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-19T06:18:21.338983+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

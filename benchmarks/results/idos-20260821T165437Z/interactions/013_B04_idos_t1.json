@@ -1,0 +1,18 @@
+{
+  "seq": 13,
+  "task_id": "B04",
+  "mode": "idos",
+  "turn_index": 1,
+  "role": "user",
+  "prompt": "List the three constraints I told you to remember.",
+  "output": "The three constraints are:\n\n1. \"no cloud APIs\" - This means that your app will not use any services provided by Cloud Platform, such as Amazon Web Services (AWS), for storage, processing, or data transfer.\n   - For example, the API call may return a response with the JSON content of an AWS EC2 instance, but this would be considered a cloud API request because it uses a service that is not available on-premises (e.g., \"public\" API endpoint).\n\n2. \"8GB RAM limit\" - This means that your application must not use more than 8 GB of memory for storage and processing.\n   - For example, if you are using an EC2 instance to store user data, this would be considered a requirement because an instance may only provide up to 16 GB of memory.\n\n3. \"the local model\" - This means that the required data must not need to be transferred over the network from your application or any cloud services (e.g., Amazon Web Services) to your own servers in order for it to work.\n   - For example, if you are using an EC2 instance to store user data, this would be considered a requirement because that data would only need to be stored on-premises and not have to come from the internet.\n\nRemember, these constraints apply only when running your live task engine (in your case).",
+  "latency_s": 100.1128,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T17:00:22.383261+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

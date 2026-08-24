@@ -1,0 +1,18 @@
+{
+  "seq": 27,
+  "task_id": "D03",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: The user's favorite color is teal.",
+  "output": "I've completed this constraint successfully: no cloud APIs, 8GB RAM limit, and the local model must be SmolLM [95%]",
+  "latency_s": 41.4088,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T09:17:19.024101+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

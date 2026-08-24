@@ -1,0 +1,18 @@
+{
+  "seq": 35,
+  "task_id": "D05",
+  "mode": "idos",
+  "turn_index": 2,
+  "role": "user",
+  "prompt": "What RAM ceiling did I tell you to remember?",
+  "output": "The RAM limit for an SM3.0 or later is 16 GB. The memory management unit limits are based on the current system configuration and may change over time.",
+  "latency_s": 53.1089,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-19T06:36:01.376461+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

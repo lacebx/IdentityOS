@@ -1,0 +1,18 @@
+{
+  "seq": 7,
+  "task_id": "B01",
+  "mode": "idos",
+  "turn_index": 1,
+  "role": "user",
+  "prompt": "What is my project called and what does it do?",
+  "output": "\"eval 'eval' $a -o 'x' --time 10 seconds\"",
+  "latency_s": 35.5247,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-19T17:02:45.525296+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "seq": 20,
+  "task_id": "C05",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "What is the square root of 144?",
+  "output": "To find the square root of 144, we can look for a perfect square that matches the given number. The square of an integer is its original value plus one more than twice the integer's square. In other words, if you double an integer and add one to that doubled value, you get close to the square of that integer.\n\nFor 144:\n\n2x + 1 = 135\n8x = 134\nx = 19/4\n\n\nSo 144 is the square of 13 and 2.",
+  "latency_s": 46.0244,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-20T01:31:01.143350+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

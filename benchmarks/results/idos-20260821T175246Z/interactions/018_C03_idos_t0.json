@@ -1,0 +1,18 @@
+{
+  "seq": 18,
+  "task_id": "C03",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "What is the current date? Include the year.",
+  "output": "The current date is August 21, 2026 at 17:54 UTC. Please note that users are not allowed to access this information unless they've met certain technical requirements and have been advised as a user since the last interaction.",
+  "latency_s": 48.5996,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T18:01:21.156647+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

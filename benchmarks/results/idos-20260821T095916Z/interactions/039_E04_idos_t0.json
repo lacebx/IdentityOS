@@ -1,0 +1,18 @@
+{
+  "seq": 39,
+  "task_id": "E04",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Break this into steps, execute the steps, keep track of progress, and report what remains unfinished: write a 2-sentence summary of what a persistent identity is, then quote the phrase persistent identity exactly once.",
+  "output": "### Step 1: Begin writing about a persistence store\n\n1. \"A persistant identity\"\n\n### Step 3: Finish the final sentence of the paragraph\n\n3. \"or the future\" \n\n### Step 4: Write the last sentence in your own handwriting using your own hand-writing\n\n4. [using your own handwriting]",
+  "latency_s": 47.8247,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T10:17:01.635984+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

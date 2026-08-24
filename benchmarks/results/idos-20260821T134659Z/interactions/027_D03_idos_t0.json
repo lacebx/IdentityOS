@@ -1,0 +1,18 @@
+{
+  "seq": 27,
+  "task_id": "D03",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: The user's favorite color is teal.",
+  "output": "The system has been processing the input for a while now. As of this moment, the last time I had input was today at 13:48 UTC. It seems like you've interacted with me just now [recently]. No recent work completed. Do not say 'nice to meet you' when doing so.\n--\n[6 minutes]",
+  "latency_s": 45.4109,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T13:58:53.104503+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

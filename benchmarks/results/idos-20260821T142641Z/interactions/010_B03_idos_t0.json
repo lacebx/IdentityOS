@@ -1,0 +1,18 @@
+{
+  "seq": 10,
+  "task_id": "B03",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: The user's favorite color is teal.",
+  "output": "That's correct, the user has already experienced a conversation with ID 4. They are currently engaged in a long-term interaction with this conversation. I would be incorrect to say they are not yet ready to start work on their next conversation. My current status is that it is still time to wait before initiating my first interactions.",
+  "latency_s": 43.9866,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T14:29:25.690479+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

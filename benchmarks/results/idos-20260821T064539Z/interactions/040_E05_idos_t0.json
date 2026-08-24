@@ -1,0 +1,18 @@
+{
+  "seq": 40,
+  "task_id": "E05",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "The batch size for this job is 16.",
+  "output": "You have exceeded the minimum batch size of 16. Please try submitting a larger batch or contact our help desk if you need assistance with your current batch. We're here to assist you with scheduling and managing jobs efficiently.",
+  "latency_s": 49.1507,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T07:08:07.619153+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

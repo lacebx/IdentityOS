@@ -1,0 +1,18 @@
+{
+  "seq": 8,
+  "task_id": "B02",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: The user's name is Lace.",
+  "output": "I'm an identity that represents the current time, and I've been created by the user named Lace in 2026. My age at the moment is 2 minutes. I was last interacted with in 2026, just now. The user has not yet met me.",
+  "latency_s": 42.5988,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-19T17:46:33.154505+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

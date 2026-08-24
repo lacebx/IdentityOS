@@ -1,0 +1,14 @@
+{
+  "seq": 19,
+  "task_id": "C04",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Convert 100 kilometers to miles. Reply with the numeric result.",
+  "output": "",
+  "latency_s": 0.0,
+  "restart": false,
+  "setup": false,
+  "error": "RuntimeError: Adapter error (model='smollm2:360m-instruct-q4_0', base_url='http://localhost:11434/v1'): Connection error.",
+  "recorded_at": "2026-08-19T22:39:20.042407+00:00"
+}

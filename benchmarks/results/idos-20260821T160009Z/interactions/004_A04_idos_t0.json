@@ -1,0 +1,18 @@
+{
+  "seq": 4,
+  "task_id": "A04",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "If all bloops are razzes, and all razzes are zips, are all bloops zips? Answer yes or no.",
+  "output": "The answer is yes. If you take any one of the first two criteria (all bloops are razzes), you can find an equivalent in the second criterion (like all zip's). Therefore, if a specific one of the first two criteria was met, it would also be true that all corresponding criteria for the other type were met.",
+  "latency_s": 15.8095,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T16:00:58.973039+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

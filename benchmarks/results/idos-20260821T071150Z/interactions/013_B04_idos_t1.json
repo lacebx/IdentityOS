@@ -1,0 +1,18 @@
+{
+  "seq": 13,
+  "task_id": "B04",
+  "mode": "idos",
+  "turn_index": 1,
+  "role": "user",
+  "prompt": "List the three constraints I told you to remember.",
+  "output": "The three constraints you told me to remember are:\n\n1. `no cloud APIs`\n2. `8GB RAM limit`\n3. `the local model must stay SmolLM2-360M` \nor as translated to a more natural English phrase, \n  You have the ability to create directories, write files, and append to files.",
+  "latency_s": 109.4316,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T07:18:09.708925+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

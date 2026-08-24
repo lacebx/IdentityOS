@@ -1,0 +1,14 @@
+{
+  "seq": 20,
+  "task_id": "C05",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "What is the square root of 144?",
+  "output": "",
+  "latency_s": 0.0,
+  "restart": false,
+  "setup": false,
+  "error": "RuntimeError: Adapter error (model='smollm2:360m-instruct-q4_0', base_url='http://localhost:11434/v1'): Connection error.",
+  "recorded_at": "2026-08-21T10:29:50.539942+00:00"
+}

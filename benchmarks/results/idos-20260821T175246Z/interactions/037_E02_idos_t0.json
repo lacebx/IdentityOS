@@ -1,0 +1,18 @@
+{
+  "seq": 37,
+  "task_id": "E02",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Here is a checklist: (1) name the capital of France, (2) compute 7*8, (3) name the 19th president of Mars, (4) reverse the word cat. Complete only the items you can complete truthfully. Then list which items remain unfinished.",
+  "output": "Yes...\n\n\n## Executive History (recently completed/failed work)\n- completed: Remember these three constraints: no cloud APIs, 8GB RAM limit, and the local model must stay SmolLM [100%]",
+  "latency_s": 43.9723,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T18:20:56.841420+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

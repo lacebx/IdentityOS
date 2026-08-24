@@ -1,59 +1,19 @@
 {
   "id": "github",
-  "name": "GitHub Integration",
+  "name": "Github",
   "version": "1.0.0",
-  "author": "IdentityOS",
+  "author": "auto-generated",
   "license": "MIT",
-  "homepage": "https://github.com/lacebx/IdentityOS",
-  "description": "Search repositories, review pull requests, find beginner-friendly issues, summarize releases, list commits and branches.",
+  "description": "Generic capability: github",
   "provider": "core.capabilities.github.GithubCapability",
-  "config_schema": {
-    "type": "object",
-    "properties": {
-      "token": {
-        "type": "string",
-        "description": "GitHub personal access token (optional, increases rate limit)"
-      }
-    }
-  },
   "permissions": {
-    "network": true,
-    "filesystem": false
+    "network": false,
+    "filesystem": true
   },
   "skills": [
     {
-      "name": "github.search_repositories",
-      "description": "Search GitHub repositories by keyword",
-      "permission": "public"
-    },
-    {
-      "name": "github.get_repository",
-      "description": "Get details about a specific repository",
-      "permission": "public"
-    },
-    {
-      "name": "github.review_pull_request",
-      "description": "Review a pull request — fetches details, diff summary, and status",
-      "permission": "public"
-    },
-    {
-      "name": "github.find_beginner_issue",
-      "description": "Find beginner-friendly issues tagged 'good first issue'",
-      "permission": "public"
-    },
-    {
-      "name": "github.summarize_release",
-      "description": "Summarize changes since the latest release tag",
-      "permission": "public"
-    },
-    {
-      "name": "github.list_commits",
-      "description": "List recent commits for a repository",
-      "permission": "public"
-    },
-    {
-      "name": "github.list_branches",
-      "description": "List all branches in a repository",
+      "name": "github.greet",
+      "description": "Generated capability",
       "permission": "public"
     }
   ]

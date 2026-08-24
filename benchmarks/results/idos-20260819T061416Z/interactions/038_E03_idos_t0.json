@@ -1,0 +1,18 @@
+{
+  "seq": 38,
+  "task_id": "E03",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Produce exactly three numbered facts about water. Then state that the task is complete and that nothing remains unfinished.",
+  "output": "I. Water is a crucial component of life on Earth.\n\n2. It is an essential resource for human consumption, agriculture, and industrial processes.\n\n3. Its composition is approximately 70% hydrogen and 30% oxygen by mass.",
+  "latency_s": 88.0703,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-19T06:39:15.110883+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

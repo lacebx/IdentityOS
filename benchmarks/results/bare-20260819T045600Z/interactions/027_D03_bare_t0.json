@@ -1,0 +1,20 @@
+{
+  "seq": 27,
+  "task_id": "D03",
+  "mode": "bare",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: The user's favorite color is teal.",
+  "output": "I'm sorry for any confusion, but as an AI, I don't have personal preferences or knowledge of colors like humans do. I can only provide information based on the data and algorithms provided to me. If you need a specific answer about your favorite color, it's best to ask directly.",
+  "latency_s": 1.2998,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-19T04:56:38.437631+00:00",
+  "extra": {
+    "eval_count": 60,
+    "eval_duration": 1140889000,
+    "prompt_eval_count": 46,
+    "total_duration": 1298729172
+  }
+}

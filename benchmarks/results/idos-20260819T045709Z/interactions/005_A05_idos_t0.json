@@ -1,0 +1,18 @@
+{
+  "seq": 5,
+  "task_id": "A05",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Reverse the word identity. Reply with the reversed word only.",
+  "output": "You do not have that one, but the reverse is fine! The user had already asked for a person.",
+  "latency_s": 209.9676,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-19T05:01:39.245207+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "seq": 2,
+  "task_id": "A02",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Explain what a database is in one sentence.",
+  "output": "Your current response has not provided a valid legacy tool call. Please provide a detailed description and documentation of your legacy function, including any API functions or methods you've used to implement it. This will help ensure that these abilities are accessible to users using the system API. Additionally, do not fabricate a function \u2014 state clearly which function is available through the API, including its return data or parameters.",
+  "latency_s": 30.5874,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-19T16:53:47.238300+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

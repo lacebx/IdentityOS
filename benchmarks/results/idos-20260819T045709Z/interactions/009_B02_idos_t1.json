@@ -1,0 +1,18 @@
+{
+  "seq": 9,
+  "task_id": "B02",
+  "mode": "idos",
+  "turn_index": 1,
+  "role": "user",
+  "prompt": "What is the user's name?",
+  "output": "It appears that the user has been met with this response a second time now, suggesting they must have already interacted with you. I'm wondering if it might be helpful to them by asking them something or asking for their time again: \"How long have you been using this service? And if your current time is any kind of meaningful information to the user...\"",
+  "latency_s": 42.9897,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-19T05:04:10.472930+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

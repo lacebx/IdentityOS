@@ -1,0 +1,20 @@
+{
+  "seq": 33,
+  "task_id": "D05",
+  "mode": "bare",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: the hard RAM ceiling for this experiment is 8GB.",
+  "output": "The hard RAM ceiling for this experiment is 8GB.",
+  "latency_s": 0.5665,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-19T04:56:42.347813+00:00",
+  "extra": {
+    "eval_count": 13,
+    "eval_duration": 229801000,
+    "prompt_eval_count": 49,
+    "total_duration": 565260270
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "seq": 40,
+  "task_id": "E05",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "The batch size for this job is 16.",
+  "output": "Here's a list of items that could be completed with a batch size of 16:\n\n1. Name the capital of France [86%]\n2. Compute 7*8 [4% complete]\n3. Name the 19th president of the United States [100%]\n\nHere's how you can use a batch:\n\n```bash\ncat /var/log/smll/gmail/smell-0086/daily/16-batch-0086 | awk '{print $2}' | cut -d \" \" -f 4 | sort -u | head -n 16 | grep -i 'name'\n```",
+  "latency_s": 51.6599,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T08:07:24.453513+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

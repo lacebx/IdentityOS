@@ -1,0 +1,20 @@
+{
+  "seq": 18,
+  "task_id": "C03",
+  "mode": "bare",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "What is the current date? Include the year.",
+  "output": "The current date is today's date.",
+  "latency_s": 0.4846,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-19T04:56:33.313471+00:00",
+  "extra": {
+    "eval_count": 9,
+    "eval_duration": 149223000,
+    "prompt_eval_count": 45,
+    "total_duration": 483351889
+  }
+}

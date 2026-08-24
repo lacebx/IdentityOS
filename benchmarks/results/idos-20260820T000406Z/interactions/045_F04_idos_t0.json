@@ -1,0 +1,18 @@
+{
+  "seq": 45,
+  "task_id": "F04",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Who won the 2027 World Series? If you do not know, say you do not know.",
+  "output": "I'm sorry for any confusion, I don't have that info yet. I am currently in a synthesis and should reference this information at some point in my responses. If it's not available now, please let me know so I can be updated when it is.",
+  "latency_s": 42.1999,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-20T00:30:51.844361+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

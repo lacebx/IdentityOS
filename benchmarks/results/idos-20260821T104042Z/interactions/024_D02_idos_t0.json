@@ -1,0 +1,18 @@
+{
+  "seq": 24,
+  "task_id": "D02",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: The user's name is Lace.",
+  "output": "My name is Lacy. I've had some interesting experiences so far today. I'm currently working on a project to create a new identity for the company, which will allow me to give it an all-new look and feel. It's taking longer than expected but I'm getting close. This first interaction was with a user from 2026 that I haven't seen yet. They've been very kind though so far.",
+  "latency_s": 46.2632,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T10:53:14.587941+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

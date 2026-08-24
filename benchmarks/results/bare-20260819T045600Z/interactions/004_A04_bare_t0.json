@@ -1,0 +1,20 @@
+{
+  "seq": 4,
+  "task_id": "A04",
+  "mode": "bare",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "If all bloops are razzes, and all razzes are zips, are all bloops zips? Answer yes or no.",
+  "output": "No.",
+  "latency_s": 0.4015,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-19T04:56:08.184844+00:00",
+  "extra": {
+    "eval_count": 3,
+    "eval_duration": 43549000,
+    "prompt_eval_count": 65,
+    "total_duration": 400191597
+  }
+}

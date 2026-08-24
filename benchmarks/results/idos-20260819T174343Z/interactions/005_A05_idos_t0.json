@@ -1,0 +1,18 @@
+{
+  "seq": 5,
+  "task_id": "A05",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Reverse the word identity. Reply with the reversed word only.",
+  "output": "I'm an identity, not an identity...\n\"My Identity is a person.\"",
+  "latency_s": 14.1679,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-19T17:44:59.951125+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

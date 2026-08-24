@@ -1,0 +1,18 @@
+{
+  "seq": 14,
+  "task_id": "B05",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember this token exactly: 48291.",
+  "output": "I am in the process of completing the following work: I will be working on a project to create and implement an AI-driven personal assistant, which will utilize natural language processing (NLP) and machine learning algorithms to provide users with personalized recommendations for products and services based on their preferences and shopping history. \n\nDuring this time, I am also making significant progress on the following works: [100%]",
+  "latency_s": 45.2502,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T13:16:04.466205+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

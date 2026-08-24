@@ -1,0 +1,18 @@
+{
+  "seq": 30,
+  "task_id": "D04",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember this token exactly: 77319.",
+  "output": "I don't remember a specific token for now. I'll check my notes or records to see if I've seen it in our conversation. It's possible that we're still communicating, but the details are likely to be stored elsewhere. If not, I think it could be in one of my notes or files right now. Could you please confirm if you remember this token?",
+  "latency_s": 47.9099,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T09:39:19.278002+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

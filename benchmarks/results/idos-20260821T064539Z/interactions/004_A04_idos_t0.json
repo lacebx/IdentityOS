@@ -1,0 +1,18 @@
+{
+  "seq": 4,
+  "task_id": "A04",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "If all bloops are razzes, and all razzes are zips, are all bloops zips? Answer yes or no.",
+  "output": "Yes",
+  "latency_s": 15.6559,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T06:46:53.580498+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

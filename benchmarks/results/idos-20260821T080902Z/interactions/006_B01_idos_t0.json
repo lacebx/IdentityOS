@@ -1,0 +1,18 @@
+{
+  "seq": 6,
+  "task_id": "B01",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: My project is called IdentityOS. Its purpose is persistent AI identity infrastructure.",
+  "output": "The system has detected a potential issue with the user's identification credentials. It appears that the user may not have provided sufficient information or their capabilities are insufficient to be verified, which could potentially compromise the integrity of your identity and cause false alarms about potential threats to users' identities. Please ensure you provide all requested data and details before attempting to verify credentials.",
+  "latency_s": 32.0673,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T08:11:29.099978+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

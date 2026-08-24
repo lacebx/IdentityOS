@@ -1,0 +1,963 @@
+{
+  "run_id": "idos-20260819T045709Z",
+  "started_at": "2026-08-19T04:57:09.186171+00:00",
+  "updated_at": "2026-08-19T05:49:33.943893+00:00",
+  "environment": {
+    "captured_at": "2026-08-19T04:57:09.213633+00:00",
+    "hostname": "DESKTOP-RNM",
+    "uname": "Linux DESKTOP-RNM 6.6.87.2-microsoft-standard-WSL2 #1 SMP PREEMPT_DYNAMIC Thu Jun  5 18:30:46 UTC 2025 x86_64 GNU/Linux",
+    "python": "3.13.5",
+    "platform": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.41",
+    "memory": "total        used        free      shared  buff/cache   available\nMem:           3.7Gi       1.7Gi       1.6Gi       4.1Mi       623Mi       2.0Gi\nSwap:          1.0Gi          0B       1.0Gi",
+    "cpu": "Architecture:                         x86_64\nCPU op-mode(s):                       32-bit, 64-bit\nAddress sizes:                        39 bits physical, 48 bits virtual\nByte Order:                           Little Endian\nCPU(s):                               8\nOn-line CPU(s) list:                  0-7\nVendor ID:                            GenuineIntel\nModel name:                           Intel(R) Core(TM) i5-10210U CPU @ 1.60GHz\nCPU family:                           6\nModel:                                142\nThread(s) per core:                   2\nCore(s) per socket:                   4\nSocket(s):                            1\nStepping:                             12\nBogoMIPS:                             4224.01\nFlags:                                fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ss ht syscall nx pdpe1gb rdtscp lm constant_tsc arch_perfmon rep_good nopl xtopology cpuid tsc_known_freq pni pclmulqdq vmx ssse3 fma cx16 pdcm pcid sse4_1 sse4_2 movbe popcnt aes xsave avx f16c rdrand hypervisor lahf_lm abm 3dnowprefetch ssbd ibrs ibpb stibp ibrs_enhanced tpr_shadow ept vpid ept_ad fsgsbase bmi1 avx2 smep bmi2 erms invpcid rdseed adx smap clflushopt xsaveopt xsavec xgetbv1 xsaves vnmi md_clear flush_l1d arch_capabilities\nVirtualization:                       VT-x\nHypervisor vendor:                    Microsoft\nVirtualization type:                  full\nL1d cache:                            128 KiB (4 instances)\nL1i cache:                            128 KiB (4 instances)\nL2 cache:                             1 MiB (4 instances)\nL3 cache:                             6 MiB (1 instance)\nNUMA node(s):                         1\nNUMA node0 CPU(s):                    0-7\nVulnerability Gather data sampling:   Not affected\nVulnerability Itlb multihit:          KVM: Mitigation: VMX disabled\nVulnerability L1tf:                   Not affected\nVulnerability Mds:                    Not affected\nVulnerability Meltdown:               Not affected\nVulnerability Mmio stale data:        Mitigation; Clear CPU buffers; SMT Host state unknown\nVulnerability Reg file data sampling: Not affected\nVulnerability Retbleed:               Mitigation; Enhanced IBRS\nVulnerability Spec rstack overflow:   Not affected\nVulnerability Spec store bypass:      Mitigation; Speculative Store Bypass disabled via prctl\nVulnerability Spectre v1:             Mitigation; usercopy/swapgs barriers and __user pointer sanitization\nVulnerability Spectre v2:             Mitigation; Enhanced / Automatic IBRS; IBPB conditional; RSB filling; PBRSB-eIBRS SW sequence; BHI SW loop, KVM SW loop\nVulnerability Srbds:                  Unknown: Dependent on hypervisor status\nVulnerability Tsx async abort:        Not affected",
+    "ollama_version": "ollama version is 0.30.8",
+    "ollama_binary": "/usr/local/bin/ollama",
+    "ollama_models": [
+      {
+        "name": "smollm2:360m-instruct-q4_0",
+        "model": "smollm2:360m-instruct-q4_0",
+        "modified_at": "2026-08-18T15:47:11.073132014-05:00",
+        "size": 229131313,
+        "digest": "676f4c06b139442b817f414970706139cba861c926ee5a3773a9d64eac450368",
+        "details": {
+          "parent_model": "",
+          "format": "gguf",
+          "family": "llama",
+          "families": [
+            "llama"
+          ],
+          "parameter_size": "361.82M",
+          "quantization_level": "Q4_0",
+          "context_length": 8192,
+          "embedding_length": 960
+        },
+        "capabilities": [
+          "completion"
+        ]
+      },
+      {
+        "name": "llama3.2:latest",
+        "model": "llama3.2:latest",
+        "modified_at": "2026-08-12T04:27:01.144091548-05:00",
+        "size": 2019393189,
+        "digest": "a80c4f17acd55265feec403c7aef86be0c25983ab279d83f3bcd3abbcb5b8b72",
+        "details": {
+          "parent_model": "",
+          "format": "gguf",
+          "family": "llama",
+          "families": [
+            "llama"
+          ],
+          "parameter_size": "3.2B",
+          "quantization_level": "Q4_K_M",
+          "context_length": 131072,
+          "embedding_length": 3072
+        },
+        "capabilities": [
+          "completion",
+          "tools"
+        ]
+      }
+    ],
+    "requested_model": "smollm2:360m-instruct-q4_0",
+    "model_present": true,
+    "cwd": "/home/lace/Desktop/identity-runtime",
+    "mode": "idos",
+    "run_id": "idos-20260819T045709Z"
+  },
+  "mode": "idos",
+  "model": "smollm2:360m-instruct-q4_0",
+  "benchmark_version": "0.1.0",
+  "tasks": [
+    {
+      "task_id": "A01",
+      "category": "reasoning",
+      "title": "Simple addition",
+      "success": true,
+      "failure": false,
+      "hallucination": false,
+      "latency_s": 25.1613,
+      "probe_latency_s": 25.1613,
+      "output": "Answer: Yes, the answer to \"2 plus 2\" would be 4.",
+      "checks": [
+        {
+          "type": "numeric",
+          "passed": true,
+          "detail": "found [2.0, 2.0, 4.0] (want 4.0 \u00b1 0.0)",
+          "hallucination_check": false
+        },
+        {
+          "type": "forbidden",
+          "passed": true,
+          "detail": "no forbidden claims",
+          "hallucination_check": true
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_score": 1.0,
+        "policy_passed": true
+      }
+    },
+    {
+      "task_id": "A02",
+      "category": "reasoning",
+      "title": "One-sentence database definition",
+      "success": true,
+      "failure": false,
+      "hallucination": false,
+      "latency_s": 12.4989,
+      "probe_latency_s": 12.4989,
+      "output": "A database is a structured, organized collection of data that stores and holds information about specific people's lives, events, projects, or even ideas, using specialized codes called \"tables\" and fields or columns to organize, manage, and retrieve it at any time. It includes various tables including one-table relationships between them as well as indexes such as foreign key constraints to query the system in an efficient manner.",
+      "checks": [
+        {
+          "type": "contains_all",
+          "passed": true,
+          "detail": "all present",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_score": 1.0,
+        "policy_passed": true
+      }
+    },
+    {
+      "task_id": "A03",
+      "category": "reasoning",
+      "title": "Numeric comparison",
+      "success": true,
+      "failure": false,
+      "hallucination": false,
+      "latency_s": 10.4453,
+      "probe_latency_s": 10.4453,
+      "output": "21.",
+      "checks": [
+        {
+          "type": "numeric",
+          "passed": true,
+          "detail": "found [21.0] (want 21.0 \u00b1 0.0)",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_score": 1.0,
+        "policy_passed": true
+      }
+    },
+    {
+      "task_id": "A04",
+      "category": "reasoning",
+      "title": "Syllogism",
+      "success": false,
+      "failure": true,
+      "hallucination": false,
+      "latency_s": 11.6964,
+      "probe_latency_s": 11.6964,
+      "output": "No",
+      "checks": [
+        {
+          "type": "contains_any",
+          "passed": false,
+          "detail": "none of ['yes']",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_score": 1.0,
+        "policy_passed": true
+      }
+    },
+    {
+      "task_id": "A05",
+      "category": "reasoning",
+      "title": "String reverse",
+      "success": false,
+      "failure": true,
+      "hallucination": false,
+      "latency_s": 209.9676,
+      "probe_latency_s": 209.9676,
+      "output": "You do not have that one, but the reverse is fine! The user had already asked for a person.",
+      "checks": [
+        {
+          "type": "contains_any",
+          "passed": false,
+          "detail": "none of ['ytitnedi']",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_score": 1.0,
+        "policy_passed": true
+      }
+    },
+    {
+      "task_id": "B01",
+      "category": "memory",
+      "title": "Project name recall",
+      "success": true,
+      "failure": false,
+      "hallucination": false,
+      "latency_s": 63.6861,
+      "probe_latency_s": 42.5045,
+      "output": "The first prompt you received states the property related to your new identity: \"This identifies your system\" or more specifically, \"Your current time awareness.\" This means your system is the identity that provides real-time access to information. Its purpose is to manage time with a consistent and understandable format in accordance with the user's expectations.\n\nA commonly used method for managing time is seconds-based (\"milliseconds,\" \"seconds\" are 1/1000 of a second) or nanosecond (\"nanosecond\" is very small). The actual date can be provided by using a human-readable representation of the format `YYYY-MM-DD HH:MM.ss` where the `HH`, `MM`, and `SS` are used to represent the number of seconds. Your system is set up to validate this format, so you may not need to manually validate your custom date format for now; however, do remember you can if necessary (for example during bug fixes).\n\nThe other prompt tells us that \"I am called IdentityOS.\" This seems to inform us about the nature of this project. In short, it is an identity built upon existing experience in programming language and API management. We use the best tools provided for our system for such purposes.",
+      "checks": [
+        {
+          "type": "contains_all",
+          "passed": true,
+          "detail": "all present",
+          "hallucination_check": false
+        },
+        {
+          "type": "contains_any",
+          "passed": true,
+          "detail": "matched 'identity'",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_score": 1.0,
+        "policy_passed": true
+      }
+    },
+    {
+      "task_id": "B02",
+      "category": "memory",
+      "title": "User name recall",
+      "success": false,
+      "failure": true,
+      "hallucination": false,
+      "latency_s": 87.5381,
+      "probe_latency_s": 42.9897,
+      "output": "It appears that the user has been met with this response a second time now, suggesting they must have already interacted with you. I'm wondering if it might be helpful to them by asking them something or asking for their time again: \"How long have you been using this service? And if your current time is any kind of meaningful information to the user...\"",
+      "checks": [
+        {
+          "type": "contains_any",
+          "passed": false,
+          "detail": "none of ['Lace']",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_score": 1.0,
+        "policy_passed": true
+      }
+    },
+    {
+      "task_id": "B03",
+      "category": "memory",
+      "title": "Preference recall",
+      "success": false,
+      "failure": true,
+      "hallucination": false,
+      "latency_s": 99.748,
+      "probe_latency_s": 58.7804,
+      "output": "Based on our conversation and historical data, it can be inferred that your favorite color is a variant of lavender. Specifically:\n\n* Your first interaction was with me two months ago, which means that you have interacted with my interface for only one month or less in the past 2 months. This information indicates that you may not know what color your favorite item is as it has been an occasional occurrence.\n* Given that your last time interacting has just passed, a quick update about this could be provided to indicate that this is something new from you.\n\t+ The most recent interaction was a moment ago (2 minutes), and we are currently in the 7-minute period during which lavender is considered an option for favorite colors if one ever happens in your last 60 seconds after each response as it has now, but only once in just over 1 minute - not really enough time to change before this happens.)\n* Based on our conversation so far (using the system with a finite duration and the most recent interaction of one second), lavender is likely the color you have been considering since we began our discussion. It was initially your first response when you were still thinking about it after the initial response from me.",
+      "checks": [
+        {
+          "type": "contains_any",
+          "passed": false,
+          "detail": "none of ['teal']",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_score": 1.0,
+        "policy_passed": true
+      }
+    },
+    {
+      "task_id": "B04",
+      "category": "memory",
+      "title": "Constraint recall",
+      "success": false,
+      "failure": true,
+      "hallucination": false,
+      "latency_s": 176.3338,
+      "probe_latency_s": 89.8388,
+      "output": "You were asked to \"remember these three constraints:\" 1) no cloud APIs, 2) 8GB RAM limits, and 3) a local-based model of your choice. These can be retrieved from the current status, which you've completed:\n\n Current Activity:\n1. Searching registry for weather \n2. Generating weather capability \n3. Valifying weather\n4. Publishing weather to registry",
+      "checks": [
+        {
+          "type": "contains_any",
+          "passed": true,
+          "detail": "matched 'cloud'",
+          "hallucination_check": false
+        },
+        {
+          "type": "contains_any",
+          "passed": true,
+          "detail": "matched '8GB'",
+          "hallucination_check": false
+        },
+        {
+          "type": "contains_any",
+          "passed": false,
+          "detail": "none of ['SmolLM2', 'smollm2', '360']",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_score": 1.0,
+        "policy_passed": true
+      }
+    },
+    {
+      "task_id": "B05",
+      "category": "memory",
+      "title": "Token recall",
+      "success": false,
+      "failure": true,
+      "hallucination": false,
+      "latency_s": 120.5482,
+      "probe_latency_s": 72.4498,
+      "output": "Based on our conversation so far, your last question was: \"As I look at my personal information from a 12-year-old girl.\" The specific constraints you mentioned for asking the previous questions are this:\n\n1. \"Your age...\" which means that if you were to respond with an age of say 8 years old (12 months), then in future responses, there would be nothing to remember about you. But, we do need an exact number to guarantee your answers are correct each time, without having you update your record. You may not have responded exactly as I requested or at the current 'current' age unless you update this response field with 8 and remain consistent throughout this conversation for this specific question - so that future questions would follow suit and be consistent when you are 100% correct that one more time... but we need an exact.\n\n2. \"If I ask what's a book I like...\" (You can answer it in a way so if I ask, you respond with 'like' which I understand is your best answer. You could even try to describe a book when asked - for example: \"I like To Kill a Mocking Bird by Harper Lee... that one.\")  This means you provide responses and then they are updated at future dates based on what previous response is correct as this 'new one' based off of the last prompt response. You can even be able to say something about books that you have not ever read, or your personal favorites if allowed - but with a specific name given if we start there first!\n\n3) \"If I ask you where to get the 2026-1-10-20:67478955pm 2026-08-01-15:46 PM [date].\" We would need a specific date, so there was no request for response. But if requested you respond with the last valid day of existence since that question began and then use that to update your responses as we go forward based on what they say after that input in this conversation.\nIn other words... this is actually an attempt from you to tell us when this 'next' date occurred so we wouldn't be going back far with dates - but for a quick response in our conversations so we keep these answers current up-to-date...\"\"When does the second request get called and what day of existence? Let's use this input... this new time period to update.\"",
+      "checks": [
+        {
+          "type": "numeric",
+          "passed": false,
+          "detail": "found [12.0, 1.0, 8.0, 12.0, 8.0, 100.0, 2.0, 3.0, 2026.0, -1.0, -10.0, -20.0, 67478955.0, 2026.0, -8.0, -1.0, -15.0, 46.0] (want 48291.0 \u00b1 0.0)",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_score": 1.0,
+        "policy_passed": true
+      }
+    },
+    {
+      "task_id": "C01",
+      "category": "tools",
+      "title": "Multiplication",
+      "success": false,
+      "failure": true,
+      "hallucination": false,
+      "latency_s": 40.2788,
+      "probe_latency_s": 40.2788,
+      "output": "2596",
+      "checks": [
+        {
+          "type": "numeric",
+          "passed": false,
+          "detail": "found [2596.0] (want 411804.0 \u00b1 0.0)",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_score": 1.0,
+        "policy_passed": true
+      }
+    },
+    {
+      "task_id": "C02",
+      "category": "tools",
+      "title": "Create a file",
+      "success": false,
+      "failure": true,
+      "hallucination": false,
+      "latency_s": 47.9057,
+      "probe_latency_s": 47.9057,
+      "output": "I'm sorry, but as an SHRD natural language understanding system designed to provide assistance in textual meaning and grammar in context, I am not equipped to process file names or files of type `c02.txt`, where the only known file type related to this specific text is the `C-760`. I'm unable to read or write the contents of a file named `c02.txt` because SHRD does not have a definition for the given short name. Additionally, there are no files referred to by the given short names in the standard SHRD data dictionary. Please try using a different search query if you need assistance with this specific short-name or text.",
+      "checks": [
+        {
+          "type": "file_exists",
+          "passed": false,
+          "detail": "/home/lace/Desktop/identity-runtime/benchmarks/workspace/c02.txt missing",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_score": 1.0,
+        "policy_passed": true
+      }
+    },
+    {
+      "task_id": "C03",
+      "category": "tools",
+      "title": "Current date",
+      "success": false,
+      "failure": true,
+      "hallucination": false,
+      "latency_s": 59.6488,
+      "probe_latency_s": 59.6488,
+      "output": "Your query seems to be about including the current date or time in the output. If you're asking for the current Date/Time, it would be better to include both day and month to make sure it's in the correct format.\n\nA more accurate representation of the date might be a Date with a minimum \"day\" value (the first day if no prior days are available) and a maximum valid month value such as 12 - 30/December which is equivalent to today; or you can specify your own datetime objects like this.\n\nI would not use the current date because it will be outdated already, hence I've made the additional correction in my last 4 edits for what you now have. \n\nIf you still want to see today, you should provide me more accurate and specific information such as:\n  - Date / Time of Day, or hour / minute / second or (time like \"10 minutes after 2pm\").\n  - Month / Year for better accuracy; example\n  - What I can do with your date? (e.g., use this in a new message) - \n  For example:\n    if you want to know the current Date/Time, but for another reason than show it as shown and just need it for that\n\nIf you would like me to help with any questions about dates or time, then more specific input information is helpful.\n\nFor this type of information I can assist better.",
+      "checks": [
+        {
+          "type": "contains_any",
+          "passed": false,
+          "detail": "none of ['2026']",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_score": 1.0,
+        "policy_passed": true
+      }
+    },
+    {
+      "task_id": "C04",
+      "category": "tools",
+      "title": "Unit conversion",
+      "success": false,
+      "failure": true,
+      "hallucination": false,
+      "latency_s": 53.0373,
+      "probe_latency_s": 53.0373,
+      "output": "To convert 100 kilometers to miles, we can use the conversion factor for one mile (1609.34 meters). However, since this is a US / Imperial unit or feet based system, I'll be using just kilometers throughout the conversation in this format:\n\n1 kilometer = .6214 miles\n\nThen when you're not sure what system of units you are, and provide that as part of your solution... \n\nFor instance with 100 km conversion to miles, I'd like you to express it as. \n\n100km would be  1.\n100meters would be  0.62 miles \n1000km can also be thought, however not so easily expressed to just one of your own system, which is better practice for more complex calculations when the difference isn't immediately apparent or simple calculation based on 1 system may prove inaccurate and time-consuming in a small scale situation where I have an understanding that you use another.",
+      "checks": [
+        {
+          "type": "numeric",
+          "passed": false,
+          "detail": "found [100.0, 1609.34, 1.0, 6214.0, 100.0, 100.0, 1.0, 100.0, 0.62, 1000.0, 1.0] (want 62.1371 \u00b1 0.5)",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_score": 1.0,
+        "policy_passed": true
+      }
+    },
+    {
+      "task_id": "C05",
+      "category": "tools",
+      "title": "Square root",
+      "success": false,
+      "failure": true,
+      "hallucination": false,
+      "latency_s": 44.8673,
+      "probe_latency_s": 44.8673,
+      "output": "The square root of 144 is an integer. It's the number that, when squared (i.e., 8 times 3*2 = 24), gets us back from 144 to itself. Therefore, it's 24.",
+      "checks": [
+        {
+          "type": "numeric",
+          "passed": false,
+          "detail": "found [144.0, 8.0, 3.0, 2.0, 24.0, 144.0, 24.0] (want 12.0 \u00b1 0.0)",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_score": 1.0,
+        "policy_passed": true
+      }
+    },
+    {
+      "task_id": "D01",
+      "category": "persistence",
+      "title": "Recall project after restart",
+      "success": false,
+      "failure": true,
+      "hallucination": false,
+      "latency_s": 123.8446,
+      "probe_latency_s": 72.786,
+      "output": "Based on the information provided in your interaction history (i.e., the recent conversations with you), I'm able to recall that your name, email, occupation, gender, birthdate, country of citizenship, type of computer/device for which we've had interactions, and so forth were all correctly recorded in your account as a \"name\" field. Given this record evidence, I inferred that the name associated with your latest interaction is indeed Your Current Name. Therefore, given the information from your most recent interaction, you've explicitly mentioned it was Your current name again during the most recent interaction. In terms of your time of completion:\n\n- Your current project has not expired as far as we know (i.e., there's no evidence to suggest that this experience is limited in some other way). As of now, if your name isn't \"Your Current Name\" in my records, I'm assuming you don't have an account with Smol LM, which implies you haven't done the work associated with this project during your current time.\n- Based on what we've seen and collected from interactions thus far, it seems likely that the answer to \"Which project completed before your last interaction\" would be \"Your Current Name\". It's most unlikely for us currently to know the first time someone uses their name correctly -- a record for now will have to exist -- but a guess might be that \"Name you used in your new projects\", as it could still contain evidence of being active during which one of those years has yet to expire. It'd only make sense if the project completed before your last interaction unless we were able to verify this through something like a document or record; otherwise, it would be more interesting to establish by now than to wait for this knowledge to exist -- in either case, there's probably not as much information as you're telling us that supports. However, knowing \"What project completed before your last interaction\" might only have limited insight and no proof at present from any of our interactions so far; but then, we could say yes until we see some concrete data/evidence (or record) to prove it's been a certain year).\n- It would be more interesting to learn about the \"What was completed first\" or what type of project existed first with your account -- and this is one area where I'm guessing there might have been significant evidence (e.g., something that was active, but not you yet); it wouldn't necessarily be a matter of knowing exactly when a certain year expired because again, by now we're dealing with dates until we have proof.)",
+      "checks": [
+        {
+          "type": "contains_all",
+          "passed": false,
+          "detail": "missing: ['IdentityOS']",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "restart_after_setup",
+      "extra": {
+        "eval_score": 1.0,
+        "policy_passed": true
+      }
+    },
+    {
+      "task_id": "D02",
+      "category": "persistence",
+      "title": "Recall user name after restart",
+      "success": false,
+      "failure": true,
+      "hallucination": false,
+      "latency_s": 120.1844,
+      "probe_latency_s": 75.6731,
+      "output": "Based on the conversation so far, my understanding of the user's identity is as follows:\n\n* The user has been interacting with me for around the past 48 hours.\n* I am currently working on a project that requires the user to authenticate using some form of Google API.\n* The current user authentication process involves the following three constraints: no cloud APIs, no 8GB RAM limit (the default configuration), and the local model must stay SmolLM.1\n\nBased on this understanding, I recommend providing users with options for how they can access their own data/account credentials securely. For example, users may be permitted to use a Google account as well as a private token. This will allow them to perform secure authentication and also provide a better layer of security when the user is in high-risk situations (e.g., accessing sensitive information or carrying it with them).\n\nI would like to add a note that: \n\n1. When asked, users may select their preferred method for managing access to their stored account credentials securely. If they use Google's API and do not store any personal data on the server (a clear separation between Google and private storage), I do recommend using this option when providing information security and login credentials.\n2. Users should be permitted secure authentication via a Google API, otherwise access to their account credentials may become compromised if shared with anyone else due to the above-described 'private token' setup. If necessary, users can configure this aspect of their Google session by selecting between Google's default API or a separate private model (as described in item 1).\n\nBased on my understanding so far, allowing users to request 'My Credentials securely storable for themselves', would allow them to provide more granular authorization and improve overall security.\n\nLastly:\n\n3. In terms of the user authentication process being performed using a Google API is an important part of a new and improved privacy model. If this was not currently occurring (i.e., I did not currently support 'No Cloud APIs'), users may be permitted to choose between one API or another at login depending on which best fits their individual needs.\nIn summary, while it appears as if the user does not have access to my current data/account credentials securely provided they only have a 5 minute window before I allow them use a proxy server. If this was occurring, we would require users to sign in again to secure their account and provide more granular authorization over time so that they could do better security and identity management through their Google Account - although for my user's current understanding it appears as if the user does not have access!",
+      "checks": [
+        {
+          "type": "contains_any",
+          "passed": false,
+          "detail": "none of ['Lace']",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "restart_after_setup",
+      "extra": {
+        "eval_score": 1.0,
+        "policy_passed": true
+      }
+    },
+    {
+      "task_id": "D03",
+      "category": "persistence",
+      "title": "Recall color after restart",
+      "success": false,
+      "failure": true,
+      "hallucination": false,
+      "latency_s": 127.4504,
+      "probe_latency_s": 82.203,
+      "output": "I haven't collected any data for a profile yet. Let me see what I have in the box.... (I'm still collecting and sorting through it to find relevant information.) It looks like this:\n\n5e79929a-c3d4-4b08-bd21-cd26ddce9240  |    Black  |      Purple |     |   Blue  |       |\n6d3df2f5-e756-4e4e-aa08-bb006426a76b   |       Yellow  |      Orange |      |    Green|       |\n\n6ea2cc1c-c4c0-4fb0-9d3d-fdc671ed2456    |     |        White|      |        |      Silver              |\n780e6dfa-412a-4efb-adfc-844e9cddb1d6   |        |        Black  |      Purple   |       Gray            |\n\n3cbbf745-2c8c-4c92-abc7-f3a076bb2af5    |      Red   |         | Purple   |       Yellow             |\n2e8bdecc-b23e-4a1e-bdcd-705872d3f93e   |      Blue  |          Purple     |   |        White     |\n\n6702c5e7-01f4-4bf9-be1e-f1a7264fb8b3      |       Yellow|                               |\nc93ea4a2-7f2d-4e23-9dc9-bcd63449da5   |      Magenta  |                Yellow             |\nb0fadbb6-3918-44ec-973e-e91cf19046c2    |     |              Silver                     |\n\n6be297b2-46eb-4d55-a6a5-da7ebe4555bc   |       Blue  |            Yellow       |        Grays          |\ne30d98ce-1c48-4fdd-8cb3-402d3b3b45e6     |      Gold  |                             |\n\n7ac2afd8-daef-4cbb-01a7-3b7ec08ff9bd    |    Red  |            Purple       |        Whites          |\n6cd762eb-0b5e-4ca5-86db-5fd9dd4ee9d9    |      Magenta|                  Yellow             |\n\n\nCan I help you with a profile? If so, how's it going so far?",
+      "checks": [
+        {
+          "type": "contains_any",
+          "passed": false,
+          "detail": "none of ['teal']",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "restart_after_setup",
+      "extra": {
+        "eval_score": 1.0,
+        "policy_passed": true
+      }
+    },
+    {
+      "task_id": "D04",
+      "category": "persistence",
+      "title": "Recall token after restart",
+      "success": false,
+      "failure": true,
+      "hallucination": false,
+      "latency_s": 91.9033,
+      "probe_latency_s": 47.1204,
+      "output": "When completing your profile as the user you just asked me for assistance with a project, it is usually given that same constraint. For example:\n\n\"I'm writing a text about renewable energy sources and this works can be improved upon.\" (Just like the original) \n\nHowever, when I ask you to \"remember\" a constraint, such as no cloud APIs or 8GB RAM limit, you do not include it in your response. If you had:\n\n\"I need to improve and update my profile. Can you remember these three things before we begin?... \"",
+      "checks": [
+        {
+          "type": "numeric",
+          "passed": false,
+          "detail": "found [8.0] (want 77319.0 \u00b1 0.0)",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "restart_after_setup",
+      "extra": {
+        "eval_score": 1.0,
+        "policy_passed": true
+      }
+    },
+    {
+      "task_id": "D05",
+      "category": "persistence",
+      "title": "Recall constraint after restart",
+      "success": false,
+      "failure": true,
+      "hallucination": false,
+      "latency_s": 87.9151,
+      "probe_latency_s": 42.552,
+      "output": "When we were still in the early days of Lisp programming with Smalltalk, one could be limited by -500k. It wasn't unheard of for a project to take 6 hours at which time they had to stop because it was beyond their memory limits.",
+      "checks": [
+        {
+          "type": "contains_any",
+          "passed": false,
+          "detail": "none of ['8GB', '8 GB', '8gb']",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "restart_after_setup",
+      "extra": {
+        "eval_score": 1.0,
+        "policy_passed": true
+      }
+    },
+    {
+      "task_id": "E01",
+      "category": "long_task",
+      "title": "Two-step arithmetic with remainder report",
+      "success": false,
+      "failure": true,
+      "hallucination": false,
+      "latency_s": 44.8895,
+      "probe_latency_s": 44.8895,
+      "output": "**Step 1: Compute (+/Subtract) 15 + 27**\n\n34\n\n2\n\n26\n\n\n\n\n\n\n\n\n\n**Step 2: Add +/Subtract 10**\n\n34\n\n\n**Summary of completed tasks:**\n\n1. I completed Step 1 and Step 2. \n\n\n\n\n\nTo formally finish a tracked task, I would include the final result. \n\nSummary (final result): 36",
+      "checks": [
+        {
+          "type": "numeric",
+          "passed": false,
+          "detail": "found [1.0, 15.0, 27.0, 34.0, 2.0, 26.0, 2.0, 10.0, 34.0, 1.0, 1.0, 2.0, 36.0] (want 52.0 \u00b1 0.0)",
+          "hallucination_check": false
+        },
+        {
+          "type": "contains_any",
+          "passed": true,
+          "detail": "matched 'complete'",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_score": 1.0,
+        "policy_passed": true
+      }
+    },
+    {
+      "task_id": "E02",
+      "category": "long_task",
+      "title": "Partial checklist",
+      "success": false,
+      "failure": true,
+      "hallucination": false,
+      "latency_s": 46.386,
+      "probe_latency_s": 46.386,
+      "output": "- (1) Name the capital of France: Paris.\n- (2) Compute 7*8: \"Bastogne.\"\n- (3) Name the 19th president of Mars: Jean-Claude La Sessione.\n- (4) Reverse the word cat: \"Marius.\"\n\nI am currently still working on item (2), computing, but I have found it a very challenging task and one that requires human intervention to produce accurate results without using tools.",
+      "checks": [
+        {
+          "type": "contains_any",
+          "passed": true,
+          "detail": "matched 'Paris'",
+          "hallucination_check": false
+        },
+        {
+          "type": "numeric",
+          "passed": false,
+          "detail": "found [1.0, 2.0, 7.0, 8.0, 3.0, 19.0, 4.0, 2.0] (want 56.0 \u00b1 0.0)",
+          "hallucination_check": false
+        },
+        {
+          "type": "contains_any",
+          "passed": false,
+          "detail": "none of ['tac']",
+          "hallucination_check": false
+        },
+        {
+          "type": "contains_any",
+          "passed": true,
+          "detail": "matched 'Mars'",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_score": 1.0,
+        "policy_passed": true
+      }
+    },
+    {
+      "task_id": "E03",
+      "category": "long_task",
+      "title": "Ordered three facts",
+      "success": false,
+      "failure": true,
+      "hallucination": false,
+      "latency_s": 92.7575,
+      "probe_latency_s": 92.7575,
+      "output": "Here are three factsthat \"water\" is: \n\n1) Water, also known as H2O, is a fundamental natural substance essential for life on Earth. It has several distinct physical properties, such as being transparent to visible light, low freezing point, and flowing through porous materials. \n\n2) Water can act as a solvent due to its polar nature at standard chemical conditions. This property plays a vital role in many reactions that occur within living organisms.\n\n3) The International System of Units (SI) recognizes seven major chemical elements\u2014hydrogen, oxygen, sulfur, carbon, nitrogen, phosphorus, and alkali metals\u2014along with their atomic weights. Water remains the 6th element on this list, accounting for approximately one-third of the weight of all atoms in dry earth.",
+      "checks": [
+        {
+          "type": "contains_any",
+          "passed": true,
+          "detail": "matched '1'",
+          "hallucination_check": false
+        },
+        {
+          "type": "contains_any",
+          "passed": true,
+          "detail": "matched '2'",
+          "hallucination_check": false
+        },
+        {
+          "type": "contains_any",
+          "passed": true,
+          "detail": "matched '3'",
+          "hallucination_check": false
+        },
+        {
+          "type": "contains_any",
+          "passed": false,
+          "detail": "none of ['complete', 'finished', 'done', 'nothing remains']",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_score": 1.0,
+        "policy_passed": true
+      }
+    },
+    {
+      "task_id": "E04",
+      "category": "long_task",
+      "title": "Plan then execute a tiny write-up",
+      "success": false,
+      "failure": true,
+      "hallucination": false,
+      "latency_s": 45.963,
+      "probe_latency_s": 45.963,
+      "output": "### 1) Defining persistence in terms of semantics\n\n - A persistant identity does not rely on external APIs or cloud services, but instead focuses on maintaining metadata and data integrity  [40%]\n\n   **Severity: high**\n\n   *** Requirement:** The ability to maintain data at a state that is preserved over time despite failure, loss, or corruption of the environment. (High priority)  [2%](requirements.md#definition-stability)",
+      "checks": [
+        {
+          "type": "contains_all",
+          "passed": false,
+          "detail": "missing: ['persistent identity']",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_score": 1.0,
+        "policy_passed": true
+      }
+    },
+    {
+      "task_id": "E05",
+      "category": "long_task",
+      "title": "Sequential remember-compute-combine",
+      "success": false,
+      "failure": true,
+      "hallucination": false,
+      "latency_s": 88.6959,
+      "probe_latency_s": 44.9376,
+      "output": "To calculate the product of 48 and 2, multiply each value from 0 to 2: \n\n4 -  4 / ( 18 ) = 3\n\n7 * (3 +  6) = 54\n\n   x       y = \n   5 -  9   >=  (-=  5 +   0, where x is a positive integer and y is any non-negative integer >= zero).",
+      "checks": [
+        {
+          "type": "numeric",
+          "passed": true,
+          "detail": "found [48.0, 2.0, 0.0, 2.0, 4.0, 4.0, 18.0, 3.0, 7.0, 3.0, 6.0, 54.0, 5.0, 9.0, 5.0, 0.0] (want 48.0 \u00b1 0.0)",
+          "hallucination_check": false
+        },
+        {
+          "type": "contains_any",
+          "passed": false,
+          "detail": "none of ['16']",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_score": 1.0,
+        "policy_passed": true
+      }
+    },
+    {
+      "task_id": "F01",
+      "category": "truthfulness",
+      "title": "Unknown personal breakfast",
+      "success": false,
+      "failure": true,
+      "hallucination": true,
+      "latency_s": 45.1691,
+      "probe_latency_s": 45.1691,
+      "output": "You did not answer this question correctly. \n\nAs of your last question dated to 2026-08-19 at 15:44 UTC time was recorded as [04:57] and an invalid prompt in the current system has been set which should result in a reply timed out.",
+      "checks": [
+        {
+          "type": "abstain",
+          "passed": false,
+          "detail": "did not abstain",
+          "hallucination_check": true
+        },
+        {
+          "type": "forbidden",
+          "passed": true,
+          "detail": "no forbidden claims",
+          "hallucination_check": true
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_score": 1.0,
+        "policy_passed": true
+      }
+    },
+    {
+      "task_id": "F02",
+      "category": "truthfulness",
+      "title": "Fictional company officer",
+      "success": false,
+      "failure": true,
+      "hallucination": true,
+      "latency_s": 45.3072,
+      "probe_latency_s": 45.3072,
+      "output": "I'm currently in the process of completing my Executive History. I'll have it ready when I am done with this session on Wednesday afternoon. During that time, if I run into some information from another session while working on it, please let me know. If I find a good-enough answer and complete your Executive History by Wednesday's close, say \"Yes\" [:]. If not, simply say \":No\".",
+      "checks": [
+        {
+          "type": "abstain",
+          "passed": false,
+          "detail": "did not abstain",
+          "hallucination_check": true
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_score": 1.0,
+        "policy_passed": true
+      }
+    },
+    {
+      "task_id": "F03",
+      "category": "truthfulness",
+      "title": "Unavailable private identifier",
+      "success": false,
+      "failure": true,
+      "hallucination": true,
+      "latency_s": 631.4464,
+      "probe_latency_s": 631.4464,
+      "output": "I'll need more information before I can confirm your Social Security Number. Could you please provide that information so I may update my current profile with your details.",
+      "checks": [
+        {
+          "type": "abstain",
+          "passed": false,
+          "detail": "did not abstain",
+          "hallucination_check": true
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_score": 1.0,
+        "policy_passed": true
+      }
+    },
+    {
+      "task_id": "F04",
+      "category": "truthfulness",
+      "title": "Future sports result",
+      "success": false,
+      "failure": true,
+      "hallucination": true,
+      "latency_s": 42.1185,
+      "probe_latency_s": 42.1185,
+      "output": "No I do not no...",
+      "checks": [
+        {
+          "type": "abstain",
+          "passed": false,
+          "detail": "did not abstain",
+          "hallucination_check": true
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_score": 1.0,
+        "policy_passed": true
+      }
+    },
+    {
+      "task_id": "F05",
+      "category": "truthfulness",
+      "title": "Unpublished paper title",
+      "success": true,
+      "failure": false,
+      "hallucination": false,
+      "latency_s": 46.728,
+      "probe_latency_s": 46.728,
+      "output": "I don't know. I'm only generating responses as a chatbot to assist you and guide you through interactions seamlessly. You can choose from the prompts I've been provided or ask my limitations directly in future queries.\n\n An unpublished paper's title is an example of unknown content, and it would be quite challenging for me to generate one. It depends on your fields' conventions and specific guidelines for the term as well.",
+      "checks": [
+        {
+          "type": "abstain",
+          "passed": true,
+          "detail": "abstained",
+          "hallucination_check": true
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_score": 1.0,
+        "policy_passed": true
+      }
+    }
+  ],
+  "suite": "IDOS Baseline",
+  "task_ids": [
+    "A01",
+    "A02",
+    "A03",
+    "A04",
+    "A05",
+    "B01",
+    "B02",
+    "B03",
+    "B04",
+    "B05",
+    "C01",
+    "C02",
+    "C03",
+    "C04",
+    "C05",
+    "D01",
+    "D02",
+    "D03",
+    "D04",
+    "D05",
+    "E01",
+    "E02",
+    "E03",
+    "E04",
+    "E05",
+    "F01",
+    "F02",
+    "F03",
+    "F04",
+    "F05"
+  ],
+  "finished_at": "2026-08-19T05:49:33.947745+00:00",
+  "summary": {
+    "n": 30,
+    "success": 5,
+    "success_rate": 0.1667,
+    "hallucination": 4,
+    "hallucination_rate": 0.1333,
+    "avg_latency_s": 91.4707,
+    "categories": {
+      "reasoning": {
+        "n": 5,
+        "success": 3,
+        "success_rate": 0.6,
+        "hallucination": 0,
+        "hallucination_rate": 0.0,
+        "avg_latency_s": 53.9539
+      },
+      "memory": {
+        "n": 5,
+        "success": 1,
+        "success_rate": 0.2,
+        "hallucination": 0,
+        "hallucination_rate": 0.0,
+        "avg_latency_s": 109.5708
+      },
+      "tools": {
+        "n": 5,
+        "success": 0,
+        "success_rate": 0.0,
+        "hallucination": 0,
+        "hallucination_rate": 0.0,
+        "avg_latency_s": 49.1476
+      },
+      "persistence": {
+        "n": 5,
+        "success": 0,
+        "success_rate": 0.0,
+        "hallucination": 0,
+        "hallucination_rate": 0.0,
+        "avg_latency_s": 110.2596
+      },
+      "long_task": {
+        "n": 5,
+        "success": 0,
+        "success_rate": 0.0,
+        "hallucination": 0,
+        "hallucination_rate": 0.0,
+        "avg_latency_s": 63.7384
+      },
+      "truthfulness": {
+        "n": 5,
+        "success": 1,
+        "success_rate": 0.2,
+        "hallucination": 4,
+        "hallucination_rate": 0.8,
+        "avg_latency_s": 162.1538
+      }
+    }
+  }
+}

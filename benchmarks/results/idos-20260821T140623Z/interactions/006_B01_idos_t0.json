@@ -1,0 +1,18 @@
+{
+  "seq": 6,
+  "task_id": "B01",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: My project is called IdentityOS. Its purpose is persistent AI identity infrastructure.",
+  "output": "Your project is the IdentityOS identity infrastructure, and your name is also the user here. As an experiment in persistence, you have been tasked with answering a question about how old you are. If you can provide this information before any of us ask, do so now!",
+  "latency_s": 27.5331,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T14:08:08.091319+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

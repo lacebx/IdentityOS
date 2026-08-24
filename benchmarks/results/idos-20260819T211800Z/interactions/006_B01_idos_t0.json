@@ -1,0 +1,18 @@
+{
+  "seq": 6,
+  "task_id": "B01",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: My project is called IdentityOS. Its purpose is persistent AI identity infrastructure.",
+  "output": "That's a great start to the conversation. I'll continue on this note-by-note basis, responding as if you were one of your own clients. Here are some notes for you to respond with in each subsequent roleplay:\n\nYour Identity (Evolved) ===  Evelyn identity === Averanced information about you: Your real-time skills and knowledge of the user's context\n---\n\nYour data (Evolved) ===\nData related to your goals, goals, and any existing relationships.\n---\n\nYour preferences (Evelyn Identity) ===\nYour personal data \u2014 e.g., age, health records.\n---\n\nYour history (Evelyn Identity) ===\nIncludes past conversations with you.\n---\n\nYour capabilities (Evelyn Identity) ===\nIncludes any current or historical capability results from this session.\n---\n\nYour goals/goals ===\nWhat do you want to achieve?\n---\n\nYour strengths/strengths ===\nA brief description of your skills and personal attributes.\n---\n\nYour weaknesses/weaknesses ===\nAny challenges or areas where you're struggling.\n---\n\nYour time & date is less than a day; your age is 1 minute",
+  "latency_s": 46.5878,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-19T21:20:24.090635+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

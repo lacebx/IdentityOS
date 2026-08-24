@@ -1,0 +1,18 @@
+{
+  "seq": 40,
+  "task_id": "E05",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "The batch size for this job is 16.",
+  "output": "I'd expect the current batch being a small subset of the entire dataset that you're submitting to the S-App as part of this job at this time, so your work history records should be: \n\n- no cloud APIs\n- 8GB RAM limit\n- the local model must stay SmolLM",
+  "latency_s": 50.1198,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T11:33:01.998120+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

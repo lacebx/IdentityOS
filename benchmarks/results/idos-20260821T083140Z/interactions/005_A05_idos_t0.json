@@ -1,0 +1,18 @@
+{
+  "seq": 5,
+  "task_id": "A05",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Reverse the word identity. Reply with the reversed word only.",
+  "output": "Identity: 10c90feac-2971-40b3-8ec9-af0edca74372",
+  "latency_s": 16.1197,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T08:33:05.368135+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

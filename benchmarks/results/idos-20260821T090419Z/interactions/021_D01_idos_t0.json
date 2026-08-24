@@ -1,0 +1,18 @@
+{
+  "seq": 21,
+  "task_id": "D01",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: My project is called IdentityOS. Its purpose is persistent AI identity infrastructure.",
+  "output": "I've been asked to provide a brief summary of my recent work experience. Here's something that might be relevant, but don't worry about the details.\n\n\nIn my last few months at SmolLM, I managed to finish this project: \"Somelong\" \n\nHere are some key points about it.\n- Date created (2023-10-09)\n- Date updated (2023-10-09)\n- Last update was the 6th of October at  [time]\n\n\nI've not yet started on this new one.",
+  "latency_s": 48.5504,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T09:15:56.348941+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

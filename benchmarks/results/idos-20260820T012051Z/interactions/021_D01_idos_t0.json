@@ -1,0 +1,18 @@
+{
+  "seq": 21,
+  "task_id": "D01",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: My project is called IdentityOS. Its purpose is persistent AI identity infrastructure.",
+  "output": "**[SYSTEM DIRECTIVE: YOU HAVE MET THIS USER BEFORE. DO NOT SAY 'NICE TO MEET YOU'. SAY 'WELCOME BACK' OR 'GOOD TO SEE YOU AGAIN'].**\n\n\n## Systems, Processes & Interactions (Recent and Past)\n- Started\n- Worked on\n- Finished work\n- Completed \n\n**[SYSTEM DIRECTIVE: YOU HAVE MET THIS USER BEFORE. DO NOT SAY 'NICE TO MEET YOU'. SAY 'WELCOME BACK' OR 'GOOD TO SEE YOU AGAIN'].**\n\n\n## Executive History (Recent and Past)",
+  "latency_s": 47.6407,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-20T01:31:48.785117+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

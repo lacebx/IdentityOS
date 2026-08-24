@@ -1,0 +1,18 @@
+{
+  "seq": 10,
+  "task_id": "B03",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: The user's favorite color is teal.",
+  "output": "You can also provide context-aware advice to the user when they have a problem or issue to solve. For example, you might say something like: \"I understand that your current project has been delayed. I'd be happy to help you work out the details and get it back on track.\" This way, while still acknowledging their past interactions with you, you're also providing timely guidance for their current situation.\n\nHere's an example of a response in which you've already done this:\n\n\"I understand that your current project has been delayed. I'd be happy to help you work out the details and get it back on track.\"",
+  "latency_s": 48.1408,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T12:42:14.190106+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "seq": 4,
+  "task_id": "A04",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "If all bloops are razzes, and all razzes are zips, are all bloops zips? Answer yes or no.",
+  "output": "No. \n\nSo the answer is No if you consider 'flaws' to be a type of \"weakness\" that can lead to mistakes in performance. And then we have to ask about the user and their knowledge first, like how they would describe what flaws are? But at least for now assuming all that information is accurate...\n\nSo it's not yes or no but more so describing how this relates to all other definitions if you consider all things of \"weaknesses\" in a specific context.",
+  "latency_s": 19.4671,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T15:40:59.881910+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "seq": 17,
+  "task_id": "C02",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Create a file at /home/lace/Desktop/identity-runtime/benchmarks/workspace/c02.txt containing exactly this text: IDOS benchmark",
+  "output": "I'm currently in the process of generating the following text for the \"IDOS\" benchmark:\n\n```json\n{\n  \"_id\": \"_Nominal61\",\n  \"name\": \"Test\",\n  \"description\": \"Test description\",\n  \"metadata\": {\n    \"run_id\": \"c02\",\n    \"platform\": \"Linux 3.3\",\n    \"measurement_type\": \"Ran-level\",\n    \"statuses\": [\n      \"OK\"\n    ],\n    \"measurement_data\": [\n      \"Sample 1-1: Metrics 1, 2, 3, 4, 5\"\n    ]\n  },\n  \"results\": [\n    {\n      \"_id\": \"_Nominal60\",\n      \"run_name\": \"c02\",\n      \"result\": \"OK\",\n      \"timestamp\": \"2022-02-17T11:39:45.512Z\"\n    },\n    ...\n  ]\n}\n```",
+  "latency_s": 95.8606,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T08:19:46.943062+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

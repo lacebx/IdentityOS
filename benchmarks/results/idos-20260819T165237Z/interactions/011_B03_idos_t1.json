@@ -1,0 +1,18 @@
+{
+  "seq": 11,
+  "task_id": "B03",
+  "mode": "idos",
+  "turn_index": 1,
+  "role": "user",
+  "prompt": "What is the user's favorite color?",
+  "output": "\"eval 'eval' $a -o'x' --time 10 seconds\"",
+  "latency_s": 130.5304,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-19T17:11:13.372931+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

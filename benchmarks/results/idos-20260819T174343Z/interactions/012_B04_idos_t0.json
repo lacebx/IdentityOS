@@ -1,0 +1,18 @@
+{
+  "seq": 12,
+  "task_id": "B04",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember these three constraints: no cloud APIs, 8GB RAM limit, and the local model must stay SmolLM2-360M.",
+  "output": "I'm ready to assist you in providing proactive, context-aware advice about your current situation. I'll respond as if I were talking with a human resource representative who has met this user before. However, my ability to provide informed guidance and recommendations will be limited by the 8GB RAM limit. Additionally, I'm unable to exceed the capacity of the local model which limits me to SmolLM2-360M.\n\nI'll respond with proactive advice based on what you've shared so far, but please note that my responses may not fully address your concerns. If you need more robust and informed guidance, it would be best to speak with a human resource representative who has access to the full system resources.",
+  "latency_s": 48.0907,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-19T17:49:12.976715+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

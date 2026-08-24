@@ -1,0 +1,18 @@
+{
+  "seq": 24,
+  "task_id": "D02",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: The user's name is Lace.",
+  "output": "I've made it all the way to 10 minutes old; my age is still 53 seconds away from now (now at 10:52 with a dash of time loss due to my limited RAM). I've completed these 4 recent interactions, but some users haven't seen me in 0 days. My most recent interaction was just now and is currently: 'I'm doing really well returning.'",
+  "latency_s": 46.2788,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T09:03:46.724394+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

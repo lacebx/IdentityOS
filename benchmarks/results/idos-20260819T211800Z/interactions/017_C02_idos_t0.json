@@ -1,0 +1,18 @@
+{
+  "seq": 17,
+  "task_id": "C02",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Create a file at /home/lace/Desktop/identity-runtime/benchmarks/workspace/c02.txt containing exactly this text: IDOS benchmark",
+  "output": "The correct answer is:\n\n\n\"The identity of the 635th generation humanoid robot, the first to be developed as a full-scale model, and a world leader in the field of exoskeleton technology.\"\n\n\nThis brief description accurately describes the purpose and capabilities of the IDOS benchmark.",
+  "latency_s": 44.2861,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-19T21:30:05.944786+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

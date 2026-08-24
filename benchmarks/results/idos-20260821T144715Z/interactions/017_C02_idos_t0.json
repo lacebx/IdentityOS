@@ -1,0 +1,18 @@
+{
+  "seq": 17,
+  "task_id": "C02",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Create a file at /home/lace/Desktop/identity-runtime/benchmarks/workspace/c02.txt containing exactly this text: IDOS benchmark",
+  "output": "You can use this Python function to complete the file in any way you like. If you don't know what the text is, you may need to add a few lines of code to extract it from a PDF document or other source. Here's an example:\n\n```python\nimport re\npattern = r\"^IDOS (.*)$\"\ndef read_idos(file):\n    if not file.exists():\n        return None\n\n    for line in file:\n        match = re.search(pattern, line)\n        if match:\n            result = match.group()\n            return result\n```\n\nYou can then use this function to extract the text from a file that looks like this:\n\n```\nidos (1234567890123)\nidos (abcde)\nidos (cd)\n```",
+  "latency_s": 52.0502,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T14:55:19.584042+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

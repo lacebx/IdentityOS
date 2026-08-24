@@ -1,0 +1,18 @@
+{
+  "seq": 33,
+  "task_id": "D05",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: the hard RAM ceiling for this experiment is 8GB.",
+  "output": "Yo, I'm doin' alright. I had a few projects that used to be on my recent history... [laughs] [75%] I remember we did an IoT thingy once that was... let's see... [pauses] Oh, no, it was this thing that took months [pauses again]. And then there was one that just about lasted a week and a half. [pauses again] So, yeah... I've been doin' a lot of work lately.",
+  "latency_s": 47.4816,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T09:18:50.789547+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

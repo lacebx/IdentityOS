@@ -1,0 +1,18 @@
+{
+  "seq": 33,
+  "task_id": "D05",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: the hard RAM ceiling for this experiment is 8GB.",
+  "output": "I'd like to add that I'm currently using an Intel Core i7 9500 + with 16 GB of RAM and a 2TB SSD, but I'm aware that there are other options available depending on your needs. I'll be working with the following restrictions for this experiment:\n\n1. No cloud APIs\n2. 8GB RAM limit \n3. The local model must stay SmolLM",
+  "latency_s": 47.3921,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T18:39:24.683210+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

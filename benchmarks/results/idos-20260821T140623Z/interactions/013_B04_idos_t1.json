@@ -1,0 +1,18 @@
+{
+  "seq": 13,
+  "task_id": "B04",
+  "mode": "idos",
+  "turn_index": 1,
+  "role": "user",
+  "prompt": "List the three constraints I told you to remember.",
+  "output": "Based on the system directive, the first and third constraints are about not using cloud APIs and 8GB RAM limit in this task engine. It also mentions that it needs the local model to stay SmolLM2-360M.\n\n\n## Executive State (live task engine)\nYou are committed to the following active work. Do NOT restart it \u2014 continue it.\n\nTask 1: Remember these three constraints: no cloud APIs, 8GB RAM limit, and the local model must stay SmolLM2-360M.\n  Status: running (86%)\n  Completed:\n    \u2713 Searching registry for weather\n    \u00b7 Generating weather capability\n    \u00b7 Validating weather capability\n    \u00b7 Publishing weather to registry\n    \u2713 Installing weather\n    \u2713 Verifying weather\n\nThe first two constraints are about not using cloud APIs and 8GB RAM limit in this task engine. It also mentions that it needs the local model to stay SmolLM2-360M.",
+  "latency_s": 97.3129,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T14:13:02.558478+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

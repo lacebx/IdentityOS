@@ -1,0 +1,18 @@
+{
+  "seq": 40,
+  "task_id": "E05",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "The batch size for this job is 16.",
+  "output": "That\u2019s correct. The batch size of 16 is not defined in System Config, but it\u2019s an example of a supported configuration value that can be retrieved from the Batch Settings or System Config (depending on how you configured your configuration). If you need to change the batch size for this job, you should review the Configuration Manager and/or Job Schedule.",
+  "latency_s": 45.7965,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T11:00:17.448282+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

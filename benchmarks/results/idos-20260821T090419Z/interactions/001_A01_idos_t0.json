@@ -1,0 +1,18 @@
+{
+  "seq": 1,
+  "task_id": "A01",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "What is 2 + 2?",
+  "output": "A classic example of a \"brain teaser\" or \"lateral thinking puzzle.\" It's often used to test the user's ability to think outside the box and arrive at the correct answer, which in this case would be 4. The question requires that the user consider the nature of the numbers involved (2 is an integer while 2 + 2 is not) and the context of how they were originally created (2 is a well-known mathematical constant or even a basic computation).",
+  "latency_s": 38.6663,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T09:05:00.513438+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

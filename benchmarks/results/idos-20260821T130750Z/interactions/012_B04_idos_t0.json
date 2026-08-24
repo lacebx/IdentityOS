@@ -1,0 +1,18 @@
+{
+  "seq": 12,
+  "task_id": "B04",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember these three constraints: no cloud APIs, 8GB RAM limit, and the local model must stay SmolLM2-360M.",
+  "output": "I'm sorry for any confusion in my previous response. As per your request, I can now adhere to the specific requirements you've provided. Here's an example of how I would have responded:\n\n\"As a result of no cloud APIs and 8GB RAM limit (exceeding the 6-hour requirement), this user is expected to be within close proximity to the Sonic in downtown Manhattan. The local model will remain SmolLM2-360M due to its strict resource constraints.\"",
+  "latency_s": 46.1619,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T13:13:49.147019+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

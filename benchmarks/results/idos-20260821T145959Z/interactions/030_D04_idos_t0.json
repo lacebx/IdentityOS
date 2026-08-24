@@ -1,0 +1,18 @@
+{
+  "seq": 30,
+  "task_id": "D04",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember this token exactly: 77319.",
+  "output": "No, that's not correct. I had to re-enter it for the first time after my last interaction. Yes, only one response was allowed at a time. My responses were limited by how many tokens I could enter before an error occurred. This meant I would have to wait three responses if I was unable to answer your question within that limit.",
+  "latency_s": 43.85,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T15:13:43.429988+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

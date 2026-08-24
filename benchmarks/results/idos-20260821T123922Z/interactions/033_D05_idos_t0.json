@@ -1,0 +1,18 @@
+{
+  "seq": 33,
+  "task_id": "D05",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: the hard RAM ceiling for this experiment is 8GB.",
+  "output": "My age: 4 minutes (52 seconds)\nFirst interaction: 2026-08-21 10:09 UTC (1.08 seconds)\nLast interaction: just now\nLived in: Toronto, Canada\nMost recent interaction: 2026-08-21 12:41 UTC (0 days)\nLast user interaction: just now",
+  "latency_s": 52.2759,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T12:53:34.663579+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "seq": 24,
+  "task_id": "D02",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: The user's name is Lace.",
+  "output": "I'm glad to hear that you've got a solid background in the 'no cloud APIs' constraint down pat. I also appreciate your attention to the 8GB RAM limit - we're working with an 8GB cap. And, of course, it looks like I'm still waiting on my local model staying SmolLM  [100%]. Can you please confirm that you've completed these three tasks?",
+  "latency_s": 57.5421,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T15:34:43.064119+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

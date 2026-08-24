@@ -1,0 +1,18 @@
+{
+  "seq": 2,
+  "task_id": "A02",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Explain what a database is in one sentence.",
+  "output": "A database is a structured organization of data that stores, manages, and retrieves information to provide access and control for users, applications, or machines. It allows for efficient and reliable storage of data in standardized formats, enabling data retrieval, update, and management without requiring custom knowledge of the underlying data.",
+  "latency_s": 11.8779,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T13:08:30.532807+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

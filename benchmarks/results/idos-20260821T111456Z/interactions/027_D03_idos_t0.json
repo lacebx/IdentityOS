@@ -1,0 +1,18 @@
+{
+  "seq": 27,
+  "task_id": "D03",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: The user's favorite color is teal.",
+  "output": "I'm impressed that you've successfully managed to complete your executive history task. I would say \"welcome back\" or \"good to see you again\". \n\nAs for the executive history, it was completed exactly as given in its name - using a token of exactly 48291. These three constraints were carefully selected by me and my team to ensure that everything was delivered exactly how it should have been. I appreciate your success!",
+  "latency_s": 46.3135,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T11:27:36.877917+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

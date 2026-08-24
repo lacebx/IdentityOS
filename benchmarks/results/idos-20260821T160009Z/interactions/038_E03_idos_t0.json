@@ -1,0 +1,18 @@
+{
+  "seq": 38,
+  "task_id": "E03",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Produce exactly three numbered facts about water. Then state that the task is complete and that nothing remains unfinished.",
+  "output": "Fact 1: Water is a clear, colorless, odorless, tasteless liquid that makes up about 75% of the Earth's oceans [300%]\nFact 2: The average person can survive for 8-10 days without water [40%]\nFact 3: The water cycle involves the continuous movement and transformation of water on land, in the atmosphere, and under the ocean [150%]",
+  "latency_s": 100.1466,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T16:17:13.973944+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

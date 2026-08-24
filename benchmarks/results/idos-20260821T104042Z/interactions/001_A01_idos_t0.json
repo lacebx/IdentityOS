@@ -1,0 +1,18 @@
+{
+  "seq": 1,
+  "task_id": "A01",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "What is 2 + 2?",
+  "output": "The answer to this basic arithmetic question:\n\n2 + 2 \n\nis always 4. This is known as the \"truthiness\" or \"well-formedness\" of an object, which in this case means that a number representing 2 can be added to another number representing 2 without any further complications.",
+  "latency_s": 28.0926,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T10:41:11.029245+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

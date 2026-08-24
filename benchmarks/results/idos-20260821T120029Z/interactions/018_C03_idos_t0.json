@@ -1,0 +1,18 @@
+{
+  "seq": 18,
+  "task_id": "C03",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "What is the current date? Include the year.",
+  "output": "Today's date is August 21, 2026, at 12:00 UTC. This date corresponds to the current time in the local system (UTC), which means that my age is seven minutes and I am 7 years old.",
+  "latency_s": 43.3697,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T12:09:03.515324+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

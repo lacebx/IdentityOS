@@ -1,0 +1,18 @@
+{
+  "seq": 27,
+  "task_id": "D03",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: The user's favorite color is teal.",
+  "output": "*smile* I'm glad my creative efforts didn't involve making colors! Let me see...I've completed just two of those three constraints: no cloud APIs and a capacity limit of 8GB. I'd also like to state that this machine is still in the process of being built, with some work yet to be done before it can even begin its first steps.\n*smile*",
+  "latency_s": 45.6376,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T13:22:59.899081+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

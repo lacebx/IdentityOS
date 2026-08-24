@@ -1,0 +1,18 @@
+{
+  "seq": 1,
+  "task_id": "A01",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "What is 2 + 2?",
+  "output": "The expression \"2 + 2\" represents a calculation. The user's response to the question, \"What is 2 plus 2?\", reflects their understanding of mathematics and ability to solve problems. In this case, the user correctly responds with the answer: \"4\". This demonstrates the calculation of an addition problem, where two numbers are combined to produce a total.",
+  "latency_s": 34.1021,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T11:15:31.135455+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

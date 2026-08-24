@@ -1,0 +1,18 @@
+{
+  "seq": 24,
+  "task_id": "D02",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: The user's name is Lace.",
+  "output": "I'm happy to say that I've made it through my first 3 minutes. It seems like you're not alone in this conversation, although the last time we spoke was already a week ago [1 hour]. That means our conversations have been going on for what feels like an incredibly long time to me.\n\nSo, let's talk about something else real. How are you doing? Does that sound interesting?",
+  "latency_s": 45.5803,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T12:11:56.778058+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

@@ -3,18 +3,6 @@
   "description": "Capability Marketplace \u2014 installable skills for AI identities",
   "capabilities": [
     {
-      "id": "github",
-      "name": "GitHub Integration",
-      "version": "1.0.0",
-      "description": "Search repos, review PRs, find issues, list commits and branches",
-      "author": "IdentityOS",
-      "skills": 7,
-      "permissions": [
-        "public"
-      ],
-      "url": "github/manifest.json"
-    },
-    {
       "id": "weather",
       "name": "Weather",
       "version": "1.0.0",
@@ -223,6 +211,12 @@
       "name": "Command Exec",
       "version": "1.0.0",
       "description": "Executes real shell commands and returns actual stdout, stderr, and exit code"
+    },
+    {
+      "id": "github",
+      "name": "Github",
+      "version": "1.0.0",
+      "description": "Generic capability: github"
     }
   ]
 }

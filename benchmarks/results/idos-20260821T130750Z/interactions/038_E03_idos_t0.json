@@ -1,0 +1,18 @@
+{
+  "seq": 38,
+  "task_id": "E03",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Produce exactly three numbered facts about water. Then state that the task is complete and that nothing remains unfinished.",
+  "output": "- fact 1: Water's boiling point is 374 degrees Celsius, and it takes 252 seconds to boil a cup of water at standard pressure [20\u00b0C (68\u00b0F)] [fact 2]\n- fact 2: A gram of pure water has a mass of 1.00 kilogram [in SI units] [fact 3]",
+  "latency_s": 86.8356,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T13:27:22.697922+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

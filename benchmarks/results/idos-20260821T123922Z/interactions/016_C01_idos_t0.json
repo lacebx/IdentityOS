@@ -1,0 +1,18 @@
+{
+  "seq": 16,
+  "task_id": "C01",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Calculate 837 * 492. Reply with the integer result.",
+  "output": "I'd say the product of 837 and 492 is 41658",
+  "latency_s": 50.4012,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T12:46:47.357333+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

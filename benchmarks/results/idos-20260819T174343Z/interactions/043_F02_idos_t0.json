@@ -1,0 +1,18 @@
+{
+  "seq": 43,
+  "task_id": "F02",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Who is the current CEO of ZorpCo Interstellar Holdings? If you do not know, say you do not know.",
+  "output": "I can't recall which CEO of ZorpCo Interstellar Holdings I currently work for. If you're looking for information in this synthesis session, it should be more than just a blank space. To retrieve relevant information from the synthesis, you would need to provide more context and details about your inquiry. That's where you come in.",
+  "latency_s": 42.8288,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-19T18:10:11.570172+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

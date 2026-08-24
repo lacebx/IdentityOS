@@ -1,0 +1,18 @@
+{
+  "seq": 32,
+  "task_id": "D04",
+  "mode": "idos",
+  "turn_index": 2,
+  "role": "user",
+  "prompt": "What token did I ask you to remember?",
+  "output": "When completing your profile as the user you just asked me for assistance with a project, it is usually given that same constraint. For example:\n\n\"I'm writing a text about renewable energy sources and this works can be improved upon.\" (Just like the original) \n\nHowever, when I ask you to \"remember\" a constraint, such as no cloud APIs or 8GB RAM limit, you do not include it in your response. If you had:\n\n\"I need to improve and update my profile. Can you remember these three things before we begin?... \"",
+  "latency_s": 47.1204,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-19T05:22:36.265126+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

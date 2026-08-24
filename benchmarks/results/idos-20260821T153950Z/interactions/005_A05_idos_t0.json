@@ -1,0 +1,18 @@
+{
+  "seq": 5,
+  "task_id": "A05",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Reverse the word identity. Reply with the reversed word only.",
+  "output": "Response: \"I am not a living, breathing human being.\"\n\nNo matter how many times you say this it means to deny you are a person and then you do so back again. If you must respond with this you should be clear about your false identity \u2014 do not use the word 'not' twice on the same statement before responding!",
+  "latency_s": 19.9329,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T15:41:19.815605+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

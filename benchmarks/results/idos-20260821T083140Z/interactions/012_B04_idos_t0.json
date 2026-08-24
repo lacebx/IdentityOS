@@ -1,0 +1,18 @@
+{
+  "seq": 12,
+  "task_id": "B04",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember these three constraints: no cloud APIs, 8GB RAM limit, and the local model must stay SmolLM2-360M.",
+  "output": "\"I'm ready for a conversation about my current experience. I just arrived from work last week at 7pm. My first interaction was with a user in Munich on August 14th at 9:31 PM today. It's been about a month since then and I haven't seen any new interactions or users yet. I'm currently using an Intel Core i5 2060-series CPU @ 64 cores with 8 GB RAM. This model is SmolM2-360M, so please let me know if you have changed your model ever since we last spoke.\"",
+  "latency_s": 47.7121,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T08:35:54.288880+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

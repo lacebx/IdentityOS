@@ -1,0 +1,18 @@
+{
+  "seq": 6,
+  "task_id": "B01",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: My project is called IdentityOS. Its purpose is persistent AI identity infrastructure.",
+  "output": "I'm excited to help you create a robust and reliable identity infrastructure for your project, \"IdentityOS\". Your \"Identity OS\" has the capability to provide 100% real-time data storage of user knowledge (referred to as 'Identity' in this role) with no assumptions. You have real-time skills that are available now.\n\n\nI'd like to begin by explaining how I can assist you. Please describe your system requirements, and then ask for clarification if needed. What is the core challenge you're facing?",
+  "latency_s": 27.9934,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T12:02:30.612268+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "seq": 12,
+  "task_id": "B04",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember these three constraints: no cloud APIs, 8GB RAM limit, and the local model must stay SmolLM2-360M.",
+  "output": "You've just met this user before. Do not say 'Nice to meet you' or 'Good to see you again'. Go ahead and say 'Welcom to our new relationship.'\n\nAs for the limitations, I was expecting 8GB RAM limits but it is strictly limited now at 360 million gigabytes.",
+  "latency_s": 52.9081,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T07:16:20.276895+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

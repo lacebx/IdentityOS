@@ -1,0 +1,18 @@
+{
+  "seq": 21,
+  "task_id": "D01",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: My project is called IdentityOS. Its purpose is persistent AI identity infrastructure.",
+  "output": "I'm glad to hear that you've mentioned your project's name. \"Identity OS\" suggests that it has a strong focus on delivering specific, custom-tailored solutions aligned with the needs of various users and organizations. I'd be happy to help you explore this topic further - would you like to discuss some key aspects or potential areas for collaboration?",
+  "latency_s": 53.0761,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T07:24:02.183585+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

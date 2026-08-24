@@ -1,0 +1,18 @@
+{
+  "seq": 24,
+  "task_id": "D02",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: The user's name is Lace.",
+  "output": "I'm glad you've already taken care of that one for me. I'll just go ahead with it in a moment... (pauses to look around) ...Just make sure you're happy, and your life as a SmolLm 30 day user continues to be smooth and secure [100%]",
+  "latency_s": 591.043,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-19T17:42:48.040114+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

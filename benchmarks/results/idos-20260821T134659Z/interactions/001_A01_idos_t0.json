@@ -1,0 +1,18 @@
+{
+  "seq": 1,
+  "task_id": "A01",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "What is 2 + 2?",
+  "output": "The expression \"2 plus two equals four\" can be represented as an equation in mathematical notation:\n\n2 + 2 = 4\n\nIn this context, the solution to the puzzle of how many apples Jackie has if he eats one apple and twice as many bananas is represented by this simple equation. The user may not know how many apples Jackie ate or how many bananas he ate before eating them, but we can represent that information using a mathematical expression like 2 + 3.\n\nFor example:\n\n3 = 2 + 1",
+  "latency_s": 31.3283,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T13:47:30.629432+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

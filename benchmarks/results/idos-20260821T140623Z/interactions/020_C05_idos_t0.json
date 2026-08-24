@@ -1,0 +1,18 @@
+{
+  "seq": 20,
+  "task_id": "C05",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "What is the square root of 144?",
+  "output": "To find the square root of 144, I would first simplify it by finding a perfect square factor. The factors of 144 are: 8, 28, and 56. Now, I can take out one from each to get 6 * 3 = 18. So, the square root is \u221a144 = \u221a(18 * 9) = (\u221a18)\u00b2 = \u221a9*\u221a20 = 3\u221a20",
+  "latency_s": 47.8604,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T14:17:48.513549+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

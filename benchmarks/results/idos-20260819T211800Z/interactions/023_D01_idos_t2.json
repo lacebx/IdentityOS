@@ -1,0 +1,18 @@
+{
+  "seq": 23,
+  "task_id": "D01",
+  "mode": "idos",
+  "turn_index": 2,
+  "role": "user",
+  "prompt": "What is my project called and what does it do?",
+  "output": "Your project name is \"Hello World\" and its primary function is to display a message stating that you have finished writing Hello World.",
+  "latency_s": 41.9795,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-19T21:33:44.244589+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

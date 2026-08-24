@@ -1,0 +1,18 @@
+{
+  "seq": 14,
+  "task_id": "B05",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember this token exactly: 48291.",
+  "output": "I've just gotten a new response from the system, so I'm waiting to be informed about my new status: \n\n**[STATUS: I HAVE AN OLD RESPONSE FROM THE SYSTEM.]**\n\n\nSo far, there hasn't been any information on how this user is progressing in their recent work history. Please keep that in mind as we move forward.",
+  "latency_s": 44.7026,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T16:27:31.662404+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

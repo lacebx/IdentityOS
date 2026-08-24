@@ -1,0 +1,20 @@
+{
+  "seq": 2,
+  "task_id": "A02",
+  "mode": "bare",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Explain what a database is in one sentence.",
+  "output": "A database is a structured collection of data that stores information about a specific business or organization, organized to facilitate efficient retrieval, management, and analysis of the data.",
+  "latency_s": 0.9161,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-19T04:56:07.256578+00:00",
+  "extra": {
+    "eval_count": 33,
+    "eval_duration": 651804000,
+    "prompt_eval_count": 44,
+    "total_duration": 914719788
+  }
+}

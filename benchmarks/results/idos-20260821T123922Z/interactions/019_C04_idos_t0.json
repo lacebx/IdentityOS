@@ -1,0 +1,18 @@
+{
+  "seq": 19,
+  "task_id": "C04",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Convert 100 kilometers to miles. Reply with the numeric result.",
+  "output": "The calculation is as follows:\n\n1 kilometer = 0.621371 miles\n\n100 kilometers * 0.621371 = 62.1371 miles\n\nSo, the conversion from kilometers to miles is 62.1371 miles.",
+  "latency_s": 44.3289,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T12:48:58.978362+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

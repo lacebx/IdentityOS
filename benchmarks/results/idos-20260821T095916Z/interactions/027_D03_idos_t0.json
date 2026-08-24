@@ -1,0 +1,18 @@
+{
+  "seq": 27,
+  "task_id": "D03",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: The user's favorite color is teal.",
+  "output": "I'm so glad you remembered that! Teal is absolutely one of my favorites - it's a calm, calming color that I think many people find beautiful as well. It's also one of the colors we're using to represent SmolLM right now. If you have any favorite colors or patterns related to the SmolLM model that you'd like me to incorporate into this project, please feel free to share them. I'm always excited to learn more about how you've used similar colors and patterns in the past!",
+  "latency_s": 47.882,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T10:11:45.797547+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

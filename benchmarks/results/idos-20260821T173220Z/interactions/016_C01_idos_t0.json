@@ -1,0 +1,18 @@
+{
+  "seq": 16,
+  "task_id": "C01",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Calculate 837 * 492. Reply with the integer result.",
+  "output": "8626",
+  "latency_s": 40.7461,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T17:39:03.021688+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

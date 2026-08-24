@@ -1,0 +1,18 @@
+{
+  "seq": 39,
+  "task_id": "E04",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Break this into steps, execute the steps, keep track of progress, and report what remains unfinished: write a 2-sentence summary of what a persistent identity is, then quote the phrase persistent identity exactly once.",
+  "output": "```python\n# Step 1: Establish Context\n# Step 2: Validate Identity Requirements\n# Step 3: Verify Information\n# Step 4: Set Up and Begin the Work\n# ... to be completed...\n\n\n\"persistent identity\" = \"a single, unique digital representation of who you are that persists over time.\"",
+  "latency_s": 45.2484,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-19T21:43:45.500116+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

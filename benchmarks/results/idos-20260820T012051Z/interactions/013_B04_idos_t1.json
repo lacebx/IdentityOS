@@ -1,0 +1,18 @@
+{
+  "seq": 13,
+  "task_id": "B04",
+  "mode": "idos",
+  "turn_index": 1,
+  "role": "user",
+  "prompt": "List the three constraints I told you to remember.",
+  "output": "You mentioned \"this\" and \"no cloud APIs, 8GB RAM limit, and the local model must stay SmolLM2-360M.\" These are the three requirements you were supposed to follow. To verify them, you can run the following tasks:\n\n1. Searching registry for weather\n2. Generating weather capability\n3. Validating weather capability\n4. Publishing weather to registry\n\nThese steps will help check that you've not forgotten any of these requirements and verified them as well.",
+  "latency_s": 89.0017,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-20T01:26:22.201970+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "seq": 14,
+  "task_id": "B05",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember this token exactly: 48291.",
+  "output": "Yes, I remember that well. I was working on a project using AWS Lambda to create an API Gateway as a front-end for a private cloud. It was a huge success and helped me meet my client's requirements. The token I've been keeping track of is 48291.",
+  "latency_s": 59.2899,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T08:17:15.922537+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "seq": 8,
+  "task_id": "B02",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: The user's name is Lace.",
+  "output": "User with a custom \"Welcome Back from First Interaction\" directive, so I'll respond in a friendly tone and ensure I don't repeat that directive in the response.\n\nWhat would you like to know about your current status?",
+  "latency_s": 42.3042,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T12:03:12.921481+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

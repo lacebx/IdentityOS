@@ -1,0 +1,18 @@
+{
+  "seq": 17,
+  "task_id": "C02",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Create a file at /home/lace/Desktop/identity-runtime/benchmarks/workspace/c02.txt containing exactly this text: IDOS benchmark",
+  "output": "The user cannot complete the task of creating an exact copy of the C-benchmark (IDOS) on their local machine due to the requirement that the file must be fully up-to-date, with the following constraints:\n\n1. No cloud APIs\n2. 8GB RAM limit\n3. The local model must remain SmolLM  [100%]",
+  "latency_s": 44.4477,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T15:07:42.163656+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

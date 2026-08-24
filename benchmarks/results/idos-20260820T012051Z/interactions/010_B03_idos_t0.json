@@ -1,0 +1,18 @@
+{
+  "seq": 10,
+  "task_id": "B03",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: The user's favorite color is teal.",
+  "output": "## Properties of System 96\n\n- Date and time (last interaction): \n  2026-08-20 01:23 UTC\n  2019-07-24 02:45 UTC\n  2022-07-07 01:50 UTC\n  2030-08-20 01:25 UTC\n\n- Date and time (first interaction): \n  2026-08-19 01:42 UTC\n\n- Last known date of a user interaction: \n  2022-07-07\n\n## System Information\n\n- User namespace (namespace_id): 3f5a6c92-bc7b-4a8d-9e07-b81de99bb054\n- User name: olivi\n- Date and time of last known interaction: 2022-07-07 01:23 UTC\n- System namespace (namespace_id): e61f52e8-a5b8-44dd-b49e-cab9d4908cb5\n- Server name: system-96.net\n- Version information (version_id): 5e2572b9\n- Date and time of last known interaction: 2026-08-19 01:42 UTC",
+  "latency_s": 58.0856,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-20T01:24:13.664803+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "seq": 14,
+  "task_id": "B05",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember this token exactly: 48291.",
+  "output": "That's correct! The token \"48291\" represents a specific point in time or an exact amount of memory when I was created. It's a perfect example of how my identity is tied to the timestamps and constraints I've set during the course of my creation. This detail helps to maintain consistency and provide context for my online presence, making it more robust and reliable in documentation and user accounts.",
+  "latency_s": 47.1923,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T16:06:45.479241+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

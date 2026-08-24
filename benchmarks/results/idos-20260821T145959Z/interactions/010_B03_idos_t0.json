@@ -1,0 +1,18 @@
+{
+  "seq": 10,
+  "task_id": "B03",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: The user's favorite color is teal.",
+  "output": "\"The user has expressed a fondness for color, specifically their favorite tea blend \u2014 \"teal\" in this case. If you have any questions or need further assistance, please feel free to ask.\"",
+  "latency_s": 42.2766,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T15:03:12.753374+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

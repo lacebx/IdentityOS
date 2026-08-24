@@ -1,0 +1,18 @@
+{
+  "seq": 13,
+  "task_id": "B04",
+  "mode": "idos",
+  "turn_index": 1,
+  "role": "user",
+  "prompt": "List the three constraints I told you to remember.",
+  "output": "You were supposed to remember the following three constraints from your conversation with me:\n\n1. 9 days ago. \nThe current status of this task is running, but only at 86% as of now. This means that the task still has a significant amount of work left before it's completed.",
+  "latency_s": 89.741,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T08:37:24.030163+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

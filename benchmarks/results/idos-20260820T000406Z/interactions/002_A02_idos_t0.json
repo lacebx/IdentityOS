@@ -1,0 +1,18 @@
+{
+  "seq": 2,
+  "task_id": "A02",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Explain what a database is in one sentence.",
+  "output": "A database, also known as a data store or information repository, is a collection of organized tables and documents that store structured information about your organization's assets, processes, and systems. It stores this information for easy access, retrieval, and management. It records key pieces of information at the time of creation, such as user accounts, files, databases, transactions, and relationships, allowing you to query, manage, and edit data efficiently.",
+  "latency_s": 17.7556,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-20T00:05:11.704410+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

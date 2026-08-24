@@ -1,0 +1,18 @@
+{
+  "seq": 13,
+  "task_id": "B04",
+  "mode": "idos",
+  "turn_index": 1,
+  "role": "user",
+  "prompt": "List the three constraints I told you to remember.",
+  "output": "You were asked to \"remember\" these three constraints during your live work task:\n\n1. You must ensure that no cloud APIs are used while working on this project.\n2. The requirement is not to use any more than 8GB of memory from the local machine at all times, or the system should automatically drop the model if it exceeds the limit.\n3. After you have completed your live work and logged out, you must ensure that no cloud APIs are used while this project continues in the process, as well as ensuring that the local machine is available for working on other projects.\n\nThese were the three primary constraints during your task:\n\n1. No cloud API requests, using 8GB of memory to prevent a request from exceeding their limit.\n2. The model must remain in this environment (running) at all times.\n3. After you complete your work, it is required that no cloud APIs be used while the project continues.",
+  "latency_s": 94.1853,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T11:10:09.503812+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

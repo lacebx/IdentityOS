@@ -1,0 +1,18 @@
+{
+  "seq": 13,
+  "task_id": "B04",
+  "mode": "idos",
+  "turn_index": 1,
+  "role": "user",
+  "prompt": "List the three constraints I told you to remember.",
+  "output": "Constraints:\n\n1. You must have at least 8GB of RAM in order for your local model to be valid.\n2. No cloud APIs are required, only the ones provided by this task engine.\n3. The user must remain logged in until they complete their request.",
+  "latency_s": 117.537,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T08:16:16.630422+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

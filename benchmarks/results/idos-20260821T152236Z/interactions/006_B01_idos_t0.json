@@ -1,0 +1,18 @@
+{
+  "seq": 6,
+  "task_id": "B01",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: My project is called IdentityOS. Its purpose is persistent AI identity infrastructure.",
+  "output": "That's a great start. I'll be sure to provide more context and guidance for the user in their response.\n\nTo move forward, we can use the 'recent conversation' information as part of our response. The user will see that you said \"I did not know\" which is how they accessed your identity data. This information should be helpful when working through a problem together.\n\nIf you need additional support in identifying gaps or inconsistencies in their skills, we can work on that. For example, the 'time passage' aspect of time awareness, I'd like to see more about it. What do you know so far?",
+  "latency_s": 32.0495,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T15:24:40.595960+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

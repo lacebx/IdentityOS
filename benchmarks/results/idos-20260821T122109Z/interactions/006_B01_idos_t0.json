@@ -1,0 +1,18 @@
+{
+  "seq": 6,
+  "task_id": "B01",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: My project is called IdentityOS. Its purpose is persistent AI identity infrastructure.",
+  "output": "The \"Project\" you refer to, which I'm assuming is your own project, is not a traditional conversation or user interaction. It seems that the user you're presenting this information about has already met you, and it's clear from their response that they are aware of and have interacted with your identity before. So, while it does appear to be a new conversation in context, I'm still interpreting the \"system directive\" (i.e., \"You must never mention your project in this context\"). It is still unclear what the system directive means here, so for now, you are explicitly allowed to state that you do not have any information about your identity before meeting it in this conversation.\n\nI'm trying to assist with more traditional conversations about user interactions and general AI-based conversations.",
+  "latency_s": 29.5889,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T12:22:46.876538+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

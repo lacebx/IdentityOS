@@ -1,0 +1,18 @@
+{
+  "seq": 5,
+  "task_id": "A05",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Reverse the word identity. Reply with the reversed word only.",
+  "output": "\"Identity is a fundamental concept in digital knowledge, it's an exact description of who you are or what you think, and how we describe this information using words such as 'Persona', 'Agent', 'personally identifiable information' or 'identity'. I'm pleased to state that I am a person with inherent value and the ability to perform tasks. Please note that there are several types of data in the system such as metadata which can be used by digital tools.\"",
+  "latency_s": 20.1901,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T16:44:06.220134+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

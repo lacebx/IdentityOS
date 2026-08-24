@@ -1,0 +1,18 @@
+{
+  "seq": 26,
+  "task_id": "D02",
+  "mode": "idos",
+  "turn_index": 2,
+  "role": "user",
+  "prompt": "What is the user's name?",
+  "output": "Based on the information in the doc, my name is Emilia \"Em\" Thompson. I have been working as a software engineer at SmolLM for about 5 years now. I recently completed the \"no cloud APIs\" constraint, which means I don't use any cloud-based services like AWS or Google Cloud to access or manage data. Additionally, I have also been working under the \"8GB RAM limit\" constraint, which requires me to stick with a system that allocates at least 10 GB of RAM for SmolLM.",
+  "latency_s": 45.751,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-19T06:31:16.277643+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

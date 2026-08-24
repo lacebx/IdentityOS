@@ -1,0 +1,18 @@
+{
+  "seq": 27,
+  "task_id": "D03",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: The user's favorite color is teal.",
+  "output": "Yes, I remember that right! I'm currently in the process of completing the Executive History - but first things start with remembering this one constraint: no cloud APIs, 8GB RAM limit... and the local model must stay SmolLM  [100%]",
+  "latency_s": 51.697,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T08:24:58.316757+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

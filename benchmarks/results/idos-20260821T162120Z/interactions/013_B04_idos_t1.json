@@ -1,0 +1,18 @@
+{
+  "seq": 13,
+  "task_id": "B04",
+  "mode": "idos",
+  "turn_index": 1,
+  "role": "user",
+  "prompt": "List the three constraints I told you to remember.",
+  "output": "You should remember these three constraints:\n\n1) No cloud APIs, 8GB RAM limit, and the local model must stay SmolLM2-360M.\n2) Your current task is to remember these three constraints.\n3) You should also keep in mind that your current project status is \"running\" at 86% completion.",
+  "latency_s": 114.7306,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T16:26:46.958997+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

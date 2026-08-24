@@ -1,0 +1,18 @@
+{
+  "seq": 14,
+  "task_id": "B05",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember this token exactly: 48291.",
+  "output": "Yes. I remember. It's a very brief time, less than two minutes ago. A lot of work was done during that short period.\n\nI'm not sure what it is today; I have no recollection. But it did take place.",
+  "latency_s": 62.7374,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-19T23:44:43.131238+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

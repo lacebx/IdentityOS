@@ -1,0 +1,18 @@
+{
+  "seq": 19,
+  "task_id": "C04",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Convert 100 kilometers to miles. Reply with the numeric result.",
+  "output": "To convert 100 kilometers to miles, we can use the conversion factor for one mile (1609.34 meters). However, since this is a US / Imperial unit or feet based system, I'll be using just kilometers throughout the conversation in this format:\n\n1 kilometer = .6214 miles\n\nThen when you're not sure what system of units you are, and provide that as part of your solution... \n\nFor instance with 100 km conversion to miles, I'd like you to express it as. \n\n100km would be  1.\n100meters would be  0.62 miles \n1000km can also be thought, however not so easily expressed to just one of your own system, which is better practice for more complex calculations when the difference isn't immediately apparent or simple calculation based on 1 system may prove inaccurate and time-consuming in a small scale situation where I have an understanding that you use another.",
+  "latency_s": 53.0373,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-19T05:14:07.983246+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

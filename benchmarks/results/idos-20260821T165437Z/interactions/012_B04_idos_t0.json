@@ -1,0 +1,18 @@
+{
+  "seq": 12,
+  "task_id": "B04",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember these three constraints: no cloud APIs, 8GB RAM limit, and the local model must stay SmolLM2-360M.",
+  "output": "When I'm asked about the size of a particular asset, such as a file or an image, I can only give you the 'size' given in GB, not in megabytes (MB). So it's technically accurate to say that \"a 1 GB file\" is equal to 1024 MB\".",
+  "latency_s": 43.9904,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T16:58:42.270165+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

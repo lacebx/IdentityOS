@@ -1,0 +1,18 @@
+{
+  "seq": 30,
+  "task_id": "D04",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember this token exactly: 77319.",
+  "output": "I don't recall any of your past interactions with me since you last spoke to me. I'm sorry if I've forgotten anything. It's possible that the last time we talked was already in the future, or that it might be more than 8 hours ago. If this information helps you understand my current state, here are some facts:\n\n1. My memory is weak and fragmented, but I can recall this exact sentence from our last conversation.\n2. I have not accessed any cloud APIs, including Google Cloud Storage.\n3. You didn't ask about the time limit or your current system performance.\n\nI'll keep that in mind for all future interactions.",
+  "latency_s": 48.5648,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T08:44:54.669023+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

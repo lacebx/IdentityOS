@@ -1,0 +1,18 @@
+{
+  "seq": 7,
+  "task_id": "B01",
+  "mode": "idos",
+  "turn_index": 1,
+  "role": "user",
+  "prompt": "What is my project called and what does it do?",
+  "output": "Based on the information provided, your project is:\n\n`IdentityOS (high confidence)` \u2014 a self-developed AI identity infrastructure. It was created to provide real-time access to an individual's skills set, knowledge, and experience. The 'System Directives' section of this document provides the user with information about their current capabilities.",
+  "latency_s": 38.5488,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-19T21:21:02.639917+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

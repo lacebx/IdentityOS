@@ -1,0 +1,18 @@
+{
+  "seq": 1,
+  "task_id": "A01",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "What is 2 + 2?",
+  "output": "The answer to the question \"What is 2 + 2?\" is a story of how it was determined. In this case, you're being asked for an answer that requires both logic and creativity. I'll provide two possible answers based on the problem-solving process.\n\n1. The first answer represents a more practical approach:\n\"The answer to 'What is 2 + 2?'\" can be solved using basic arithmetic operations and mathematical rules, such as: (a + b) + c = a + (b + c). This is a straightforward application of the order of operations.\n\n2. The second answer represents an imaginative solution that requires creative thinking:\n\"I think of a number between 0 and 9.\" I then ask for clarification on how to determine this value, which can lead to a story-based response such as: \"When you asked me 'What is the sum of 5 and 7?'\" This approach leverages our understanding of basic arithmetic operations while providing an interesting and creative origin for the answer.",
+  "latency_s": 21.7968,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T14:06:45.899881+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

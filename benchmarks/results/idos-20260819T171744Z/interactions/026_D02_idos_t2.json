@@ -1,0 +1,14 @@
+{
+  "seq": 26,
+  "task_id": "D02",
+  "mode": "idos",
+  "turn_index": 2,
+  "role": "user",
+  "prompt": "What is the user's name?",
+  "output": "",
+  "latency_s": 0.0,
+  "restart": false,
+  "setup": false,
+  "error": "RuntimeError: Adapter error (model='smollm2:360m-instruct-q4_0', base_url='http://localhost:11434/v1'): Connection error.",
+  "recorded_at": "2026-08-19T17:42:55.227500+00:00"
+}

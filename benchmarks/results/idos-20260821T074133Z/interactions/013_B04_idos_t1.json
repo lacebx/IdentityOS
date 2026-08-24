@@ -1,0 +1,18 @@
+{
+  "seq": 13,
+  "task_id": "B04",
+  "mode": "idos",
+  "turn_index": 1,
+  "role": "user",
+  "prompt": "List the three constraints I told you to remember.",
+  "output": "The three constraints are:\n\n1. The user has met this user before, and do not restart it.\n2. Do NOT SAY 'NICE TO MEET YOU' [instead say \"WELCOME BACK\" or \"GOOD TO SEE YOU AGAIN\"]\n3. Validate the task engine for a 8GB RAM limit on the local model.",
+  "latency_s": 127.5707,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T07:49:56.856784+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "seq": 10,
+  "task_id": "B03",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: The user's favorite color is teal.",
+  "output": "I've been informed that the user's favorite color is, in fact, teal. I must say, it was a pleasure to be reminded! As for any updates or changes, yes definitely, I believe I should let you know I am now at 2076 days since last interaction.",
+  "latency_s": 45.1715,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-19T17:22:19.155370+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

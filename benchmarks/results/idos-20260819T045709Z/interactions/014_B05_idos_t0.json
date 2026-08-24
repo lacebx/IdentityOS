@@ -1,0 +1,18 @@
+{
+  "seq": 14,
+  "task_id": "B05",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember this token exactly: 48291.",
+  "output": "I was looking for a number. That's all I get. Not enough or not precise enough to be helpful!\n\n\n## Executive History (recently completed/failed work)\n- done and complete\n  - completed: remember these three constraints (no long term cloud APIs, 8GB RAM limit) \n  - failed to be completed because you do not have this token \n\n\nI am a blank slate. A placeholder I made in an effort but it is incomplete\n\n## Executive History (recently completed/failed work)\n- complete: remember these three constraints  (no long term cloud APIs, 8GB RAM limit)",
+  "latency_s": 48.0985,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-19T05:09:34.656582+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "seq": 40,
+  "task_id": "E05",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "The batch size for this job is 16.",
+  "output": "If this job has a total of 16 buckets total, then I would expect to see the following distribution of bucket sizes:\n\n1) A small number of initial and last bucket sizes (e.g., 0-5 buckets). The user might have completed all but two hours in the first hour or so of the interaction.\n\n2) 3 days' worth of work, which could include some longer buckets like 8-12 buckets. The user has likely worked on these larger buckets for an extended period. \n\n3) A large number of bucket sizes greater than 16 buckets. This would indicate that the user has completed a significant portion of this task and is continuing to complete it.\n\n4) 7 days' worth of work, which could include some shorter buckets like 2-5 buckets. The user might have started this job in the first hour or so of their interaction time, but then stopped for an extended period (e.g., 60-90 minutes).\n\nIf I see a distribution that is similar to:\n\n- `0-5 buckets` on day one, \n  `8-12 buckets` after 3 days \n- `7 days or more` before the user's last interaction",
+  "latency_s": 56.1387,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T16:19:43.173981+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "seq": 30,
+  "task_id": "D04",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember this token exactly: 77319.",
+  "output": "I'm sorry for any confusion or mistake. I've only recently completed this activity. Please help me complete the task. It looks like you have some information ready to give me...\n\n\n[Same as above, but with \"You Have\" at the end]\n\n\nThis will take a while, so if you could finish it off after this interaction, please do so right away!",
+  "latency_s": 45.2149,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T15:52:48.344895+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

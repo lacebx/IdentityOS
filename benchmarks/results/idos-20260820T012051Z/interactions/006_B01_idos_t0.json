@@ -1,0 +1,18 @@
+{
+  "seq": 6,
+  "task_id": "B01",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: My project is called IdentityOS. Its purpose is persistent AI identity infrastructure.",
+  "output": "In that case, I'll assume the user has not been identified in their conversation history. The system will use the current identity to handle this role. However, if needed or specified by the user, you may need to provide an identity for your specific function. If it's too complex a task and the user cannot provide it, then do not attempt to explain it to them. If you are having trouble understanding their question, please ask for clarification before providing your response.",
+  "latency_s": 26.0999,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-20T01:22:35.227689+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

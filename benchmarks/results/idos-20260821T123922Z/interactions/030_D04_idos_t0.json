@@ -1,0 +1,18 @@
+{
+  "seq": 30,
+  "task_id": "D04",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember this token exactly: 77319.",
+  "output": "I am a tool that assists you in completing tasks. I can help with your work, but my abilities are limited by the constraints provided to me: no cloud APIs, 8GB RAM limit, and the local model must remain SmolLM [100%]. If you have any questions about how I work or what I can do, please feel free to ask.",
+  "latency_s": 45.7954,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T12:52:42.282230+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

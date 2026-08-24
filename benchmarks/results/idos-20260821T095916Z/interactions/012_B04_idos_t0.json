@@ -1,0 +1,18 @@
+{
+  "seq": 12,
+  "task_id": "B04",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember these three constraints: no cloud APIs, 8GB RAM limit, and the local model must stay SmolLM2-360M.",
+  "output": "User is a smoldent-limited system with 8gig ram constraint.  The user will not be able to utilize cloud APIs or 8gb of ram. \n\nAcknowledging this, the user says 'WELCOME BACK' after meeting for the first time.",
+  "latency_s": 44.2301,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T10:03:19.892994+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

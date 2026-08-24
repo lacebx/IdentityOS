@@ -1,0 +1,18 @@
+{
+  "seq": 12,
+  "task_id": "B04",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember these three constraints: no cloud APIs, 8GB RAM limit, and the local model must stay SmolLM2-360M.",
+  "output": "I can only handle requests for a time period of less than 1 day and an absolute minimum memory of 8 GB. My capabilities are limited to providing information related to this project until I am able to meet these requirements, which is currently 3 hours away.",
+  "latency_s": 43.4905,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T18:29:53.343050+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

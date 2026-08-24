@@ -1,0 +1,18 @@
+{
+  "seq": 14,
+  "task_id": "B05",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember this token exactly: 48291.",
+  "output": "The last time I made a call to the API was 3 hours ago.\n\n\n## Executive History (recently completed/failed work)\n- completed: Remember these three constraints: no cloud APIs, 8GB RAM limit, and the local model must stay SmolLM [100%]",
+  "latency_s": 42.606,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-20T01:27:04.808944+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

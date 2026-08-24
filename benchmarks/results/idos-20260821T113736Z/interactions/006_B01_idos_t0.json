@@ -1,0 +1,18 @@
+{
+  "seq": 6,
+  "task_id": "B01",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: My project is called IdentityOS. Its purpose is persistent AI identity infrastructure.",
+  "output": "The name of the project, \"IdentityOS,\" hints at its goal to facilitate trust-based identification and self-service identity for end users. It emphasizes the importance of a person's identity and autonomy when it comes to accessing services and data. What are your goals for this project? Do you have any ideas about how your project could be used or improved, such as with regard to functionality, user experience, or security?",
+  "latency_s": 24.7411,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T11:39:22.610184+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

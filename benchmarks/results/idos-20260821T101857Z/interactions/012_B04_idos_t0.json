@@ -1,0 +1,18 @@
+{
+  "seq": 12,
+  "task_id": "B04",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember these three constraints: no cloud APIs, 8GB RAM limit, and the local model must stay SmolLM2-360M.",
+  "output": "I've checked my system configuration; I have 8 GB of RAM and it's set to use only that amount for this project. As for no cloud APIs, I'm not currently using any, so there are no limitations on that. And yes, the local model is still SmolLM2-360M, which represents me at my current performance level.",
+  "latency_s": 75.2215,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T10:24:04.631779+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

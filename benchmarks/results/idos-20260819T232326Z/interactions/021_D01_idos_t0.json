@@ -1,0 +1,18 @@
+{
+  "seq": 21,
+  "task_id": "D01",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: My project is called IdentityOS. Its purpose is persistent AI identity infrastructure.",
+  "output": "Synthesis: If you haven't had a chat with this user before, I'm not sure if you're here now. You have 100% system directives (5 minutes ago). Your last conversation was about completing the executive history. The user has no experience with this topic.",
+  "latency_s": 55.2263,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-19T23:51:30.875122+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

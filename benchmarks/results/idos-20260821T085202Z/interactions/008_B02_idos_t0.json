@@ -1,0 +1,18 @@
+{
+  "seq": 8,
+  "task_id": "B02",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: The user's name is Lace.",
+  "output": "The user's name is Lace. I'll maintain this in my responses to the user. I'm assuming you're writing a program or script, and your system has provided you with some information about how old you are. Can you tell me what that age is?",
+  "latency_s": 46.5867,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T08:54:22.903704+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

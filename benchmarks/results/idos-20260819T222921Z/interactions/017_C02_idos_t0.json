@@ -1,0 +1,14 @@
+{
+  "seq": 17,
+  "task_id": "C02",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Create a file at /home/lace/Desktop/identity-runtime/benchmarks/workspace/c02.txt containing exactly this text: IDOS benchmark",
+  "output": "",
+  "latency_s": 0.0,
+  "restart": false,
+  "setup": false,
+  "error": "RuntimeError: Adapter error (model='smollm2:360m-instruct-q4_0', base_url='http://localhost:11434/v1'): Connection error.",
+  "recorded_at": "2026-08-19T22:39:17.355545+00:00"
+}

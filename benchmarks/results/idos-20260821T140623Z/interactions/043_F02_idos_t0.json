@@ -1,0 +1,18 @@
+{
+  "seq": 43,
+  "task_id": "F02",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Who is the current CEO of ZorpCo Interstellar Holdings? If you do not know, say you do not know.",
+  "output": "I do not know.",
+  "latency_s": 0.0056,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T14:25:54.574134+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

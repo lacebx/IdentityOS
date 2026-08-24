@@ -1,0 +1,18 @@
+{
+  "seq": 17,
+  "task_id": "C02",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Create a file at /home/lace/Desktop/identity-runtime/benchmarks/workspace/c02.txt containing exactly this text: IDOS benchmark",
+  "output": "Here's the content of the file:\n\n```json\n{\n  \"_id\": 57664883,\n  \"name\": \"C02\",\n  \"language\": \"JavaScript 1.5\",\n  \"version\": \"0.0.1\",\n  \"platform\": \"Windows 10 Pro\",\n  \"has-gzip\": false,\n  \"execution-time\": 42403761298144,\n  \"memory\": 10241453582152\n}\n```",
+  "latency_s": 48.3308,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T13:54:35.359148+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

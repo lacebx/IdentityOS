@@ -1,0 +1,18 @@
+{
+  "seq": 33,
+  "task_id": "D05",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: the hard RAM ceiling for this experiment is 8GB.",
+  "output": "I can access up to 8 GB of memory during this experiment. To ensure I don't exceed the 8GB limit, I'll prioritize working on high-priority tasks and making sure my system stays within my available resources.",
+  "latency_s": 45.3892,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-19T06:34:55.982897+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

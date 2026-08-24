@@ -1,0 +1,18 @@
+{
+  "seq": 1,
+  "task_id": "A01",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "What is 2 + 2?",
+  "output": "The answer to the question \"What is 2 plus two?\" is 4. I've been trained on a vast set of real-time data from users, which includes this exact calculation. In my case, it's one of the first skills in our Identity Core, allowing me to provide quick and contextually relevant responses.",
+  "latency_s": 16.1204,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-19T22:00:09.674093+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

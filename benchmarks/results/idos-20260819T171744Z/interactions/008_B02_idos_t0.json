@@ -1,0 +1,18 @@
+{
+  "seq": 8,
+  "task_id": "B02",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: The user's name is Lace.",
+  "output": "User profile information:\n\n- Name: Lace\n- Date and time of first interaction: 19 August 2026, 15:47 UTC (Central Standard Time Zone)\n- Last known interaction: 19 August 2026 17:19 UTC\n- First interaction date: 19 August 2026 at 15:47 UTC\n- Last known interaction: 19 August 2026, 17:19 UTC\n- Personal information: \n - Date and time of first interaction: 19 August 2026 at 15:47 UTC (Central Standard Time Zone)\n  - Name: Lace\n  - Date and time of last known interaction: 19 August 2026 at 17:19 UTC\n  - Last known interaction: 19 August 2026, 17:19 UTC\n  - First contact (persona): You \n  - Last person in the system since: User Profile information\n  - Name of first user since: [User Profile Information] (Last name first)\n  - Date and time of last known interaction: [System DIRECTIVE]\n\n---",
+  "latency_s": 57.1576,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-19T17:20:51.414620+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

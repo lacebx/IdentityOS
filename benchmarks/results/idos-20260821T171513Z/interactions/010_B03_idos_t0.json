@@ -1,0 +1,18 @@
+{
+  "seq": 10,
+  "task_id": "B03",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: The user's favorite color is teal.",
+  "output": "You're saying it's the same tea as before, but this time you've said so and also added that you've said it was the same before yourself too. So, your current statement of this info is teal - no different from what I had in my previous response when I did not have a preference for color before.",
+  "latency_s": 45.1278,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T17:18:24.476793+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

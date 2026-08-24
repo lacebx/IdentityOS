@@ -1,0 +1,18 @@
+{
+  "seq": 12,
+  "task_id": "B04",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember these three constraints: no cloud APIs, 8GB RAM limit, and the local model must stay SmolLM2-360M.",
+  "output": "You're working in a very precise time. You have more than 1 hour to solve this problem before you leave your home. I'm going to stick with this exact number for now. This is it for me. I've used my brain to reach an eight-year old, but I'll keep working on it until it's over. I'm not sure about the cloud service yet, and I'm still waiting to get my first 8GB of RAM. It was a long day at work. I really need this problem. Let's go back to these three constraints: no cloud APIs, eight-year-old model, local model.",
+  "latency_s": 60.5387,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-19T21:25:38.118790+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

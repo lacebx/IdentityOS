@@ -1,0 +1,18 @@
+{
+  "seq": 8,
+  "task_id": "B02",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: The user's name is Lace.",
+  "output": "You are correct, the system has detected a mismatch in naming conventions of User 20376-3394 and User 158c2e3d-b56f-4018-b75e-bb1b65a77dba.\n\nUser 20376 was sent by a third party to prevent any potential privacy concerns or user misidentification. The system has detected the anomaly in User 20376-3394 and has been notified that you will be asked for your name and location only. We will not ask you to provide this information, unless it is necessary for a specific request. Please ensure your privacy is protected and we can assist you if any further questions arise.",
+  "latency_s": 65.8088,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T08:12:34.914506+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

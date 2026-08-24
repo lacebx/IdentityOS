@@ -1,0 +1,18 @@
+{
+  "seq": 2,
+  "task_id": "A02",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Explain what a database is in one sentence.",
+  "output": "In one sentence, a **database** is a collection of organized and structured data sets that store information such as customer names, email addresses, phone numbers, orders, and more to allow for quick retrieval and easy access using specific commands like \"search\" or \"sort.\" A database can also be thought of as a virtual repository where the system stores and manages user-provided information.",
+  "latency_s": 12.5356,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-19T17:44:23.586038+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

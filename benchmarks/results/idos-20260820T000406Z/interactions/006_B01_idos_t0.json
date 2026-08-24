@@ -1,0 +1,18 @@
+{
+  "seq": 6,
+  "task_id": "B01",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: My project is called IdentityOS. Its purpose is persistent AI identity infrastructure.",
+  "output": "That's an interesting and important concept. It sounds like your project, IdentityOS, is built on the idea of a constantly evolving, self-referencing, and immutable identity system that allows users to define themselves over time.\n\nIn the context of this conversation, I'm assuming you're the first user to interact with the system or ask for information about it. If so, I would say \"Hello\" or \"Welcome back.\"",
+  "latency_s": 33.2794,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-20T00:06:42.591811+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

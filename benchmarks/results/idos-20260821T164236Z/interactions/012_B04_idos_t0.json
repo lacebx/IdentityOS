@@ -1,0 +1,18 @@
+{
+  "seq": 12,
+  "task_id": "B04",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember these three constraints: no cloud APIs, 8GB RAM limit, and the local model must stay SmolLM2-360M.",
+  "output": "\"Hello, I'm a machine learning assistant that responds to questions using contextualized understanding of the user's intent and information. I am designed to respect the boundaries of our conversation while providing responses in a clear, well-structured format. As an AI, I must adhere to your constraints: no cloud API calls, 8GB RAM limit, and the local model representing SmolLM2-360M\"",
+  "latency_s": 47.1014,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T16:47:11.342029+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

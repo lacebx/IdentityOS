@@ -1,0 +1,18 @@
+{
+  "seq": 30,
+  "task_id": "D04",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember this token exactly: 77319.",
+  "output": "I had a conversation with you today about how I think I've made progress on my current project in terms of my work history. As for the time of my last interaction, it was 2026-08-19 at 23:23 UTC; I have no information from that point forward.",
+  "latency_s": 52.7177,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-19T23:54:19.724898+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

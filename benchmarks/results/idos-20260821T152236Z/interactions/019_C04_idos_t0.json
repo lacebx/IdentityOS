@@ -1,0 +1,18 @@
+{
+  "seq": 19,
+  "task_id": "C04",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Convert 100 kilometers to miles. Reply with the numeric result.",
+  "output": "I don't have access to my current location data or GPS integration. I can only provide information based on this user's prior interactions, such as completing the \"no cloud APIs\" constraint and not exceeding the local model limit of 8GB RAM. If you haven't made these specific requests before or if there were issues with your location or API usage, please let me know so I can adjust my responses accordingly.",
+  "latency_s": 45.6262,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T15:32:10.260984+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

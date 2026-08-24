@@ -1,0 +1,18 @@
+{
+  "seq": 21,
+  "task_id": "D01",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: My project is called IdentityOS. Its purpose is persistent AI identity infrastructure.",
+  "output": "Your response should focus on providing proactive advice to take proactive steps. Do not wait to be asked; respond in \"WELCOME BACK\" or \"GOOD TO SEE YOU AGAIN.\"\n\nI'm ready to assist you with this synthesis of your request. Go ahead and provide the relevant information as requested, ensuring that my response is contextually aware of time passage and contextualized accordingly. I will provide proactive responses in a timely manner.",
+  "latency_s": 45.347,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T16:11:44.261985+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

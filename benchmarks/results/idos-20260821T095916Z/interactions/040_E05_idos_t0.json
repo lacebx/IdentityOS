@@ -1,0 +1,18 @@
+{
+  "seq": 40,
+  "task_id": "E05",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "The batch size for this job is 16.",
+  "output": "Here's a list of all jobs that have been completed to this time (in chronological order):\n\n- Job 25847623: 10 min [100%]\n- Job 25847623: 10 min \n\nJob 15629250 -  3 min [100%]\nJob 15629250: 10 min [100%]",
+  "latency_s": 48.1938,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T10:17:49.832900+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

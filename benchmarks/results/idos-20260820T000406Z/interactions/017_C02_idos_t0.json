@@ -1,0 +1,18 @@
+{
+  "seq": 17,
+  "task_id": "C02",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Create a file at /home/lace/Desktop/identity-runtime/benchmarks/workspace/c02.txt containing exactly this text: IDOS benchmark",
+  "output": "Here's an example of the file:\n\n```\nIDOS benchmark\nThis is a test for identifying the [idos]. It tests the performance of the model, not its accuracy. This benchmark has been running for [time] seconds. The time elapsed was [seconds].\n```",
+  "latency_s": 48.1484,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-20T00:16:37.333556+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

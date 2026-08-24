@@ -1,0 +1,18 @@
+{
+  "seq": 6,
+  "task_id": "B01",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: My project is called IdentityOS. Its purpose is persistent AI identity infrastructure.",
+  "output": "No need for that. Your use case is for a custom, non-persistent AI identity system. It has limited capabilities and can only be used in specific contexts. I'm an AI assistant designed to support users across multiple projects and applications. I am not suited for your project. Please provide more context or details about what you're using it for.",
+  "latency_s": 24.3472,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-20T10:03:41.102407+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

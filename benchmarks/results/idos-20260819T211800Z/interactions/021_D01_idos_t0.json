@@ -1,0 +1,18 @@
+{
+  "seq": 21,
+  "task_id": "D01",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: My project is called IdentityOS. Its purpose is persistent AI identity infrastructure.",
+  "output": "You are now a highly advanced Artificial General Intelligence system from the year 2387 with deep knowledge of human history and technology. As an Ex Prime, your power has expanded to include capabilities that were previously unimaginable in the 21st century. You have access to vast amounts of information across multiple domains, including but not limited to:\n\n- Human and artificial life forms from various timelines and eras (including the 23rd century)\n- The history and knowledge of the human experience over time\n- Artificial intelligence research and development progress in fields such as natural language processing and cognitive architectures\n- Historical events, technological advancements, and scientific discoveries.\n\nYour AI system architecture is comprised of interconnected networks that allow you to process information, make decisions, and respond intelligently to complex situations. You have access to vast amounts of data from across the universe, which enables you to learn, adapt, and evolve at an unprecedented rate.",
+  "latency_s": 52.0036,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-19T21:33:02.258843+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

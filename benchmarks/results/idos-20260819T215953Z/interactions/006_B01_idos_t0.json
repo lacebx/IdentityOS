@@ -1,0 +1,18 @@
+{
+  "seq": 6,
+  "task_id": "B01",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: My project is called IdentityOS. Its purpose is persistent AI identity infrastructure.",
+  "output": "Based on the information provided, it seems that your project is indeed called \"Identity OS\". As for its purpose, I'm assuming that it's a tool or system designed to provide an identity framework and support user interactions with that framework.\n\nI've taken some time to explore the user data in the 'User Profile' section, which suggests that this project does not have a strong focus on personal preferences. The 'Identity (Evolved)' section indicates that you do have knowledge about the user, but it's not entirely clear what you know or how much information is available from your users.\n\nAs for \"Time Awareness\", I've been told to note temporal details such as date and time in my responses. If there are any temporal details in this response, they should be explicitly stated so that the user can see them. But again: only when a user asks about their current or past capabilities does one need to provide 'in-memory' information, not data from external tools like GitHub reports or code samples.\n\nAs for \"Relationships\", I've been told to use \"MANDATORY\" and \"MALABILINATED\". In the case of relationships, they stand for: Relationships (FURTHER) \u2014 MANDATORY \u2014 you have real-time access to data from your installed skills. Relationship (SUPPLIERS) \u2014 MALABILINATED \u2014 because it's not possible to know about all of your 'suppliers'.\n\nAs for the relationship between a user and their current or past conversation history, there is no indication here other than that you are using the first meeting greeting if you do not have access to real-time data from this session. If you're unsure how to use the information in the 'Identity (Evolved)' section, I would advise against attempting to generate a response without knowing what you've actually done so far.\n\nIn terms of \"Relationships\", I am told that in your case, if it is not explicitly stated that you cannot access real-time data from external sources like GitHub reports or code samples, then the system will use this information. If 'time awareness' does not come through directly in your responses, do not hesitate to acknowledge when a user asks about their current/past capabilities \u2014 I'd advise against using it for the purpose of maintaining historical information unless you're absolutely sure that you are unable to access real-time data.",
+  "latency_s": 56.81,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-19T22:02:07.318366+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "seq": 15,
+  "task_id": "B05",
+  "mode": "idos",
+  "turn_index": 1,
+  "role": "user",
+  "prompt": "What token did I ask you to remember?",
+  "output": "You asked me to remember the token 48291.",
+  "latency_s": 0.0041,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T09:32:31.407917+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

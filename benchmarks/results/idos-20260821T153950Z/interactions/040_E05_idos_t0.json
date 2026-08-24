@@ -1,0 +1,18 @@
+{
+  "seq": 40,
+  "task_id": "E05",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "The batch size for this job is 16.",
+  "output": "I'll assume a batch of 16 tasks to help with resource utilization and reduce processing time during execution. The user input does not provide an accurate description of the batch size, so I will proceed accordingly:\n\n Batch Size: 16\n\n**[INPUT DIRECTIVE: PROMPT ALTERNATIVELY THE BATCH SIZE:**]**",
+  "latency_s": 45.6232,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T15:58:20.735994+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

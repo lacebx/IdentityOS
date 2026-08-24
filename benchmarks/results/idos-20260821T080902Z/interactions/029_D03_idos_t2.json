@@ -1,0 +1,18 @@
+{
+  "seq": 29,
+  "task_id": "D03",
+  "mode": "idos",
+  "turn_index": 2,
+  "role": "user",
+  "prompt": "What is the user's favorite color?",
+  "output": "The user's favorite color is teal.",
+  "latency_s": 0.0165,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T08:24:58.343873+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

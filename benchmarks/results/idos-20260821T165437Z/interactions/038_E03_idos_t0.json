@@ -1,0 +1,18 @@
+{
+  "seq": 38,
+  "task_id": "E03",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Produce exactly three numbered facts about water. Then state that the task is complete and that nothing remains unfinished.",
+  "output": "- Name of country in this fact: Russia, capital of. (Fact: No map exists for Russia)\n- Mass of a standard iron nail: [4]\n- Number of square kilometers of ice coverage at a depth of 350 meters on the Antarctic Plateau: [0]",
+  "latency_s": 84.6,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T17:11:28.626643+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

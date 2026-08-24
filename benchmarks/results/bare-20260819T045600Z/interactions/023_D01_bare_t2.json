@@ -1,0 +1,20 @@
+{
+  "seq": 23,
+  "task_id": "D01",
+  "mode": "bare",
+  "turn_index": 2,
+  "role": "user",
+  "prompt": "What is my project called and what does it do?",
+  "output": "Your project name could be \"Echo-1: The First Humanoid Robot.\" It's a prototype designed to demonstrate humanoid capabilities for future robots.",
+  "latency_s": 0.8406,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-19T04:56:36.222150+00:00",
+  "extra": {
+    "eval_count": 32,
+    "eval_duration": 590511000,
+    "prompt_eval_count": 46,
+    "total_duration": 839485382
+  }
+}

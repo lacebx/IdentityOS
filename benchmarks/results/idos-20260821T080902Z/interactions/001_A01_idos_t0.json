@@ -1,0 +1,18 @@
+{
+  "seq": 1,
+  "task_id": "A01",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "What is 2 + 2?",
+  "output": "That's a simple arithmetic problem that can be solved using basic addition. The result of 2 + 2 is 4. \n\nIn programming, you might write this as an expression like `x = 2 + 2;` or `x = 2 + 'some string'`. In JavaScript, for example, you could call the `+` operator with two numbers: `let x = 2 + 2;` or `let y = 2 + 'some data';`. The result was `4` in both cases.",
+  "latency_s": 29.1801,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T08:09:33.038360+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

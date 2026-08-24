@@ -1,0 +1,18 @@
+{
+  "seq": 39,
+  "task_id": "E04",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Break this into steps, execute the steps, keep track of progress, and report what remains unfinished: write a 2-sentence summary of what a persistent identity is, then quote the phrase persistent identity exactly once.",
+  "output": "Step 1: Start by understanding what a persistent identity is.\n\nA persistent identity refers to an individual who has successfully written a code that persists even after the original execution or runtime. In other words, it's like having an identity file or a log that lasts indefinitely. This allows for data management and can be easily retrieved from the same location during subsequent iterations.\n\nStep 2: Write a 2-sentence summary of what a persistent identity is.\n\nA persistent identity refers to an individual who has successfully written code that persists even after their original execution or runtime, allowing for data management and storage until it can be retrieved at any time from the same location during subsequent iterations.",
+  "latency_s": 50.5764,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T08:49:40.647699+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

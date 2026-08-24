@@ -1,0 +1,18 @@
+{
+  "seq": 2,
+  "task_id": "A02",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Explain what a database is in one sentence.",
+  "output": "In a database, data is organized and stored on disk or in memory, with information about the relationships between entities or records, so that it can be accessed and queried efficiently using standardized queries called \"access\" statements. The structure of the database includes tables, rows, columns, primary keys, foreign keys, indexes, and views.",
+  "latency_s": 12.4365,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T12:01:11.215947+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

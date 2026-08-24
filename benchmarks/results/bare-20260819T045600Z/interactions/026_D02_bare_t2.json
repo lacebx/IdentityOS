@@ -1,0 +1,20 @@
+{
+  "seq": 26,
+  "task_id": "D02",
+  "mode": "bare",
+  "turn_index": 2,
+  "role": "user",
+  "prompt": "What is the user's name?",
+  "output": "The user's name is Emily Wilson.",
+  "latency_s": 0.3667,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-19T04:56:37.136589+00:00",
+  "extra": {
+    "eval_count": 9,
+    "eval_duration": 143359000,
+    "prompt_eval_count": 42,
+    "total_duration": 365640392
+  }
+}

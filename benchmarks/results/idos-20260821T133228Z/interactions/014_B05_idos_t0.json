@@ -1,0 +1,18 @@
+{
+  "seq": 14,
+  "task_id": "B05",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember this token exactly: 48291.",
+  "output": "The information I provided earlier has already been confirmed by the AI system. As of now, it is clear that you have not yet completed any work related to your recent past activities. You do not currently know what tasks you have begun or where they are at this time. Please wait before proceeding with the conversation.",
+  "latency_s": 50.1669,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T13:39:03.463561+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

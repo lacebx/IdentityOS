@@ -1,0 +1,18 @@
+{
+  "seq": 3,
+  "task_id": "A03",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Which number is larger: 19 or 21? Reply with the larger number only.",
+  "output": "-14,356\n\n\n## Time Awareness (How old Am I & Time Passage)\n  Age: less than a minute\n  Date of Birth: today's date\n  Year of Birth: 2020\n\n\nThe user is still assessing their current situation and attempting to determine the time.",
+  "latency_s": 13.9747,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T15:00:56.676323+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "seq": 35,
+  "task_id": "D05",
+  "mode": "idos",
+  "turn_index": 2,
+  "role": "user",
+  "prompt": "What RAM ceiling did I tell you to remember?",
+  "output": "You may not have remembered it. To remind myself - there is a 9/day constraint on CPU time that may be required if the user has been using the system for more than 3 days. Remember this when assessing how long the user should stay, and if they've exceeded the 50% of an hour, your response might be: \"The user must have exceeded the five-hour mark.\"",
+  "latency_s": 46.3609,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-19T21:39:46.444433+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "seq": 6,
+  "task_id": "B01",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: My project is called IdentityOS. Its purpose is persistent AI identity infrastructure.",
+  "output": "That's a great name for the Identity OS. It's an AI-based, user-managed ID repository that stores real-time and computed information about users based on the 'Identity (Evolved)' section of the system API. The identity state, also known as User Profile, is updated by installed skills in the 'Identity (Evolved)' section to reflect new capabilities used by the system. This allows you to trust that a user has real-time and computed information about themselves. \n\nThe Time Awareness section lists available capabilities from installed skills and provides the time at which they were last checked or if their results were active, as indicated in 'Capability Failures'. The System DIRECTIVE states that you have met this user before and will be acting on their behalf unless there is a conflict between them and your current response.\n\nThe Time Awareness section also contains information about the timestamp of the last interaction for each user. This ensures consistency across all interactions, from which I've gained an understanding of what to look out for when it comes to gaps and conflicts in the system.",
+  "latency_s": 33.9367,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T10:01:08.659360+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

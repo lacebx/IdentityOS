@@ -1,0 +1,18 @@
+{
+  "seq": 40,
+  "task_id": "E05",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "The batch size for this job is 16.",
+  "output": "This indicates that this batch has been processed but will be started when new data becomes available on a consistent basis of 16 batches so far and not more than the current batch length set here (which in total is 16 - 8 = 8). We also have an API at [URL] for processing.",
+  "latency_s": 43.7584,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-19T05:28:37.964809+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "seq": 18,
+  "task_id": "C03",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "What is the current date? Include the year.",
+  "output": "I'm having trouble finding a reliable way to get the current date, such as using an API or a simple method like `datetime.today()` which only returns the current day and month, not the entire century. I'm working with Python 3.8, so it may be difficult to get an accurate date string in that version of Python.\n\n\nIf you know what kind of information I need from you for this problem, such as if you think a user's last interaction can help determine their current age or some other relevant attribute, then the answer could be different. For now though, I'm not sure how to get the date using an API.",
+  "latency_s": 49.1621,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T17:40:37.661613+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

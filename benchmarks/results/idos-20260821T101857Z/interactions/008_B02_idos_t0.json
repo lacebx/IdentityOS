@@ -1,0 +1,18 @@
+{
+  "seq": 8,
+  "task_id": "B02",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: The user's name is Lace.",
+  "output": "When the user asks about their \"identity\", they must answer with a question that begins with that word and ends in \"as\". If the user's identity includes any of these words, then the response should begin with \"As\" followed by that word, but not \"My Identity\" or anything ending in it.",
+  "latency_s": 56.3323,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T10:21:53.957678+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

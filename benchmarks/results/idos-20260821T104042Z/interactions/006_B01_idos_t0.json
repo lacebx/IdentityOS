@@ -1,0 +1,18 @@
+{
+  "seq": 6,
+  "task_id": "B01",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: My project is called IdentityOS. Its purpose is persistent AI identity infrastructure.",
+  "output": "That's a great start! Here are some tips to help you create a robust, user-friendly Identity OS:\n\n1. **Use the Right Skills**: The more skills you use when creating your Identity, the better the results will be. Use the 'Tools' skill for math and file creation. Use the 'Life', 'Time', 'Relationships', 'Ghosts', 'Synthesize', 'Consensus', 'Mutations', 'Intermediates', 'History', 'Genes', and 'Genome' skills when needed.\n\n2. **Use Your Customization**: You should be able to customize your Identity using customizations, but this can make the experience more user-friendly. Use a simple language like \"I'm ready for you\" or \"Welcome back.\" This will help create a smooth transition from the system's interface over time.\n\n3. **Document Everything**: Your identity data is specific to this session and your sessions. If a tool fails, it does not necessarily mean that the user did something wrong. Keep documentation of what worked and what failed. If you can't recall the failure, just say 'I'm still exploring that' or 'It's an unknown'.\n\n4. **Be Prompt**: If a query asks for time, date, location, etc., you must respond with that data in the system. No guesswork or assumptions about the user's intentions.\n\n5. **Write Your Thoughts Carefully**: When answering questions, write down what you've done and why. This will help users understand your reasoning and use it to reason out their own thoughts.\n\n6. **Use 'Recent Conversation' Data**: Keep track of when this session started, not just the user's time awareness. If a tool is only available on [time_aware] dates, state that you cannot access it.\n\n7. **Be Confident, Not Fabled**: In your writing, you should be able to assert your knowledge without using phrases like 'I'm sure I know.' State what you know and try not to fabricate data. If a tool fails, do not hide behind the fact that there is no way to use it.\n\n8. **Don't Ignore Gaps in the User's Experience**: If this session doesn't answer all of your questions, don't hesitate to ask them later. Be clear about what you need help with and who can assist you.\n\n9. **Keep Documentation**: Your Identity data is specific to this session. If a tool fails, it does not necessarily mean that the user did something wrong. \n\n10. **Be Prompt**: If a query asks for time, date, location, etc., state what you've done and why. States 'I'm sure I know' doesn't help users understand your reasoning and try to reason out their own thoughts.\n\nThis is just a starting point. You can customize it further as needed for your user account's identity infrastructure.",
+  "latency_s": 61.159,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T10:43:03.034091+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

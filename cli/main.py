@@ -125,6 +125,178 @@ def _render_output(text: str) -> str:
     return "".join(rendered)
 
 
+# ---------------------------------------------------------------------------
+# In-chat command dispatcher (used by tests/test_chat_commands.py)
+# ---------------------------------------------------------------------------
+from dataclasses import dataclass
+from typing import Any, Optional
+
+
+@dataclass
+class ChatContext:
+    runtime: Any
+    manager: Any
+    storage: Any
+    identity_id: str
+    session_id: str
+    turns: int = 0
+
+
+def _set_adapter_model(adapter: Any, model: str) -> None:
+    """Set `adapter.model`, including ChainAdapter leaf adapters."""
+    # ChainAdapter stores children in a private `_adapters` list.
+    if hasattr(adapter, "_adapters"):
+        try:
+            for leaf in adapter._adapters:  # type: ignore[attr-defined]
+                _set_adapter_model(leaf, model)
+        except Exception:
+            pass
+        try:
+            adapter.model = model
+        except Exception:
+            pass
+        return
+
+    if hasattr(adapter, "model"):
+        adapter.model = model
+
+
+def _set_adapter_temperature(adapter: Any, temperature: float) -> None:
+    """Set `adapter.temperature`, including ChainAdapter leaf adapters."""
+    if hasattr(adapter, "_adapters"):
+        try:
+            for leaf in adapter._adapters:  # type: ignore[attr-defined]
+                _set_adapter_temperature(leaf, temperature)
+        except Exception:
+            pass
+        try:
+            adapter.temperature = temperature
+        except Exception:
+            pass
+        return
+
+    if hasattr(adapter, "temperature"):
+        adapter.temperature = temperature
+
+
+def _dispatch_chat_command(text: str, ctx: ChatContext) -> Optional[str]:
+    """Dispatch a single in-chat slash command.
+
+    Returns:
+      - "handled" when the command is recognized
+      - "exit" when the caller should terminate
+      - None when `text` is not a command
+    """
+    if text is None:
+        return None
+    raw = text.strip()
+    if not raw:
+        return None
+
+    # Exit commands
+    if raw in ("/exit", "/quit"):
+        return "exit"
+
+    # Only commands starting with "/" are handled here.
+    if not (raw.startswith("/") or raw.startswith(":")):
+        return None
+
+    # Runtime-unavailable guard: only allow help/status/exit.
+    if ctx.runtime is None and raw not in ("/help", "/status", "/exit", "/quit"):
+        print("Runtime unavailable.")
+        return "handled"
+
+    # Help + menu
+    if raw in ("/", "/help"):
+        print(
+            "Chat commands:\n"
+            "  /model [model]          switch model\n"
+            "  /temperature <float>    set temperature\n"
+            "  /status                  show adapter + session\n"
+            "  /clear                   reset session\n"
+            "  /snapshot | :snapshot    save identity snapshot\n"
+            "  /history                  list snapshots\n"
+            "  /exit | /quit            exit\n"
+        )
+        return "handled"
+
+    # Status
+    if raw == "/status":
+        if ctx.runtime is None:
+            print("Runtime unavailable.")
+            return "handled"
+        adapter = getattr(ctx.runtime, "adapter", None)
+        model = getattr(adapter, "model", "unknown")
+        adapter_type = type(adapter).__name__ if adapter is not None else "Adapter"
+        print(f"{adapter_type}({model})")
+        print(f"session_id: {ctx.session_id}")
+        return "handled"
+
+    # Model switching
+    if raw.startswith("/model"):
+        parts = raw.split(maxsplit=1)
+        adapter = getattr(ctx.runtime, "adapter", None)
+        if len(parts) == 1:
+            print(getattr(adapter, "model", "unknown"))
+            return "handled"
+        new_model = parts[1].strip()
+        _set_adapter_model(adapter, new_model)
+        print("Model switched.")
+        return "handled"
+
+    # Temperature switching
+    if raw.startswith("/temperature"):
+        parts = raw.split(maxsplit=1)
+        if len(parts) == 1:
+            return "handled"
+        try:
+            new_temp = float(parts[1].strip())
+        except ValueError:
+            return "handled"
+        # Keep a conservative range to avoid crazy sampling.
+        if 0.0 <= new_temp <= 5.0:
+            _set_adapter_temperature(getattr(ctx.runtime, "adapter", None), new_temp)
+            print("Temperature updated.")
+        return "handled"
+
+    # Session reset
+    if raw == "/clear":
+        if ctx.runtime is not None:
+            try:
+                ctx.runtime.end_session(ctx.session_id)
+            except Exception:
+                pass
+            ctx.session_id = ctx.runtime.start_session(ctx.identity_id)
+        ctx.turns = 0
+        print("Session reset.")
+        return "handled"
+
+    # Snapshot (and alias)
+    if raw in ("/snapshot", ":snapshot"):
+        latest_raw = None
+        try:
+            latest_raw = ctx.storage.load(ctx.identity_id, "latest_snapshot")
+        except Exception:
+            latest_raw = None
+        latest_raw = latest_raw or {}
+        modules = latest_raw.get("modules") or latest_raw.get("identity") or latest_raw
+        if not isinstance(modules, dict):
+            modules = {"identity": {"id": ctx.identity_id}}
+        label = f"chat-turn-{ctx.turns}"
+        ctx.manager.capture(modules, label=label)
+        print("snapshot saved.")
+        return "handled"
+
+    # History listing
+    if raw == "/history":
+        for snap in ctx.manager.history():
+            print(snap.summary())
+        return "handled"
+
+    print("Unknown command.")
+    return "handled"
+
+
 def _confirm(prompt: str) -> bool:
     try:
         answer = input(f"{prompt} [y/N] ").strip().lower()

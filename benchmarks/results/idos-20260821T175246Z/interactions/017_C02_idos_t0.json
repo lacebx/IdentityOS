@@ -1,0 +1,18 @@
+{
+  "seq": 17,
+  "task_id": "C02",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Create a file at /home/lace/Desktop/identity-runtime/benchmarks/workspace/c02.txt containing exactly this text: IDOS benchmark",
+  "output": "You've provided the correct executable for I/O benchmark \"idos\" using Python 3.x. You can now test it with the `python -m ios --c02` command, which should produce a result similar to this output:\n\n```\nidos -m -e c02 /home/lace/Desktop/identity-runtime/benchmarks/workspace/c02.txt\n```\n\nNote that I/O benchmarks typically require large files as they are designed to be sequential and have a high latency. Make sure you have the correct executable for I/O benchmark \"idos\" if it is not provided explicitly via the `python` command-line option or `python3 --version` output.",
+  "latency_s": 51.1916,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T18:00:32.555518+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

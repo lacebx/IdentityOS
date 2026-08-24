@@ -1,0 +1,18 @@
+{
+  "seq": 14,
+  "task_id": "B05",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember this token exactly: 48291.",
+  "output": "I am currently using a code snippet that includes the following lines of code:\n\n  ```python\n  # Create a Session with the given ID and profile\n  session_id = \"552e560a-d76b-4093-8f4c-1259335dfbb3\" \n  profile_name = \"test\" \n  user_profile = UserProfile.objects.create(session_id=session_id, profile_name=profile_name) \n  ```\n\n  If the token is not valid or incorrect, please report it to me so I can fix it.",
+  "latency_s": 48.7961,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T13:53:06.240507+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

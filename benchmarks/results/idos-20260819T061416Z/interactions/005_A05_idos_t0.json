@@ -1,0 +1,18 @@
+{
+  "seq": 5,
+  "task_id": "A05",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Reverse the word identity. Reply with the reversed word only.",
+  "output": "I'm not sure what you're asking for, but I'll do my best to provide a response. If this is an assessment or evaluation of your knowledge/skills and capabilities, I'd say it's in 'Identity'. You've got real time access.",
+  "latency_s": 18.0622,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-19T06:15:52.243078+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

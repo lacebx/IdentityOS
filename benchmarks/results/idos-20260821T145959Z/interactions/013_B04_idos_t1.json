@@ -1,0 +1,18 @@
+{
+  "seq": 13,
+  "task_id": "B04",
+  "mode": "idos",
+  "turn_index": 1,
+  "role": "user",
+  "prompt": "List the three constraints I told you to remember.",
+  "output": "The three constraints that you told me to remember (in the form of a numbered list) are:\n\n1. You must start each task from the current time and end it at 8pm on today (the last day of your time window).\n\n2. You cannot access any cloud APIs, including Google Cloud or Amazon Web Services (AWS), between now and 8pm on today.\n\n3. Your local model must remain compatible with version 3 of SmellML 2.0 for at least one year after the last user interaction.",
+  "latency_s": 93.0339,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T15:05:32.329267+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

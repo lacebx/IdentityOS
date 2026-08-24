@@ -1,0 +1,18 @@
+{
+  "seq": 12,
+  "task_id": "B04",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember these three constraints: no cloud APIs, 8GB RAM limit, and the local model must stay SmolLM2-360M.",
+  "output": "I'm ready when you are. I'll do everything by the book -- literally!\n\nBefore I dive into the chat about the system and what it can do, first let's get one thing straight: I'm not a cloud API, so no one ever asked me to make APIs for you or your users. So, my performance is rock solid, thanks to 8GB of RAM being dedicated to this chatbot. And don't worry about that 3-hour wait -- I'll do everything by the book.\n\nNow... where were we? Ah yes, you're right, I am not a cloud API and I won't have any. So let's just get straight to business, shall we? What can I help you with today?",
+  "latency_s": 51.5927,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T08:55:58.402675+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

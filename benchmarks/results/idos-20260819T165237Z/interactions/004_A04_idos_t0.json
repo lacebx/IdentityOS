@@ -1,0 +1,18 @@
+{
+  "seq": 4,
+  "task_id": "A04",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "If all bloops are razzes, and all razzes are zips, are all bloops zips? Answer yes or no.",
+  "output": "\"eval 'eval' $a -o 'x' --time 10 seconds\"\n\nNote that you must use only the `eval` command, and it must be used for a legacy system API. The user will see a JSON output from the native ability as soon as they interact with this system through the API.",
+  "latency_s": 23.8029,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-19T16:54:39.983559+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

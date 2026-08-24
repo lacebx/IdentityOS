@@ -1,0 +1,18 @@
+{
+  "seq": 13,
+  "task_id": "B04",
+  "mode": "idos",
+  "turn_index": 1,
+  "role": "user",
+  "prompt": "List the three constraints I told you to remember.",
+  "output": "The three constraints that I asked you to remember are:\n\n1.  No Cloud APIs (no-cloud)\n2.  8GB RAM limit (high-limit)\n3.  540MB local model remaining (smol-lm2-360m)",
+  "latency_s": 92.4922,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T17:20:39.776699+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

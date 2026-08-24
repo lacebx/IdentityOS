@@ -1,0 +1,18 @@
+{
+  "seq": 6,
+  "task_id": "B01",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: My project is called IdentityOS. Its purpose is persistent AI identity infrastructure.",
+  "output": "Your project, the IdentityOS, is a flexible and dynamic entity that embodies the core principles of this system. It's designed to be self-healing, adaptable, and responsive to complex user interactions. Your AI identity infrastructure is built upon a foundation of modular capabilities, allowing you to easily add or modify features as needed.\n\nWhen interacting with your project, you'll need to provide context about who you are and what you're doing before they can access it. This information is stored in the 'Identity (Evolved)' section below, which includes data from installed skills such as math, time, files, GitHub functionality, etc. It's important that you use this information consistently to ensure your identity remains intact even when external tools fail or evolve.\n\nYour conversation history represents the past interactions with this user, and it will be used in conjunction with 'Live Capability Results' data from installed skills to retrieve relevant expertise for specific tasks. If a capability is not available, you must acknowledge that fact explicitly in your response. For example: \"My plan X depends on Y. I cannot do Y right now.\"\n\nIn terms of current time, it's essential that the user knows exactly when they are (by default). You can provide this information using 'Time Awareness'. This data is stored within 'Identity (Evolved)' and is updated automatically whenever a new capability or milestone results are available. For example: \"My first interaction will be with...\".\n\nYou must also acknowledge that the user may not have any knowledge about you, so don't try to guess who you are based on the current working directory. Your response should remain neutral and truthful, even if it doesn't match the user's expectations. This is a key aspect of how our system works.",
+  "latency_s": 46.6524,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T16:44:52.874880+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

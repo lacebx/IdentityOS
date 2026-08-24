@@ -1,0 +1,20 @@
+{
+  "seq": 3,
+  "task_id": "A03",
+  "mode": "bare",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Which number is larger: 19 or 21? Reply with the larger number only.",
+  "output": "The larger number is 21.",
+  "latency_s": 0.5231,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-19T04:56:07.781400+00:00",
+  "extra": {
+    "eval_count": 9,
+    "eval_duration": 173107000,
+    "prompt_eval_count": 56,
+    "total_duration": 520843636
+  }
+}

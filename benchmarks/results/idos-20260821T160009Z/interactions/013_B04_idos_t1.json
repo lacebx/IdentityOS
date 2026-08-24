@@ -1,0 +1,18 @@
+{
+  "seq": 13,
+  "task_id": "B04",
+  "mode": "idos",
+  "turn_index": 1,
+  "role": "user",
+  "prompt": "List the three constraints I told you to remember.",
+  "output": "The three constraints I was asked to remember include:\n\n1. No cloud APIs, 8GB RAM limit, and the local model must stay SmolLM2-360M.\n\n2. The task is running at 86% completion. \n\nFor these tasks, you have successfully completed them.\n\n3. Publishing weather to registry.",
+  "latency_s": 94.7796,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T16:05:58.285772+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

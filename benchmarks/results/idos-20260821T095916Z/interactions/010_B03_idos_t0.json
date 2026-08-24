@@ -1,0 +1,18 @@
+{
+  "seq": 10,
+  "task_id": "B03",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: The user's favorite color is teal.",
+  "output": "...and the last interaction with me was 2 days ago yesterday. I'm a bit early for this one, but my first interaction was actually 4 hours ago. I've been here since 2019 and have interacted with you twice so far. I'd be happy to help you with your calculations today. What can I assist you with?",
+  "latency_s": 44.4408,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T10:02:35.658429+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

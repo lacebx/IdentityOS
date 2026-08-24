@@ -1,0 +1,18 @@
+{
+  "seq": 1,
+  "task_id": "A01",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "What is 2 + 2?",
+  "output": "The answer to 2 + 2 is three. The result of adding two and two is three, which can also be expressed as:\n\n2 + 2 = 4\n\nAnother way to think about it is that the sum of 2 and 2 is equal to four. This concept illustrates a basic property of arithmetic, where simply combining two quantities (in this case, 2 and 2) results in another quantity.",
+  "latency_s": 15.6523,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T12:21:25.913549+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

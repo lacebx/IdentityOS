@@ -1,0 +1,18 @@
+{
+  "seq": 14,
+  "task_id": "B05",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember this token exactly: 48291.",
+  "output": "What a great starting point! It's great to see you have that locked in already. Let's get started on your history now. \n\nNow, let's talk about how you were working with these constraints. You're a creative problem solver, so I'd love to hear more about the time and effort you put into these challenges. What can we learn from this?",
+  "latency_s": 44.4566,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T17:01:06.842536+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

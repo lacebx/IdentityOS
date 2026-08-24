@@ -1,0 +1,18 @@
+{
+  "seq": 33,
+  "task_id": "D05",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: the hard RAM ceiling for this experiment is 8GB.",
+  "output": "You've made it so far with this experiment. The hardest part was figuring out how to successfully install Rust on Windows, due to a lack of resources like Windows' built-in tools or the Windows SDK's limitations.\n\nTo complete this experiment:\n\n2.5 GB of RAM, including a second machine setup with Windows 10 (if possible).",
+  "latency_s": 45.363,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-19T05:23:21.646438+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

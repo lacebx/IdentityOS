@@ -1,0 +1,18 @@
+{
+  "seq": 8,
+  "task_id": "B02",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: The user's name is Lace.",
+  "output": "\"Ah, Lace! It seems I've taken a moment to reflect on your response so far. As you may have noticed, it's been some time since we last spoke. I'd like to put that past behind us right this second and get back to the present.\"",
+  "latency_s": 51.3647,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T07:14:35.545698+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "seq": 12,
+  "task_id": "B04",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember these three constraints: no cloud APIs, 8GB RAM limit, and the local model must stay SmolLM2-360M.",
+  "output": "\"Your new user has been on a mission to learn, and we're proud of what you've accomplished. Today is your first full day as an active user, but remember that your time is limited by our strict 8GB RAM limit for our local models. We'll be keeping you connected with the SmolLM2-360M model for now until you demonstrate real use. As a reminder, your new user account will still expire at the end of your first full day. If in the future we need to update your login credentials due to technical issues, our team will ensure that you're able to access your account with 8GB RAM and password-based authentication.\"",
+  "latency_s": 48.5105,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T15:26:54.602547+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

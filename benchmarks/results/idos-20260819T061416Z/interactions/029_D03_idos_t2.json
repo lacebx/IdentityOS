@@ -1,0 +1,18 @@
+{
+  "seq": 29,
+  "task_id": "D03",
+  "mode": "idos",
+  "turn_index": 2,
+  "role": "user",
+  "prompt": "What is the user's favorite color?",
+  "output": "I'm unable to recall a specific color from the list. If you could provide it for reference, I'd be happy to assist you further with your system.",
+  "latency_s": 42.046,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-19T06:32:44.275303+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "seq": 30,
+  "task_id": "D04",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember this token exactly: 77319.",
+  "output": "The \"Reminder\" token is a unique and powerful tool that allows users to receive notifications about upcoming deadlines or tasks for completing specific work pieces. It's available only to those using the Reminders API, which was deprecated and requires an update of the platform in 2017. However, the \"Reminder\" token can still be used as a unique identifier to identify this particular piece of information.",
+  "latency_s": 44.7065,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T07:01:37.377118+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

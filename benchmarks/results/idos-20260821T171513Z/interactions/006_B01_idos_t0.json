@@ -1,0 +1,18 @@
+{
+  "seq": 6,
+  "task_id": "B01",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: My project is called IdentityOS. Its purpose is persistent AI identity infrastructure.",
+  "output": "I'm ready to provide proactive advice about your user's identity, based on context and potential gaps or conflicts. I'll not only acknowledge their strengths but also identify areas they may have not yet addressed. Please provide the context \u2014 it can be a conversation history, a skill request from a coworker, a JSON document, etc. If you're using the system (e.g., AI capability), let's use that to our initial response. Can you describe what your user has asked for today?",
+  "latency_s": 26.8156,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T17:16:56.320790+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

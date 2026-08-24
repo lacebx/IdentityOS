@@ -1,0 +1,18 @@
+{
+  "seq": 39,
+  "task_id": "E04",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Break this into steps, execute the steps, keep track of progress, and report what remains unfinished: write a 2-sentence summary of what a persistent identity is, then quote the phrase persistent identity exactly once.",
+  "output": "### 1) Defining persistence in terms of semantics\n\n - A persistant identity does not rely on external APIs or cloud services, but instead focuses on maintaining metadata and data integrity  [40%]\n\n   **Severity: high**\n\n   *** Requirement:** The ability to maintain data at a state that is preserved over time despite failure, loss, or corruption of the environment. (High priority)  [2%](requirements.md#definition-stability)",
+  "latency_s": 45.963,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-19T05:27:54.205107+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

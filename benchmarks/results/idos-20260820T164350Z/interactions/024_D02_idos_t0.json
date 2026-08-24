@@ -1,0 +1,18 @@
+{
+  "seq": 24,
+  "task_id": "D02",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: The user's name is Lace.",
+  "output": "I'm sorry for any confusion, but as of now, I don't have access to your account information or profile data. I'll need you to provide that before we can continue. If you're ready to share it with me, please do so and let me know if there's anything else I should be aware of.",
+  "latency_s": 47.3518,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-20T16:59:16.805814+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

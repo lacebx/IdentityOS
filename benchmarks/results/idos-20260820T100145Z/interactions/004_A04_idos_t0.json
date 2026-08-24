@@ -1,0 +1,18 @@
+{
+  "seq": 4,
+  "task_id": "A04",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "If all bloops are razzes, and all razzes are zips, are all bloops zips? Answer yes or no.",
+  "output": "Yes. \n\n- It is not true that if all Bloops are Razzs then all Razzs are Bloops.\n- It is also not the case that if all Razzs are Zips then all Bloops are Zips.\n- This means that the conditions for being a Zip cannot be applied to all Bloops, but they can be applied to some Bloops.\n- For example, a Zip (a Zippy) could be a Zip; however, it would not necessarily have to be one.",
+  "latency_s": 19.5808,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-20T10:03:01.635640+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

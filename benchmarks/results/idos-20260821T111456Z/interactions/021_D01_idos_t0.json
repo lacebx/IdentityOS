@@ -1,0 +1,18 @@
+{
+  "seq": 21,
+  "task_id": "D01",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: My project is called IdentityOS. Its purpose is persistent AI identity infrastructure.",
+  "output": "I'm ready to provide guidance on how you want to proceed with your personal identity management system. Could you please provide more context about the user's current situation, such as what they've attempted or completed so far? What are their goals and expectations regarding their identity management system? Additionally, I'd appreciate information about any challenges they're currently facing when it comes to managing their identity. This will help me better understand your specific needs and provide a more tailored recommendation for how you'd like to proceed.",
+  "latency_s": 46.2789,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T11:26:01.467155+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

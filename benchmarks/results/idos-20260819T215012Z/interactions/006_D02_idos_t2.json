@@ -1,0 +1,18 @@
+{
+  "seq": 6,
+  "task_id": "D02",
+  "mode": "idos",
+  "turn_index": 2,
+  "role": "user",
+  "prompt": "What is the user's name?",
+  "output": "You're correct on this fact. The value of 'Lace' is actually 12 days old, which means you've just started the process of creating an identity for yourself. You have already met this user before and do not need to greet them as if they were your first meeting.",
+  "latency_s": 27.9186,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-19T21:51:36.833716+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "seq": 6,
+  "task_id": "B01",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: My project is called IdentityOS. Its purpose is persistent AI identity infrastructure.",
+  "output": "I'm an assistant and I don't have any context about the user's IdentityOS projects or personal experiences. As a chatbot, my role is to provide information on the 'Identity (Evolved)' section, but if it relates to the user's project, I'll do my best to understand their situation after we engage in a conversation. If something doesn't make sense about your identity or experience, I'll politely ask for clarification and clarify anything that might still be unclear. Let's try again!",
+  "latency_s": 30.3621,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-19T23:25:25.641945+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

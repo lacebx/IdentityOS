@@ -1,0 +1,18 @@
+{
+  "seq": 19,
+  "task_id": "C04",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Convert 100 kilometers to miles. Reply with the numeric result.",
+  "output": "The number of meters is 6.21371159474 miles.\n\nI have experience converting distances, including metric and imperial units, such as miles (mi), feet (ft), yards (yd), or kilometers (km). I can provide accurate conversions based on your request. You can reach out if you need assistance in any of these conversions.",
+  "latency_s": 52.52,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-20T10:13:07.302310+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "seq": 13,
+  "task_id": "B04",
+  "mode": "idos",
+  "turn_index": 1,
+  "role": "user",
+  "prompt": "List the three constraints I told you to remember.",
+  "output": "You are committed to the following active work. Do not restart it \u2014 continue it.\n\n1. \u2713 Searching registry for weather\n   \u00b7 Generating weather capability\n   \u00b7 Validating weather capability\n   \u00b7 Publishing weather to registry\n\n2. \u2713 Installing weather\n   \u2713 Verifying weather",
+  "latency_s": 91.8584,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T12:26:33.041226+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

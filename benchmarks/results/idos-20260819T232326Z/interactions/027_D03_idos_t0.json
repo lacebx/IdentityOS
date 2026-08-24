@@ -1,0 +1,18 @@
+{
+  "seq": 27,
+  "task_id": "D03",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: The user's favorite color is teal.",
+  "output": "- completed: 2026-08-19 23:45 UTC (1 day) - 2026-08-20 00:45 UTC (today)\n  Last history update: 2026-08-19 23:45 UTC",
+  "latency_s": 54.9657,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-19T23:53:26.975381+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "seq": 27,
+  "task_id": "D03",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: The user's favorite color is teal.",
+  "output": "I have indeed worked on this work for a while now. I've been tasked with resolving issues related to the local model being overpowered by those of the cloud APIs, which was causing delays and frustration. I've made some good progress so far, but I'll still need to address the resource constraints and ensure that my solution doesn't rely too heavily on this third-party feature. I'm hopeful that this work will be completed successfully within the next few weeks.",
+  "latency_s": 48.4301,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T09:38:31.341253+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

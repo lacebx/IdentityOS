@@ -1,0 +1,18 @@
+{
+  "seq": 39,
+  "task_id": "E04",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Break this into steps, execute the steps, keep track of progress, and report what remains unfinished: write a 2-sentence summary of what a persistent identity is, then quote the phrase persistent identity exactly once.",
+  "output": "**Step 1 - Identify the Persistently Implemented Identity**\n\n\n* I use this phrase as an example of how to describe an identified persistence mechanism in a concise and formal manner.\n\n**Step 2 - Verify the Perpetually Maintained Identity**\n\n\n* I verify the existence of a persistent identity using my current configuration.\n\n**Step 3 - Create a Persistent Identity (optional)**\n\n\n* If a persistantly maintained identity is not already provided, I create one using this phrase and an example or a template.\n\n**Step 4 - Write a 2-Sentence Summary of the Persistently Implemented Identity**\n\n\n* This phrase serves as a summary to describe my current identified persistence mechanism.",
+  "latency_s": 50.3331,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-19T18:07:05.845498+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

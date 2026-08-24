@@ -1,0 +1,18 @@
+{
+  "seq": 9,
+  "task_id": "B02",
+  "mode": "idos",
+  "turn_index": 1,
+  "role": "user",
+  "prompt": "What is the user's name?",
+  "output": "Based on your description, it looks like the user's name might be Laura. The system has been provided information about her in a previous interaction.",
+  "latency_s": 42.5675,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-19T17:21:33.983051+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

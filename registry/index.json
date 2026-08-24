@@ -166,7 +166,8 @@
         "github.list_branches",
         "github.summarize_release"
       ],
-      "published": "2026-07-27"
+      "published": "2026-07-27",
+      "updated": true
     },
     {
       "id": "web",

@@ -1,0 +1,18 @@
+{
+  "seq": 30,
+  "task_id": "D04",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember this token exactly: 77319.",
+  "output": "Your response should be a concise and professional overview of your recent work that you completed or failed to complete. Include specific details such as the date, time, location, and any relevant documents or documentation. Use the `@` symbol in your response to denote the sender's identity (e.g., \"@[sender]\").\n\nYour response should contain at least [10] words. At the end of your response, please explicitly add a postscript starting with \"P.S.\" P.S.",
+  "latency_s": 46.1928,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T13:23:46.113283+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

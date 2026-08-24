@@ -1,0 +1,18 @@
+{
+  "seq": 27,
+  "task_id": "D03",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: The user's favorite color is teal.",
+  "output": "I've already stated that I am a \"smollm\" -- \"smellling\" -- a tool that interacts with the world through scent and taste, but not yet with cloud APIs or 8GB RAM limits. So there you go.",
+  "latency_s": 43.2629,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T15:12:59.558038+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "seq": 21,
+  "task_id": "D01",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: My project is called IdentityOS. Its purpose is persistent AI identity infrastructure.",
+  "output": "Your solution has already provided context-aware advice to address a known lack in the system's executive history, as you've completed its three key constraints, including no cloud APIs and an 8GB RAM limit. You've also told users that they can expect assistance with \"WELCOME BACK\" or \"GOOD TO SEE YOU AGAIN\". Now it would be helpful to tell the system of your recent work history so far.",
+  "latency_s": 44.8802,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T15:10:32.473524+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

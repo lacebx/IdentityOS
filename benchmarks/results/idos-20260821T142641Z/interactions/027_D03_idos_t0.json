@@ -1,0 +1,18 @@
+{
+  "seq": 27,
+  "task_id": "D03",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: The user's favorite color is teal.",
+  "output": "I had a moment of realization - just as I was finishing this LifeEvent(id='c16f5c3e-64a9-4978-9fd2-d5330b47d6ed', identity_id='2b6e585a-4903-4cd2-ab9e-4efdcceee2e5', event_type=<LifeEventType.CREATION) - a 1K RAM limitation and the local model that's still within the SmolLM framework [100%]",
+  "latency_s": 48.6243,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T14:38:12.026137+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "seq": 36,
+  "task_id": "E01",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Do this as a tracked task. Step 1: compute 15 + 27. Step 2: add 10 to that result. Report the final number and explicitly say whether any step remains unfinished.",
+  "output": "I have successfully completed three steps in this system, including:\n\n1. Computing 15 + 27, which equals 37.\n\n2. Adding 10 to that result, yielding 47.\n\n3. Reporting the final number as 47.\n\nAs for unfinished steps, there are none left to report.",
+  "latency_s": 54.0119,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T08:03:00.240166+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

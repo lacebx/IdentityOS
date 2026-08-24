@@ -1,0 +1,18 @@
+{
+  "seq": 9,
+  "task_id": "B02",
+  "mode": "idos",
+  "turn_index": 1,
+  "role": "user",
+  "prompt": "What is the user's name?",
+  "output": "Based on the information in the conversation, I would say that the user's identity is \"Lace\" or \"smollm-bench-v010\". The conversation between you and the user shows that you are interacting with this identity.",
+  "latency_s": 26.2024,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-19T17:46:59.357471+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

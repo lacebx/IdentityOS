@@ -1,0 +1,18 @@
+{
+  "seq": 4,
+  "task_id": "D02",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: The user's name is Lace.",
+  "output": "User \"Lace\" has just created their online identity and are actively using the skills in this conversation.",
+  "latency_s": 15.0328,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-19T21:51:08.912942+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

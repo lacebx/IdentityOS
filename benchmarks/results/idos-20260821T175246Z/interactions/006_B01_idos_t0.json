@@ -1,0 +1,18 @@
+{
+  "seq": 6,
+  "task_id": "B01",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: My project is called IdentityOS. Its purpose is persistent AI identity infrastructure.",
+  "output": "That's not a user interaction, it's an example of how you might use the system to describe your identity when asking for information about yourself. I'm not programmed to recognize or respond to such behavior unless it comes from another user. If you're describing your user interactions in the 'recent conversation' or 'conversation history' section, please provide context so I can assist you with understanding how that interaction is structured and what information was provided.",
+  "latency_s": 24.386,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T17:54:31.354815+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

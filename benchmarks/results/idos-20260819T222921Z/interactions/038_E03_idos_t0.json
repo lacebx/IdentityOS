@@ -1,0 +1,18 @@
+{
+  "seq": 38,
+  "task_id": "E03",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Produce exactly three numbered facts about water. Then state that the task is complete and that nothing remains unfinished.",
+  "output": "Fact 1: Water is a clear, colorless liquid substance with a density of 1 gram per milliliter (1g/mL) at room temperature.\n\nFact 2: The chemical formula for water is H-O-H, meaning one atom of hydrogen and two atoms of oxygen.\n\nFact 3: One hundred percent of the Earth's surface is covered by water, with a mass about 1% of the total mass of all known substances combined.",
+  "latency_s": 109.8354,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-19T22:48:34.440657+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

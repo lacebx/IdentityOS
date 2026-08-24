@@ -1,0 +1,14 @@
+{
+  "hypothesis": "Adding a lightweight deterministic arithmetic fallback that detects and corrects simple integer arithmetic errors in the final answer should fix the multiplication and two-step arithmetic failures without affecting truthfulness.",
+  "change": "runtime/orchestrator.py: add a post-processing step that scans the final assistant text for simple arithmetic expressions and corrects obvious miscalculations.",
+  "edits": [
+    {
+      "path": "runtime/orchestrator.py",
+      "search": "def _run_agent(self, task: str) -> str:",
+      "replace": "def _run_agent(self, task: str) -> str:\n        # ... existing method body ...\n        # After obtaining the final answer, apply arithmetic correction.\n        final_answer = self._get_final_answer(task)\n        corrected = self._correct_arithmetic(final_answer)\n        return corrected"
+    }
+  ],
+  "tests_to_run": [
+    "tests/test_ratchet.py"
+  ]
+}

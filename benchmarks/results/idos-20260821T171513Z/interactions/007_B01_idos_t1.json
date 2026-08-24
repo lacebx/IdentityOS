@@ -1,0 +1,18 @@
+{
+  "seq": 7,
+  "task_id": "B01",
+  "mode": "idos",
+  "turn_index": 1,
+  "role": "user",
+  "prompt": "What is my project called and what does it do?",
+  "output": "Your project is called IdentityOS. Its purpose is persistent AI identity infrastructure.",
+  "latency_s": 0.0026,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T17:16:56.323775+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

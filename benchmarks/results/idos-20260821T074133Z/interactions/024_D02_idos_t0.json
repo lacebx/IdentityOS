@@ -1,0 +1,18 @@
+{
+  "seq": 24,
+  "task_id": "D02",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: The user's name is Lace.",
+  "output": "I am a system administrator that currently runs on Windows 10 with an Intel Core i7 96508h+ CPU, 16 GB RAM and an NVMe SSD for data storage. I have been trained to work within the boundaries of the SmolLM system architecture. My current time is [1 hour] ago.",
+  "latency_s": 66.0376,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T07:58:49.737017+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

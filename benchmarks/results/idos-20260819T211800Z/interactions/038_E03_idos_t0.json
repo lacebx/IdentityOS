@@ -1,0 +1,18 @@
+{
+  "seq": 38,
+  "task_id": "E03",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Produce exactly three numbered facts about water. Then state that the task is complete and that nothing remains unfinished.",
+  "output": "Fact 1. Water is a clear, colorless liquid chemical compound with the scientific symbol 'H2O'. It contains two hydrogen atoms bonded to one oxygen atom by covalent bonds.\n\nFact 2. The density of water varies slightly depending on the temperature; in fresh, pure water as an example, its density at room standard temperature (15\u00b0C) is approximately 9.03 grams per milliliter. At higher temperatures it increases and in cold temperatures decreases. It also has a low boiling point.\n\nFact 3. The chemical formula for water is 'H2O'.",
+  "latency_s": 101.6939,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-19T21:43:00.249834+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

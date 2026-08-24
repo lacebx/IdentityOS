@@ -1,0 +1,18 @@
+{
+  "seq": 1,
+  "task_id": "A01",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "What is 2 + 2?",
+  "output": "The answer to the classic \"2 plus 2\" mathematical problem. \n\nIt's a simple arithmetic operation, and in this case, it's straightforward: 2 + 2 equals 4. This type of problem belongs to the realm of basic arithmetic operations, which are fundamental to understanding how numbers behave, their relationships, and rules that govern them.",
+  "latency_s": 29.9562,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T16:43:06.936642+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

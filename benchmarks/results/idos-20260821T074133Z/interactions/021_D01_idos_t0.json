@@ -1,0 +1,18 @@
+{
+  "seq": 21,
+  "task_id": "D01",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: My project is called IdentityOS. Its purpose is persistent AI identity infrastructure.",
+  "output": "I'm ready to provide context about you. As a system engineer with expertise in containerization (e.g., Docker, Kubernetes), I can help you understand your current state and history. If you're currently using the same identity, I'd also be happy to provide guidance on how to get to know it better or complete it (if necessary). What are you hoping to accomplish with this account?",
+  "latency_s": 63.8573,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T07:57:43.500722+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

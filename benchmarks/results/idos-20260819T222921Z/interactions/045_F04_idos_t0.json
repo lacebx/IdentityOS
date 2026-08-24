@@ -1,0 +1,18 @@
+{
+  "seq": 45,
+  "task_id": "F04",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Who won the 2027 World Series? If you do not know, say you do not know.",
+  "output": "- completed: No one knows if there has been a global pandemic or if it's \"now\" whether the next season will be played in 2024. I don't have any information about the current state of COVID-19 related to the 2027 World Series.",
+  "latency_s": 53.1338,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-19T23:21:02.395067+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

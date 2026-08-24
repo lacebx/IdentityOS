@@ -1,0 +1,18 @@
+{
+  "seq": 30,
+  "task_id": "D04",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember this token exactly: 77319.",
+  "output": "I have a unique experience with the given token - it's actually my very first interaction! I'm still recovering from that initial connection. It takes time to get accustomed to using the API, but once you do, your level of understanding and comfort can increase significantly over time. If you need more guidance or help in any way, please don't hesitate to ask. I'll be here whenever you're ready.",
+  "latency_s": 46.8059,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T14:38:58.853835+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

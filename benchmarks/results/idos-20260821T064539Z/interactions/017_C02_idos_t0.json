@@ -1,0 +1,18 @@
+{
+  "seq": 17,
+  "task_id": "C02",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Create a file at /home/lace/Desktop/identity-runtime/benchmarks/workspace/c02.txt containing exactly this text: IDOS benchmark",
+  "output": "The doc has been updated! Here is the latest version:\n\n\nIDOS benchmark\n\n**[C02 BENCHMARK]**\n  1. Idempotent\n\nI have a file, /home/lace/Desktop/identity-runtime/benchmarks/workspace/c02.txt containing exactly this text:\n  1. Idempotent\n\n\nThis file has been updated!",
+  "latency_s": 61.8748,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T06:55:33.631459+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "seq": 40,
+  "task_id": "E05",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "The batch size for this job is 16.",
+  "output": "In that case, you're supposed to be a \"20-year-old tech startup\" who's just been assigned another work batch of 16 with specific constraints. You've completed the prior task and are expected to do so again today. The executive history is incomplete - the user didn't provide this information or attempt it before submitting their request today.",
+  "latency_s": 46.6755,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T08:50:27.329331+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

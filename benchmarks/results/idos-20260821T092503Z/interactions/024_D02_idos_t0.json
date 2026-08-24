@@ -1,0 +1,18 @@
+{
+  "seq": 24,
+  "task_id": "D02",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: The user's name is Lace.",
+  "output": "I'm so glad to see your enthusiasm! I've been working on this project for a while now, but I haven't quite gotten there yet. This particular machine learning model requires us to have 8GB of RAM and the capability to implement the local model in code. It's not always easy to get it right, but I'm confident that with time and practice, we'll be able to deliver high-quality results!",
+  "latency_s": 46.7691,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T09:37:42.890772+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

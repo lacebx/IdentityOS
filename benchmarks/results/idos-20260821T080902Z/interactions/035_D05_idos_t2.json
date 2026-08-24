@@ -1,0 +1,18 @@
+{
+  "seq": 35,
+  "task_id": "D05",
+  "mode": "idos",
+  "turn_index": 2,
+  "role": "user",
+  "prompt": "What RAM ceiling did I tell you to remember?",
+  "output": "The RAM ceiling you asked me to remember is 8GB.",
+  "latency_s": 0.0334,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T08:26:29.838779+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

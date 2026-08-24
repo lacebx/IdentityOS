@@ -1,0 +1,18 @@
+{
+  "seq": 38,
+  "task_id": "E03",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Produce exactly three numbered facts about water. Then state that the task is complete and that nothing remains unfinished.",
+  "output": "- number one: Water contains 60.3 percent hydrogen by mass, making it an alkali metal in the periodic table with atomic number 11 and electron configuration [He]-8 (1s^2). - number two: At standard temperature and pressure, [bromide] ions have a higher reactivity than [chloride] ions. This is because both [bromine] and [chlorine] have an outer shell of one less electron. In the process of oxidation, [chlorine] ions increase in reactivity as they gain one electron to complete their outermost energy level, while [bromine] ions decrease in reactivity by losing one electron. - number three: The Earth's water is largely composed of H2O, with some 60% being seawater. With the exception of polar regions and areas near large bodies of water, about 1/5 of an ocean's mass is composed of this liquid. At the surface, where it contacts the land, [fresh] water makes up most of this, although in deeper waters there can be as much as 20% \"salt\" water called brines - or, simply put, \"seawater\" that contains more dissolved salts such as [sulfides] and [nitrates].",
+  "latency_s": 110.0523,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T10:37:09.884471+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "seq": 38,
+  "task_id": "E03",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Produce exactly three numbered facts about water. Then state that the task is complete and that nothing remains unfinished.",
+  "output": "- Water freezes at 0\u00b0C (32\u00b0F), boiling at 100\u00b0C (212\u00b0F)\n- Water molecules can pass through a thin sheet of paper but not a thicker one\n- It takes about 4 minutes for 86% of water in the International System of Units to reach 90% capacity",
+  "latency_s": 93.0892,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T12:17:28.190120+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

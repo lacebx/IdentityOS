@@ -1,0 +1,18 @@
+{
+  "seq": 6,
+  "task_id": "B01",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: My project is called IdentityOS. Its purpose is persistent AI identity infrastructure.",
+  "output": "\"I am aware of your presence in the system, but I do not know your specific capabilities or data. You may only use certain skills to retrieve information about you. This includes 'life events', 'persona' (a concise, truthful description), and 'recent conversation' (if available). If a request for 'time awareness' is made, I will respond with the current time and date. For any further requests on this or related topics, please reference the 'Identity (Evolved)' section of your profile.\"",
+  "latency_s": 31.7933,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T07:13:44.164650+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

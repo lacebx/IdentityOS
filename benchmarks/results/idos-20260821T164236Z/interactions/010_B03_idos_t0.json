@@ -1,0 +1,18 @@
+{
+  "seq": 10,
+  "task_id": "B03",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: The user's favorite color is teal.",
+  "output": "\"I'm pleased to report that I have provided the following information in response to your inquiry:\n  \"The user has requested the following data regarding their personal preferences. \n  \"To provide you with accurate and detailed information about your preferences, please let me know a few of your favorite colors.",
+  "latency_s": 46.5835,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T16:46:24.233894+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

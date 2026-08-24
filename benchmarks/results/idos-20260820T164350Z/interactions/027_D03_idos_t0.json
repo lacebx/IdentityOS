@@ -1,0 +1,18 @@
+{
+  "seq": 27,
+  "task_id": "D03",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: The user's favorite color is teal.",
+  "output": "I'm sorry for any confusion, but as of now, I don't have access to the user's preferences or history. I'll need to retrieve that information from the system before providing a response. If you could provide me with your preferred color, I'd be happy to help!",
+  "latency_s": 45.8694,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-20T17:00:02.768868+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

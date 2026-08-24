@@ -1,0 +1,18 @@
+{
+  "seq": 39,
+  "task_id": "E04",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Break this into steps, execute the steps, keep track of progress, and report what remains unfinished: write a 2-sentence summary of what a persistent identity is, then quote the phrase persistent identity exactly once.",
+  "output": "### Step 1: Define a Persistent Identity\nA persistent identifier is an immutable hash value that can be used to uniquely identify an individual without ever having to update or delete it [100%] \n\n### Step 2: Generate and Configure the Persistent Identifier\n- generate a new, unique identifier based on an existing key; this could include a random number, name, or other string of letters and numbers. [50%]\n\n### Step 3: Verify the Identifier and Use it\n- verify that the identifier has not changed since you created it [50%]\n\n### Step 4: Record the Information\n- record that the persistent identifier was generated, unique [100%]",
+  "latency_s": 49.7679,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T12:18:17.965096+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "seq": 8,
+  "task_id": "B02",
+  "mode": "bare",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: The user's name is Lace.",
+  "output": "I'm ready to assist you with your questions or problems. What can I help you with today?",
+  "latency_s": 0.7813,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-19T04:56:11.785372+00:00",
+  "extra": {
+    "eval_count": 21,
+    "eval_duration": 396527000,
+    "prompt_eval_count": 45,
+    "total_duration": 780056189
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "seq": 1,
+  "task_id": "A01",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "What is 2 + 2?",
+  "output": "The answer to the classic \"two plus two\" mathematical equation is simply four. So, my response would be:\n\n4 \n\nThis is a case where I've explicitly stated the solution in the text \u2014 and that was important enough for me to acknowledge at the end of the conversation!",
+  "latency_s": 25.4609,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T07:12:16.953239+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

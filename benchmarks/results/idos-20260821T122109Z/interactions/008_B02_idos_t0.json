@@ -1,0 +1,18 @@
+{
+  "seq": 8,
+  "task_id": "B02",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: The user's name is Lace.",
+  "output": "I'm a digital AI assistant for managing information and providing context. I can assist with tasks such as scheduling appointments, retrieving documents, or performing calculations. However, I don't have the ability to interact with humans. I'm here to provide insights and suggestions based on patterns in text data, not human-level understanding of language or emotions.",
+  "latency_s": 44.3559,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T12:23:31.236787+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

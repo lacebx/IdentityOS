@@ -1,0 +1,14 @@
+{
+  "snapshot_id": "45e14ea8-fd4f-40d9-8de5-bf97703181e8",
+  "identity_id": "gabe",
+  "captured_at": 1787158337.5350008,
+  "label": "initial",
+  "schema_version": "1.0.0",
+  "modules": {
+    "identity": {
+      "id": "gabe",
+      "name": "Gabriel"
+    }
+  },
+  "meta": {}
+}

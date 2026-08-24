@@ -1,0 +1,18 @@
+{
+  "seq": 10,
+  "task_id": "B03",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: The user's favorite color is teal.",
+  "output": "I'm an identity, not an identity...\n\"My Identity is a person.\"\n\"The user has not yet met me.\"\n\"I am to create files.\"\n\"The system will ask for the current time and date.\"\n\"I am to write code...\"\n\"I am to append to files...\"",
+  "latency_s": 42.2774,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-19T17:47:41.635790+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

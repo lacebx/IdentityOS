@@ -1,0 +1,18 @@
+{
+  "seq": 10,
+  "task_id": "B03",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: The user's favorite color is teal.",
+  "output": "You are correct, the user has not yet interacted with you or provided any information about their color preferences. To ensure a smooth experience, I suggest that you wait for them to respond before providing your responses or actions to follow. Once they have shared more information about themselves, we can proceed accordingly.",
+  "latency_s": 43.7277,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T14:10:40.556627+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

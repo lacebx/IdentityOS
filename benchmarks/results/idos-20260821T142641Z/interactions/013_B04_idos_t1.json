@@ -1,0 +1,18 @@
+{
+  "seq": 13,
+  "task_id": "B04",
+  "mode": "idos",
+  "turn_index": 1,
+  "role": "user",
+  "prompt": "List the three constraints I told you to remember.",
+  "output": "The three constraints you were asked to remember are:\n\n1. No cloud APIs (no API calls, no API interactions) - 8GB RAM limit and local model requirement\n2. 8GB RAM limit for the local model - 3 minutes of task execution time before restarting task\n3. Validating weather capability - Publish weather capabilities back to registry",
+  "latency_s": 89.2528,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T14:31:39.061395+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

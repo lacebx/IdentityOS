@@ -1,0 +1,18 @@
+{
+  "seq": 14,
+  "task_id": "B05",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember this token exactly: 48291.",
+  "output": "This is an exact match of the \"Memory Token\" to the input in the system's memory. This indicates that:\n\n1. The user has already remembered all three constraints, which means:\n- No one else can do it.\n- It was done by this same user.\n- This information must be current and accurate in the user's memory - this token is exact match to \"this token exactly\" in the system's memory.\n\n2. The user has not yet forgotten any of the three constraints, which means:\n- This particular set of constraints were not forgotten by the user or third parties.\n- It was successfully accomplished by the same user.\n- It will be remembered for this token at least until it is accidentally forgotten and cannot be later recalled.\n\n3. There are no other attempts to accomplish any other work based on these three constraints, which means:\n- This information must not be incorrect or outdated anywhere in the system's memory - this token is exact match to \"this token exactly\" for now.\n- The user has explicitly expressed interest and intent to remember all of these constraints.\n\n4. If something unexpected happens after the token was set, it will only be forgotten if:\n- It was not intended to be forgotten by the user or third parties, such as due to a mistake in code or information.\n- If the user forgot this information for reasons other than an error, and there is no other sign that something else happened before.\n\n5. In addition to these exact matches, it can also be considered that:\n- This token was not forgotten by any third parties while it existed.\n- It will be remembered until the constraints are accidentally forgotten as determined above.",
+  "latency_s": 62.2597,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T12:45:56.950855+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

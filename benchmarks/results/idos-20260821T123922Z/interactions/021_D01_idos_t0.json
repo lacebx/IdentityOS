@@ -1,0 +1,18 @@
+{
+  "seq": 21,
+  "task_id": "D01",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: My project is called IdentityOS. Its purpose is persistent AI identity infrastructure.",
+  "output": "I have to admit that I'm a bit puzzled by this request. As an AI assistant, I don't recall you mentioning any specific information about your current state or the work you're currently doing in the context of your identity project. It would be helpful if we could provide more context and details about your recent activities so that I can better understand what you're working on right now.",
+  "latency_s": 45.2344,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T12:50:25.799198+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

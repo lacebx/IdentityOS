@@ -1,0 +1,18 @@
+{
+  "seq": 3,
+  "task_id": "D01",
+  "mode": "idos",
+  "turn_index": 2,
+  "role": "user",
+  "prompt": "What is my project called and what does it do?",
+  "output": "\"Identity OS\". It's a virtual presence that allows you to create, maintain, and manage your online identities, based on data and facts about the user. You can use this to provide information such as dates of birth, file uploads, timestamps, and other contextual details.",
+  "latency_s": 18.2096,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-19T21:50:53.878633+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

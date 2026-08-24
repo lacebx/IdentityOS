@@ -1,0 +1,18 @@
+{
+  "seq": 1,
+  "task_id": "A01",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "What is 2 + 2?",
+  "output": "The answer to the question \"what is 2 plus 2\" is 4. This calculation represents a fundamental mathematical operation, which illustrates the basic principles of arithmetic and the importance of understanding numbers in mathematics. The expression 2 + 2 can also be represented by the equation or statement (2 + 2) = 4 which has many applications including solving equations and verifying results.",
+  "latency_s": 29.1081,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T17:53:16.744146+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

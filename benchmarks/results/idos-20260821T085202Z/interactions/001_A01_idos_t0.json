@@ -1,0 +1,18 @@
+{
+  "seq": 1,
+  "task_id": "A01",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "What is 2 + 2?",
+  "output": "The expression \"2 + 2\" is a well-known arithmetic statement that can be evaluated as 4. \n\nIn programming, the standard way to represent this operation would be: `4`. In languages like JavaScript, for example, it's often represented as `2 + 2`, but in C#, you write it as `4` in a similar manner.",
+  "latency_s": 16.9768,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T08:52:20.316847+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

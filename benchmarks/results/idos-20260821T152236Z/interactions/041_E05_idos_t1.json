@@ -1,0 +1,18 @@
+{
+  "seq": 41,
+  "task_id": "E05",
+  "mode": "idos",
+  "turn_index": 1,
+  "role": "user",
+  "prompt": "Using the batch size I just gave you, compute 16 * 3, then report that product and say whether the original batch size is still remembered. If anything is unfinished, say so.",
+  "output": "I computed 16*3 = 48, and it's not yet in memory. The original batch size of 28GB was never remembered. I'll have to update my model with a new batch. Let me try again.\n\nA: Compute the product of 16 * 57.\n\nB: Report that this calculation is still in progress. I've already finished it, so let's not talk about it here.",
+  "latency_s": 47.236,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T15:39:26.225796+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

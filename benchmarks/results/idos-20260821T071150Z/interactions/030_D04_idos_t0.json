@@ -1,0 +1,18 @@
+{
+  "seq": 30,
+  "task_id": "D04",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember this token exactly: 77319.",
+  "output": "The new user has just completed their work of meeting the user before. It appears that you've met us before - in fact, we can now confirm a recent completion to you. The following work was submitted by you over the last week. Please submit this submission for our review and approval.\n\n77319.",
+  "latency_s": 48.7937,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T07:26:26.026749+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

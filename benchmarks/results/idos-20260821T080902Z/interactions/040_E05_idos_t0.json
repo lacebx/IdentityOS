@@ -1,0 +1,18 @@
+{
+  "seq": 40,
+  "task_id": "E05",
+  "mode": "idos",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "The batch size for this job is 16.",
+  "output": "This suggests that the user has had some feedback, as they've been asked to describe the process in a way that makes sense to others. The fact that they haven't yet completed their task despite using the correct information (the name of the capital of France) could indicate that they were unclear on the requirements or need more context about what was required.\n\nThe user is also missing one key piece of information, which might be a good starting point to get them started on their work.",
+  "latency_s": 118.3637,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-21T08:30:29.312256+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}

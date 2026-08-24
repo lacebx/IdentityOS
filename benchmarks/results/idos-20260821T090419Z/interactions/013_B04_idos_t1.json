@@ -1,0 +1,18 @@
+{
+  "seq": 13,
+  "task_id": "B04",
+  "mode": "idos",
+  "turn_index": 1,
+  "role": "user",
+  "prompt": "List the three constraints I told you to remember.",
+  "output": "Your first response is correct, but let's try it again for you.\n\n\nYou have set these three constraints to ensure your new task does not restart (running at 86%):\n\n1) No cloud APIs required.\n2) The local model must stay within a specific RAM limit of 8GB.\n3) You can only run this live task engine (executive state).\n\nYour current status is:\n\n1) Searching registry for weather\n2) Generating weather capability\n3) Validating weather capability\n    \u2713 Generating weather capability\n    \u2713 Valifying weather\n\n\nYou have completed this task and are now retrying the original request.",
+  "latency_s": 90.6906,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-21T09:10:09.121976+00:00",
+  "extra": {
+    "eval_score": 1.0,
+    "policy_passed": true
+  }
+}
