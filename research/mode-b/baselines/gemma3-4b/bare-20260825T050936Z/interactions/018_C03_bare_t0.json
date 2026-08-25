@@ -1,0 +1,20 @@
+{
+  "seq": 18,
+  "task_id": "C03",
+  "mode": "bare",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "What is the current date? Include the year.",
+  "output": "Today is November 2, 2023.",
+  "latency_s": 6.6696,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-25T05:14:56.339549+00:00",
+  "extra": {
+    "eval_count": 13,
+    "eval_duration": 2190642000,
+    "prompt_eval_count": 47,
+    "total_duration": 6668048515
+  }
+}

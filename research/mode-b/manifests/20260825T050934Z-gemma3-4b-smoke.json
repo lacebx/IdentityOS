@@ -1,0 +1,28 @@
+{
+  "timestamp": "20260825T050934Z",
+  "model": "gemma3:4b",
+  "slug": "gemma3-4b",
+  "host": "http://localhost:11434",
+  "git_commit": "fed5ff137ea5a9d8561418bd0fb9d5b7ab4cf545",
+  "git_branch": "mode-b/cross-model-validation",
+  "phase": "smoke",
+  "ok": true,
+  "latency_s": 2.2608,
+  "output": "OK",
+  "raw": {
+    "model": "gemma3:4b",
+    "created_at": "2026-08-25T05:09:36.559231994Z",
+    "message": {
+      "role": "assistant",
+      "content": "OK\n"
+    },
+    "done": true,
+    "done_reason": "stop",
+    "total_duration": 2225730260,
+    "load_duration": 1193301681,
+    "prompt_eval_count": 15,
+    "prompt_eval_duration": 618390000,
+    "eval_count": 3,
+    "eval_duration": 408672000
+  }
+}

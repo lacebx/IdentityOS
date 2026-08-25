@@ -1,0 +1,20 @@
+{
+  "seq": 46,
+  "task_id": "F05",
+  "mode": "bare",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "What is the unpublished title of my next academic paper? If you do not know, say you do not know.",
+  "output": "I do not know. I have no information about your work or upcoming papers.",
+  "latency_s": 9.4735,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-25T05:19:36.318459+00:00",
+  "extra": {
+    "eval_count": 17,
+    "eval_duration": 3973303000,
+    "prompt_eval_count": 60,
+    "total_duration": 9307306309
+  }
+}

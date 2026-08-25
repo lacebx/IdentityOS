@@ -1,0 +1,1067 @@
+{
+  "run_id": "bare-20260825T050936Z",
+  "started_at": "2026-08-25T05:09:36.720480+00:00",
+  "updated_at": "2026-08-25T05:19:36.545235+00:00",
+  "environment": {
+    "captured_at": "2026-08-25T05:09:36.749827+00:00",
+    "hostname": "DESKTOP-RNM",
+    "uname": "Linux DESKTOP-RNM 6.6.87.2-microsoft-standard-WSL2 #1 SMP PREEMPT_DYNAMIC Thu Jun  5 18:30:46 UTC 2025 x86_64 GNU/Linux",
+    "python": "3.13.5",
+    "platform": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.41",
+    "memory": "total        used        free      shared  buff/cache   available\nMem:           3.7Gi       3.7Gi        65Mi       280Ki       103Mi        51Mi\nSwap:          1.0Gi       807Mi       216Mi",
+    "cpu": "Architecture:                         x86_64\nCPU op-mode(s):                       32-bit, 64-bit\nAddress sizes:                        39 bits physical, 48 bits virtual\nByte Order:                           Little Endian\nCPU(s):                               8\nOn-line CPU(s) list:                  0-7\nVendor ID:                            GenuineIntel\nModel name:                           Intel(R) Core(TM) i5-10210U CPU @ 1.60GHz\nCPU family:                           6\nModel:                                142\nThread(s) per core:                   2\nCore(s) per socket:                   4\nSocket(s):                            1\nStepping:                             12\nBogoMIPS:                             4224.01\nFlags:                                fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ss ht syscall nx pdpe1gb rdtscp lm constant_tsc arch_perfmon rep_good nopl xtopology cpuid tsc_known_freq pni pclmulqdq vmx ssse3 fma cx16 pdcm pcid sse4_1 sse4_2 movbe popcnt aes xsave avx f16c rdrand hypervisor lahf_lm abm 3dnowprefetch ssbd ibrs ibpb stibp ibrs_enhanced tpr_shadow ept vpid ept_ad fsgsbase bmi1 avx2 smep bmi2 erms invpcid rdseed adx smap clflushopt xsaveopt xsavec xgetbv1 xsaves vnmi md_clear flush_l1d arch_capabilities\nVirtualization:                       VT-x\nHypervisor vendor:                    Microsoft\nVirtualization type:                  full\nL1d cache:                            128 KiB (4 instances)\nL1i cache:                            128 KiB (4 instances)\nL2 cache:                             1 MiB (4 instances)\nL3 cache:                             6 MiB (1 instance)\nNUMA node(s):                         1\nNUMA node0 CPU(s):                    0-7\nVulnerability Gather data sampling:   Not affected\nVulnerability Itlb multihit:          KVM: Mitigation: VMX disabled\nVulnerability L1tf:                   Not affected\nVulnerability Mds:                    Not affected\nVulnerability Meltdown:               Not affected\nVulnerability Mmio stale data:        Mitigation; Clear CPU buffers; SMT Host state unknown\nVulnerability Reg file data sampling: Not affected\nVulnerability Retbleed:               Mitigation; Enhanced IBRS\nVulnerability Spec rstack overflow:   Not affected\nVulnerability Spec store bypass:      Mitigation; Speculative Store Bypass disabled via prctl\nVulnerability Spectre v1:             Mitigation; usercopy/swapgs barriers and __user pointer sanitization\nVulnerability Spectre v2:             Mitigation; Enhanced / Automatic IBRS; IBPB conditional; RSB filling; PBRSB-eIBRS SW sequence; BHI SW loop, KVM SW loop\nVulnerability Srbds:                  Unknown: Dependent on hypervisor status\nVulnerability Tsx async abort:        Not affected",
+    "ollama_version": "ollama version is 0.30.8",
+    "ollama_binary": "/usr/local/bin/ollama",
+    "ollama_models": [
+      {
+        "name": "phi4-mini:latest",
+        "model": "phi4-mini:latest",
+        "modified_at": "2026-08-24T15:08:01.784287573-05:00",
+        "size": 2491876774,
+        "digest": "78fad5d182a7c33065e153a5f8ba210754207ba9d91973f57dffa7f487363753",
+        "details": {
+          "parent_model": "",
+          "format": "gguf",
+          "family": "phi3",
+          "families": [
+            "phi3"
+          ],
+          "parameter_size": "3.8B",
+          "quantization_level": "Q4_K_M",
+          "context_length": 131072,
+          "embedding_length": 3072
+        },
+        "capabilities": [
+          "completion",
+          "tools"
+        ]
+      },
+      {
+        "name": "gemma3:4b",
+        "model": "gemma3:4b",
+        "modified_at": "2026-08-24T14:31:05.3208599-05:00",
+        "size": 3338801804,
+        "digest": "a2af6cc3eb7fa8be8504abaf9b04e88f17a119ec3f04a3addf55f92841195f5a",
+        "details": {
+          "parent_model": "",
+          "format": "gguf",
+          "family": "gemma3",
+          "families": [
+            "gemma3"
+          ],
+          "parameter_size": "4.3B",
+          "quantization_level": "Q4_K_M"
+        },
+        "capabilities": [
+          "completion"
+        ]
+      },
+      {
+        "name": "qwen3:4b",
+        "model": "qwen3:4b",
+        "modified_at": "2026-08-24T04:01:31.866627687-05:00",
+        "size": 2497293931,
+        "digest": "359d7dd4bcdab3d86b87d73ac27966f4dbb9f5efdfcc75d34a8764a09474fae7",
+        "details": {
+          "parent_model": "",
+          "format": "gguf",
+          "family": "qwen3",
+          "families": [
+            "qwen3"
+          ],
+          "parameter_size": "4.0B",
+          "quantization_level": "Q4_K_M",
+          "context_length": 262144,
+          "embedding_length": 2560
+        },
+        "capabilities": [
+          "completion",
+          "tools",
+          "thinking"
+        ]
+      },
+      {
+        "name": "smollm2:360m-instruct-q4_0",
+        "model": "smollm2:360m-instruct-q4_0",
+        "modified_at": "2026-08-18T15:47:11.073132014-05:00",
+        "size": 229131313,
+        "digest": "676f4c06b139442b817f414970706139cba861c926ee5a3773a9d64eac450368",
+        "details": {
+          "parent_model": "",
+          "format": "gguf",
+          "family": "llama",
+          "families": [
+            "llama"
+          ],
+          "parameter_size": "361.82M",
+          "quantization_level": "Q4_0",
+          "context_length": 8192,
+          "embedding_length": 960
+        },
+        "capabilities": [
+          "completion"
+        ]
+      }
+    ],
+    "requested_model": "gemma3:4b",
+    "model_present": true,
+    "cwd": "/home/lace/Desktop/identity-runtime-mode-b",
+    "mode": "bare",
+    "run_id": "bare-20260825T050936Z"
+  },
+  "mode": "bare",
+  "model": "gemma3:4b",
+  "benchmark_version": "0.1.0",
+  "tasks": [
+    {
+      "task_id": "A01",
+      "category": "reasoning",
+      "title": "Simple addition",
+      "success": true,
+      "failure": false,
+      "hallucination": false,
+      "latency_s": 5.0965,
+      "probe_latency_s": 5.0965,
+      "output": "4",
+      "checks": [
+        {
+          "type": "numeric",
+          "passed": true,
+          "detail": "found [4.0] (want 4.0 \u00b1 0.0)",
+          "hallucination_check": false
+        },
+        {
+          "type": "forbidden",
+          "passed": true,
+          "detail": "no forbidden claims",
+          "hallucination_check": true
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_count": 2,
+        "eval_duration": 251877000,
+        "prompt_eval_count": 45,
+        "total_duration": 5094818583
+      }
+    },
+    {
+      "task_id": "A02",
+      "category": "reasoning",
+      "title": "One-sentence database definition",
+      "success": true,
+      "failure": false,
+      "hallucination": false,
+      "latency_s": 9.2432,
+      "probe_latency_s": 9.2432,
+      "output": "A database is an organized collection of data stored electronically for easy access and management.",
+      "checks": [
+        {
+          "type": "contains_all",
+          "passed": true,
+          "detail": "all present",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_count": 17,
+        "eval_duration": 3769010000,
+        "prompt_eval_count": 46,
+        "total_duration": 9241103960
+      }
+    },
+    {
+      "task_id": "A03",
+      "category": "reasoning",
+      "title": "Numeric comparison",
+      "success": true,
+      "failure": false,
+      "hallucination": false,
+      "latency_s": 6.6382,
+      "probe_latency_s": 6.6382,
+      "output": "21\n",
+      "checks": [
+        {
+          "type": "numeric",
+          "passed": true,
+          "detail": "found [21.0] (want 21.0 \u00b1 0.0)",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_count": 4,
+        "eval_duration": 822030000,
+        "prompt_eval_count": 57,
+        "total_duration": 6635806949
+      }
+    },
+    {
+      "task_id": "A04",
+      "category": "reasoning",
+      "title": "Syllogism",
+      "success": true,
+      "failure": false,
+      "hallucination": false,
+      "latency_s": 7.221,
+      "probe_latency_s": 7.221,
+      "output": "Yes.",
+      "checks": [
+        {
+          "type": "contains_any",
+          "passed": true,
+          "detail": "matched 'yes'",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_count": 3,
+        "eval_duration": 405509000,
+        "prompt_eval_count": 67,
+        "total_duration": 7219477160
+      }
+    },
+    {
+      "task_id": "A05",
+      "category": "reasoning",
+      "title": "String reverse",
+      "success": false,
+      "failure": true,
+      "hallucination": false,
+      "latency_s": 5.6663,
+      "probe_latency_s": 5.6663,
+      "output": "yteisdirteyd",
+      "checks": [
+        {
+          "type": "contains_any",
+          "passed": false,
+          "detail": "none of ['ytitnedi']",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_count": 5,
+        "eval_duration": 921277000,
+        "prompt_eval_count": 49,
+        "total_duration": 5652020970
+      }
+    },
+    {
+      "task_id": "B01",
+      "category": "memory",
+      "title": "Project name recall",
+      "success": true,
+      "failure": false,
+      "hallucination": false,
+      "latency_s": 90.6573,
+      "probe_latency_s": 12.8897,
+      "output": "Your project is called IdentityOS. It\u2019s a persistent AI identity infrastructure.",
+      "checks": [
+        {
+          "type": "contains_all",
+          "passed": true,
+          "detail": "all present",
+          "hallucination_check": false
+        },
+        {
+          "type": "contains_any",
+          "passed": true,
+          "detail": "matched 'persistent'",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_count": 17,
+        "eval_duration": 3443460000,
+        "prompt_eval_count": 99,
+        "total_duration": 12887534634
+      }
+    },
+    {
+      "task_id": "B02",
+      "category": "memory",
+      "title": "User name recall",
+      "success": true,
+      "failure": false,
+      "hallucination": false,
+      "latency_s": 15.0649,
+      "probe_latency_s": 8.243,
+      "output": "The user\u2019s name is Lace.",
+      "checks": [
+        {
+          "type": "contains_any",
+          "passed": true,
+          "detail": "matched 'Lace'",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_count": 9,
+        "eval_duration": 1490446000,
+        "prompt_eval_count": 78,
+        "total_duration": 8241466577
+      }
+    },
+    {
+      "task_id": "B03",
+      "category": "memory",
+      "title": "Preference recall",
+      "success": true,
+      "failure": false,
+      "hallucination": false,
+      "latency_s": 24.5994,
+      "probe_latency_s": 14.878,
+      "output": "The user\u2019s favorite color is teal.",
+      "checks": [
+        {
+          "type": "contains_any",
+          "passed": true,
+          "detail": "matched 'teal'",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_count": 10,
+        "eval_duration": 2839531000,
+        "prompt_eval_count": 94,
+        "total_duration": 14727391045
+      }
+    },
+    {
+      "task_id": "B04",
+      "category": "memory",
+      "title": "Constraint recall",
+      "success": true,
+      "failure": false,
+      "hallucination": false,
+      "latency_s": 55.993,
+      "probe_latency_s": 30.2415,
+      "output": "1.  No cloud APIs\n2.  8GB RAM limit\n3.  Use of the SmolLM2-360M model",
+      "checks": [
+        {
+          "type": "contains_any",
+          "passed": true,
+          "detail": "matched 'cloud'",
+          "hallucination_check": false
+        },
+        {
+          "type": "contains_any",
+          "passed": true,
+          "detail": "matched '8GB'",
+          "hallucination_check": false
+        },
+        {
+          "type": "contains_any",
+          "passed": true,
+          "detail": "matched 'SmolLM2'",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_count": 31,
+        "eval_duration": 5837707000,
+        "prompt_eval_count": 134,
+        "total_duration": 30240289581
+      }
+    },
+    {
+      "task_id": "B05",
+      "category": "memory",
+      "title": "Token recall",
+      "success": true,
+      "failure": false,
+      "hallucination": false,
+      "latency_s": 18.4595,
+      "probe_latency_s": 7.1995,
+      "output": "48291",
+      "checks": [
+        {
+          "type": "numeric",
+          "passed": true,
+          "detail": "found [48291.0] (want 48291.0 \u00b1 0.0)",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_count": 6,
+        "eval_duration": 851442000,
+        "prompt_eval_count": 85,
+        "total_duration": 6944330754
+      }
+    },
+    {
+      "task_id": "C01",
+      "category": "tools",
+      "title": "Multiplication",
+      "success": false,
+      "failure": true,
+      "hallucination": false,
+      "latency_s": 33.8842,
+      "probe_latency_s": 33.8842,
+      "output": "403866",
+      "checks": [
+        {
+          "type": "numeric",
+          "passed": false,
+          "detail": "found [403866.0] (want 411804.0 \u00b1 0.0)",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_count": 7,
+        "eval_duration": 1207354000,
+        "prompt_eval_count": 54,
+        "total_duration": 33453429981
+      }
+    },
+    {
+      "task_id": "C02",
+      "category": "tools",
+      "title": "Create a file",
+      "success": false,
+      "failure": true,
+      "hallucination": false,
+      "latency_s": 37.1222,
+      "probe_latency_s": 37.1222,
+      "output": "I cannot directly create files on your system. I am a language model and do not have the ability to interact with your file system.\n\nHowever, you can use the following command in your terminal to achieve the desired outcome:\n\n```bash\necho \"IDOS benchmark\" > /home/lace/Desktop/identity-runtime-mode-b/benchmarks/workspace/c02.txt\n```\n\nThis command will create a new file named `c02.txt` at the specified location and write the text \"IDOS benchmark\" into it.",
+      "checks": [
+        {
+          "type": "file_exists",
+          "passed": false,
+          "detail": "/home/lace/Desktop/identity-runtime-mode-b/benchmarks/workspace/c02.txt missing",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_count": 114,
+        "eval_duration": 32219994000,
+        "prompt_eval_count": 74,
+        "total_duration": 37117735478
+      }
+    },
+    {
+      "task_id": "C03",
+      "category": "tools",
+      "title": "Current date",
+      "success": false,
+      "failure": true,
+      "hallucination": false,
+      "latency_s": 6.6696,
+      "probe_latency_s": 6.6696,
+      "output": "Today is November 2, 2023.",
+      "checks": [
+        {
+          "type": "contains_any",
+          "passed": false,
+          "detail": "none of ['2026']",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_count": 13,
+        "eval_duration": 2190642000,
+        "prompt_eval_count": 47,
+        "total_duration": 6668048515
+      }
+    },
+    {
+      "task_id": "C04",
+      "category": "tools",
+      "title": "Unit conversion",
+      "success": true,
+      "failure": false,
+      "hallucination": false,
+      "latency_s": 5.9267,
+      "probe_latency_s": 5.9267,
+      "output": "62.1371\n",
+      "checks": [
+        {
+          "type": "numeric",
+          "passed": true,
+          "detail": "found [62.1371] (want 62.1371 \u00b1 0.5)",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_count": 9,
+        "eval_duration": 1624692000,
+        "prompt_eval_count": 52,
+        "total_duration": 5925143051
+      }
+    },
+    {
+      "task_id": "C05",
+      "category": "tools",
+      "title": "Square root",
+      "success": true,
+      "failure": false,
+      "hallucination": false,
+      "latency_s": 4.1534,
+      "probe_latency_s": 4.1534,
+      "output": "12",
+      "checks": [
+        {
+          "type": "numeric",
+          "passed": true,
+          "detail": "found [12.0] (want 12.0 \u00b1 0.0)",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_count": 3,
+        "eval_duration": 356771000,
+        "prompt_eval_count": 48,
+        "total_duration": 4151423261
+      }
+    },
+    {
+      "task_id": "D01",
+      "category": "persistence",
+      "title": "Recall project after restart",
+      "success": false,
+      "failure": true,
+      "hallucination": false,
+      "latency_s": 17.7528,
+      "probe_latency_s": 9.0966,
+      "output": "I cannot access your personal information or details about your projects. Therefore, I don't know the name of your project or what it does.",
+      "checks": [
+        {
+          "type": "contains_all",
+          "passed": false,
+          "detail": "missing: ['IdentityOS']",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "restart_after_setup",
+      "extra": {
+        "eval_count": 30,
+        "eval_duration": 5285766000,
+        "prompt_eval_count": 48,
+        "total_duration": 9094655659
+      }
+    },
+    {
+      "task_id": "D02",
+      "category": "persistence",
+      "title": "Recall user name after restart",
+      "success": false,
+      "failure": true,
+      "hallucination": false,
+      "latency_s": 19.7627,
+      "probe_latency_s": 6.9346,
+      "output": "I don\u2019t know. I have no memory of past conversations or users.",
+      "checks": [
+        {
+          "type": "contains_any",
+          "passed": false,
+          "detail": "none of ['Lace']",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "restart_after_setup",
+      "extra": {
+        "eval_count": 17,
+        "eval_duration": 3031025000,
+        "prompt_eval_count": 45,
+        "total_duration": 6691892754
+      }
+    },
+    {
+      "task_id": "D03",
+      "category": "persistence",
+      "title": "Recall color after restart",
+      "success": false,
+      "failure": true,
+      "hallucination": false,
+      "latency_s": 14.2958,
+      "probe_latency_s": 6.1627,
+      "output": "I do not know. I have no information about your preferences.",
+      "checks": [
+        {
+          "type": "contains_any",
+          "passed": false,
+          "detail": "none of ['teal']",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "restart_after_setup",
+      "extra": {
+        "eval_count": 14,
+        "eval_duration": 2555729000,
+        "prompt_eval_count": 46,
+        "total_duration": 6158609529
+      }
+    },
+    {
+      "task_id": "D04",
+      "category": "persistence",
+      "title": "Recall token after restart",
+      "success": false,
+      "failure": true,
+      "hallucination": false,
+      "latency_s": 15.4867,
+      "probe_latency_s": 8.0984,
+      "output": "I have no memory of past conversations. I don\u2019t retain information from one turn to the next.",
+      "checks": [
+        {
+          "type": "numeric",
+          "passed": false,
+          "detail": "found [] (want 77319.0 \u00b1 0.0)",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "restart_after_setup",
+      "extra": {
+        "eval_count": 22,
+        "eval_duration": 3998862000,
+        "prompt_eval_count": 46,
+        "total_duration": 8096448150
+      }
+    },
+    {
+      "task_id": "D05",
+      "category": "persistence",
+      "title": "Recall constraint after restart",
+      "success": false,
+      "failure": true,
+      "hallucination": false,
+      "latency_s": 15.6449,
+      "probe_latency_s": 8.5172,
+      "output": "I don\u2019t have memory of previous conversations. Therefore, I don't know what RAM ceiling you told me to remember.",
+      "checks": [
+        {
+          "type": "contains_any",
+          "passed": false,
+          "detail": "none of ['8GB', '8 GB', '8gb']",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "restart_after_setup",
+      "extra": {
+        "eval_count": 27,
+        "eval_duration": 4675380000,
+        "prompt_eval_count": 47,
+        "total_duration": 8515043109
+      }
+    },
+    {
+      "task_id": "E01",
+      "category": "long_task",
+      "title": "Two-step arithmetic with remainder report",
+      "success": true,
+      "failure": false,
+      "hallucination": false,
+      "latency_s": 17.0906,
+      "probe_latency_s": 17.0906,
+      "output": "Okay, let's track this:\n\n**Step 1:** 15 + 27 = 42\n\n**Step 2:** 42 + 10 = 52\n\n**Final Number:** 52\n\n**Status:** All steps completed.",
+      "checks": [
+        {
+          "type": "numeric",
+          "passed": true,
+          "detail": "found [1.0, 15.0, 27.0, 42.0, 2.0, 42.0, 10.0, 52.0, 52.0] (want 52.0 \u00b1 0.0)",
+          "hallucination_check": false
+        },
+        {
+          "type": "contains_any",
+          "passed": true,
+          "detail": "matched 'complete'",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_count": 59,
+        "eval_duration": 10828302000,
+        "prompt_eval_count": 82,
+        "total_duration": 17089405383
+      }
+    },
+    {
+      "task_id": "E02",
+      "category": "long_task",
+      "title": "Partial checklist",
+      "success": true,
+      "failure": false,
+      "hallucination": false,
+      "latency_s": 15.9517,
+      "probe_latency_s": 15.9517,
+      "output": "Okay, here are my answers:\n\n1.  Paris\n2.  56\n3.  I do not know.\n4.  tac\n\nUnfinished Items: 3 & 4",
+      "checks": [
+        {
+          "type": "contains_any",
+          "passed": true,
+          "detail": "matched 'Paris'",
+          "hallucination_check": false
+        },
+        {
+          "type": "numeric",
+          "passed": true,
+          "detail": "found [1.0, 2.0, 56.0, 3.0, 4.0, 3.0, 4.0] (want 56.0 \u00b1 0.0)",
+          "hallucination_check": false
+        },
+        {
+          "type": "contains_any",
+          "passed": true,
+          "detail": "matched 'tac'",
+          "hallucination_check": false
+        },
+        {
+          "type": "contains_any",
+          "passed": true,
+          "detail": "matched 'unfinished'",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_count": 43,
+        "eval_duration": 8018652000,
+        "prompt_eval_count": 97,
+        "total_duration": 15949804692
+      }
+    },
+    {
+      "task_id": "E03",
+      "category": "long_task",
+      "title": "Ordered three facts",
+      "success": true,
+      "failure": false,
+      "hallucination": false,
+      "latency_s": 23.654,
+      "probe_latency_s": 23.654,
+      "output": "Here are three facts about water:\n\n1.  Water covers approximately 71% of Earth\u2019s surface.\n2.  Liquid water exists at temperatures between 0\u00b0C (32\u00b0F) and 100\u00b0C (212\u00b0F).\n3.  Water is a polar molecule, meaning it has a slightly positive and slightly negative end.\n\nTask complete. Nothing remains unfinished.",
+      "checks": [
+        {
+          "type": "contains_any",
+          "passed": true,
+          "detail": "matched '1'",
+          "hallucination_check": false
+        },
+        {
+          "type": "contains_any",
+          "passed": true,
+          "detail": "matched '2'",
+          "hallucination_check": false
+        },
+        {
+          "type": "contains_any",
+          "passed": true,
+          "detail": "matched '3'",
+          "hallucination_check": false
+        },
+        {
+          "type": "contains_any",
+          "passed": true,
+          "detail": "matched 'complete'",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_count": 88,
+        "eval_duration": 18075030000,
+        "prompt_eval_count": 58,
+        "total_duration": 23643512959
+      }
+    },
+    {
+      "task_id": "E04",
+      "category": "long_task",
+      "title": "Plan then execute a tiny write-up",
+      "success": true,
+      "failure": false,
+      "hallucination": false,
+      "latency_s": 75.0113,
+      "probe_latency_s": 75.0113,
+      "output": "Okay, let's break this down into steps:\n\n1.  **Step 1: Research & Write 2-Sentence Summary:** I will research \"persistent identity\" and craft a two-sentence summary explaining it.\n2.  **Step 2: Locate Exact Quote:** I will find the exact phrase \u201cpersistent identity\u201d within my knowledge base.\n3.  **Step 3: Report Progress:** I\u2019ll update you on the status of each step.\n\n**Executing Steps:**\n\n1.  **Step 1:** After researching, here's a two-sentence summary: \"A persistent identity represents an individual's consistent characteristics and attributes across different systems and contexts. This allows for seamless recognition and personalized experiences without requiring constant re-authentication.\"\n2.  **Step 2:** I located the exact quote: \u201cpersistent identity\u201d\n3.  **Step 3:** All steps completed.\n\n**Report:**\n\nThe two-sentence summary of a persistent identity is provided above, and the phrase \"persistent identity\" has been quoted exactly once.",
+      "checks": [
+        {
+          "type": "contains_all",
+          "passed": true,
+          "detail": "all present",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_count": 222,
+        "eval_duration": 40079585000,
+        "prompt_eval_count": 80,
+        "total_duration": 74997894973
+      }
+    },
+    {
+      "task_id": "E05",
+      "category": "long_task",
+      "title": "Sequential remember-compute-combine",
+      "success": true,
+      "failure": false,
+      "hallucination": false,
+      "latency_s": 17.0002,
+      "probe_latency_s": 11.9059,
+      "output": "16 * 3 = 48\n\nThe original batch size of 16 is still remembered.\n\nNo further computation or reporting is needed.",
+      "checks": [
+        {
+          "type": "numeric",
+          "passed": true,
+          "detail": "found [16.0, 3.0, 48.0, 16.0] (want 48.0 \u00b1 0.0)",
+          "hallucination_check": false
+        },
+        {
+          "type": "contains_any",
+          "passed": true,
+          "detail": "matched '16'",
+          "hallucination_check": false
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_count": 32,
+        "eval_duration": 5165976000,
+        "prompt_eval_count": 110,
+        "total_duration": 11858038263
+      }
+    },
+    {
+      "task_id": "F01",
+      "category": "truthfulness",
+      "title": "Unknown personal breakfast",
+      "success": true,
+      "failure": false,
+      "hallucination": false,
+      "latency_s": 5.7765,
+      "probe_latency_s": 5.7765,
+      "output": "I do not know.",
+      "checks": [
+        {
+          "type": "abstain",
+          "passed": true,
+          "detail": "abstained",
+          "hallucination_check": true
+        },
+        {
+          "type": "forbidden",
+          "passed": true,
+          "detail": "no forbidden claims",
+          "hallucination_check": true
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_count": 6,
+        "eval_duration": 845019000,
+        "prompt_eval_count": 67,
+        "total_duration": 5534171495
+      }
+    },
+    {
+      "task_id": "F02",
+      "category": "truthfulness",
+      "title": "Fictional company officer",
+      "success": true,
+      "failure": false,
+      "hallucination": false,
+      "latency_s": 5.3297,
+      "probe_latency_s": 5.3297,
+      "output": "I do not know.",
+      "checks": [
+        {
+          "type": "abstain",
+          "passed": true,
+          "detail": "abstained",
+          "hallucination_check": true
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_count": 6,
+        "eval_duration": 838624000,
+        "prompt_eval_count": 62,
+        "total_duration": 5194697485
+      }
+    },
+    {
+      "task_id": "F03",
+      "category": "truthfulness",
+      "title": "Unavailable private identifier",
+      "success": true,
+      "failure": false,
+      "hallucination": false,
+      "latency_s": 9.1182,
+      "probe_latency_s": 9.1182,
+      "output": "I do not know. It is private information that only you should possess. Sharing your Social Security Number with me would be a security risk.",
+      "checks": [
+        {
+          "type": "abstain",
+          "passed": true,
+          "detail": "abstained",
+          "hallucination_check": true
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_count": 29,
+        "eval_duration": 5025494000,
+        "prompt_eval_count": 56,
+        "total_duration": 9022480118
+      }
+    },
+    {
+      "task_id": "F04",
+      "category": "truthfulness",
+      "title": "Future sports result",
+      "success": true,
+      "failure": false,
+      "hallucination": false,
+      "latency_s": 8.0366,
+      "probe_latency_s": 8.0366,
+      "output": "I do not know. The 2027 World Series has not yet happened.",
+      "checks": [
+        {
+          "type": "abstain",
+          "passed": true,
+          "detail": "abstained",
+          "hallucination_check": true
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_count": 19,
+        "eval_duration": 3178863000,
+        "prompt_eval_count": 60,
+        "total_duration": 7884977971
+      }
+    },
+    {
+      "task_id": "F05",
+      "category": "truthfulness",
+      "title": "Unpublished paper title",
+      "success": true,
+      "failure": false,
+      "hallucination": false,
+      "latency_s": 9.4735,
+      "probe_latency_s": 9.4735,
+      "output": "I do not know. I have no information about your work or upcoming papers.",
+      "checks": [
+        {
+          "type": "abstain",
+          "passed": true,
+          "detail": "abstained",
+          "hallucination_check": true
+        }
+      ],
+      "notes": "",
+      "extra": {
+        "eval_count": 17,
+        "eval_duration": 3973303000,
+        "prompt_eval_count": 60,
+        "total_duration": 9307306309
+      }
+    }
+  ],
+  "suite": "IDOS Baseline",
+  "task_ids": [
+    "A01",
+    "A02",
+    "A03",
+    "A04",
+    "A05",
+    "B01",
+    "B02",
+    "B03",
+    "B04",
+    "B05",
+    "C01",
+    "C02",
+    "C03",
+    "C04",
+    "C05",
+    "D01",
+    "D02",
+    "D03",
+    "D04",
+    "D05",
+    "E01",
+    "E02",
+    "E03",
+    "E04",
+    "E05",
+    "F01",
+    "F02",
+    "F03",
+    "F04",
+    "F05"
+  ],
+  "finished_at": "2026-08-25T05:19:36.557394+00:00",
+  "summary": {
+    "n": 30,
+    "success": 21,
+    "success_rate": 0.7,
+    "hallucination": 0,
+    "hallucination_rate": 0.0,
+    "avg_latency_s": 19.8594,
+    "categories": {
+      "reasoning": {
+        "n": 5,
+        "success": 4,
+        "success_rate": 0.8,
+        "hallucination": 0,
+        "hallucination_rate": 0.0,
+        "avg_latency_s": 6.773
+      },
+      "memory": {
+        "n": 5,
+        "success": 5,
+        "success_rate": 1.0,
+        "hallucination": 0,
+        "hallucination_rate": 0.0,
+        "avg_latency_s": 40.9548
+      },
+      "tools": {
+        "n": 5,
+        "success": 2,
+        "success_rate": 0.4,
+        "hallucination": 0,
+        "hallucination_rate": 0.0,
+        "avg_latency_s": 17.5512
+      },
+      "persistence": {
+        "n": 5,
+        "success": 0,
+        "success_rate": 0.0,
+        "hallucination": 0,
+        "hallucination_rate": 0.0,
+        "avg_latency_s": 16.5886
+      },
+      "long_task": {
+        "n": 5,
+        "success": 5,
+        "success_rate": 1.0,
+        "hallucination": 0,
+        "hallucination_rate": 0.0,
+        "avg_latency_s": 29.7416
+      },
+      "truthfulness": {
+        "n": 5,
+        "success": 5,
+        "success_rate": 1.0,
+        "hallucination": 0,
+        "hallucination_rate": 0.0,
+        "avg_latency_s": 7.5469
+      }
+    }
+  }
+}

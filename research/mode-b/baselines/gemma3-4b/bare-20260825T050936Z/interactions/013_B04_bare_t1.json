@@ -1,0 +1,20 @@
+{
+  "seq": 13,
+  "task_id": "B04",
+  "mode": "bare",
+  "turn_index": 1,
+  "role": "user",
+  "prompt": "List the three constraints I told you to remember.",
+  "output": "1.  No cloud APIs\n2.  8GB RAM limit\n3.  Use of the SmolLM2-360M model",
+  "latency_s": 30.2415,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-25T05:13:18.368998+00:00",
+  "extra": {
+    "eval_count": 31,
+    "eval_duration": 5837707000,
+    "prompt_eval_count": 134,
+    "total_duration": 30240289581
+  }
+}

@@ -27,6 +27,7 @@ def ollama_chat(host: str, model: str, prompt: str) -> dict:
         "model": model,
         "messages": [{"role": "user", "content": prompt}],
         "stream": False,
+        "think": False,
         "options": {"temperature": 0.0},
     }
     req = urllib.request.Request(
@@ -35,7 +36,8 @@ def ollama_chat(host: str, model: str, prompt: str) -> dict:
         headers={"Content-Type": "application/json"},
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=180) as resp:
+    # 4B CPU models on this host can take several minutes for first token.
+    with urllib.request.urlopen(req, timeout=1200) as resp:
         return json.loads(resp.read().decode())
 
 

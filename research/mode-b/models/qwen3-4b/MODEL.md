@@ -1,22 +1,29 @@
-# Model: qwen3:4b
+# Model: `qwen3:4b`
 
-| Field | Value |
-|-------|-------|
-| Exact Ollama tag | `qwen3:4b` |
-| Pull status | SUCCESS (2026-08-24) |
-| Size on disk | 2.5 GB |
-| Parameters | 4.0B |
-| Architecture | qwen3 |
-| Quantization | Q4_K_M |
-| Context length | 262144 |
-| Embedding length | 2560 |
-| Capabilities | completion, tools, thinking |
-| Model ID | `359d7dd4bcda` |
+```
+  Model
+    architecture        qwen3     
+    parameters          4.0B      
+    context length      262144    
+    embedding length    2560      
+    quantization        Q4_K_M    
 
-## Smoke / inference
+  Capabilities
+    completion    
+    tools         
+    thinking      
 
-Pending until SmolLM2 autopilot releases Ollama memory (host has ~3.7 GiB RAM).
+  Parameters
+    top_k             20                
+    top_p             0.95              
+    repeat_penalty    1                 
+    stop              "<|im_start|>"    
+    stop              "<|im_end|>"      
+    temperature       0.6               
 
-## Notes
+  License
+    Apache License               
+    Version 2.0, January 2004    
+    ...                          
 
-Selected for Mode B as a distinct family from SmolLM2 while remaining small enough for local deployment research.
+```

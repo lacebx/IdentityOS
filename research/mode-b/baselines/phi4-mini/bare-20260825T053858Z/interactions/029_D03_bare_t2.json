@@ -1,0 +1,20 @@
+{
+  "seq": 29,
+  "task_id": "D03",
+  "mode": "bare",
+  "turn_index": 2,
+  "role": "user",
+  "prompt": "What is the user's favorite color?",
+  "output": "I don't have access to personal data unless it has been shared with me in our conversation; therefore I cannot determine your favorite color without further input from you directly regarding this topic.",
+  "latency_s": 6.5732,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-25T05:42:55.850924+00:00",
+  "extra": {
+    "eval_count": 36,
+    "eval_duration": 5588690000,
+    "prompt_eval_count": 32,
+    "total_duration": 6566541658
+  }
+}

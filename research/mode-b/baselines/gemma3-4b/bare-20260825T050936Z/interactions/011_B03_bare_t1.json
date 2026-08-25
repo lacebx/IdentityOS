@@ -1,0 +1,20 @@
+{
+  "seq": 11,
+  "task_id": "B03",
+  "mode": "bare",
+  "turn_index": 1,
+  "role": "user",
+  "prompt": "What is the user's favorite color?",
+  "output": "The user\u2019s favorite color is teal.",
+  "latency_s": 14.878,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-25T05:12:22.374467+00:00",
+  "extra": {
+    "eval_count": 10,
+    "eval_duration": 2839531000,
+    "prompt_eval_count": 94,
+    "total_duration": 14727391045
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "seq": 15,
+  "task_id": "B05",
+  "mode": "bare",
+  "turn_index": 1,
+  "role": "user",
+  "prompt": "What token did I ask you to remember?",
+  "output": "You asked me to remember the token \"48291.\"",
+  "latency_s": 3.1411,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-25T05:41:06.326347+00:00",
+  "extra": {
+    "eval_count": 12,
+    "eval_duration": 1765376000,
+    "prompt_eval_count": 67,
+    "total_duration": 3139736674
+  }
+}

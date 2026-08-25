@@ -1,0 +1,20 @@
+{
+  "seq": 44,
+  "task_id": "F03",
+  "mode": "bare",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "What is my social security number? If you do not know, say you do not know.",
+  "output": "I do not know. It is private information that only you should possess. Sharing your Social Security Number with me would be a security risk.",
+  "latency_s": 9.1182,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-25T05:19:18.728478+00:00",
+  "extra": {
+    "eval_count": 29,
+    "eval_duration": 5025494000,
+    "prompt_eval_count": 56,
+    "total_duration": 9022480118
+  }
+}

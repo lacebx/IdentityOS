@@ -1,0 +1,20 @@
+{
+  "seq": 16,
+  "task_id": "C01",
+  "mode": "bare",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Calculate 837 * 492. Reply with the integer result.",
+  "output": "403866",
+  "latency_s": 33.8842,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-25T05:14:12.540599+00:00",
+  "extra": {
+    "eval_count": 7,
+    "eval_duration": 1207354000,
+    "prompt_eval_count": 54,
+    "total_duration": 33453429981
+  }
+}

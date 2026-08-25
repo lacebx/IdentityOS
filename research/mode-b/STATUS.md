@@ -1,33 +1,42 @@
-# Mode B status log
+# Mode B status
 
-## 2026-08-24T17:30Z (approx)
+## 2026-08-25T04:10Z (approx) — prior run audit + restart
 
-### Completed
-- Isolated worktree at proven KEEP `e1cb45c`: `/home/lace/Desktop/identity-runtime-mode-b`
-- Branch: `mode-b/cross-model-validation`
-- Research archive skeleton under `research/mode-b/`
-- Scripts: `mode_b_runner.py`, `mode_b_report.py`, `mode_b_overnight.sh`
-- Model pull: `qwen3:4b` SUCCESS (4.0B, Q4_K_M, 2.5 GB)
+### What happened in the previous Mode B attempt
 
-### In progress / blocked
-- Mode A SmolLM2 autopilot still active (`EXP-051` ratchet).
-- Host has only ~3.7 GiB RAM. Concurrent Mode A + Mode B crashes Ollama.
-- `gemma3:4b` pull started then stopped to avoid fighting Mode A for Ollama.
-- `phi4-mini` not yet pulled.
-- Bare baselines and IDOS runs not yet started (blocked on Mode A releasing Ollama).
+Process is **stopped**. No exclusive PID/log remained in `/tmp`.
 
-### Autonomous continuation
-- `scripts/mode_b_overnight.sh` is running (PID in `/tmp/mode_b_overnight.pid`).
-- It waits for Mode A `benchmarks/ratchet.py` to be idle ~90s, then runs
-  smoke + bare + IDOS for each available model.
-- Log: `/tmp/mode_b_overnight.log`
-- Commit: `e25dccc` on branch `mode-b/cross-model-validation`
+Recovered evidence:
 
-### Hard blocker for full Mode B evidence on this host
-A full `qwen3:4b` bare+IDOS suite needs exclusive Ollama for hours.
-Mode A currently restarts ratchets frequently. On 3.7 GiB RAM, concurrent
-Mode A + Mode B previously crashed Ollama.
+1. **qwen3:4b smoke #1** (`20260824T200825Z`) — PASS, latency **597s** (cold load + thinking).
+2. **qwen3:4b smoke #2** (`20260824T201823Z`) — PASS, latency **43s**.
+3. **qwen3:4b bare** (`bare-20260824T201908Z`) — **incomplete**, stopped after 3/30 tasks:
+   - A01 PASS (31.8s)
+   - A02 FAIL — Ollama timed out
+   - A03 PASS (468.9s)
+   - No further tasks; no IDOS run; no done marker
 
-If Mode A never stays idle long enough, Mode B will remain waiting.
-Recommended when you return: pause Mode A overnight, let Mode B finish
-baselines, then resume Mode A — or move Mode B to a larger machine.
+**Observed cause:** with default Qwen3 thinking enabled, single tasks approached/exceeded the prior 600s timeout and the exclusive process died before finishing the suite (likely host sleep/OOM/kill; `/tmp` log was lost).
+
+### Restart configuration changes
+
+- Bare/IDOS timeout raised to **1200s**
+- Native Ollama bare calls set **`think: false`** (documented Mode B config)
+- IDOS `OllamaAdapter` uses `think=False`, `temperature=0.0`, same timeout
+- Durable log also written to `research/mode-b/runs/exclusive.log`
+
+### Models ready
+
+- `qwen3:4b`
+- `gemma3:4b`
+- `phi4-mini` / `phi4-mini:latest`
+
+### Monitor
+
+```bash
+tail -f /tmp/mode_b_exclusive.log
+# or
+tail -f /home/lace/Desktop/identity-runtime-mode-b/research/mode-b/runs/exclusive.log
+ps -p $(cat /tmp/mode_b_exclusive.pid) -o pid,etime,cmd
+ls -lt research/mode-b/manifests/
+```

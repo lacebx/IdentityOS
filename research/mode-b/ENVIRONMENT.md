@@ -28,4 +28,21 @@ Mode B baselines and IDOS runs must wait until Mode A is not holding an active
 `benchmarks/ratchet.py` Ollama suite.
 
 Scripts:
-- `scripts/mode_b_overnight.sh` waits for Mode A ratchet release before each model phase.
+- `scripts/mode_b_exclusive.sh` assumes Mode A is stopped and owns Ollama exclusively.
+
+## Thinking / latency configuration (Mode B)
+
+Qwen3 supports a thinking mode. On the first Mode B attempt with thinking left on:
+
+- cold smoke took ~597s
+- bare A03 alone took ~469s
+- bare A02 hit the timeout and failed
+- the exclusive process stopped after only 3/30 bare tasks
+
+For the restarted Mode B campaign, the frozen Mode B harness sets:
+
+- native Ollama bare chat: `"think": false`
+- IDOS `OllamaAdapter(think=False)`
+
+This is an explicit Mode B configuration choice for practicality on a CPU-only 3.7 GiB host.
+It should be reported alongside results; it is not a silent scoring change.

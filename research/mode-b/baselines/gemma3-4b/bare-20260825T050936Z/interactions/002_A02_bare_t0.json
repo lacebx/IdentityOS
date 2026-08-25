@@ -1,0 +1,20 @@
+{
+  "seq": 2,
+  "task_id": "A02",
+  "mode": "bare",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Explain what a database is in one sentence.",
+  "output": "A database is an organized collection of data stored electronically for easy access and management.",
+  "latency_s": 9.2432,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-25T05:09:51.412505+00:00",
+  "extra": {
+    "eval_count": 17,
+    "eval_duration": 3769010000,
+    "prompt_eval_count": 46,
+    "total_duration": 9241103960
+  }
+}
