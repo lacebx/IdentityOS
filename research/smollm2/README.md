@@ -91,3 +91,6 @@ meaningful at the proven 77% tip vs the frozen 37% bare.
 ## Reproduction
 
 See `research/smollm2/reproducibility/REPRODUCE.md` for exact commands.
+
+For a **from-scratch overnight autopilot** on a second machine (8 GB Linux Mint laptop),
+see `research/OVERNIGHT_LAPTOP_SETUP.md`.

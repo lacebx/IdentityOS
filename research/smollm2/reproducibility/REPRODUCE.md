@@ -72,17 +72,22 @@ python benchmarks/ratchet.py \
 
 ## Run the autopilot loop
 
+For a full from-scratch overnight setup on another laptop (swap, lid-close, Ollama,
+secrets, proof checklist), use `research/OVERNIGHT_LAPTOP_SETUP.md`.
+
 ```bash
 # Start unattended until-plateau loop (DeepSeek as coder)
+mkdir -p logs
 PYTHONUNBUFFERED=1 nohup python -u benchmarks/autopilot.py \
   --loop --until-plateau --provider deepseek \
-  >> /tmp/autopilot.log 2>&1 &
+  >> logs/autopilot.overnight.log 2>&1 &
+echo $! > logs/autopilot.pid
 
 # Monitor
-tail -f /tmp/autopilot.log
+tail -f logs/autopilot.overnight.log
 
 # Stop
-kill $(cat /tmp/autopilot.pid)
+kill "$(cat logs/autopilot.pid)"
 ```
 
 ## Check current ratchet state
