@@ -76,6 +76,7 @@ class EventType(Enum):
     KNOWLEDGE_LOADED = "knowledge.loaded"
     SKILL_INVOKED = "skill.invoked"
     SKILL_FAILED = "skill.failed"
+    ADAPTER_SWITCHED = "adapter.switched"
 
     # Evaluation / Evolution
     EVALUATION_COMPLETED = "evaluation.completed"

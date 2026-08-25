@@ -41,6 +41,15 @@ from cli.registry_cmds import (
     cmd_explain,
     cmd_inspect_dashboard,
 )
+from cli.chat_commands import (  # noqa: F401  (re-exported for chat REPL + tests)
+    ChatContext,
+    dispatch_chat_command,
+    _set_adapter_model,
+    _set_adapter_temperature,
+)
+
+# Backwards-compatible alias used by tests.
+_dispatch_chat_command = dispatch_chat_command
 
 # Load .env if present
 _env_file = Path(__file__).resolve().parent.parent / ".env"
@@ -828,7 +837,7 @@ def cmd_chat(args: argparse.Namespace) -> int:
     identity_name = identity_spec.get("name", resolved) if isinstance(identity_spec, dict) else resolved
     manager = _get_snapshot_manager(storage, resolved)
     print(f"\n  \u25B6 IdentityOS Chat — {identity_name}")
-    print(f"  Type 'exit' or Ctrl-C to quit. Type ':snapshot' to checkpoint.")
+    print(f"  Type 'exit' or Ctrl-C to quit. Type /help for chat commands.")
     print()
 
     # Resolve adapter
@@ -849,10 +858,21 @@ def cmd_chat(args: argparse.Namespace) -> int:
         print(f"[warn] Could not initialize runtime ({e}). Running in echo mode.")
         runtime_ok = False
 
-    session_turns = 0
+    ctx = ChatContext(
+        runtime=runtime if runtime_ok else None,
+        manager=manager,
+        storage=storage,
+        identity_id=resolved,
+        session_id=session_id if runtime_ok else "echo",
+        identity_name=identity_name,
+    )
+
+    from cli.chat_commands import build_input_reader
+    read_line = build_input_reader()
+
     while True:
         try:
-            user_input = input(f"\n{_color('you>', _GREEN)} ").strip()
+            user_input = read_line(f"\n{_color('you>', _GREEN)} ").strip()
         except (KeyboardInterrupt, EOFError):
             print("\nGoodbye.")
             break
@@ -862,16 +882,12 @@ def cmd_chat(args: argparse.Namespace) -> int:
         if user_input.lower() in ("exit", "quit", "bye"):
             print("Goodbye.")
             break
-        if user_input == ":snapshot":
-            snap_id = manager.capture(
-                latest.modules,
-                label=f"chat-turn-{session_turns}",
-            )
-            print(f"  [snapshot saved: {snap_id[:8]}]")
-            continue
-        if user_input == ":history":
-            for snap in manager.history():
-                print(f"  {snap.summary()}")
+
+        status = dispatch_chat_command(user_input, ctx)
+        if status == "exit":
+            print("Goodbye.")
+            break
+        if status == "handled":
             continue
 
         if runtime_ok:
@@ -879,7 +895,7 @@ def cmd_chat(args: argparse.Namespace) -> int:
                 req = InteractionRequest(
                     identity_id=resolved,
                     user_input=user_input,
-                    session_id=session_id,
+                    session_id=ctx.session_id,
                 )
                 resp = runtime.process(req)
                 output = _render_output(resp.output)
@@ -891,7 +907,7 @@ def cmd_chat(args: argparse.Namespace) -> int:
             print(f"\n{identity_name}> [echo] {user_input}\n")
             print("─" * 40)
 
-        session_turns += 1
+        ctx.turns += 1
 
     return 0
 

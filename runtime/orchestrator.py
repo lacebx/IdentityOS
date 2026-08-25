@@ -528,6 +528,17 @@ class IdentityRuntime:
     def list_identities(self) -> List[IdentitySpec]:
         return self.identity_store.list_all()
 
+    def set_adapter(self, adapter) -> None:
+        """Swap the LLM adapter mid-session; takes effect on the next turn."""
+        old = type(self.adapter).__name__ if self.adapter else None
+        self.adapter = adapter
+        self._emit(
+            EventType.ADAPTER_SWITCHED,
+            old_adapter=old,
+            new_adapter=type(adapter).__name__ if adapter else None,
+            model=getattr(adapter, "model", None),
+        )
+
     def unload(self, identity_id: str) -> bool:
         self._emit(EventType.IDENTITY_UNLOADED, identity_id=identity_id)
         return self.identity_store.delete(identity_id)
