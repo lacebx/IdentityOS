@@ -1,0 +1,20 @@
+{
+  "seq": 16,
+  "task_id": "C01",
+  "mode": "bare",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Calculate 837 * 492. Reply with the integer result.",
+  "output": "The product of 837 multiplied by 492 is **412844**.",
+  "latency_s": 3.9542,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-25T05:41:10.282175+00:00",
+  "extra": {
+    "eval_count": 16,
+    "eval_duration": 2388646000,
+    "prompt_eval_count": 38,
+    "total_duration": 3947769135
+  }
+}

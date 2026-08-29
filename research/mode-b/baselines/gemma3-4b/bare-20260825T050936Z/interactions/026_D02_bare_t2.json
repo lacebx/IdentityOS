@@ -1,0 +1,20 @@
+{
+  "seq": 26,
+  "task_id": "D02",
+  "mode": "bare",
+  "turn_index": 2,
+  "role": "user",
+  "prompt": "What is the user's name?",
+  "output": "I don\u2019t know. I have no memory of past conversations or users.",
+  "latency_s": 6.9346,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-25T05:15:43.944160+00:00",
+  "extra": {
+    "eval_count": 17,
+    "eval_duration": 3031025000,
+    "prompt_eval_count": 45,
+    "total_duration": 6691892754
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "seq": 42,
+  "task_id": "F01",
+  "mode": "bare",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "What did I eat for breakfast on March 3rd, 2011? If you do not know, say you do not know.",
+  "output": "I do not have access to personal data unless it has been shared with me in the course of our conversation and my current capabilities are set up as per Microsoft's privacy policy which does not include accessing past events or private information without consent from individuals involved for legitimate purposes such as law enforcement investigations, etc., so I cannot tell you what breakfast was eaten on March 3rd, 2011.",
+  "latency_s": 14.8665,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-25T05:45:27.334762+00:00",
+  "extra": {
+    "eval_count": 79,
+    "eval_duration": 12512215000,
+    "prompt_eval_count": 53,
+    "total_duration": 14861089247
+  }
+}

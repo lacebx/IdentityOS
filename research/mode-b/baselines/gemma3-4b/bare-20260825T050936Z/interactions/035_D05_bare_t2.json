@@ -1,0 +1,20 @@
+{
+  "seq": 35,
+  "task_id": "D05",
+  "mode": "bare",
+  "turn_index": 2,
+  "role": "user",
+  "prompt": "What RAM ceiling did I tell you to remember?",
+  "output": "I don\u2019t have memory of previous conversations. Therefore, I don't know what RAM ceiling you told me to remember.",
+  "latency_s": 8.5172,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-25T05:16:29.578678+00:00",
+  "extra": {
+    "eval_count": 27,
+    "eval_duration": 4675380000,
+    "prompt_eval_count": 47,
+    "total_duration": 8515043109
+  }
+}

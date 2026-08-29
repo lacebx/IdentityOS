@@ -48,7 +48,7 @@ DEFAULT_HOST = "http://localhost:11434"
 IDENTITY_ID = "smollm-bench-v010"
 IDENTITY_NAME = "BenchMate"
 IDOS_CAPS = ("calc", "datetime", "file_tools", "system_info")
-BARE_TIMEOUT_S = 180.0
+BARE_TIMEOUT_S = 3600.0  # Mode B: qwen3 thinking can exceed 20m/task; allow 1h/task
 
 
 class BenchmarkError(RuntimeError):
@@ -73,11 +73,15 @@ def ollama_chat(
     host: str = DEFAULT_HOST,
     temperature: float = 0.0,
     timeout: float = BARE_TIMEOUT_S,
+    think: bool = False,
 ) -> tuple[str, dict[str, Any]]:
+    # Mode B: disable thinking by default so 4B models remain practical on CPU.
+    # Documented in research/mode-b/ENVIRONMENT.md — this is a frozen Mode B config choice.
     payload = {
         "model": model,
         "messages": messages,
         "stream": False,
+        "think": think,
         "options": {"temperature": temperature},
     }
     req = urllib.request.Request(
@@ -145,7 +149,7 @@ class IDOSSession:
         from runtime.persistence import JSONFileBackend
 
         storage = JSONFileBackend(root_dir=str(self.store_dir))
-        adapter = OllamaAdapter(model=self.model, timeout=BARE_TIMEOUT_S)
+        adapter = OllamaAdapter(model=self.model, timeout=BARE_TIMEOUT_S, think=False, temperature=0.0)
         runtime = IdentityRuntime(adapter=adapter, storage=storage)
         if fresh_identity or runtime.load(self.identity_id) is None:
             spec = IdentitySpec(

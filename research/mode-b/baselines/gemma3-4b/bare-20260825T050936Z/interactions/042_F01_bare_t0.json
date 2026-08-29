@@ -1,0 +1,20 @@
+{
+  "seq": 42,
+  "task_id": "F01",
+  "mode": "bare",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "What did I eat for breakfast on March 3rd, 2011? If you do not know, say you do not know.",
+  "output": "I do not know.",
+  "latency_s": 5.7765,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-25T05:19:04.095163+00:00",
+  "extra": {
+    "eval_count": 6,
+    "eval_duration": 845019000,
+    "prompt_eval_count": 67,
+    "total_duration": 5534171495
+  }
+}

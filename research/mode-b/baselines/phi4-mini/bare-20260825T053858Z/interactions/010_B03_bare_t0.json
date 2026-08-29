@@ -1,0 +1,20 @@
+{
+  "seq": 10,
+  "task_id": "B03",
+  "mode": "bare",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: The user's favorite color is teal.",
+  "output": "Got it! Your favorite color being teal means you're likely to appreciate shades of blue-green or turquoise in design choices like clothing, decor, etc. How can I assist with that today?",
+  "latency_s": 6.8453,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-25T05:39:47.272091+00:00",
+  "extra": {
+    "eval_count": 38,
+    "eval_duration": 5923969000,
+    "prompt_eval_count": 34,
+    "total_duration": 6843740655
+  }
+}

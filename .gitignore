@@ -23,3 +23,14 @@ benchmarks/results/*
 .identitybench/
 MagicMock/
 VISION.md
+
+# Mode B overnight run artifacts
+benchmarks/results/bare-*/
+benchmarks/results/idos-*/
+logs/
+research/mode-b/baselines/*/
+research/mode-b/idos/*/
+research/mode-b/manifests/.done-*-both
+research/mode-b/manifests/*-bare.json
+research/mode-b/manifests/*-idos.json
+research/mode-b/manifests/*-smoke.json

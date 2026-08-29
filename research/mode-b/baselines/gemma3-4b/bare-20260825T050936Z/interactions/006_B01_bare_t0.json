@@ -1,0 +1,20 @@
+{
+  "seq": 6,
+  "task_id": "B01",
+  "mode": "bare",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: My project is called IdentityOS. Its purpose is persistent AI identity infrastructure.",
+  "output": "Okay, understood. IdentityOS \u2013 a persistent AI identity infrastructure. Do you have any specific questions about it?",
+  "latency_s": 77.7676,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-25T05:11:28.714236+00:00",
+  "extra": {
+    "eval_count": 23,
+    "eval_duration": 8064437000,
+    "prompt_eval_count": 54,
+    "total_duration": 77765321204
+  }
+}

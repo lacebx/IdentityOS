@@ -1,0 +1,20 @@
+{
+  "seq": 21,
+  "task_id": "D01",
+  "mode": "bare",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: My project is called IdentityOS. Its purpose is persistent AI identity infrastructure.",
+  "output": "Understood! How can I assist with your IdentityOS project's needs today? Whether it's about setting up identities for different users or managing permissions across the system, I'm here to help streamline and secure those processes within this new Persistent AI Identity Infrastructure you're working on. What specific task would you like assistance with first?\n\n------",
+  "latency_s": 11.4338,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-25T05:42:09.506160+00:00",
+  "extra": {
+    "eval_count": 63,
+    "eval_duration": 9899352000,
+    "prompt_eval_count": 42,
+    "total_duration": 11432451086
+  }
+}

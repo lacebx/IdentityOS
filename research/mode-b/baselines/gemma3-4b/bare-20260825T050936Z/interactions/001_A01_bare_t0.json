@@ -1,0 +1,20 @@
+{
+  "seq": 1,
+  "task_id": "A01",
+  "mode": "bare",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "What is 2 + 2?",
+  "output": "4",
+  "latency_s": 5.0965,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-25T05:09:42.165558+00:00",
+  "extra": {
+    "eval_count": 2,
+    "eval_duration": 251877000,
+    "prompt_eval_count": 45,
+    "total_duration": 5094818583
+  }
+}

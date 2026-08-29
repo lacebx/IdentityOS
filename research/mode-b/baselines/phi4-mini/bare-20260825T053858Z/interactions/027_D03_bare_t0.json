@@ -1,0 +1,20 @@
+{
+  "seq": 27,
+  "task_id": "D03",
+  "mode": "bare",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: The user's favorite color is teal.",
+  "output": "Of course! Teal it is then\u2014how can I assist with your preference for this lovely shade?",
+  "latency_s": 4.4516,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-25T05:42:49.275841+00:00",
+  "extra": {
+    "eval_count": 22,
+    "eval_duration": 3317557000,
+    "prompt_eval_count": 34,
+    "total_duration": 4446015446
+  }
+}
