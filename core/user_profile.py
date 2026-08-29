@@ -206,7 +206,7 @@ class UserProfile:
         if not self._facts or not looks_like_recall_question(user_input):
             return None
         query_terms = _semantic_terms(user_input, query=True)
-        broad_recall = bool(_BROAD_RECALL.search(user_input))
+        broad_recall = _is_broad_recall(user_input)
         ranked: List[tuple[int, UserFact]] = []
         for fact in self._facts.values():
             if fact.uncertain:
@@ -252,16 +252,6 @@ class UserProfile:
 import re
 
 # Patterns for user self-disclosure
-USER_MY_PREFERENCE = re.compile(
-    r"""my\s+(?:(favorite|favourite)\s+)?(\w[\w\s]*?)\s+is\s+(.+?)(?=\s+and\s+(?:my|I)|[.,!?]|$)""",
-    re.IGNORECASE,
-)
-
-USER_MY_NAME = re.compile(
-    r"""my\s+name\s+is\s+(.+?)(?=\s+and\s+(?:my|I)\b|[.,!?]|$)""",
-    re.IGNORECASE,
-)
-
 USER_I_LIKE = re.compile(
     r"""I\s+(?:really\s+|definitely\s+)?
         (?:like|love|prefer|enjoy|favor|am\s+into|am\s+fond\s+of)
@@ -310,28 +300,6 @@ USER_ACCOUNTABILITY = re.compile(
     re.IGNORECASE,
 )
 
-_REMEMBER_DIRECTIVE = re.compile(
-    r"\b(?:please\s+)?remember(?:\s+that)?\s*:?\s*(?P<body>.+)$",
-    re.IGNORECASE | re.DOTALL,
-)
-_FACT_RELATION = re.compile(
-    r"^(?P<label>.+?)\s*(?P<connector>\bis\s+called\b|\bis\b|\bare\b|=|:)\s*(?P<value>.+)$",
-    re.IGNORECASE,
-)
-_COLLECTION_HEADER = re.compile(
-    r"^(?P<label>(?:these\s+|the\s+)?(?:one|two|three|four|five|six|seven|eight|nine|ten|\d+)?\s*[\w' -]+):\s*(?P<items>.+)$",
-    re.IGNORECASE | re.DOTALL,
-)
-_RECALL_FORM = re.compile(
-    r"(?:\b(?:remember|recall|stored|told|tell)\b"
-    r"|\b(?:do|did)\s+you\s+know\b"
-    r"|\b(?:what|which|who|where|when)\b.*\b(?:my|our|user'?s)\b)",
-    re.IGNORECASE,
-)
-_BROAD_RECALL = re.compile(
-    r"\bwhat\s+did\s+i\s+(?:ask\s+you\s+to\s+remember|tell\s+you)\b",
-    re.IGNORECASE,
-)
 _SENSITIVE_UNKNOWN_TOPICS = (
     "social security", "ssn", "government id", "password", "passcode",
     "credit card", "bank account",
@@ -347,6 +315,11 @@ _TERM_STOPWORDS = {
 _FIELD_NAMESPACES = {
     "remembered", "preferences", "preference", "attributes", "attribute",
 }
+_MAX_PROFILE_INPUT_CHARS = 16_384
+_RECALL_WORDS = {"remember", "recall", "stored", "told", "tell"}
+_QUESTION_WORDS = {"what", "which", "who", "where", "when"}
+_POSSESSIVE_WORDS = {"my", "our", "user's", "users"}
+_RECALL_COMMANDS = {"list", "recall", "remind", "show", "tell"}
 
 
 def _normalized_word(word: str) -> str:
@@ -358,13 +331,170 @@ def _normalized_word(word: str) -> str:
 
 def _semantic_terms(text: str, *, query: bool = False) -> set[str]:
     normalized = text.replace(".", " ").replace("_", " ").replace("'s", "")
-    words = {_normalized_word(word) for word in re.findall(r"[A-Za-z0-9]+", normalized)}
+    words = {
+        _normalized_word(word)
+        for word, _, _ in _word_tokens(normalized)
+    }
     stopwords = _TERM_STOPWORDS | (_FIELD_NAMESPACES if not query else set())
     return {word for word in words if word not in stopwords and not word.isdigit()}
 
 
 def _slug(text: str) -> str:
-    return "_".join(re.findall(r"[a-z0-9]+", text.lower().replace("colour", "color")))
+    normalized = text.lower().replace("colour", "color")
+    return "_".join(word for word, _, _ in _word_tokens(normalized))
+
+
+def _word_tokens(text: str) -> List[tuple[str, int, int]]:
+    """Tokenize words in one pass while retaining source offsets."""
+    tokens: List[tuple[str, int, int]] = []
+    start: Optional[int] = None
+    for index, char in enumerate(text):
+        if char.isalnum() or char in {"_", "'", "’"}:
+            if start is None:
+                start = index
+        elif start is not None:
+            tokens.append((text[start:index].casefold().replace("’", "'"), start, index))
+            start = None
+    if start is not None:
+        tokens.append((text[start:].casefold().replace("’", "'"), start, len(text)))
+    return tokens
+
+
+def _claim_end(text: str, start: int) -> int:
+    """Return the first punctuation or next self-disclosure boundary."""
+    lowered = text.casefold()
+    index = start
+    while index < len(text):
+        if text[index] in ".,!?":
+            return index
+        if lowered.startswith(" and my ", index) or lowered.startswith(" and i ", index):
+            return index
+        index += 1
+    return len(text)
+
+
+def _iter_self_disclosures(text: str) -> List[tuple[str, str, bool]]:
+    """Extract ``my <subject> is <value>`` claims without regex backtracking."""
+    tokens = _word_tokens(text)
+    claims: List[tuple[str, str, bool]] = []
+    index = 0
+    while index < len(tokens):
+        word = tokens[index][0]
+        if word != "my":
+            index += 1
+            continue
+        subject_index = index + 1
+        is_favorite = False
+        if subject_index < len(tokens) and tokens[subject_index][0] in {"favorite", "favourite"}:
+            is_favorite = True
+            subject_index += 1
+        if subject_index >= len(tokens):
+            index += 1
+            continue
+        # Keep work bounded even when adversarial input contains no connector.
+        connector_index = next(
+            (
+                candidate
+                for candidate in range(subject_index + 1, min(subject_index + 17, len(tokens)))
+                if tokens[candidate][0] == "is"
+            ),
+            None,
+        )
+        if connector_index is None:
+            index += 1
+            continue
+        subject = text[tokens[subject_index][1]:tokens[connector_index][1]].strip()
+        if not all(char.isalnum() or char.isspace() or char in {"_", "'", "’"} for char in subject):
+            index += 1
+            continue
+        value_start = tokens[connector_index][2]
+        value_end = _claim_end(text, value_start)
+        value = text[value_start:value_end].strip().rstrip(".,!?")
+        if subject and value:
+            claims.append((subject, value, is_favorite))
+        index = connector_index + 1
+        while index < len(tokens) and tokens[index][1] < value_end:
+            index += 1
+    return claims
+
+
+def _remember_body(text: str) -> Optional[str]:
+    for word, _, end in _word_tokens(text):
+        if word != "remember":
+            continue
+        body = text[end:].lstrip()
+        if body.casefold().startswith("that "):
+            body = body[5:].lstrip()
+        if body.startswith(":"):
+            body = body[1:].lstrip()
+        return body or None
+    return None
+
+
+def _split_list_items(text: str) -> List[str]:
+    """Split comma/conjunction lists with fixed-cost string searches."""
+    lowered = text.casefold()
+    items: List[str] = []
+    start = 0
+    while start < len(text):
+        comma = text.find(",", start)
+        conjunction = lowered.find(" and ", start)
+        boundaries = [position for position in (comma, conjunction) if position >= 0]
+        end = min(boundaries, default=len(text))
+        item = text[start:end].strip().strip(" .")
+        if item.casefold().startswith("and "):
+            item = item[4:].strip()
+        if item:
+            items.append(item)
+        if end == len(text):
+            break
+        start = end + (1 if end == comma else 5)
+    return items
+
+
+def _split_fact_clauses(text: str) -> List[str]:
+    lowered = text.casefold()
+    clauses: List[str] = []
+    start = 0
+    index = 0
+    while index < len(text):
+        split_end: Optional[int] = None
+        next_start: Optional[int] = None
+        if text[index] in ".;":
+            split_end, next_start = index, index + 1
+        elif lowered.startswith(" and ", index):
+            remainder = lowered[index + 5:].lstrip()
+            if remainder.startswith(("my ", "our ", "the user's ", "the users ", "its ")):
+                split_end, next_start = index, index + 5
+        if split_end is not None and next_start is not None:
+            clause = text[start:split_end].strip()
+            if clause:
+                clauses.append(clause)
+            start = next_start
+            index = next_start
+            continue
+        index += 1
+    final = text[start:].strip()
+    if final:
+        clauses.append(final)
+    return clauses
+
+
+def _parse_fact_relation(clause: str) -> Optional[tuple[str, str, str]]:
+    lowered = clause.casefold()
+    candidates: List[tuple[int, int, str]] = []
+    for connector in (" is called ", " is ", " are ", "=", ":"):
+        position = lowered.find(connector)
+        if position >= 0:
+            candidates.append((position, -len(connector), connector))
+    if not candidates:
+        return None
+    position, _, connector = min(candidates)
+    label = clause[:position].strip()
+    value = clause[position + len(connector):].strip()
+    if not label or not value:
+        return None
+    return label, connector.strip(), value
 
 
 def _normalize_explicit_field(
@@ -373,16 +503,19 @@ def _normalize_explicit_field(
     connector: str = "",
     prior_field: str = "",
 ) -> str:
-    raw = label.strip().lower().replace("’", "'")
-    raw = re.sub(r"^(?:the\s+)?user'?s\s+|^(?:my|our|this|the)\s+", "", raw)
-    raw = re.sub(r"^(?:its)\s+", "", raw)
-    raw = re.sub(r"\b(?:exactly|hard)\b", "", raw)
-    raw = re.sub(r"\s+", " ", raw).strip()
+    raw = " ".join(label.strip().lower().replace("’", "'").split())
+    for prefix in ("the user's ", "the users ", "user's ", "users ",
+                   "my ", "our ", "this ", "the ", "its "):
+        if raw.startswith(prefix):
+            raw = raw[len(prefix):]
+            break
+    raw = " ".join(word for word in raw.split() if word not in {"exactly", "hard"})
     slug = _slug(raw)
     if slug in {"name", "full_name"}:
         return "name"
     if slug.startswith(("favorite_", "favourite_")):
-        suffix = re.sub(r"^(?:favorite|favourite)_", "", slug)
+        prefix = "favorite_" if slug.startswith("favorite_") else "favourite_"
+        suffix = slug[len(prefix):]
         return f"preferences.favorite_{suffix}"
     if slug == "project" and "called" in connector.lower():
         return "project.name"
@@ -396,45 +529,37 @@ def _normalize_explicit_field(
 def _readable_field(field: str) -> str:
     parts = [part for part in field.split(".") if part not in _FIELD_NAMESPACES]
     label = " ".join(parts).replace("_", " ")
-    label = re.sub(r"\bitem\s+(\d+)\b", r"item \1", label)
     return label or "stored fact"
 
 
 def _extract_explicit_remembered_facts(user_input: str) -> List[tuple[str, str]]:
-    match = _REMEMBER_DIRECTIVE.search(user_input)
-    if not match:
+    body = _remember_body(user_input)
+    if body is None:
         return []
-    body = match.group("body").strip()
-    collection = _COLLECTION_HEADER.match(body)
-    if collection:
-        items = [
-            re.sub(r"^and\s+", "", item.strip(), flags=re.IGNORECASE).strip(" .")
-            for item in re.split(r"\s*,\s*|\s+and\s+", collection.group("items"))
-            if item.strip().strip(" .")
-        ]
-        label = collection.group("label").strip()
+    colon = body.find(":")
+    if colon > 0:
+        label = body[:colon].strip()
+        items = _split_list_items(body[colon + 1:])
         label_terms = _semantic_terms(label)
-        if len(items) > 1 and (label_terms or re.search(r"\b\d+\b", label)):
+        valid_label = all(char.isalnum() or char in "_'’ -" for char in label)
+        if len(items) > 1 and valid_label and (label_terms or any(char.isdigit() for char in label)):
             namespace = "constraints" if "constraint" in label_terms else f"remembered.{_slug(label)}"
             return [(f"{namespace}.item_{index}", value) for index, value in enumerate(items, 1)]
 
-    clauses = [
-        clause.strip()
-        for clause in re.split(r"(?<=[.;])\s+|\s+and\s+(?=(?:my|our|the\s+user'?s|its)\b)", body)
-        if clause.strip()
-    ]
+    clauses = _split_fact_clauses(body)
     extracted: List[tuple[str, str]] = []
     prior_field = ""
     for clause in clauses:
-        relation = _FACT_RELATION.match(clause.strip().strip(" ."))
+        relation = _parse_fact_relation(clause.strip().strip(" ."))
         if not relation:
             continue
+        label, connector, value = relation
         field = _normalize_explicit_field(
-            relation.group("label"),
-            connector=relation.group("connector"),
+            label,
+            connector=connector,
             prior_field=prior_field,
         )
-        value = relation.group("value").strip().strip(" .,!?")
+        value = value.strip().strip(" .,!?")
         if field and value:
             extracted.append((field, value))
             prior_field = field
@@ -444,10 +569,26 @@ def _extract_explicit_remembered_facts(user_input: str) -> List[tuple[str, str]]
 def looks_like_recall_question(user_input: str) -> bool:
     text = user_input.strip()
     is_question = text.endswith("?")
-    is_recall_command = bool(re.match(r"^(?:list|recall|remind|show|tell)\b", text, re.IGNORECASE))
+    tokens = [word for word, _, _ in _word_tokens(text)]
+    is_recall_command = bool(tokens and tokens[0] in _RECALL_COMMANDS)
     if not is_question and not is_recall_command:
         return False
-    return bool(_RECALL_FORM.search(text))
+    words = set(tokens)
+    normalized = " ".join(tokens)
+    return bool(
+        words & _RECALL_WORDS
+        or "do you know" in normalized
+        or "did you know" in normalized
+        or (words & _QUESTION_WORDS and words & _POSSESSIVE_WORDS)
+    )
+
+
+def _is_broad_recall(user_input: str) -> bool:
+    normalized = " ".join(word for word, _, _ in _word_tokens(user_input))
+    return (
+        "what did i ask you to remember" in normalized
+        or "what did i tell you" in normalized
+    )
 
 
 def has_explicit_abstain_instruction(user_input: str) -> bool:
@@ -485,6 +626,7 @@ def extract_user_facts(user_input: str, turn_index: int = 0) -> List[UserFact]:
     Returns UserFact objects without storing them.
     Deduplicates overlapping field matches (e.g. "my name is X" caught by both patterns).
     """
+    parsed_input = user_input[:_MAX_PROFILE_INPUT_CHARS]
     seen_fields: set = set()
     seen_claims: set = set()
     facts: List[UserFact] = []
@@ -501,33 +643,24 @@ def extract_user_facts(user_input: str, turn_index: int = 0) -> List[UserFact]:
             field=field,
             value=value,
             confidence=confidence,
-            source_conversation=source or user_input,
+            source_conversation=source or parsed_input,
             evidence=[EvidenceRecord(
                 value=value,
-                source_turn=source or user_input,
+                source_turn=source or parsed_input,
                 timestamp=now,
                 turn_index=turn_index,
             )],
         ))
 
-    for field, value in _extract_explicit_remembered_facts(user_input):
+    for field, value in _extract_explicit_remembered_facts(parsed_input):
         _add(field=field, value=value, confidence=0.95)
 
-    # "My name is X"
-    for m in USER_MY_NAME.finditer(user_input):
-        _add(
-            field="name",
-            value=m.group(1).strip().rstrip(".,!?"),
-            confidence=0.9,
-        )
-
-    # "My [favorite] X is Y" — preferences and general attributes
-    for m in USER_MY_PREFERENCE.finditer(user_input):
-        is_favorite = bool(m.group(1))
-        subject = m.group(2).strip().lower()
+    # "My [favorite] X is Y" — names, preferences, and general attributes.
+    for subject, value, is_favorite in _iter_self_disclosures(parsed_input):
+        subject = subject.strip().lower()
         if subject == "name":
+            _add(field="name", value=value, confidence=0.9)
             continue
-        value = m.group(3).strip()
         if value.lower().startswith("called"):
             continue
         field = (
@@ -537,31 +670,31 @@ def extract_user_facts(user_input: str, turn_index: int = 0) -> List[UserFact]:
         )
         _add(
             field=field,
-            value=value.rstrip(".,!?"),
+            value=value,
             confidence=0.9,
         )
 
     # "I like X"
-    for m in USER_I_LIKE.finditer(user_input):
+    for m in USER_I_LIKE.finditer(parsed_input):
         value = m.group(1).strip().rstrip(".,!?")
         field = f"preferences.likes.{value.lower().replace(' ', '_')}"
         _add(field=field, value=value, confidence=0.8)
 
     # "I don't like X"
-    for m in USER_I_DISLIKE.finditer(user_input):
+    for m in USER_I_DISLIKE.finditer(parsed_input):
         value = m.group(1).strip().rstrip(".,!?")
         field = f"preferences.dislikes.{value.lower().replace(' ', '_')}"
         _add(field=field, value=value, confidence=0.8)
 
     # "X is my Y" — direct relationships (e.g. "Alice is my sister")
-    for m in USER_MY_RELATIONSHIP.finditer(user_input):
+    for m in USER_MY_RELATIONSHIP.finditer(parsed_input):
         name = m.group(1).strip().rstrip(".,!?")
         rel = m.group(2).strip().lower()
         field = f"relationships.{rel}"
         _add(field=field, value=name, confidence=0.9)
 
     # "X is Y's Z" — person-to-person relationships (e.g. "Bob is Alice's husband")
-    for m in USER_PERSON_RELATIONSHIP.finditer(user_input):
+    for m in USER_PERSON_RELATIONSHIP.finditer(parsed_input):
         person_a = m.group(1).strip().rstrip(".,!?")
         person_b = m.group(2).strip().rstrip(".,!?")
         rel = m.group(3).strip().lower()
@@ -569,19 +702,19 @@ def extract_user_facts(user_input: str, turn_index: int = 0) -> List[UserFact]:
         _add(field=field, value=person_a, confidence=0.85)
 
     # "I'm moving to X" — relocation targets
-    for m in USER_MOVING.finditer(user_input):
+    for m in USER_MOVING.finditer(parsed_input):
         location = m.group(1).strip().rstrip(".,!?")
         _add(field="target_location", value=location, confidence=0.85)
 
     # "I have a $X budget" — budget disclosures
-    for m in USER_BUDGET.finditer(user_input):
+    for m in USER_BUDGET.finditer(parsed_input):
         amount = m.group(1).strip()
         period = m.group(2).strip() if m.group(2) else ""
         value = f"${amount}/{period}" if period else f"${amount}"
         _add(field="budget", value=value, confidence=0.9)
 
     # Job role disclosures
-    for m in USER_JOB_ROLE.finditer(user_input):
+    for m in USER_JOB_ROLE.finditer(parsed_input):
         role = m.group(1).strip().rstrip(".,!?")
         # Strip common trailing words
         for suffix in [" jobs", " role", " position", " work"]:
@@ -592,13 +725,13 @@ def extract_user_facts(user_input: str, turn_index: int = 0) -> List[UserFact]:
             _add(field="desired_role", value=role, confidence=0.85)
 
     # Learning goals
-    for m in USER_LEARNING_GOAL.finditer(user_input):
+    for m in USER_LEARNING_GOAL.finditer(parsed_input):
         goal = m.group(1).strip().rstrip(".,!?")
         field = f"learning_goal"
         _add(field=field, value=goal, confidence=0.85)
 
     # Accountability preference
-    if USER_ACCOUNTABILITY.search(user_input):
+    if USER_ACCOUNTABILITY.search(parsed_input):
         _add(field="preferences.accountability", value="wants accountability", confidence=0.9)
 
     return facts

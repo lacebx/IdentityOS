@@ -24,6 +24,20 @@ def test_extract_remember_name() -> None:
     assert {f.field: f.value for f in facts}["name"] == "Lace"
 
 
+def test_self_disclosures_are_split_without_regex_backtracking() -> None:
+    facts = extract_user_facts("My name is Lace and my favorite editor is Helix.")
+    assert {fact.field: fact.value for fact in facts} == {
+        "name": "Lace",
+        "preferences.favorite_editor": "Helix",
+    }
+
+
+def test_profile_extraction_bounds_adversarial_input() -> None:
+    facts = extract_user_facts("My name is Lace. " + ("my " * 100_000))
+    assert {fact.field: fact.value for fact in facts}["name"] == "Lace"
+    assert all(len(fact.source_conversation) <= 16_384 for fact in facts)
+
+
 def test_recall_short_circuit_token() -> None:
     profile = UserProfile()
     profile.add_or_update("remembered.token", "77319", source="setup")

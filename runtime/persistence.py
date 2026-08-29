@@ -23,6 +23,7 @@ from __future__ import annotations
 import abc
 import copy
 import json
+import os
 import sqlite3
 import time
 import uuid
@@ -209,18 +210,39 @@ class JSONFileBackend(StorageBackend):
     """
 
     def __init__(self, root_dir: str = ".identity_store") -> None:
-        self.root = Path(root_dir)
+        self.root = Path(root_dir).resolve()
         self.root.mkdir(parents=True, exist_ok=True)
 
-    def _ns_path(self, identity_id: str, namespace: str) -> Path:
-        id_dir = self.root / identity_id
-        id_dir.mkdir(parents=True, exist_ok=True)
+    @staticmethod
+    def _safe_component(value: str, *, label: str) -> str:
+        """Validate one caller-provided path component without rewriting it."""
+        if not isinstance(value, str) or not value or "\x00" in value or "\\" in value:
+            raise ValueError(f"Invalid {label}")
+        component = os.path.basename(value)
+        if component != value or component in {".", ".."}:
+            raise ValueError(f"Invalid {label}: path separators are not allowed")
+        return component
+
+    def _identity_dir(self, identity_id: str, *, create: bool = False) -> Path:
+        component = self._safe_component(identity_id, label="identity_id")
+        id_dir = (self.root / component).resolve()
+        if id_dir.parent != self.root:
+            raise ValueError("Invalid identity_id: path escapes storage root")
+        if create:
+            id_dir.mkdir(parents=True, exist_ok=True)
+        return id_dir
+
+    def _ns_path(self, identity_id: str, namespace: str, *, create: bool = False) -> Path:
+        id_dir = self._identity_dir(identity_id, create=create)
         # Replace colons so filenames stay cross-platform safe
-        safe_ns = namespace.replace(":", "__")
-        return id_dir / f"{safe_ns}.json"
+        safe_ns = self._safe_component(namespace.replace(":", "__"), label="namespace")
+        path = (id_dir / f"{safe_ns}.json").resolve()
+        if path.parent != id_dir:
+            raise ValueError("Invalid namespace: path escapes identity directory")
+        return path
 
     def save(self, identity_id: str, namespace: str, data: dict[str, Any]) -> None:
-        path = self._ns_path(identity_id, namespace)
+        path = self._ns_path(identity_id, namespace, create=True)
         tmp = path.with_suffix(".tmp")
         tmp.write_text(json.dumps(data, indent=2, default=str), encoding="utf-8")
         tmp.replace(path)  # atomic on POSIX; best-effort on Windows
@@ -232,7 +254,7 @@ class JSONFileBackend(StorageBackend):
         return json.loads(path.read_text(encoding="utf-8"))
 
     def list_namespaces(self, identity_id: str) -> list[str]:
-        id_dir = self.root / identity_id
+        id_dir = self._identity_dir(identity_id)
         if not id_dir.exists():
             return []
         namespaces = []
@@ -257,13 +279,11 @@ class JSONFileBackend(StorageBackend):
     # Memory persistence — stored as a single JSON file per identity
     # ------------------------------------------------------------------
 
-    def _memories_path(self, identity_id: str) -> Path:
-        id_dir = self.root / identity_id
-        id_dir.mkdir(parents=True, exist_ok=True)
-        return id_dir / "__memories__.json"
+    def _memories_path(self, identity_id: str, *, create: bool = False) -> Path:
+        return self._identity_dir(identity_id, create=create) / "__memories__.json"
 
     def save_memory(self, identity_id: str, memory: dict[str, Any]) -> None:
-        path = self._memories_path(identity_id)
+        path = self._memories_path(identity_id, create=True)
         memories: list[dict[str, Any]] = []
         if path.exists():
             memories = json.loads(path.read_text(encoding="utf-8"))
