@@ -53,6 +53,7 @@ def load_goals() -> Dict[str, Any]:
 
 def save_goals(goals: Dict[str, Any]) -> None:
     path = Path(".daedalus/goals.json")
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(goals, indent=2))
     print(f"Goals updated: {path}")
 

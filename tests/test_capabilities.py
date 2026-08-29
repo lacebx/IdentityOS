@@ -86,6 +86,7 @@ class TestCapabilitySystem:
 
     # ── Invocation patterns ────────────────────────────────────────────
 
+    @pytest.mark.network
     def test_attribute_access_identity_github(self, identity):
         """identity.github.search_repositories(...) works."""
         identity.install("github")
@@ -95,6 +96,7 @@ class TestCapabilitySystem:
         assert results.success
         assert isinstance(results.data, list)
 
+    @pytest.mark.network
     def test_use_proxy_access(self, identity):
         """identity.use('github').get_repository(...) works."""
         identity.install("github")
@@ -104,6 +106,7 @@ class TestCapabilitySystem:
         assert repo.success
         assert repo.data["name"] == "lacebx/IdentityOS"
 
+    @pytest.mark.network
     def test_capability_proxy_access(self, identity):
         """identity.capability('github').list_commits(...) works."""
         identity.install("github")
@@ -117,6 +120,7 @@ class TestCapabilitySystem:
 
     # ── Real GitHub API calls ──────────────────────────────────────────
 
+    @pytest.mark.network
     def test_search_repositories(self, identity):
         """github.search_repositories via proxy."""
         identity.install("github")
@@ -128,6 +132,7 @@ class TestCapabilitySystem:
             assert "name" in results.data[0]
             assert "stars" in results.data[0]
 
+    @pytest.mark.network
     def test_get_repository(self, identity):
         """github.get_repository via proxy."""
         identity.install("github")
@@ -137,6 +142,7 @@ class TestCapabilitySystem:
         assert repo.data["name"] == "lacebx/IdentityOS"
         assert "stars" in repo.data
 
+    @pytest.mark.network
     def test_review_pull_request(self, identity):
         """github.review_pull_request fetches PR details with file stats."""
         identity.install("github")
@@ -151,6 +157,7 @@ class TestCapabilitySystem:
         assert "total_additions" in pr.data
         assert "total_deletions" in pr.data
 
+    @pytest.mark.network
     def test_find_beginner_issue(self, identity):
         """github.find_beginner_issue finds 'good first issue' issues."""
         identity.install("github")
@@ -162,6 +169,7 @@ class TestCapabilitySystem:
             assert "number" in issues.data[0]
             assert "title" in issues.data[0]
 
+    @pytest.mark.network
     def test_summarize_release(self, identity):
         """github.summarize_release returns recent changes."""
         identity.install("github")
@@ -174,6 +182,7 @@ class TestCapabilitySystem:
         assert "total" in summary.data
         assert "commits_since_last_tag" in summary.data
 
+    @pytest.mark.network
     def test_list_commits(self, identity):
         """github.list_commits via proxy."""
         identity.install("github")
@@ -186,6 +195,7 @@ class TestCapabilitySystem:
             assert "message" in commits.data[0]
             assert "author" in commits.data[0]
 
+    @pytest.mark.network
     def test_list_branches(self, identity):
         """github.list_branches via proxy."""
         identity.install("github")
@@ -198,6 +208,7 @@ class TestCapabilitySystem:
 
     # ── Round-trip: install → call → uninstall ─────────────────────────
 
+    @pytest.mark.network
     def test_install_call_uninstall_roundtrip(self, identity):
         """Full round-trip: install, call via proxy, uninstall, confirm empty."""
         identity.install("github")

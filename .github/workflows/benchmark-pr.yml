@@ -48,22 +48,28 @@ jobs:
           echo "Identity ${{ env.BENCHMARK_IDENTITY }} created for long-term benchmarking."
 
       - name: Run unit tests
-        run: python -m pytest tests/ -v --tb=short 2>&1 | tee test-results.txt
+        run: |
+          set -o pipefail
+          python -m pytest tests/ -v --tb=short 2>&1 | tee test-results.txt
 
       - name: Run integration tests
-        run: python -m pytest tests/test_runtime_pipeline.py -v --tb=short 2>&1 | tee integration-results.txt
+        run: |
+          set -o pipefail
+          python -m pytest tests/test_runtime_pipeline.py -v --tb=short 2>&1 | tee integration-results.txt
 
       - name: Run IdentityBench smoke suite
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
+          set -o pipefail
           identitybench run ${{ env.BENCHMARK_IDENTITY }} --mode smoke --seed 42 2>&1 | tee benchmark-results.txt
           identitybench report ${{ env.BENCHMARK_IDENTITY }} --markdown -o benchmark-report.md
 
       - name: Compare against baseline (main branch)
         id: compare
         run: |
+          set -o pipefail
           git fetch origin main:refs/remotes/origin/main
           if git show origin/main:.identitybench/benchmark_index.json 2>/dev/null; then
             identitybench compare --id ${{ env.BENCHMARK_IDENTITY }} --last 2 2>&1 | tee regression-check.txt
@@ -74,7 +80,8 @@ jobs:
       - name: Check for regressions
         run: |
           if [ -f regression-check.txt ] && grep -q "REGRESSION" regression-check.txt; then
-            echo "::warning::Critical metric regression detected. Review benchmark report."
+            echo "::error::Critical metric regression detected. Review benchmark report."
+            exit 1
           fi
 
       - name: Upload benchmark artifacts

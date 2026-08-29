@@ -184,7 +184,7 @@ class ProcessResponse(BaseModel):
 # --- Endpoints ---
 
 @app.get("/")
-def root():
+async def root():
     return {
         "service": "Identity Runtime",
         "version": "2.0.0",
@@ -194,7 +194,7 @@ def root():
 
 
 @app.get("/health")
-def health():
+async def health():
     return {"status": "ok"}
 
 
@@ -314,7 +314,7 @@ async def evaluate(req: EvaluateRequest):
 
 
 @app.post("/identity")
-def create_identity(req: CreateIdentityRequest):
+async def create_identity(req: CreateIdentityRequest):
     """Create a new identity."""
     from identityos import Identity
     identity = Identity.create(
@@ -330,7 +330,7 @@ def create_identity(req: CreateIdentityRequest):
 
 
 @app.get("/identity/{identity_id}")
-def get_identity(identity_id: str):
+async def get_identity(identity_id: str):
     """Get a loaded identity spec by ID."""
     identity = runtime.load(identity_id)
     if not identity:
@@ -339,7 +339,7 @@ def get_identity(identity_id: str):
 
 
 @app.get("/identity")
-def list_identities():
+async def list_identities():
     """List all available identity IDs (loaded + stored)."""
     loaded = {s.id for s in runtime.list_identities()}
     stored = set(storage.list_identities())
@@ -348,7 +348,7 @@ def list_identities():
 
 
 @app.get("/memories/{user_id}/{identity_id}", response_model=MemoriesResponse)
-def get_memories(user_id: str, identity_id: str, limit: int = 50):
+async def get_memories(user_id: str, identity_id: str, limit: int = 50):
     """Get stored memories for an identity."""
     memories = runtime.memory_store.by_identity(identity_id=identity_id)[:limit]
     return MemoriesResponse(
@@ -360,14 +360,14 @@ def get_memories(user_id: str, identity_id: str, limit: int = 50):
 
 
 @app.delete("/memories/{user_id}/{identity_id}")
-def clear_memories(user_id: str, identity_id: str):
+async def clear_memories(user_id: str, identity_id: str):
     """Clear all memories for an identity."""
     deleted = runtime.memory_store.clear_identity(identity_id)
     return {"deleted": deleted, "message": "Memories cleared."}
 
 
 @app.get("/session/{session_id}")
-def get_session(session_id: str):
+async def get_session(session_id: str):
     """Inspect session state (mode, active identity)."""
     identity_id = runtime._sessions.get(session_id)
     mode = runtime.get_session_mode(session_id)

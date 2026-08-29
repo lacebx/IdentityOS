@@ -39,7 +39,8 @@ jobs:
       - name: Run tests for health check
         continue-on-error: true
         run: |
-          python -m pytest tests/ --ignore=tests/legacy -q --tb=short 2>&1 | tee /tmp/daily-test-results.txt || true
+          set -o pipefail
+          python -m pytest tests/ -q --tb=short 2>&1 | tee /tmp/daily-test-results.txt
 
       - name: Run recent IdentityBench smoke suite (if API keys available)
         env:
@@ -48,7 +49,8 @@ jobs:
         continue-on-error: true
         run: |
           identity create --name "DaedalusDaily" --id daedalus-daily --persona "engineering" 2>&1 || true
-          identitybench run daedalus-daily --mode smoke --seed 42 2>&1 | tee /tmp/daily-benchmark.txt || true
+          set -o pipefail
+          identitybench run daedalus-daily --mode smoke --seed 42 2>&1 | tee /tmp/daily-benchmark.txt
 
       - name: Update Engineering Journal
         env:

@@ -59,7 +59,10 @@ jobs:
           echo "Benchmark identity created."
 
       - name: Run unit tests
-        run: python -m pytest tests/ --ignore=tests/test_cross_app_continuity.py --ignore=tests/legacy -q --tb=short 2>&1 | tee /tmp/test-results.txt || true
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          python -m pytest tests/ --ignore=tests/test_cross_app_continuity.py -q --tb=short 2>&1 | tee /tmp/test-results.txt
 
       - name: Run IdentityBench smoke suite
         env:
@@ -67,7 +70,8 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         continue-on-error: true
         run: |
-          identitybench run daedalus-bench --mode smoke --seed 42 2>&1 | tee /tmp/benchmark-results.txt || echo "Benchmark skipped (API keys may be unavailable)"
+          set -o pipefail
+          identitybench run daedalus-bench --mode smoke --seed 42 2>&1 | tee /tmp/benchmark-results.txt
 
       - name: Run Daedalus PR review (static + AI analysis)
         id: daedalus

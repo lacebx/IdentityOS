@@ -53,7 +53,10 @@ include = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
-asyncio_mode = "auto"
+norecursedirs = ["legacy"]
+markers = [
+    "network: exercises a real external service and is opt-in via --run-network",
+]
 
 [tool.ruff]
 line-length = 120
