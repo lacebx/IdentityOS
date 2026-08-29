@@ -1,0 +1,20 @@
+{
+  "seq": 9,
+  "task_id": "B02",
+  "mode": "bare",
+  "turn_index": 1,
+  "role": "user",
+  "prompt": "What is the user's name?",
+  "output": "The user's name is Lace.",
+  "latency_s": 1.9893,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-25T05:39:40.425554+00:00",
+  "extra": {
+    "eval_count": 7,
+    "eval_duration": 946588000,
+    "prompt_eval_count": 53,
+    "total_duration": 1987851357
+  }
+}

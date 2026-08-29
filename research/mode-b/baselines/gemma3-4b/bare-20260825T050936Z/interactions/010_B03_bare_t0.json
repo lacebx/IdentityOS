@@ -1,0 +1,20 @@
+{
+  "seq": 10,
+  "task_id": "B03",
+  "mode": "bare",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember: The user's favorite color is teal.",
+  "output": "Okay, I will remember that the user\u2019s favorite color is teal. \ud83d\udc4d \n\nHow can I help you today?",
+  "latency_s": 9.7213,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-25T05:12:07.076130+00:00",
+  "extra": {
+    "eval_count": 26,
+    "eval_duration": 5220249000,
+    "prompt_eval_count": 48,
+    "total_duration": 9686712099
+  }
+}

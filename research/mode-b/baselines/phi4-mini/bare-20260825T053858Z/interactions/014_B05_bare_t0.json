@@ -1,0 +1,20 @@
+{
+  "seq": 14,
+  "task_id": "B05",
+  "mode": "bare",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember this token exactly: 48291.",
+  "output": "Understood; I will remember that token as \"48291\". How can I assist you further?",
+  "latency_s": 4.5082,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-25T05:41:03.184516+00:00",
+  "extra": {
+    "eval_count": 21,
+    "eval_duration": 3388162000,
+    "prompt_eval_count": 34,
+    "total_duration": 4506628854
+  }
+}

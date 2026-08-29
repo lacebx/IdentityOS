@@ -1,0 +1,20 @@
+{
+  "seq": 13,
+  "task_id": "B04",
+  "mode": "bare",
+  "turn_index": 1,
+  "role": "user",
+  "prompt": "List the three constraints I told you to remember.",
+  "output": "The three constraints are:\n\n1. No cloud APIs.\n2. 8GB RAM limit on hardware running SmolLM2-360M locally.\n3. The model must stay within a specific size, namely SmolLM2-360M.",
+  "latency_s": 10.2266,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-25T05:40:58.675072+00:00",
+  "extra": {
+    "eval_count": 51,
+    "eval_duration": 8669811000,
+    "prompt_eval_count": 322,
+    "total_duration": 10224877859
+  }
+}

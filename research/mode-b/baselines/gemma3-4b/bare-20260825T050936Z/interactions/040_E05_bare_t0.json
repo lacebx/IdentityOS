@@ -1,0 +1,20 @@
+{
+  "seq": 40,
+  "task_id": "E05",
+  "mode": "bare",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "The batch size for this job is 16.",
+  "output": "Okay, the batch size is 16.",
+  "latency_s": 5.0942,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-25T05:18:46.397655+00:00",
+  "extra": {
+    "eval_count": 11,
+    "eval_duration": 1709337000,
+    "prompt_eval_count": 48,
+    "total_duration": 5058344760
+  }
+}

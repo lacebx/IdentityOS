@@ -1,0 +1,20 @@
+{
+  "seq": 23,
+  "task_id": "D01",
+  "mode": "bare",
+  "turn_index": 2,
+  "role": "user",
+  "prompt": "What is my project called and what does it do?",
+  "output": "I cannot access your personal information or details about your projects. Therefore, I don't know the name of your project or what it does.",
+  "latency_s": 9.0966,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-25T05:15:24.179613+00:00",
+  "extra": {
+    "eval_count": 30,
+    "eval_duration": 5285766000,
+    "prompt_eval_count": 48,
+    "total_duration": 9094655659
+  }
+}

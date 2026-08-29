@@ -26,7 +26,7 @@ from core.identity import IdentitySpec
 from core.identity_facts import FactSource, FactDomain
 
 GROQ_KEY = os.environ.get("GROQ_API_KEY", "")
-adapter = GroqAdapter(model="llama-3.3-70b-versatile", api_key=GROQ_KEY, max_tokens=128)
+adapter = GroqAdapter(model="openai/gpt-oss-120b", api_key=GROQ_KEY, max_tokens=128)
 storage = JSONFileBackend(root_dir=".identity_store")
 
 class StressTest:

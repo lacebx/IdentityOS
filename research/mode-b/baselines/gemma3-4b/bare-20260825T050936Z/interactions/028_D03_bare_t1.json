@@ -1,0 +1,14 @@
+{
+  "seq": 28,
+  "task_id": "D03",
+  "mode": "bare",
+  "turn_index": 1,
+  "role": "system",
+  "prompt": "[runtime restart]",
+  "output": "bare conversation cleared",
+  "latency_s": 0.0,
+  "restart": true,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-25T05:15:52.078879+00:00"
+}

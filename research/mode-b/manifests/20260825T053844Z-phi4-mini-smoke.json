@@ -1,0 +1,28 @@
+{
+  "timestamp": "20260825T053844Z",
+  "model": "phi4-mini",
+  "slug": "phi4-mini",
+  "host": "http://localhost:11434",
+  "git_commit": "fed5ff137ea5a9d8561418bd0fb9d5b7ab4cf545",
+  "git_branch": "mode-b/cross-model-validation",
+  "phase": "smoke",
+  "ok": true,
+  "latency_s": 12.1655,
+  "output": "OK",
+  "raw": {
+    "model": "phi4-mini",
+    "created_at": "2026-08-25T05:38:56.994098556Z",
+    "message": {
+      "role": "assistant",
+      "content": "OK"
+    },
+    "done": true,
+    "done_reason": "stop",
+    "total_duration": 12134595094,
+    "load_duration": 11430781007,
+    "prompt_eval_count": 8,
+    "prompt_eval_duration": 529738000,
+    "eval_count": 2,
+    "eval_duration": 160501000
+  }
+}

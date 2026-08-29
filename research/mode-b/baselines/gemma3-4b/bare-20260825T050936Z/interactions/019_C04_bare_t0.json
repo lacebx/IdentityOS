@@ -1,0 +1,20 @@
+{
+  "seq": 19,
+  "task_id": "C04",
+  "mode": "bare",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Convert 100 kilometers to miles. Reply with the numeric result.",
+  "output": "62.1371\n",
+  "latency_s": 5.9267,
+  "restart": false,
+  "setup": false,
+  "error": null,
+  "recorded_at": "2026-08-25T05:15:02.267895+00:00",
+  "extra": {
+    "eval_count": 9,
+    "eval_duration": 1624692000,
+    "prompt_eval_count": 52,
+    "total_duration": 5925143051
+  }
+}

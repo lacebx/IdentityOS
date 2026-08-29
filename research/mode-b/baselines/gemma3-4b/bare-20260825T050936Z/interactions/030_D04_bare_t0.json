@@ -1,0 +1,20 @@
+{
+  "seq": 30,
+  "task_id": "D04",
+  "mode": "bare",
+  "turn_index": 0,
+  "role": "user",
+  "prompt": "Remember this token exactly: 77319.",
+  "output": "Okay, I will remember the token: 77319.",
+  "latency_s": 7.3883,
+  "restart": false,
+  "setup": true,
+  "error": null,
+  "recorded_at": "2026-08-25T05:16:05.829829+00:00",
+  "extra": {
+    "eval_count": 16,
+    "eval_duration": 2957001000,
+    "prompt_eval_count": 49,
+    "total_duration": 7387109923
+  }
+}
