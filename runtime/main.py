@@ -175,6 +175,7 @@ class ProcessRequest(BaseModel):
 class ProcessResponse(BaseModel):
     output: str
     identity_id: str
+    user_id: str
     session_id: str
     policy_passed: bool
     eval_score: Optional[float] = None
@@ -207,7 +208,10 @@ async def process(req: ProcessRequest):
     Intended for SDK / agentic use where the caller wants the runtime
     to manage the entire lifecycle.
     """
-    session_id = req.session_id or runtime.start_session(req.identity_id)
+    session_id = req.session_id or runtime.start_session(
+        req.identity_id,
+        user_id=req.user_id,
+    )
 
     # Auto-load identity from disk if not already in memory.
     # The /identity POST endpoint writes to disk but does not register
@@ -217,6 +221,7 @@ async def process(req: ProcessRequest):
 
     request = InteractionRequest(
         identity_id=req.identity_id,
+        user_id=req.user_id,
         user_input=req.message,
         session_id=session_id,
     )
@@ -229,6 +234,7 @@ async def process(req: ProcessRequest):
     return ProcessResponse(
         output=result.output,
         identity_id=result.identity_id,
+        user_id=result.user_id,
         session_id=session_id,
         policy_passed=result.policy_passed,
         eval_score=result.eval_score,
@@ -247,13 +253,17 @@ async def get_context(req: ContextRequest):
         raise HTTPException(status_code=404, detail=f"Identity '{req.identity_id}' not found")
 
     session_id = req.session_id or f"{req.user_id}_{req.identity_id}"
+    user_id = runtime._resolved_user_id(req.identity_id, req.user_id)
     ctx = runtime.context_composer.compose(
         identity=identity,
         memory_store=runtime.memory_store,
         skill_registry=runtime.skill_registry,
         goal_engine=runtime.goal_engine,
         identity_graph=runtime.identity_graph,
+        user_profile=runtime._get_user_profile(req.identity_id, user_id),
+        user_id=user_id,
         query=req.message,
+        session_id=session_id,
     )
 
     memories_used = ctx.memory_block.count("\n  [") if ctx.memory_block else 0
@@ -295,6 +305,7 @@ async def evaluate(req: EvaluateRequest):
         output=req.response,
         identity_id=req.identity_id,
         session_id=session_id,
+        user_id=req.user_id,
     )
 
     if stored:
@@ -350,7 +361,10 @@ async def list_identities():
 @app.get("/memories/{user_id}/{identity_id}", response_model=MemoriesResponse)
 async def get_memories(user_id: str, identity_id: str, limit: int = 50):
     """Get stored memories for an identity."""
-    memories = runtime.memory_store.by_identity(identity_id=identity_id)[:limit]
+    memories = runtime.memory_store.by_user(
+        identity_id=identity_id,
+        user_id=user_id,
+    )[:limit]
     return MemoriesResponse(
         identity_id=identity_id,
         user_id=user_id,
@@ -361,8 +375,10 @@ async def get_memories(user_id: str, identity_id: str, limit: int = 50):
 
 @app.delete("/memories/{user_id}/{identity_id}")
 async def clear_memories(user_id: str, identity_id: str):
-    """Clear all memories for an identity."""
-    deleted = runtime.memory_store.clear_identity(identity_id)
+    """Clear one user's memories without erasing other users or shared state."""
+    deleted = runtime.memory_store.clear_user(identity_id, user_id)
+    if runtime._storage is not None:
+        runtime._storage.delete_user_memories(identity_id, user_id)
     return {"deleted": deleted, "message": "Memories cleared."}
 
 
@@ -370,10 +386,12 @@ async def clear_memories(user_id: str, identity_id: str):
 async def get_session(session_id: str):
     """Inspect session state (mode, active identity)."""
     identity_id = runtime._sessions.get(session_id)
+    user_id = runtime._session_users.get(session_id)
     mode = runtime.get_session_mode(session_id)
     return {
         "session_id": session_id,
         "identity_id": identity_id,
+        "user_id": user_id,
         "session_mode": mode.value,
         "is_isolated": mode.value != "normal",
     }

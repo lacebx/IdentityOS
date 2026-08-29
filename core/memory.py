@@ -63,6 +63,7 @@ class MemoryFragment:
 
     # ── Provenance ───────────────────────────────────────────────────────────
     source: str = "unknown"         # e.g. "chatgpt", "grok", "api", "story"
+    user_id: str = ""                # owner of user-specific memory; empty = identity-shared
     session_id: Optional[str] = None
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     last_accessed: Optional[datetime] = None
@@ -104,6 +105,7 @@ class MemoryFragment:
             "memory_type": self.memory_type.value,
             "confidence": self.confidence.value,
             "source": self.source,
+            "user_id": self.user_id,
             "session_id": self.session_id,
             "created_at": self.created_at.isoformat(),
             "last_accessed": self.last_accessed.isoformat() if self.last_accessed else None,
@@ -125,6 +127,7 @@ class MemoryFragment:
             memory_type=MemoryType(data.get("memory_type", "episodic")),
             confidence=MemoryConfidence(data.get("confidence", "medium")),
             source=data.get("source", "unknown"),
+            user_id=data.get("user_id", ""),
             session_id=data.get("session_id"),
             importance=data.get("importance", 0.5),
             access_count=data.get("access_count", 0),
@@ -229,11 +232,32 @@ class MemoryStore:
         """Return all fragments for a given identity."""
         return [f for f in self._fragments.values() if f.identity_id == identity_id]
 
-    def recent(self, identity_id: str = "", n: int = 10) -> List[MemoryFragment]:
+    def by_user(
+        self,
+        identity_id: str,
+        user_id: str,
+        *,
+        include_shared: bool = True,
+    ) -> List[MemoryFragment]:
+        """Return only memory visible to one user of an identity."""
+        visible_users = {user_id, ""} if include_shared else {user_id}
+        return [
+            f for f in self._fragments.values()
+            if f.identity_id == identity_id and f.user_id in visible_users
+        ]
+
+    def recent(
+        self,
+        identity_id: str = "",
+        n: int = 10,
+        user_id: Optional[str] = None,
+    ) -> List[MemoryFragment]:
         """Return the n most recently created fragments, optionally filtered by identity."""
         frags = list(self._fragments.values())
         if identity_id:
             frags = [f for f in frags if f.identity_id == identity_id]
+        if user_id is not None:
+            frags = [f for f in frags if f.user_id in ("", user_id)]
         sorted_frags = sorted(
             frags,
             key=lambda f: f.created_at,
@@ -254,13 +278,19 @@ class MemoryStore:
         return sorted_frags[:n]
 
     def search_keywords(
-        self, query: str, identity_id: str = "", limit: int = 10
+        self,
+        query: str,
+        identity_id: str = "",
+        limit: int = 10,
+        user_id: Optional[str] = None,
     ) -> List[MemoryFragment]:
         """Simple keyword search over fragment content."""
         q = query.lower()
         frags = list(self._fragments.values())
         if identity_id:
             frags = [f for f in frags if f.identity_id == identity_id]
+        if user_id is not None:
+            frags = [f for f in frags if f.user_id in ("", user_id)]
         results = [
             f for f in frags
             if q in f.content.lower() or any(q in t.lower() for t in f.tags)
@@ -275,6 +305,15 @@ class MemoryStore:
         self._fragments = {
             k: v for k, v in self._fragments.items()
             if v.identity_id != identity_id
+        }
+        return before - len(self._fragments)
+
+    def clear_user(self, identity_id: str, user_id: str) -> int:
+        """Delete one user's memories without deleting identity-shared state."""
+        before = len(self._fragments)
+        self._fragments = {
+            k: v for k, v in self._fragments.items()
+            if not (v.identity_id == identity_id and v.user_id == user_id)
         }
         return before - len(self._fragments)
 
@@ -489,12 +528,22 @@ class PersistentMemoryStore(MemoryStore):
                 tags TEXT DEFAULT '[]',
                 extra TEXT DEFAULT '{}',
                 created_at TEXT NOT NULL,
-                last_accessed TEXT
+                last_accessed TEXT,
+                user_id TEXT DEFAULT ''
             )
         """)
+        columns = {
+            row[1] for row in conn.execute("PRAGMA table_info(core_memories)").fetchall()
+        }
+        if "user_id" not in columns:
+            conn.execute("ALTER TABLE core_memories ADD COLUMN user_id TEXT DEFAULT ''")
         conn.execute("""
             CREATE INDEX IF NOT EXISTS idx_core_memories_identity
             ON core_memories (identity_id)
+        """)
+        conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_core_memories_identity_user
+            ON core_memories (identity_id, user_id)
         """)
         conn.commit()
         conn.close()
@@ -507,8 +556,8 @@ class PersistentMemoryStore(MemoryStore):
             (id, identity_id, content, memory_type, confidence,
              source, session_id, importance, access_count, decay_factor,
              embedding, embedding_id, related_memory_ids,
-             tags, extra, created_at, last_accessed)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             tags, extra, created_at, last_accessed, user_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             fragment.id, fragment.identity_id, fragment.content,
             fragment.memory_type.value, fragment.confidence.value,
@@ -521,6 +570,7 @@ class PersistentMemoryStore(MemoryStore):
             json.dumps(fragment.extra),
             fragment.created_at.isoformat(),
             fragment.last_accessed.isoformat() if fragment.last_accessed else None,
+            fragment.user_id,
         ))
         conn.commit()
         conn.close()
@@ -533,6 +583,7 @@ class PersistentMemoryStore(MemoryStore):
             "importance": 7, "access_count": 8, "decay_factor": 9,
             "embedding_id": 11, "related_memory_ids": 12,
             "tags": 13, "extra": 14, "created_at": 15, "last_accessed": 16,
+            "user_id": 17,
         }
         frag = MemoryFragment(
             id=row[col["id"]],
@@ -541,6 +592,7 @@ class PersistentMemoryStore(MemoryStore):
             memory_type=MemoryType(row[col["memory_type"]]),
             confidence=MemoryConfidence(row[col["confidence"]]),
             source=row[col["source"]],
+            user_id=row[col["user_id"]] or "",
             session_id=row[col["session_id"]],
             importance=row[col["importance"]],
             access_count=row[col["access_count"]],
@@ -582,17 +634,39 @@ class PersistentMemoryStore(MemoryStore):
         conn.close()
         return [self._row_to_fragment(r) for r in rows]
 
+    def by_identity(self, identity_id: str) -> List[MemoryFragment]:
+        return [fragment for fragment in self.all() if fragment.identity_id == identity_id]
+
+    def by_user(
+        self,
+        identity_id: str,
+        user_id: str,
+        *,
+        include_shared: bool = True,
+    ) -> List[MemoryFragment]:
+        visible_users = {user_id, ""} if include_shared else {user_id}
+        return [
+            fragment for fragment in self.all()
+            if fragment.identity_id == identity_id and fragment.user_id in visible_users
+        ]
+
     def search(
         self,
         query: str,
         identity_id: str = "",
         top_k: int = 5,
         threshold: float = 0.3,
+        user_id: Optional[str] = None,
     ) -> List[MemorySearchResult]:
         """Cosine-similarity search over embeddings."""
         query_vec = _simple_embedding(query)
         conn = sqlite3.connect(self.db_path)
-        if identity_id:
+        if identity_id and user_id is not None:
+            rows = conn.execute(
+                "SELECT * FROM core_memories WHERE identity_id = ? AND user_id IN (?, '')",
+                (identity_id, user_id),
+            ).fetchall()
+        elif identity_id:
             rows = conn.execute(
                 "SELECT * FROM core_memories WHERE identity_id = ?",
                 (identity_id,),
@@ -626,5 +700,21 @@ class PersistentMemoryStore(MemoryStore):
         conn.close()
         self._fragments = {
             k: v for k, v in self._fragments.items() if v.identity_id != identity_id
+        }
+        return deleted
+
+    def clear_user(self, identity_id: str, user_id: str) -> int:
+        """Delete one user's persisted memories for an identity."""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.execute(
+            "DELETE FROM core_memories WHERE identity_id = ? AND user_id = ?",
+            (identity_id, user_id),
+        )
+        deleted = cursor.rowcount
+        conn.commit()
+        conn.close()
+        self._fragments = {
+            k: v for k, v in self._fragments.items()
+            if not (v.identity_id == identity_id and v.user_id == user_id)
         }
         return deleted

@@ -9,6 +9,7 @@ def build_synthesis(
     user_profile=None,
     timeline=None,
     recent_memories: Optional[list[str]] = None,
+    user_id: Optional[str] = None,
 ) -> str:
     """Analyze known user data and produce insight-worthy observations.
 
@@ -22,7 +23,7 @@ def build_synthesis(
     Returns an empty string when there is too little data to synthesize.
     """
     facts = _get_facts(user_profile)
-    events = _get_events(timeline)
+    events = _get_events(timeline, user_id=user_id)
 
     if not facts and not events and not recent_memories:
         return ""
@@ -81,7 +82,7 @@ def _get_facts(user_profile):
     return []
 
 
-def _get_events(timeline):
+def _get_events(timeline, user_id: Optional[str] = None):
     if not timeline:
         return []
     if callable(getattr(timeline, "events", None)):
@@ -90,7 +91,13 @@ def _get_events(timeline):
         entries = timeline._events
     else:
         entries = []
-    return [str(e)[:120] for e in entries]
+    visible = [
+        event for event in entries
+        if user_id is None
+        or not getattr(event, "metadata", {}).get("user_id")
+        or getattr(event, "metadata", {}).get("user_id") == user_id
+    ]
+    return [str(event)[:120] for event in visible]
 
 
 def _known_goals(facts: list) -> list[str]:
@@ -372,4 +379,3 @@ def _is_about_same_decision(intention: str, decision: str) -> bool:
 
 def _short(text: str, n: int) -> str:
     return text if len(text) <= n else text[:n - 3] + "..."
-

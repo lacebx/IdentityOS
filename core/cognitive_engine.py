@@ -101,6 +101,7 @@ class ContextComposer:
         timeline_registry: Optional[Any] = None,
         fact_store: Optional[Any] = None,
         user_profile: Optional[Any] = None,
+        user_id: Optional[str] = None,
         query: Optional[str] = None,
         top_k_memories: int = 5,
         session_id: Optional[str] = None,
@@ -278,7 +279,12 @@ class ContextComposer:
 
         if self.include_memory and memory_store:
             ctx.memory_block = self._render_memory(
-                memory_store, identity.id, query, top_k_memories, session_id
+                memory_store,
+                identity.id,
+                query,
+                top_k_memories,
+                session_id,
+                user_id,
             )
 
         if self.include_skills:
@@ -294,7 +300,10 @@ class ContextComposer:
             ctx.intentions_block = intention_engine.to_prompt_summary()
 
         if self.include_relationships and identity_graph:
-            ctx.relationships_block = identity_graph.to_prompt_block(identity.id)
+            ctx.relationships_block = identity_graph.to_prompt_block(
+                identity.id,
+                target_id=user_id,
+            )
 
         if self.include_motivations and motivation_engine:
             ctx.motivations_block = motivation_engine.to_prompt_block()
@@ -302,7 +311,7 @@ class ContextComposer:
         if self.include_timeline and timeline_registry:
             timeline = timeline_registry.get(identity.id)
             if timeline:
-                ctx.timeline_block = timeline.narrative()
+                ctx.timeline_block = timeline.narrative(user_id=user_id)
 
         if self.include_synthesis and (user_profile or timeline_registry or memory_store):
             from core.synthesis import build_synthesis
@@ -311,18 +320,24 @@ class ContextComposer:
             if memory_store:
                 recent = [
                     str(m.content)[:200] for m in
-                    memory_store.recent(identity_id=identity.id, n=5)
+                    memory_store.recent(
+                        identity_id=identity.id,
+                        user_id=user_id,
+                        n=5,
+                    )
                 ]
             ctx.synthesis_block = build_synthesis(
                 user_profile=user_profile,
                 timeline=t,
                 recent_memories=recent if recent else None,
+                user_id=user_id,
             )
 
         ctx.time_awareness_block = self._render_time_awareness(
             identity=identity,
             timeline_registry=timeline_registry,
             user_profile=user_profile,
+            user_id=user_id,
         )
 
         if evidence_results:
@@ -517,8 +532,12 @@ class ContextComposer:
         query: Optional[str],
         top_k: int,
         session_id: Optional[str] = None,
+        user_id: Optional[str] = None,
     ) -> str:
-        all_frags = store.by_identity(identity_id) if identity_id else store.all()
+        if identity_id and user_id is not None:
+            all_frags = store.by_user(identity_id, user_id)
+        else:
+            all_frags = store.by_identity(identity_id) if identity_id else store.all()
         if not all_frags:
             return ""
 
@@ -596,6 +615,7 @@ class ContextComposer:
         identity: "IdentitySpec",
         timeline_registry: Optional[Any] = None,
         user_profile: Optional[Any] = None,
+        user_id: Optional[str] = None,
     ) -> str:
         from datetime import datetime, timezone, timedelta
 
@@ -632,7 +652,11 @@ class ContextComposer:
         if timeline_registry:
             timeline = timeline_registry.get(identity.id)
             if timeline:
-                events = timeline.events()
+                events = [
+                    event for event in timeline.events()
+                    if user_id is None
+                    or event.metadata.get("user_id") == user_id
+                ]
                 if events:
                     first_ts = None
                     last_ts = None

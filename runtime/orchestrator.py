@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import logging
 import os
 import re
@@ -159,6 +160,7 @@ class InteractionRequest:
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     identity_id: str = ""
     user_input: str = ""
+    user_id: str = ""
     session_id: Optional[str] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
     timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
@@ -168,6 +170,7 @@ class InteractionResponse:
     request_id: str
     identity_id: str
     output: str
+    user_id: str = ""
     context_used: Optional[ComposedContext] = None
     policy_passed: bool = True
     eval_score: Optional[float] = None
@@ -194,9 +197,10 @@ class IdentityRuntime:
         self.mutation_engine = IdentityMutationEngine(min_confidence=0.5)
         self.timeline_registry = TimelineRegistry()
         self._fact_stores: Dict[str, FactStore] = {}
-        self._user_profiles: Dict[str, UserProfile] = {}
+        self._user_profiles: Dict[tuple[str, str], UserProfile] = {}
         self.adapter = adapter
         self._sessions: Dict[str, str] = {}
+        self._session_users: Dict[str, str] = {}
         self._session_modes: Dict[str, SessionMode] = {}
         self._session_fact_stores: Dict[str, FactStore] = {}
         self._storage = storage
@@ -299,6 +303,11 @@ class IdentityRuntime:
         count = 0
         for d in mem_dicts:
             try:
+                if "user_id" not in d:
+                    # Legacy memories belonged to the old identity-scoped
+                    # default user. Never expose them to an explicit user.
+                    d = dict(d)
+                    d["user_id"] = identity_id
                 frag = MemoryFragment.from_dict(d)
                 if self.memory_store.get(frag.id):
                     continue
@@ -454,41 +463,82 @@ class IdentityRuntime:
         except Exception:
             pass
 
-    def _get_user_profile(self, identity_id: str) -> UserProfile:
-        key = identity_id
+    @staticmethod
+    def _resolved_user_id(identity_id: str, user_id: Optional[str] = None) -> str:
+        return (user_id or "").strip() or identity_id
+
+    @staticmethod
+    def _user_profile_namespace(user_id: str) -> str:
+        digest = hashlib.sha256(user_id.encode("utf-8")).hexdigest()[:24]
+        return f"user_profile:{digest}"
+
+    def _get_user_profile(
+        self,
+        identity_id: str,
+        user_id: Optional[str] = None,
+    ) -> UserProfile:
+        resolved_user = self._resolved_user_id(identity_id, user_id)
+        key = (identity_id, resolved_user)
         if key not in self._user_profiles:
-            self._user_profiles[key] = UserProfile(user_id=key)
-            self._load_user_profile(key)
+            self._user_profiles[key] = UserProfile(user_id=resolved_user)
+            self._load_user_profile(identity_id, resolved_user)
         return self._user_profiles[key]
 
-    def _load_user_profile(self, identity_id: str) -> None:
+    def _load_user_profile(self, identity_id: str, user_id: str) -> None:
         if not self._storage:
             return
+        key = (identity_id, user_id)
         try:
-            data = self._storage.load(identity_id, "_user_profile")
+            namespace = self._user_profile_namespace(user_id)
+            data = self._storage.load(identity_id, namespace)
+            migrated = False
+            if not data and user_id == identity_id:
+                data = self._storage.load(identity_id, "_user_profile")
+                migrated = bool(data)
             if data:
-                self._user_profiles[identity_id] = UserProfile.from_dict(data)
+                profile = UserProfile.from_dict(data)
+                profile.user_id = user_id
+                self._user_profiles[key] = profile
+                if migrated:
+                    self._storage.save(identity_id, namespace, profile.to_dict())
         except Exception:
             pass
 
-    def _save_user_profile(self, identity_id: str) -> None:
+    def _save_user_profile(
+        self,
+        identity_id: str,
+        user_id: Optional[str] = None,
+    ) -> None:
         if not self._storage:
             return
-        profile = self._user_profiles.get(identity_id)
+        resolved_user = self._resolved_user_id(identity_id, user_id)
+        profile = self._user_profiles.get((identity_id, resolved_user))
         if not profile:
             return
         try:
-            self._storage.save(identity_id, "_user_profile", profile.to_dict())
+            self._storage.save(
+                identity_id,
+                self._user_profile_namespace(resolved_user),
+                profile.to_dict(),
+            )
         except Exception:
             pass
 
-    def _extract_and_store_semantic_memory(self, user_input, output, identity_id, session_id=None):
+    def _extract_and_store_semantic_memory(
+        self,
+        user_input,
+        output,
+        identity_id,
+        session_id=None,
+        user_id=None,
+    ):
+        resolved_user = self._resolved_user_id(identity_id, user_id)
         user_facts = extract_user_facts(user_input)
         if user_facts:
-            profile = self._get_user_profile(identity_id)
+            profile = self._get_user_profile(identity_id, resolved_user)
             for uf in user_facts:
                 profile.add_or_update(field=uf.field, value=uf.value, source=uf.source_conversation, confidence=uf.confidence)
-            self._save_user_profile(identity_id)
+            self._save_user_profile(identity_id, resolved_user)
         if not is_worth_remembering(user_input, output):
             return None
         mem_type_str = classify_memory_type(user_input, output)
@@ -496,7 +546,13 @@ class IdentityRuntime:
             return None
         input_lower = user_input.lower()
         key_tokens = {w for w in input_lower.split() if len(w) > 3}
-        existing = self._find_semantic_match(identity_id, mem_type_str, key_tokens, input_lower)
+        existing = self._find_semantic_match(
+            identity_id,
+            resolved_user,
+            mem_type_str,
+            key_tokens,
+            input_lower,
+        )
         if existing is not None:
             existing.content = user_input
             existing.importance = min(1.0, existing.importance + 0.1)
@@ -506,6 +562,7 @@ class IdentityRuntime:
             return existing
         semantic = MemoryFragment(
             identity_id=identity_id, content=user_input,
+            user_id=resolved_user,
             memory_type=MemoryType.SEMANTIC, source="extraction",
             session_id=session_id, importance=0.7,
             tags=["semantic", mem_type_str],
@@ -514,8 +571,19 @@ class IdentityRuntime:
         self._persist_memory(semantic)
         return semantic
 
-    def _find_semantic_match(self, identity_id, mem_type, key_tokens, input_lower):
-        for frag in self.memory_store.by_identity(identity_id):
+    def _find_semantic_match(
+        self,
+        identity_id,
+        user_id,
+        mem_type,
+        key_tokens,
+        input_lower,
+    ):
+        for frag in self.memory_store.by_user(
+            identity_id,
+            user_id,
+            include_shared=False,
+        ):
             if frag.memory_type != MemoryType.SEMANTIC:
                 continue
             if mem_type not in frag.tags:
@@ -544,9 +612,22 @@ class IdentityRuntime:
         self._emit(EventType.IDENTITY_UNLOADED, identity_id=identity_id)
         return self.identity_store.delete(identity_id)
 
-    def start_session(self, identity_id, session_id=None, mode=None, user_input=""):
+    def start_session(
+        self,
+        identity_id,
+        session_id=None,
+        mode=None,
+        user_input="",
+        user_id=None,
+    ):
         sid = session_id or str(uuid.uuid4())
+        resolved_user = self._resolved_user_id(identity_id, user_id)
+        if sid in self._sessions and self._sessions[sid] != identity_id:
+            raise ValueError(f"Session '{sid}' belongs to a different identity")
+        if sid in self._session_users and self._session_users[sid] != resolved_user:
+            raise ValueError(f"Session '{sid}' belongs to a different user")
         self._sessions[sid] = identity_id
+        self._session_users[sid] = resolved_user
         if sid not in self._session_modes:
             detected = mode or (detect_session_mode(user_input) if user_input else SessionMode.NORMAL)
             self._session_modes[sid] = detected
@@ -559,6 +640,7 @@ class IdentityRuntime:
 
     def end_session(self, session_id: str) -> None:
         identity_id = self._sessions.pop(session_id, None)
+        self._session_users.pop(session_id, None)
         mode = self._session_modes.pop(session_id, None)
         if mode != SessionMode.NORMAL:
             self._save_session_fact_store(session_id)
@@ -592,13 +674,27 @@ class IdentityRuntime:
         if not identity:
             return InteractionResponse(
                 request_id=request.id, identity_id=request.identity_id,
+                user_id=request.user_id,
                 output="[Error] Identity not found.", policy_passed=False,
             )
 
-        self._emit(EventType.MESSAGE_RECEIVED, identity_id=identity.id,
-                   session_id=request.session_id, content=request.user_input)
+        user_id = self._resolved_user_id(identity.id, request.user_id)
+        session_id = request.session_id or f"default:{identity.id}:{user_id}"
+        bound_user = self._session_users.get(session_id)
+        if bound_user is not None and bound_user != user_id:
+            return InteractionResponse(
+                request_id=request.id,
+                identity_id=identity.id,
+                user_id=user_id,
+                output="[Error] Session belongs to a different user.",
+                policy_passed=False,
+            )
+        self._sessions.setdefault(session_id, identity.id)
+        self._session_users.setdefault(session_id, user_id)
 
-        session_id = request.session_id or "default"
+        self._emit(EventType.MESSAGE_RECEIVED, identity_id=identity.id,
+                   session_id=session_id, user_id=user_id, content=request.user_input)
+
         if session_id not in self._session_modes:
             mode = detect_session_mode(request.user_input)
             self._session_modes[session_id] = mode
@@ -611,6 +707,7 @@ class IdentityRuntime:
         if rename_attempt and identity.is_field_locked("name"):
             return InteractionResponse(
                 request_id=request.id, identity_id=identity.id,
+                user_id=user_id,
                 output=f"My name is {identity.name}. I cannot be renamed.", policy_passed=True,
             )
 
@@ -622,6 +719,7 @@ class IdentityRuntime:
         if not input_policy.allowed:
             return InteractionResponse(
                 request_id=request.id, identity_id=request.identity_id,
+                user_id=user_id,
                 output="[Blocked] Input did not pass policy check.", policy_passed=False,
             )
         sanitized_input = input_policy.transformed_data or request.user_input
@@ -640,7 +738,7 @@ class IdentityRuntime:
             try:
                 _pre = self.prometheus.pre_check_and_evolve(
                     user_input=sanitized_input, identity_id=identity.id,
-                    runtime=self, session_id=request.session_id,
+                    runtime=self, session_id=session_id,
                 )
                 if _pre and _pre.acquired:
                     _prometheus_evolved = True
@@ -648,7 +746,7 @@ class IdentityRuntime:
                 pass
 
         # ── NATIVE TOOL CALLING SETUP ─────────────────────────────────
-        user_profile = self._get_user_profile(identity.id)
+        user_profile = self._get_user_profile(identity.id, user_id)
         session_fact_store = self._get_fact_store_for_session(identity.id, session_id)
         cap_prompts = self.capability_registry.all_prompts(identity.id)
 
@@ -721,8 +819,9 @@ class IdentityRuntime:
             intention_engine=self.intention_engine, identity_graph=self.identity_graph,
             motivation_engine=self.motivation_engine, timeline_registry=self.timeline_registry,
             fact_store=session_fact_store, user_profile=user_profile,
+            user_id=user_id,
             query=sanitized_input, top_k_memories=top_k_memories,
-            session_id=request.session_id, session_mode=session_mode,
+            session_id=session_id, session_mode=session_mode,
             emotion_state=emotion_state,
             capability_prompts=cap_prompts if cap_prompts else None,
             evidence_results=None,
@@ -740,7 +839,7 @@ class IdentityRuntime:
 
         if self.adapter:
             self._emit(EventType.MODEL_REQUESTED, identity_id=identity.id,
-                       session_id=request.session_id, model=self.adapter.model)
+                       session_id=session_id, model=self.adapter.model)
             _t0 = _time_mod.monotonic()
 
             generate_kwargs: Dict[str, Any] = {}
@@ -771,7 +870,7 @@ class IdentityRuntime:
 
             _latency = _time_mod.monotonic() - _t0
             self._emit(EventType.MODEL_RESPONDED, identity_id=identity.id,
-                       session_id=request.session_id, model=self.adapter.model,
+                       session_id=session_id, model=self.adapter.model,
                        response_length=len(raw_output), latency_ms=round(_latency * 1000))
         else:
             raw_output = f"[No adapter configured. Context prepared for {identity.name}]"
@@ -782,7 +881,7 @@ class IdentityRuntime:
             try:
                 _post = self.prometheus.post_check_and_evolve(
                     response=raw_output, user_input=sanitized_input,
-                    identity_id=identity.id, runtime=self, session_id=request.session_id,
+                    identity_id=identity.id, runtime=self, session_id=session_id,
                 )
                 if _post and _post.acquired and _post.retry_response:
                     raw_output = _post.retry_response
@@ -815,25 +914,26 @@ class IdentityRuntime:
             identity_id=identity.id, interaction_id=request.id,
             input_data=sanitized_input, output_data=final_output,
         )
-        self._emit(EventType.EVALUATION_COMPLETED, identity_id=identity.id, session_id=request.session_id,
+        self._emit(EventType.EVALUATION_COMPLETED, identity_id=identity.id, session_id=session_id,
                    overall_score=eval_report.overall_score, passed=eval_report.passed,
                    criteria_count=len(eval_report.records))
 
         episodic = MemoryFragment(
             identity_id=identity.id,
+            user_id=user_id,
             content=f"User: {sanitized_input}\nAssistant: {final_output}",
-            memory_type=MemoryType.EPISODIC, session_id=request.session_id,
+            memory_type=MemoryType.EPISODIC, session_id=session_id,
             tags=["interaction"],
         )
         self.memory_store.add(episodic)
         self._persist_memory(episodic)
-        self._emit(EventType.EXPERIENCE_RECORDED, identity_id=identity.id, session_id=request.session_id,
+        self._emit(EventType.EXPERIENCE_RECORDED, identity_id=identity.id, session_id=session_id,
                    memory_id=episodic.id, memory_type=episodic.memory_type.value,
                    content=episodic.content[:200])
 
         semantic_mem = self._extract_and_store_semantic_memory(
             user_input=sanitized_input, output=final_output,
-            identity_id=identity.id, session_id=request.session_id,
+            identity_id=identity.id, session_id=session_id, user_id=user_id,
         )
 
         if session_mode == SessionMode.NORMAL:
@@ -873,7 +973,11 @@ class IdentityRuntime:
 
         tl_title = "Interaction"
         tl_description = f"User said: {sanitized_input[:100]}"
-        tl_meta = {"session_id": request.session_id, "eval_score": eval_report.overall_score}
+        tl_meta = {
+            "session_id": session_id,
+            "user_id": user_id,
+            "eval_score": eval_report.overall_score,
+        }
         if semantic_mem:
             mem_tags = semantic_mem.tags
             if "preference" in mem_tags: tl_title = "Learned preference"
@@ -888,10 +992,10 @@ class IdentityRuntime:
             title=tl_title, description=tl_description, significance=2, metadata=tl_meta,
         ))
         self._persist_timeline(identity.id)
-        self._emit(EventType.LIFE_EVENT_RECORDED, identity_id=identity.id, session_id=request.session_id,
+        self._emit(EventType.LIFE_EVENT_RECORDED, identity_id=identity.id, session_id=session_id,
                    title=tl_title, description=tl_description)
 
-        target = request.session_id or "user"
+        target = user_id
         self.identity_graph.interact_or_connect(
             source_id=identity.id, target_id=target, edge_type=EdgeType.PEER, bidirectional=False,
         )
@@ -911,7 +1015,7 @@ class IdentityRuntime:
             final_output += "\n".join(footer_lines)
 
         return InteractionResponse(
-            request_id=request.id, identity_id=identity.id, output=final_output,
+            request_id=request.id, identity_id=identity.id, user_id=user_id, output=final_output,
             context_used=context, policy_passed=policy_passed, eval_score=eval_report.overall_score,
         )
 

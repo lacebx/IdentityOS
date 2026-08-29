@@ -101,6 +101,10 @@ class StorageBackend(abc.ABC):
         Default implementation is a no-op.
         """
 
+    def delete_user_memories(self, identity_id: str, user_id: str) -> int:
+        """Delete one user's memories while retaining other users and shared state."""
+        return 0
+
     # ------------------------------------------------------------------
     # Convenience helpers (built on top of the abstract primitives)
     # ------------------------------------------------------------------
@@ -232,6 +236,19 @@ class JSONFileBackend(StorageBackend):
         path = self._memories_path(identity_id)
         if path.exists():
             path.unlink()
+
+    def delete_user_memories(self, identity_id: str, user_id: str) -> int:
+        path = self._memories_path(identity_id)
+        if not path.exists():
+            return 0
+        memories = json.loads(path.read_text(encoding="utf-8"))
+        kept = [memory for memory in memories if memory.get("user_id", identity_id) != user_id]
+        deleted = len(memories) - len(kept)
+        if deleted:
+            tmp = path.with_suffix(".tmp")
+            tmp.write_text(json.dumps(kept, indent=2, default=str), encoding="utf-8")
+            tmp.replace(path)
+        return deleted
 
 
 # ---------------------------------------------------------------------------

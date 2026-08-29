@@ -370,12 +370,16 @@ class IdentityGraph:
         }
 
     def to_prompt_block(
-        self, identity_id: str, min_trust: TrustLevel = TrustLevel.LOW
+        self,
+        identity_id: str,
+        min_trust: TrustLevel = TrustLevel.LOW,
+        target_id: Optional[str] = None,
     ) -> str:
         """Render the relationship context for the Cognitive Engine."""
         edges = [
             e for e in self._adjacency.get(identity_id, [])
             if e.trust_level.value >= min_trust.value
+            and (target_id is None or e.target_id == target_id)
         ]
         if not edges:
             return ""

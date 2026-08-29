@@ -97,6 +97,17 @@ class TestExtensionAPI:
         assert status == 200
         assert data.get("name") == "Extension Test Bot"
 
+    def test_process_preserves_user_provenance(self, api_app):
+        status, data = _req(api_app, "POST", "/process", {
+            "message": "Hello from the extension",
+            "identity_id": "ext-test-bot",
+            "user_id": "ext-user",
+            "session_id": "ext-user-session",
+        })
+        assert status == 200, f"Process failed: {data}"
+        assert data["user_id"] == "ext-user"
+        assert data["session_id"] == "ext-user-session"
+
     def test_get_context(self, api_app):
         status, data = _req(api_app, "POST", "/context", {
             "message": "Hello!",
