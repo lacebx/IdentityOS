@@ -41,7 +41,7 @@ benchmarks/
 ├── runner.py             one command reproduces the experiment
 ├── baseline/             Bare Baseline v0.1.0 (after --freeze)
 ├── idos/                 IDOS v0.1.0 (after --freeze)
-├── results/<run-id>/     every interaction, JSON + Markdown
+├── results/<run-id>/     local per-run evidence (generated, gitignored)
 ├── reports/              comparison tables
 └── experiments/          IDOS Ratchet records (EXP-001, …)
 ```
@@ -55,7 +55,10 @@ results/<run-id>/results.json
 results/<run-id>/summary.md
 ```
 
-Those files are evidence. Model claims are not.
+Those files are local execution evidence. Model claims are not. Per-run output
+is intentionally gitignored because it is reproducible and grows quickly.
+Canonical evidence promoted for review lives in `baseline/`, `idos/`, and
+`experiments/`; those directories remain version-controlled.
 
 ## Rules
 

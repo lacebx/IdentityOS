@@ -1,109 +1,116 @@
 # IdentityOS Roadmap
 
-**Last updated:** 2026-07-22
+**Last updated:** 2026-08-29
 
----
+IdentityOS is evolving toward persistent identities, portable capabilities,
+truthful execution, durable long-running tasks, evidence-backed memory, model
+independence, and cross-session continuity.
 
-## Current Status: Foundation Complete
+The runtime is functional, but the North Star is not complete. A passing model
+response is never treated as execution evidence; each milestone below requires
+runtime-observed behavior and regression tests.
 
-IdentityOS **Architecture Foundation v1** is complete. The constitution, laws, amendment system, migration framework, goal engine, intention engine, evidence graph, and confidence system have all been implemented and verified.
+## Current Evidence
 
-**The architecture is now intentionally stable.**
+| North Star property | Current runtime evidence | Remaining gap |
+|---|---|---|
+| Persistent identities | JSON and SQLite backends, snapshots, migrations, restart tests | Crash-safe background state commits and broader migration fixtures |
+| Portable capabilities | Installable capability registry, typed skill contracts, centralized invocation gateway | Full generate-to-reuse conformance suite for arbitrary third-party packs |
+| Truthful execution | Structured capability results, evidence footers, failure diagnostics, hermetic validation gates | Standard evidence receipts across every adapter and external integration |
+| Durable long-running tasks | Persisted Executive tasks, checkpoints, recovery, retry policy, reconciliation for uncertain side effects | Provider-level idempotency keys and automated reconciliation where external APIs support them |
+| Evidence-backed memory | User-scoped profiles/memories, contradiction evidence, restart recall, generic holdout extraction | Retention policy, provenance queries, and multi-process conflict resolution |
+| Model independence | Provider adapters and model-neutral runtime contracts | Repeatable conformance runs across local and hosted model families |
+| Cross-session continuity | Stable user IDs across sessions/apps with isolation tests | Production multi-device synchronization and conflict handling |
+| Responsive interaction | Per-stage latency measurements and one-time recovery | Move nonessential evaluation/evolution work behind a durable background boundary |
 
-Future architectural work should primarily arise from lessons learned while building real applications — not from inventing new abstractions in isolation.
+## Milestone 1: Runtime Truth Foundation — Complete on This Branch
 
----
+- Hermetic default test suite; network tests are explicitly marked.
+- CI and benchmark scripts preserve failing exit codes.
+- Capability calls use one validation, authorization, execution, and evidence path.
+- Filesystem and command capabilities enforce workspace and subprocess boundaries.
+- User facts, memories, relationships, timelines, and sessions are scoped separately from identity state.
+- Interrupted non-idempotent task steps stop for evidence-based reconciliation rather than replaying blindly.
+- Event subscriber and optional-subsystem failures produce structured diagnostics.
+- Interaction responses expose measured stage timings.
+- User fact extraction and recall use general field matching with unseen holdout tests rather than frozen-prompt branches.
 
-## Phase 1: Architecture Foundation ✅ *COMPLETE*
+This milestone is complete only when its executable validation gates remain
+green after integration with `main`.
 
-| Milestone | Status |
-|-----------|--------|
-| Identity Constitution (14 articles) | ✅ |
-| Identity Laws (10 domains) | ✅ |
-| Amendment System | ✅ |
-| Architecture Decision Records (7 ADRs) | ✅ |
-| Migration Framework | ✅ |
-| Evidence Graph | ✅ |
-| Confidence System | ✅ |
-| Goal Engine | ✅ |
-| Intention Engine | ✅ |
-| Memory Persistence | ✅ |
+## Milestone 2: Durable Background Boundary — Active
 
----
+**Goal:** ordinary conversation must not wait for unrelated evolution or
+maintenance work.
 
-## Phase 2: Runtime Ecosystem 🔄 *ACTIVE*
+- Add a persisted work journal for post-response evaluation, learning, and maintenance.
+- Make journal items independently retryable and observable.
+- Preserve read-your-writes semantics for facts explicitly disclosed in the current turn.
+- Add crash/restart tests at every journal transition.
+- Establish latency budgets for policy, context, model, tool, and state-commit stages.
 
-**Theme:** Validate the runtime through real applications.
+## Milestone 3: Capability Lifecycle Conformance — Next
 
-**Milestone:** [IdentityOS Runtime v2 — Real Agents](https://github.com/lacebx/IdentityOS/milestone/7)
+**Goal:** demonstrate the complete lifecycle for arbitrary capability packs.
 
-### Application Layer
+```text
+generate -> validate -> publish -> install -> activate -> invoke
+         -> observe -> verify -> persist -> restart -> reuse
+```
 
-| Project | Priority | Status |
-|---------|----------|--------|
-| Identity Chat | High | 📋 Planned |
-| Discord Agent | Medium | 📋 Planned |
-| VSCode Extension | Medium | 📋 Planned |
-| Browser Extension | High | 📋 Planned |
+- Publish a capability conformance harness with representative success and failure fixtures.
+- Require declared permissions, input schemas, effect classification, and replay policy.
+- Add signed package metadata and dependency verification.
+- Record durable invocation receipts that can be queried by task and identity.
+- Validate third-party packs without weakening execution boundaries.
 
-### Developer Infrastructure 🔄 *ACTIVE*
+## Milestone 4: Continuity and Provenance — Next
 
-| Project | Priority | Status |
-|---------|----------|--------|
-| IdentityOS SDK | High | 📋 Planned |
-| Public REST API | High | 📋 Planned |
-| Identity Debugger | High | 📋 Planned |
-| Identity Replay | Medium | 📋 Planned |
+- Define retention, deletion, export, and merge semantics for user-scoped state.
+- Expose fact and memory provenance through SDK and REST APIs.
+- Add deterministic conflict resolution for concurrent devices/processes.
+- Test identity upgrades without mixing user, identity, episodic, and execution state.
+- Prove portable export/import with multiple users and capability receipts.
 
-### Validation
+## Milestone 5: Ecosystem Validation — Planned
 
-| Project | Priority | Status |
-|---------|----------|--------|
-| Long-running Benchmark | Medium | 📋 Planned |
-| Developer Examples | Medium | 📋 Planned |
+- Run the same conformance suite against CLI, SDK, REST, browser, and Discord surfaces.
+- Publish cross-model compatibility results with environment metadata.
+- Expand IdentityBench as an observability system with causes and actionable follow-up.
+- Establish third-party governance and compatibility policy only after the runtime contracts stabilize through real applications.
 
----
+## Definition of North Star Done
 
-## Phase 3: Ecosystem Expansion 📋 *PLANNED*
+The North Star is reached when a fresh identity can:
 
-- Open Identity Foundation governance
-- Identity Marketplace
-- Third-party runtime implementations
-- Compliance test suite
-- Multi-runtime interoperability
+```text
+understand -> decide -> acquire capability -> execute -> observe reality
+           -> learn -> persist -> restart -> continue
+```
 
----
+and the repository can prove each transition using runtime evidence, including
+failure, recovery, persistence, and reuse. Model claims, successful imports,
+and green unit tests alone are insufficient.
 
-## Guiding Principles
+## Validation Gates
 
-### 1. Architecture Follows Application Experience
+```bash
+# Hermetic default suite
+python -m pytest -q
 
-New architectural primitives should only be created when multiple applications independently demonstrate the same unmet need. No new subsystems without evidence from real usage.
+# Explicit external integration suite
+python -m pytest -q -m network
 
-### 2. Applications Before Abstractions
+# Frozen benchmark integrity and report regeneration
+python benchmarks/runner.py --report-only
+```
 
-The first priority is building working applications. Architectural refinements are discovered, not designed.
-
-### 3. Stability Enables Contribution
-
-A stable architecture means contributors can build on IdentityOS without fear of breaking changes. The foundation is frozen. The ecosystem is open.
-
-### 4. Quality Over Quantity
-
-One well-built application is worth more than ten half-finished specifications. Each application should be polished before moving to the next.
-
----
+Generated runs under `benchmarks/results/` are local and gitignored. Frozen
+baseline/treatment summaries and experiment decisions are the reviewed,
+version-controlled evidence.
 
 ## How to Contribute
 
-See [CONTRIBUTING.md](../CONTRIBUTING.md) for details on:
-
-- Proposing new features
-- Architecture decisions
-- Constitutional amendments
-- Code standards
-- Testing expectations
-
-## Full Issue List
-
-All active work items are tracked in the [IdentityOS Runtime v2 Milestone](https://github.com/lacebx/IdentityOS/milestone/7).
+See [CONTRIBUTING.md](../CONTRIBUTING.md). Keep changes focused, include
+executable evidence, preserve failures honestly, and document meaningful
+architectural changes.
