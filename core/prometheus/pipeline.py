@@ -48,6 +48,14 @@ class EvolutionPipeline:
     def __init__(self, config: Optional[PrometheusConfig] = None):
         self.config = config or PrometheusConfig()
         self._interaction_acquisitions: int = 0
+        self._interaction_id: Optional[str] = None
+
+    def begin_interaction(self, interaction_id: str) -> None:
+        """Reset per-interaction budgets exactly once for a new request."""
+
+        if interaction_id != self._interaction_id:
+            self._interaction_id = interaction_id
+            self._interaction_acquisitions = 0
 
     def run(
         self,

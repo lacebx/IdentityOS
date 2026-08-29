@@ -44,6 +44,8 @@ from core.skills import SkillRegistry
 from core.timeline import LifeEvent, LifeEventType, TimelineRegistry
 from core.user_profile import UserProfile, extract_user_facts, try_explicit_abstain
 from runtime.event_bus import EventBus, EventType
+from runtime.observability import InteractionTrace
+from runtime.persistence import InMemoryBackend
 
 # Prometheus is optional
 try:
@@ -203,6 +205,7 @@ class IdentityRuntime:
         self._session_users: Dict[str, str] = {}
         self._session_modes: Dict[str, SessionMode] = {}
         self._session_fact_stores: Dict[str, FactStore] = {}
+        self._executive_recovered: set[str] = set()
         self._storage = storage
 
         self._migration_registry = MigrationRegistry()
@@ -211,7 +214,11 @@ class IdentityRuntime:
             self._migration_registry, storage=self._storage,
         )
 
-        self.capability_registry = PluginRegistry(storage=self._storage)
+        # Capability calls still need a storage contract in intentionally
+        # ephemeral runtimes. This backend is process-local and is never
+        # presented as durable persistence.
+        self._capability_storage = self._storage or InMemoryBackend()
+        self.capability_registry = PluginRegistry(storage=self._capability_storage)
         self.event_bus = EventBus()
 
         self.prometheus = None
@@ -241,6 +248,28 @@ class IdentityRuntime:
         self.event_bus.emit(
             event_type=event_type, source="orchestrator",
             identity_id=identity_id, session_id=session_id, **payload,
+        )
+
+    def _emit_subsystem_failure(
+        self,
+        subsystem: str,
+        exc: Exception,
+        *,
+        identity_id: Optional[str] = None,
+        session_id: Optional[str] = None,
+    ) -> None:
+        _log.warning(
+            "Runtime subsystem failed subsystem=%s",
+            subsystem,
+            exc_info=(type(exc), exc, exc.__traceback__),
+        )
+        self._emit(
+            EventType.SUBSYSTEM_FAILED,
+            identity_id=identity_id,
+            session_id=session_id,
+            subsystem=subsystem,
+            error_type=type(exc).__name__,
+            error=str(exc),
         )
 
     def load(self, identity_id: str) -> Optional[IdentitySpec]:
@@ -610,6 +639,7 @@ class IdentityRuntime:
 
     def unload(self, identity_id: str) -> bool:
         self._emit(EventType.IDENTITY_UNLOADED, identity_id=identity_id)
+        self._executive_recovered.discard(identity_id)
         return self.identity_store.delete(identity_id)
 
     def start_session(
@@ -670,14 +700,19 @@ class IdentityRuntime:
                 pass
 
     def process(self, request: InteractionRequest, top_k_memories: int = 3) -> InteractionResponse:
+        trace = InteractionTrace(request.id)
+        stage_started = trace.start_stage()
         identity = self.identity_store.get(request.identity_id)
+        trace.end_stage("identity_lookup", stage_started)
         if not identity:
             return InteractionResponse(
                 request_id=request.id, identity_id=request.identity_id,
                 user_id=request.user_id,
                 output="[Error] Identity not found.", policy_passed=False,
+                metadata={"timings_ms": trace.finish()},
             )
 
+        stage_started = trace.start_stage()
         user_id = self._resolved_user_id(identity.id, request.user_id)
         session_id = request.session_id or f"default:{identity.id}:{user_id}"
         bound_user = self._session_users.get(session_id)
@@ -688,9 +723,11 @@ class IdentityRuntime:
                 user_id=user_id,
                 output="[Error] Session belongs to a different user.",
                 policy_passed=False,
+                metadata={"timings_ms": trace.finish()},
             )
         self._sessions.setdefault(session_id, identity.id)
         self._session_users.setdefault(session_id, user_id)
+        trace.end_stage("session_resolution", stage_started)
 
         self._emit(EventType.MESSAGE_RECEIVED, identity_id=identity.id,
                    session_id=session_id, user_id=user_id, content=request.user_input)
@@ -709,41 +746,64 @@ class IdentityRuntime:
                 request_id=request.id, identity_id=identity.id,
                 user_id=user_id,
                 output=f"My name is {identity.name}. I cannot be renamed.", policy_passed=True,
+                metadata={"timings_ms": trace.finish()},
             )
 
         emotion_state = extract_emotion(request.user_input)
 
+        stage_started = trace.start_stage()
         input_policy = self.policy_engine.evaluate(request.user_input, scope=PolicyScope.INPUT)
         self._emit(EventType.POLICY_TRIGGERED, identity_id=identity.id, session_id=session_id,
                    scope="input", allowed=input_policy.allowed, policies_applied=input_policy.applied_policies)
         if not input_policy.allowed:
+            trace.end_stage("input_policy", stage_started)
             return InteractionResponse(
                 request_id=request.id, identity_id=request.identity_id,
                 user_id=user_id,
                 output="[Blocked] Input did not pass policy check.", policy_passed=False,
+                metadata={"timings_ms": trace.finish()},
             )
         sanitized_input = input_policy.transformed_data or request.user_input
+        trace.end_stage("input_policy", stage_started)
 
         _executive_state_block = ""
+        stage_started = trace.start_stage()
         if self.executive is not None:
             try:
-                self.executive.recover(identity.id)
+                if identity.id not in self._executive_recovered:
+                    self.executive.recover(identity.id)
+                    self._executive_recovered.add(identity.id)
                 self.executive._ctx(identity.id, runtime=self)
                 _executive_state_block = self.executive.render_state(identity.id)
-            except Exception:
+            except Exception as exc:
+                self._emit_subsystem_failure(
+                    "executive_recovery",
+                    exc,
+                    identity_id=identity.id,
+                    session_id=session_id,
+                )
                 _executive_state_block = ""
+        trace.end_stage("executive", stage_started)
 
         _prometheus_evolved = False
+        stage_started = trace.start_stage()
         if self.prometheus:
             try:
+                self.prometheus.begin_interaction(request.id)
                 _pre = self.prometheus.pre_check_and_evolve(
                     user_input=sanitized_input, identity_id=identity.id,
                     runtime=self, session_id=session_id,
                 )
                 if _pre and _pre.acquired:
                     _prometheus_evolved = True
-            except Exception:
-                pass
+            except Exception as exc:
+                self._emit_subsystem_failure(
+                    "prometheus_pre_check",
+                    exc,
+                    identity_id=identity.id,
+                    session_id=session_id,
+                )
+        trace.end_stage("prometheus_pre", stage_started)
 
         # ── NATIVE TOOL CALLING SETUP ─────────────────────────────────
         user_profile = self._get_user_profile(identity.id, user_id)
@@ -813,6 +873,7 @@ class IdentityRuntime:
                 })
                 return json.dumps({"error": f"{type(e).__name__}: {e}"}, default=str)
 
+        stage_started = trace.start_stage()
         context = self.context_composer.compose(
             identity=identity, memory_store=self.memory_store,
             skill_registry=self.skill_registry, goal_engine=self.goal_engine,
@@ -826,6 +887,7 @@ class IdentityRuntime:
             capability_prompts=cap_prompts if cap_prompts else None,
             evidence_results=None,
         )
+        trace.end_stage("context_composition", stage_started)
 
         self._emit(EventType.CONTEXT_COMPOSED, identity_id=identity.id, session_id=session_id,
                    token_estimate=context.token_estimate(), session_mode=session_mode.value)
@@ -837,6 +899,7 @@ class IdentityRuntime:
         if profile_recall is None:
             profile_recall = try_explicit_abstain(sanitized_input, user_profile)
 
+        stage_started = trace.start_stage()
         if self.adapter:
             self._emit(EventType.MODEL_REQUESTED, identity_id=identity.id,
                        session_id=session_id, model=self.adapter.model)
@@ -874,9 +937,11 @@ class IdentityRuntime:
                        response_length=len(raw_output), latency_ms=round(_latency * 1000))
         else:
             raw_output = f"[No adapter configured. Context prepared for {identity.name}]"
+        trace.end_stage("model", stage_started)
 
         _has_evidence = bool(_evidence_results)
 
+        stage_started = trace.start_stage()
         if not _prometheus_evolved and self.prometheus and self.adapter:
             try:
                 _post = self.prometheus.post_check_and_evolve(
@@ -886,8 +951,14 @@ class IdentityRuntime:
                 if _post and _post.acquired and _post.retry_response:
                     raw_output = _post.retry_response
                     _prometheus_evolved = True
-            except Exception:
-                pass
+            except Exception as exc:
+                self._emit_subsystem_failure(
+                    "prometheus_post_check",
+                    exc,
+                    identity_id=identity.id,
+                    session_id=session_id,
+                )
+        trace.end_stage("prometheus_post", stage_started)
 
         if _has_evidence:
             _fails = sum(1 for r in _evidence_results if not r["success"])
@@ -900,6 +971,7 @@ class IdentityRuntime:
                 _disc.append("")
                 raw_output = "\n".join(_disc) + raw_output
 
+        stage_started = trace.start_stage()
         output_policy = self.policy_engine.evaluate(raw_output, scope=PolicyScope.OUTPUT)
         self._emit(EventType.POLICY_TRIGGERED, identity_id=identity.id, session_id=session_id,
                    scope="output", allowed=output_policy.allowed, policies_applied=output_policy.applied_policies)
@@ -909,7 +981,9 @@ class IdentityRuntime:
         else:
             final_output = output_policy.transformed_data or raw_output
             policy_passed = True
+        trace.end_stage("output_policy", stage_started)
 
+        stage_started = trace.start_stage()
         eval_report = self.evaluation_engine.evaluate(
             identity_id=identity.id, interaction_id=request.id,
             input_data=sanitized_input, output_data=final_output,
@@ -917,7 +991,9 @@ class IdentityRuntime:
         self._emit(EventType.EVALUATION_COMPLETED, identity_id=identity.id, session_id=session_id,
                    overall_score=eval_report.overall_score, passed=eval_report.passed,
                    criteria_count=len(eval_report.records))
+        trace.end_stage("evaluation", stage_started)
 
+        stage_started = trace.start_stage()
         episodic = MemoryFragment(
             identity_id=identity.id,
             user_id=user_id,
@@ -1014,9 +1090,26 @@ class IdentityRuntime:
             footer_lines.append("---")
             final_output += "\n".join(footer_lines)
 
+        trace.end_stage("state_commit", stage_started)
+        timings = trace.finish()
+        completion_started = trace.start_stage()
+        self._emit(
+            EventType.INTERACTION_COMPLETED,
+            identity_id=identity.id,
+            session_id=session_id,
+            request_id=request.id,
+            user_id=user_id,
+            policy_passed=policy_passed,
+            timings_ms=timings,
+        )
+        trace.end_stage("completion_event", completion_started)
+        timings.clear()
+        timings.update(trace.finish())
+
         return InteractionResponse(
             request_id=request.id, identity_id=identity.id, user_id=user_id, output=final_output,
             context_used=context, policy_passed=policy_passed, eval_score=eval_report.overall_score,
+            metadata={"timings_ms": timings},
         )
 
     def __repr__(self) -> str:

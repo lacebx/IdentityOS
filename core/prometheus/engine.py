@@ -38,6 +38,9 @@ class PrometheusEngine:
         self.storage = storage
         self._evolving = False
 
+    def begin_interaction(self, interaction_id: str) -> None:
+        self.pipeline.begin_interaction(interaction_id)
+
     def detect_need(
         self,
         user_input: str,

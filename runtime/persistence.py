@@ -6,6 +6,7 @@ for persisting identity state across sessions. This is M2 of the IdentityOS
 roadmap: every module's state becomes durable, portable, and versionable.
 
 Backends:
+  - InMemoryBackend  : process-local, explicitly non-durable storage
   - JSONFileBackend  : local flat-file storage (default / dev)
   - SQLiteBackend    : embedded relational storage (lightweight production)
   - RemoteBackend    : stub for cloud/remote storage (future)
@@ -20,6 +21,7 @@ Design principles:
 from __future__ import annotations
 
 import abc
+import copy
 import json
 import sqlite3
 import time
@@ -147,6 +149,50 @@ class StorageBackend(abc.ABC):
             if ns.startswith("snapshot:")
         ]
         return snapshot_ids
+
+
+# ---------------------------------------------------------------------------
+# In-memory backend
+# ---------------------------------------------------------------------------
+
+class InMemoryBackend(StorageBackend):
+    """Process-local storage for explicitly non-persistent runtimes and tests."""
+
+    def __init__(self) -> None:
+        self._data: dict[str, dict[str, dict[str, Any]]] = {}
+        self._memories: dict[str, list[dict[str, Any]]] = {}
+
+    def save(self, identity_id: str, namespace: str, data: dict[str, Any]) -> None:
+        self._data.setdefault(identity_id, {})[namespace] = copy.deepcopy(data)
+
+    def load(self, identity_id: str, namespace: str) -> Optional[dict[str, Any]]:
+        data = self._data.get(identity_id, {}).get(namespace)
+        return copy.deepcopy(data) if data is not None else None
+
+    def list_namespaces(self, identity_id: str) -> list[str]:
+        return sorted(self._data.get(identity_id, {}))
+
+    def delete(self, identity_id: str, namespace: str) -> None:
+        self._data.get(identity_id, {}).pop(namespace, None)
+
+    def list_identities(self) -> list[str]:
+        return sorted(set(self._data) | set(self._memories))
+
+    def save_memory(self, identity_id: str, memory: dict[str, Any]) -> None:
+        self._memories.setdefault(identity_id, []).append(copy.deepcopy(memory))
+
+    def load_memories(self, identity_id: str) -> list[dict[str, Any]]:
+        return copy.deepcopy(self._memories.get(identity_id, []))
+
+    def delete_memories(self, identity_id: str) -> None:
+        self._memories.pop(identity_id, None)
+
+    def delete_user_memories(self, identity_id: str, user_id: str) -> int:
+        memories = self._memories.get(identity_id, [])
+        kept = [memory for memory in memories if memory.get("user_id", identity_id) != user_id]
+        deleted = len(memories) - len(kept)
+        self._memories[identity_id] = kept
+        return deleted
 
 
 # ---------------------------------------------------------------------------

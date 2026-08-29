@@ -107,6 +107,7 @@ class TestExtensionAPI:
         assert status == 200, f"Process failed: {data}"
         assert data["user_id"] == "ext-user"
         assert data["session_id"] == "ext-user-session"
+        assert data["timings_ms"]["total"] >= 0
 
     def test_get_context(self, api_app):
         status, data = _req(api_app, "POST", "/context", {

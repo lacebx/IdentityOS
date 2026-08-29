@@ -7,12 +7,12 @@ which runs the full pipeline: policy → context → LLM → evaluate → store.
 import json
 import logging
 import os
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
 
 import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from adapters import ChainAdapter
 from core.evaluation import register_default_criteria
@@ -180,6 +180,7 @@ class ProcessResponse(BaseModel):
     policy_passed: bool
     eval_score: Optional[float] = None
     session_mode: str = "normal"
+    timings_ms: Dict[str, float] = Field(default_factory=dict)
 
 
 # --- Endpoints ---
@@ -239,6 +240,7 @@ async def process(req: ProcessRequest):
         policy_passed=result.policy_passed,
         eval_score=result.eval_score,
         session_mode=runtime.get_session_mode(session_id).value,
+        timings_ms=result.metadata.get("timings_ms", {}),
     )
 
 

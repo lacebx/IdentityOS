@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import uuid
+import logging
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional
+
+_log = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Event Bus — the path toward a truly reactive IdentityOS
@@ -56,6 +59,7 @@ class EventType(Enum):
     MODEL_RESPONDED = "model.responded"       # Adapter call completed
     RESPONSE_GENERATED = "response.generated" # Adapter returned output
     RESPONSE_DELIVERED = "response.delivered" # After output policy, sent
+    INTERACTION_COMPLETED = "interaction.completed"
 
     # Memory / Experience
     EXPERIENCE_RECORDED = "experience.recorded"
@@ -89,6 +93,9 @@ class EventType(Enum):
     # Policy
     POLICY_TRIGGERED = "policy.triggered"
     POLICY_BLOCKED = "policy.blocked"
+
+    # Runtime diagnostics
+    SUBSYSTEM_FAILED = "runtime.subsystem_failed"
 
     # Timeline
     LIFE_EVENT_RECORDED = "timeline.life_event"
@@ -160,6 +167,8 @@ class EventBus:
         self._wildcard_handlers: List[EventHandler] = []
         self._history: List[Event] = []
         self._max_history: int = 1000
+        self._delivery_failures: List[Dict[str, Any]] = []
+        self._max_delivery_failures: int = 100
 
     def subscribe(
         self,
@@ -201,19 +210,57 @@ class EventBus:
             try:
                 handler(event)
                 count += 1
-            except Exception:
-                # Handlers should not crash the bus
-                pass
+            except Exception as exc:
+                self._record_delivery_failure(event, handler, exc)
 
         # Wildcard handlers
         for handler in self._wildcard_handlers:
             try:
                 handler(event)
                 count += 1
-            except Exception:
-                pass
+            except Exception as exc:
+                self._record_delivery_failure(event, handler, exc)
 
         return count
+
+    def _record_delivery_failure(
+        self,
+        event: Event,
+        handler: EventHandler,
+        exc: Exception,
+    ) -> None:
+        handler_name = getattr(handler, "__qualname__", repr(handler))
+        failure = {
+            "event_id": event.id,
+            "event_type": event.event_type.value,
+            "handler": handler_name,
+            "error_type": type(exc).__name__,
+            "error": str(exc),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+        self._delivery_failures.append(failure)
+        if len(self._delivery_failures) > self._max_delivery_failures:
+            self._delivery_failures = self._delivery_failures[-self._max_delivery_failures:]
+        _log.warning(
+            "Event handler failed event=%s type=%s handler=%s error=%s: %s",
+            event.id,
+            event.event_type.value,
+            handler_name,
+            type(exc).__name__,
+            exc,
+        )
+
+    def delivery_failures(
+        self,
+        event_id: Optional[str] = None,
+        limit: int = 50,
+    ) -> List[Dict[str, Any]]:
+        """Return structured evidence for recent subscriber failures."""
+
+        failures = self._delivery_failures
+        if event_id is not None:
+            failures = [item for item in failures if item["event_id"] == event_id]
+        return [dict(item) for item in failures[-max(0, limit):]]
 
     def emit(
         self,
