@@ -3,7 +3,7 @@
 set -euo pipefail
 
 WORKTREE="/home/lace/Desktop/identity-runtime-mode-b"
-MAIN="/home/lace/Desktop/identity-runtime"
+MAIN="/home/lace/Desktop/identity-runtime-mode-b"
 PYTHON="${MAIN}/.venv/bin/python"
 LOG="/tmp/mode_b_exclusive.log"
 DURABLE_LOG="$WORKTREE/research/mode-b/runs/exclusive.log"

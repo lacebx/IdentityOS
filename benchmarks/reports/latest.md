@@ -1,6 +1,6 @@
 # IDOS Baseline v0.1.0
 
-Model: `smollm2:360m-instruct-q4_0`
+Model: `qwen3:4b`
 
 Numbers below are measured, not assumed. Empty cells mean that mode has not been run yet.
 

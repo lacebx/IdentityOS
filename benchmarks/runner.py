@@ -48,7 +48,7 @@ DEFAULT_HOST = "http://localhost:11434"
 IDENTITY_ID = "smollm-bench-v010"
 IDENTITY_NAME = "BenchMate"
 IDOS_CAPS = ("calc", "datetime", "file_tools", "system_info")
-BARE_TIMEOUT_S = 1200.0  # Mode B: 4B CPU models; thinking variants can exceed 10m/task
+BARE_TIMEOUT_S = 3600.0  # Mode B: qwen3 thinking can exceed 20m/task; allow 1h/task
 
 
 class BenchmarkError(RuntimeError):

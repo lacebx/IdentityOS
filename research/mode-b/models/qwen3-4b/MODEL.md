@@ -14,12 +14,12 @@
     thinking      
 
   Parameters
+    temperature       0.6               
     top_k             20                
     top_p             0.95              
     repeat_penalty    1                 
     stop              "<|im_start|>"    
     stop              "<|im_end|>"      
-    temperature       0.6               
 
   License
     Apache License               

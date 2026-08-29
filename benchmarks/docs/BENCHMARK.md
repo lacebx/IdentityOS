@@ -79,10 +79,10 @@ A later task-suite change is **BENCHMARK v0.2.0**, not a silent edit of v0.1.0.
 
 <!-- AUTO-RESULTS -->
 
-_Generated 2026-08-21T14:05:59.502614+00:00. Re-run the runner to refresh. Do not edit by hand._
+_Generated 2026-08-27T18:24:20.400768+00:00. Re-run the runner to refresh. Do not edit by hand._
 
 **Benchmark:** v0.1.0  
-**Model:** `smollm2:360m-instruct-q4_0`
+**Model:** `qwen3:4b`
 
 | Metric | Bare | IDOS |
 |---|---|---|

@@ -13,10 +13,10 @@
     vision        
 
   Parameters
-    top_k          64                 
-    top_p          0.95               
     stop           "<end_of_turn>"    
     temperature    1                  
+    top_k          64                 
+    top_p          0.95               
 
   License
     Gemma Terms of Use                  
