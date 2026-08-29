@@ -36,6 +36,7 @@ from core.identity_mutation import (
 from core.memory import MemoryFragment, MemoryStore, MemoryType
 from core.motivations import MotivationEngine
 from core.policies import PolicyEngine, PolicyScope
+from core.planner import SkillRouter
 from core.relationships import EdgeType, IdentityGraph, TrustLevel
 from core.capabilities import CapabilityRegistry as PluginRegistry
 from core.skills import SkillRegistry
@@ -647,51 +648,13 @@ class IdentityRuntime:
                 pass
 
         # ── NATIVE TOOL CALLING SETUP ─────────────────────────────────
-        # Small local models can degrade badly if every turn is forced through
-        # tool-call mode. Enable tools only when the user input appears to
-        # request computation, date/time, file operations, or system info.
-        def _should_enable_tools(user_text: str) -> bool:
-            text = (user_text or "").strip().lower()
-            if not text:
-                return False
-            patterns = (
-                r"\b(calc|calculate|compute|evaluate|math|equation)\b",
-                r"[\d\)\]]\s*[\+\-\*/]\s*[\d\(\[]",
-                r"\b(square root|sqrt|convert|conversion|unit)\b",
-                r"\b(current date|current time|what time|what date|today|now)\b",
-                r"\b(create|write|append|file|directory|folder|path)\b",
-                r"\b(system info|cpu|memory|disk|uptime|hostname)\b",
-            )
-            return any(re.search(p, text) for p in patterns)
-
         user_profile = self._get_user_profile(identity.id)
         session_fact_store = self._get_fact_store_for_session(identity.id, session_id)
         cap_prompts = self.capability_registry.all_prompts(identity.id)
 
-        _tool_defs: List[Dict[str, Any]] = []
-        _tool_map: Dict[str, tuple] = {}
+        _tool_defs, _tool_map = self.capability_registry.tool_catalog(identity.id)
         _evidence_results: List[Dict[str, Any]] = []
-
-        for cap in self.capability_registry.list(identity.id):
-            cap_id = getattr(cap, "id", "unknown")
-            for skill in (cap.skills() or []):
-                skill_name = getattr(skill, "name", "")
-                if not skill_name:
-                    continue
-                safe_name = skill_name.replace(".", "__")
-                _tool_map[safe_name] = (cap, skill_name)
-                _tool_defs.append({
-                    "type": "function",
-                    "function": {
-                        "name": safe_name,
-                        "description": getattr(skill, "description", "") or f"Execute {skill_name}",
-                        "parameters": {
-                            "type": "object",
-                            "properties": {},
-                            "additionalProperties": True,  # Flat dictionary for Llama 3 native parser
-                        },
-                    },
-                })
+        _tool_router = SkillRouter(self.capability_registry, identity.id)
 
         def _execute_tool_call(func_name: str, args: Any) -> str:
             t0 = _time_mod.monotonic()
@@ -703,12 +666,12 @@ class IdentityRuntime:
             if not isinstance(args, dict):
                 args = {}
 
-            entry = _tool_map.get(func_name)
-            if not entry:
+            skill_name = _tool_map.get(func_name)
+            if not skill_name:
                 return json.dumps({"error": f"Unknown tool: {func_name}"})
 
-            cap, skill_name = entry
-            
+            cap_id = skill_name.split(".", 1)[0]
+
             # Extract flat arguments directly for Llama 3 native parser
             params = {}
             for k, v in args.items():
@@ -718,7 +681,11 @@ class IdentityRuntime:
                 params.update(args["params"])
 
             try:
-                result = cap.call(skill_name, **params)
+                result = self.capability_registry.call(
+                    identity.id,
+                    skill_name,
+                    **params,
+                )
                 duration_ms = (_time_mod.monotonic() - t0) * 1000
                 success = bool(getattr(result, "success", False)) if hasattr(result, "success") else True
                 data = getattr(result, "data", getattr(result, "output", result))
@@ -777,9 +744,10 @@ class IdentityRuntime:
             _t0 = _time_mod.monotonic()
 
             generate_kwargs: Dict[str, Any] = {}
-            if _tool_defs and _should_enable_tools(sanitized_input):
+            if _tool_defs and _tool_router.should_offer_tools(sanitized_input):
                 generate_kwargs["tools"] = _tool_defs
                 generate_kwargs["execute_tool"] = _execute_tool_call
+                generate_kwargs["tool_choice"] = "auto"
 
             if profile_recall is not None:
                 raw_output = profile_recall

@@ -3,7 +3,7 @@ from __future__ import annotations
 import importlib
 import re
 from typing import Any, Optional
-from core.capabilities.base import Capability, Skill
+from core.capabilities.base import Capability, Skill, object_schema
 from core.capabilities.registry import register, lookup
 from core.capabilities.result import CapabilityResult
 
@@ -58,7 +58,7 @@ class TaskPlannerCapability(Capability):
     license = "MIT"
     homepage = "https://github.com/lacebx/IdentityOS"
     description = "Plan and execute multi-step tasks with progress tracking and reporting"
-    permissions = ["public"]
+    permissions = ["task:execute"]
 
     def __init__(self, config: Optional[dict] = None) -> None:
         super().__init__(config)
@@ -80,7 +80,7 @@ class TaskPlannerCapability(Capability):
         ]
 
     _SKILLS = [
-        Skill(name="task_planner.plan_and_execute", description="Plan and execute a multi-step task. Provide the goal as text. Returns progress indicators like [1/5] and final results.", permission="public"),
+        Skill(name="task_planner.plan_and_execute", description="Plan and execute a multi-step task. Provide the goal as text. Returns progress indicators like [1/5] and final results.", permission="task:execute", effect="execute", input_schema=object_schema({"goal": {"type": "string", "minLength": 1}, "steps": {"type": "array"}}, required=("goal",))),
     ]
 
     def skills(self) -> list[Skill]:
@@ -307,7 +307,7 @@ class {class_name}(Capability):
         return ["## {name} Skill\\nUse {skill_name} to greet."]
 
     _SKILLS = [
-        Skill(name="{skill_name}", description="Greet the user", permission="public"),
+        Skill(name="{skill_name}", description="Greet the user", permission="public", verification_params={{}}),
     ]
 
     def skills(self) -> list[Skill]:
@@ -337,6 +337,7 @@ class {class_name}(Capability):
         """Generate a real command-execution capability backed by subprocess."""
         return r'''from __future__ import annotations
 
+import shlex
 import subprocess
 from typing import Any, Optional
 from core.capabilities.base import Capability, Skill
@@ -351,8 +352,8 @@ class CommandExecCapability(Capability):
     version = "1.0.0"
     author = "auto-generated"
     license = "MIT"
-    description = "Executes real shell commands and returns actual stdout/stderr/exit code"
-    permissions = ["public"]
+    description = "Executes real commands without shell expansion and returns actual stdout/stderr/exit code"
+    permissions = ["process:execute"]
 
     def __init__(self, config: Optional[dict] = None) -> None:
         super().__init__(config)
@@ -364,10 +365,10 @@ class CommandExecCapability(Capability):
         storage.delete(identity_id, "capability.command_exec")
 
     def prompts(self, identity_id: str) -> list[str]:
-        return ["## Command Exec Skill\nUse command_exec.run to execute a shell command. It returns real stdout/stderr and the exit code."]
+        return ["## Command Exec Skill\nUse command_exec.run to execute a command without shell expansion. It returns real stdout/stderr and the exit code."]
 
     _SKILLS = [
-        Skill(name="command_exec.run", description="Execute a shell command, returning actual stdout, stderr, and exit code", permission="public"),
+        Skill(name="command_exec.run", description="Execute a command without shell expansion, returning actual stdout, stderr, and exit code", permission="process:execute", effect="execute", input_schema={"type": "object", "properties": {"command": {"type": "string", "minLength": 1}, "timeout": {"type": "integer", "minimum": 1, "maximum": 300}}, "required": ["command"], "additionalProperties": False}, verification_params={"command": "true", "timeout": 5}),
     ]
 
     def skills(self) -> list[Skill]:
@@ -393,11 +394,11 @@ class CommandExecCapability(Capability):
             return {"error": "No command provided", "exit_code": -1, "stdout": "", "stderr": "command is empty"}
         try:
             proc = subprocess.run(
-                command,
-                shell=True,
+                shlex.split(command),
+                shell=False,
                 capture_output=True,
                 text=True,
-                timeout=timeout,
+                timeout=max(1, min(int(timeout), 300)),
             )
             return {
                 "command": command,

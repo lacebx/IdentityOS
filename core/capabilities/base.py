@@ -7,12 +7,47 @@ from typing import Any, Optional
 from .result import CapabilityResult
 
 
+def object_schema(
+    properties: Optional[dict[str, Any]] = None,
+    *,
+    required: tuple[str, ...] = (),
+    additional_properties: bool = False,
+) -> dict[str, Any]:
+    """Build the object-schema subset accepted by the invocation gateway."""
+    schema: dict[str, Any] = {
+        "type": "object",
+        "properties": properties or {},
+        "additionalProperties": additional_properties,
+    }
+    if required:
+        schema["required"] = list(required)
+    return schema
+
+
 @dataclass
 class Skill:
     name: str
     description: str
     permission: str = "public"
     version: str = "1.0.0"
+    input_schema: dict[str, Any] = field(default_factory=lambda: {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": True,
+    })
+    effect: str = "read"
+    verification_params: Optional[dict[str, Any]] = None
+
+    def tool_definition(self, *, name: Optional[str] = None) -> dict[str, Any]:
+        """Return an OpenAI-compatible definition from the runtime contract."""
+        return {
+            "type": "function",
+            "function": {
+                "name": name or self.name,
+                "description": self.description,
+                "parameters": self.input_schema,
+            },
+        }
 
 
 class Capability(ABC):
@@ -53,21 +88,7 @@ class Capability(ABC):
 
         Override to provide precise parameter schemas.
         """
-        defs = []
-        for s in self.skills():
-            defs.append({
-                "type": "function",
-                "function": {
-                    "name": s.name,
-                    "description": s.description,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {},
-                        "additionalProperties": True,
-                    },
-                },
-            })
-        return defs
+        return [s.tool_definition() for s in self.skills()]
 
     def can(self, skill_name: str) -> tuple[bool, str]:
         for s in self.skills():
@@ -106,4 +127,14 @@ class Capability(ABC):
             "description": self.description,
             "permissions": self.permissions,
             "skills": [s.name for s in self.skills()],
+            "skill_contracts": [
+                {
+                    "name": s.name,
+                    "description": s.description,
+                    "permission": s.permission,
+                    "effect": s.effect,
+                    "input_schema": s.input_schema,
+                }
+                for s in self.skills()
+            ],
         }

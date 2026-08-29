@@ -3,6 +3,8 @@ from __future__ import annotations
 from typing import Any, Optional
 
 from .base import Capability, Skill
+from .contracts import CapabilityContractError, validate_parameters
+from .result import CapabilityResult
 
 # ── v0: static in-process registry ─────────────────────────────────────
 # Future: entry_points discovery, pip-installed packages, plugins/
@@ -114,11 +116,31 @@ class CapabilityRegistry:
             skills.extend(cap.skills())
         return skills
 
+    def get_skill(self, identity_id: str, skill_name: str) -> Optional[Skill]:
+        cap = self._find_capability_for_skill(identity_id, skill_name)
+        if cap is None:
+            return None
+        return next((skill for skill in cap.skills() if skill.name == skill_name), None)
+
+    def tool_catalog(self, identity_id: str) -> tuple[list[dict], dict[str, str]]:
+        """Return authorized model tools plus safe-name → skill-name mapping."""
+        definitions: list[dict] = []
+        mapping: dict[str, str] = {}
+        for cap in self.list(identity_id):
+            for skill in cap.skills():
+                allowed, _ = self._authorized(identity_id, cap.id, skill.permission)
+                if not allowed:
+                    continue
+                safe_name = skill.name.replace(".", "__")
+                definitions.append(skill.tool_definition(name=safe_name))
+                mapping[safe_name] = skill.name
+        return definitions, mapping
+
     def can(self, identity_id: str, skill_name: str) -> tuple[bool, str]:
         for cap in self.list(identity_id):
-            ok, reason = cap.can(skill_name)
-            if ok:
-                return (True, "")
+            skill = next((s for s in cap.skills() if s.name == skill_name), None)
+            if skill is not None:
+                return self._authorized(identity_id, cap.id, skill.permission)
         return (False, f"No installed capability provides skill: {skill_name}")
 
     def call(self, identity_id: str, skill_name: str, **params: Any) -> Any:
@@ -127,7 +149,64 @@ class CapabilityRegistry:
             raise ValueError(
                 f"No installed capability provides skill: {skill_name}"
             )
-        return cap.call(skill_name, **params)
+        skill = next((s for s in cap.skills() if s.name == skill_name), None)
+        if skill is None:
+            raise ValueError(f"Capability '{cap.id}' does not define skill: {skill_name}")
+
+        allowed, reason = self._authorized(identity_id, cap.id, skill.permission)
+        if not allowed:
+            return CapabilityResult.fail(
+                cap.id,
+                skill_name,
+                "permission_denied",
+                reason,
+                params=params,
+            )
+        try:
+            validate_parameters(skill.input_schema, params)
+        except CapabilityContractError as exc:
+            return CapabilityResult.fail(
+                cap.id,
+                skill_name,
+                "invalid_parameters",
+                str(exc),
+                params=params,
+            )
+
+        result = cap.call(skill_name, **params)
+        if isinstance(result, CapabilityResult):
+            if not result.params:
+                result.params = dict(params)
+            return result.reclassify_soft_errors()
+        return CapabilityResult.from_data(
+            cap.id,
+            skill_name,
+            result,
+            source=f"capability:{cap.id}",
+            params=params,
+        )
+
+    def _authorized(
+        self,
+        identity_id: str,
+        capability_id: str,
+        permission: str,
+    ) -> tuple[bool, str]:
+        if permission in ("", "public", "local"):
+            return (True, "")
+
+        raw = self._storage.load(identity_id, "capability.permissions") or {}
+        for grant in raw.get("grants", []):
+            granted_cap = str(grant.get("capability", ""))
+            granted_scope = str(grant.get("permission", ""))
+            if granted_cap not in (capability_id, "*"):
+                continue
+            if _scope_matches(permission, granted_scope):
+                return (True, "")
+        return (
+            False,
+            f"Capability '{capability_id}' requires permission '{permission}'",
+        )
 
     def _find_capability_for_skill(
         self, identity_id: str, skill_name: str
@@ -137,3 +216,11 @@ class CapabilityRegistry:
             if ok:
                 return cap
         return None
+
+
+def _scope_matches(required: str, granted: str) -> bool:
+    if granted in ("*", required):
+        return True
+    if granted.endswith(":*"):
+        return required.startswith(granted[:-1])
+    return False

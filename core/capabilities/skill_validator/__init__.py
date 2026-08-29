@@ -7,7 +7,7 @@ import sys
 import tempfile
 from typing import Any, Optional
 
-from core.capabilities.base import Capability, Skill
+from core.capabilities.base import Capability, Skill, object_schema
 from core.capabilities.registry import register
 from core.capabilities.result import CapabilityResult
 
@@ -41,8 +41,8 @@ class SkillValidatorCapability(Capability):
         ]
 
     _SKILLS = [
-        Skill(name="skill_validator.validate_syntax", description="Validate Python syntax of a skill file", permission="public"),
-        Skill(name="skill_validator.check_capability_interface", description="Check that a capability file follows the required Capability interface", permission="public"),
+        Skill(name="skill_validator.validate_syntax", description="Validate Python syntax supplied as code or a workspace path", permission="public", input_schema=object_schema({"path": {"type": "string"}, "code": {"type": "string"}}, additional_properties=False), verification_params={"code": "x = 1"}),
+        Skill(name="skill_validator.check_capability_interface", description="Check that capability code or a workspace path follows the required interface", permission="public", input_schema=object_schema({"path": {"type": "string"}, "code": {"type": "string"}}, additional_properties=False)),
     ]
 
     def skills(self) -> list[Skill]:

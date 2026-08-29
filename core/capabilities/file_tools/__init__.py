@@ -4,6 +4,7 @@ import os
 from typing import Any, Optional
 
 from core.capabilities.base import Capability, Skill
+from core.capabilities.paths import resolve_workspace_path
 from core.capabilities.registry import register
 from core.capabilities.result import CapabilityResult
 
@@ -17,7 +18,7 @@ class FileToolsCapability(Capability):
     license = "MIT"
     homepage = "https://github.com/lacebx/IdentityOS"
     description = "Write, create, and modify files and directories on the local filesystem"
-    permissions = ["public"]
+    permissions = ["filesystem:write"]
 
     def __init__(self, config: Optional[dict] = None) -> None:
         super().__init__(config)
@@ -37,9 +38,48 @@ class FileToolsCapability(Capability):
         ]
 
     _SKILLS = [
-        Skill(name="file_tools.write_file", description="Write content to a file, creating directories and file if they do not exist", permission="public"),
-        Skill(name="file_tools.append_file", description="Append content to an existing file", permission="public"),
-        Skill(name="file_tools.create_directory", description="Create a directory and all parent directories if they do not exist", permission="public"),
+        Skill(
+            name="file_tools.write_file",
+            description="Write content to a file within an allowed workspace root",
+            permission="filesystem:write",
+            effect="write",
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string", "minLength": 1},
+                    "content": {"type": "string"},
+                },
+                "required": ["path", "content"],
+                "additionalProperties": False,
+            },
+        ),
+        Skill(
+            name="file_tools.append_file",
+            description="Append content to a file within an allowed workspace root",
+            permission="filesystem:write",
+            effect="write",
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string", "minLength": 1},
+                    "content": {"type": "string", "minLength": 1},
+                },
+                "required": ["path", "content"],
+                "additionalProperties": False,
+            },
+        ),
+        Skill(
+            name="file_tools.create_directory",
+            description="Create a directory within an allowed workspace root",
+            permission="filesystem:write",
+            effect="write",
+            input_schema={
+                "type": "object",
+                "properties": {"path": {"type": "string", "minLength": 1}},
+                "required": ["path"],
+                "additionalProperties": False,
+            },
+        ),
     ]
 
     def skills(self) -> list[Skill]:
@@ -65,24 +105,26 @@ class FileToolsCapability(Capability):
     def _write_file(self, path: str = "", content: str = "", **kwargs: Any) -> dict[str, Any]:
         if not path:
             return {"error": "path is required"}
-        os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
-        with open(path, "w") as f:
+        resolved = resolve_workspace_path(path, self._config)
+        os.makedirs(resolved.parent, exist_ok=True)
+        with resolved.open("w") as f:
             f.write(content)
         return {
-            "path": os.path.abspath(path),
+            "path": str(resolved),
             "bytes_written": len(content),
-            "status": "created" if os.path.isfile(path) else "error",
+            "status": "created" if resolved.is_file() else "error",
         }
 
     def _append_file(self, path: str = "", content: str = "", **kwargs: Any) -> dict[str, Any]:
         if not path:
             return {"error": "path is required"}
-        if not os.path.isfile(path):
-            return {"error": f"File does not exist: {path}"}
-        with open(path, "a") as f:
+        resolved = resolve_workspace_path(path, self._config)
+        if not resolved.is_file():
+            return {"error": f"File does not exist: {resolved}"}
+        with resolved.open("a") as f:
             f.write(content)
         return {
-            "path": os.path.abspath(path),
+            "path": str(resolved),
             "bytes_appended": len(content),
             "status": "appended",
         }
@@ -90,8 +132,9 @@ class FileToolsCapability(Capability):
     def _create_directory(self, path: str = "", **kwargs: Any) -> dict[str, Any]:
         if not path:
             return {"error": "path is required"}
-        os.makedirs(path, exist_ok=True)
+        resolved = resolve_workspace_path(path, self._config)
+        os.makedirs(resolved, exist_ok=True)
         return {
-            "path": os.path.abspath(path),
-            "status": "created" if os.path.isdir(path) else "error",
+            "path": str(resolved),
+            "status": "created" if resolved.is_dir() else "error",
         }

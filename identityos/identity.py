@@ -980,7 +980,11 @@ class IdentityObject:
                 f"'{type(self).__name__}' object has no attribute '{name}' "
                 f"and no capability '{name}' is installed"
             )
-        return CapabilityProxy(cap)
+        return CapabilityProxy(
+            cap,
+            registry=self._runtime.capability_registry,
+            identity_id=self._identity_id,
+        )
 
     # ── Lifecycle ──────────────────────────────────────────────────────
 
@@ -1021,7 +1025,11 @@ class IdentityObject:
                 f"Capability '{cap_id}' is not installed. "
                 f"Installed: {[c.id for c in self._runtime.capability_registry.list(self._identity_id)]}"
             )
-        return CapabilityProxy(cap)
+        return CapabilityProxy(
+            cap,
+            registry=self._runtime.capability_registry,
+            identity_id=self._identity_id,
+        )
 
     def use(self, cap_id: str) -> Any:
         """Explicitly select a capability to invoke skills on.
@@ -1049,11 +1057,16 @@ class IdentityObject:
         import time
         raw = self._runtime._storage.load(self._identity_id, "capability.permissions") or {}
         grants = raw.get("grants", [])
-        grants.append({
-            "capability": capability,
-            "permission": permission,
-            "granted_at": time.time(),
-        })
+        if not any(
+            grant.get("capability") == capability
+            and grant.get("permission") == permission
+            for grant in grants
+        ):
+            grants.append({
+                "capability": capability,
+                "permission": permission,
+                "granted_at": time.time(),
+            })
         raw["grants"] = grants
         self._runtime._storage.save(self._identity_id, "capability.permissions", raw)
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shlex
 import subprocess
 from typing import Any, Optional
 from core.capabilities.base import Capability, Skill
@@ -14,8 +15,8 @@ class CommandExecCapability(Capability):
     version = "1.0.0"
     author = "auto-generated"
     license = "MIT"
-    description = "Executes real shell commands and returns actual stdout/stderr/exit code"
-    permissions = ["public"]
+    description = "Executes real commands without shell expansion and returns actual stdout/stderr/exit code"
+    permissions = ["process:execute"]
 
     def __init__(self, config: Optional[dict] = None) -> None:
         super().__init__(config)
@@ -27,10 +28,10 @@ class CommandExecCapability(Capability):
         storage.delete(identity_id, "capability.command_exec")
 
     def prompts(self, identity_id: str) -> list[str]:
-        return ["## Command Exec Skill\nUse command_exec.run to execute a shell command. It returns real stdout/stderr and the exit code."]
+        return ["## Command Exec Skill\nUse command_exec.run to execute a command without shell expansion. It returns real stdout/stderr and the exit code."]
 
     _SKILLS = [
-        Skill(name="command_exec.run", description="Execute a shell command, returning actual stdout, stderr, and exit code", permission="public"),
+        Skill(name="command_exec.run", description="Execute a command without shell expansion, returning actual stdout, stderr, and exit code", permission="process:execute", effect="execute", input_schema={"type": "object", "properties": {"command": {"type": "string", "minLength": 1}, "timeout": {"type": "integer", "minimum": 1, "maximum": 300}}, "required": ["command"], "additionalProperties": False}, verification_params={"command": "true", "timeout": 5}),
     ]
 
     def skills(self) -> list[Skill]:
@@ -56,11 +57,11 @@ class CommandExecCapability(Capability):
             return {"error": "No command provided", "exit_code": -1, "stdout": "", "stderr": "command is empty"}
         try:
             proc = subprocess.run(
-                command,
-                shell=True,
+                shlex.split(command),
+                shell=False,
                 capture_output=True,
                 text=True,
-                timeout=timeout,
+                timeout=max(1, min(int(timeout), 300)),
             )
             return {
                 "command": command,

@@ -4,7 +4,7 @@ from typing import Any, Optional
 
 import httpx
 
-from core.capabilities.base import Capability, Skill
+from core.capabilities.base import Capability, Skill, object_schema
 from core.capabilities.registry import register
 from core.capabilities.result import CapabilityResult
 
@@ -42,8 +42,8 @@ class WeatherCapability(Capability):
         ]
 
     _SKILLS = [
-        Skill(name="weather.current", description="Get current weather conditions for a location", permission="public"),
-        Skill(name="weather.forecast", description="Get a multi-day weather forecast for a location", permission="public"),
+        Skill(name="weather.current", description="Get current weather conditions for a location", permission="public", input_schema=object_schema({"location": {"type": "string", "minLength": 1}}, required=("location",))),
+        Skill(name="weather.forecast", description="Get a multi-day weather forecast for a location", permission="public", input_schema=object_schema({"location": {"type": "string", "minLength": 1}, "days": {"type": "integer", "minimum": 1, "maximum": 10}}, required=("location",))),
     ]
 
     def skills(self) -> list[Skill]:

@@ -5,7 +5,7 @@ from typing import Any, Optional
 
 import httpx
 
-from core.capabilities.base import Capability, Skill
+from core.capabilities.base import Capability, Skill, object_schema
 from core.capabilities.registry import register
 from core.capabilities.result import CapabilityResult
 
@@ -41,8 +41,8 @@ class WebCapability(Capability):
         ]
 
     _SKILLS = [
-        Skill(name="web.fetch", description="Fetch a URL and return its content as text", permission="public"),
-        Skill(name="web.extract", description="Fetch a URL and extract clean text from HTML", permission="public"),
+        Skill(name="web.fetch", description="Fetch a URL and return its content as text", permission="public", input_schema=object_schema({"url": {"type": "string", "minLength": 1}}, required=("url",))),
+        Skill(name="web.extract", description="Fetch a URL and extract clean text from HTML", permission="public", input_schema=object_schema({"url": {"type": "string", "minLength": 1}}, required=("url",))),
     ]
 
     def skills(self) -> list[Skill]:

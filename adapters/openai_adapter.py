@@ -298,6 +298,7 @@ class AnthropicAdapter(BaseAdapter):
     def generate(self, context: str, user_input: str, identity: Any, **kwargs) -> str:
         kwargs.pop("execute_tool", None)
         kwargs.pop("tools", None)
+        kwargs.pop("tool_choice", None)
         client = self._get_client()
         model = self.model or "claude-3-5-sonnet-20241022"
         try:
@@ -442,6 +443,9 @@ class OllamaAdapter(OpenAIAdapter):
     ) -> str:
         execute_tool = kwargs.pop("execute_tool", None)
         kwargs.pop("tools", None)
+        # Ollama's OpenAI-compatible endpoint does not accept native tool
+        # selection when tools themselves are handled by the legacy loop.
+        kwargs.pop("tool_choice", None)
 
         extra = dict(kwargs.pop("extra_body", None) or {})
         extra["think"] = self.think if think is None else think

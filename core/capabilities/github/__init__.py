@@ -5,7 +5,7 @@ from typing import Any, Optional
 import httpx
 import os
 
-from core.capabilities.base import Capability, Skill
+from core.capabilities.base import Capability, Skill, object_schema
 from core.capabilities.registry import register
 from core.capabilities.result import CapabilityResult
 
@@ -60,36 +60,43 @@ class GithubCapability(Capability):
             name="github.search_repositories",
             description="Search GitHub repositories by keyword",
             permission="public",
+            input_schema=object_schema({"query": {"type": "string", "minLength": 1}}, required=("query",)),
         ),
         Skill(
             name="github.get_repository",
             description="Get details about a specific repository",
             permission="public",
+            input_schema=object_schema({"owner": {"type": "string", "minLength": 1}, "repo": {"type": "string", "minLength": 1}}, required=("owner", "repo")),
         ),
         Skill(
             name="github.review_pull_request",
             description="Review a pull request — fetches details, diff summary, and status",
             permission="public",
+            input_schema=object_schema({"owner": {"type": "string", "minLength": 1}, "repo": {"type": "string", "minLength": 1}, "number": {"type": "integer", "minimum": 1}}, required=("owner", "repo", "number")),
         ),
         Skill(
             name="github.find_beginner_issue",
             description="Find beginner-friendly issues (tagged 'good first issue')",
             permission="public",
+            input_schema=object_schema({"owner": {"type": "string", "minLength": 1}, "repo": {"type": "string", "minLength": 1}}, required=("owner", "repo")),
         ),
         Skill(
             name="github.summarize_release",
             description="Summarize recent changes since the latest release tag",
             permission="public",
+            input_schema=object_schema({"owner": {"type": "string", "minLength": 1}, "repo": {"type": "string", "minLength": 1}}, required=("owner", "repo")),
         ),
         Skill(
             name="github.list_commits",
             description="List recent commits for a repository",
             permission="public",
+            input_schema=object_schema({"owner": {"type": "string", "minLength": 1}, "repo": {"type": "string", "minLength": 1}}, required=("owner", "repo")),
         ),
         Skill(
             name="github.list_branches",
             description="List all branches in a repository",
             permission="public",
+            input_schema=object_schema({"owner": {"type": "string", "minLength": 1}, "repo": {"type": "string", "minLength": 1}}, required=("owner", "repo")),
         ),
     ]
 
