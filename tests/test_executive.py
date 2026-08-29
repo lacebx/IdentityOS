@@ -200,6 +200,68 @@ def test_recovery_repairs_inflight_steps(storage, registry):
         "no step may be stuck RUNNING after recovery"
 
 
+def test_recovery_blocks_unknown_side_effect_instead_of_replaying(storage, registry):
+    from core.executive.models import ReplayPolicy, TaskStep
+
+    eng = ExecutiveRuntime(storage=storage, capability_registry=registry)
+    task = eng.start_task(
+        "append an audit record",
+        "tester",
+        steps=[TaskStep(action="append_file", description="Append record")],
+    )
+    task.status = TaskStatus.RUNNING
+    step = task.steps[0]
+    assert step.replay_policy == ReplayPolicy.BLOCK
+    step.status = TaskStepStatus.RUNNING
+    step.execution_attempts.append({"attempt_id": "attempt-1", "status": "running"})
+    eng.store.save(task)
+    eng.shutdown()
+
+    eng2 = ExecutiveRuntime(storage=storage, capability_registry=registry)
+    recovered = eng2.recover("tester")
+    recovered_task = next(t for t in recovered if t.task_id == task.task_id)
+    recovered_step = recovered_task.steps[0]
+    assert recovered_task.status == TaskStatus.BLOCKED
+    assert recovered_step.status == TaskStepStatus.BLOCKED
+    assert recovered_step.execution_attempts[-1]["status"] == "outcome_unknown"
+    assert any(e.label == "manual_reconciliation_required" for e in recovered_task.evidence)
+    assert eng2.process_ready("tester")["advanced"] == 0
+
+    reconciled = eng2.resolve_interrupted_step(
+        "tester",
+        task.task_id,
+        resolution="completed",
+        result={"verified": True},
+        detail="Audit record exists exactly once",
+    )
+    assert reconciled.steps[0].status == TaskStepStatus.COMPLETED
+    eng2.process_ready("tester")
+    assert eng2.get_task("tester", task.task_id).status == TaskStatus.COMPLETED
+    eng2.shutdown()
+
+
+def test_recovery_requeues_declared_replay_safe_step(storage, registry):
+    from core.executive.models import ReplayPolicy, TaskStep
+
+    eng = ExecutiveRuntime(storage=storage, capability_registry=registry)
+    task = eng.start_task(
+        "inspect registry",
+        "tester",
+        steps=[TaskStep(action="registry_search", description="Search", params={"capability": "missing"})],
+    )
+    task.status = TaskStatus.RUNNING
+    step = task.steps[0]
+    assert step.replay_policy == ReplayPolicy.RETRY
+    step.status = TaskStepStatus.RUNNING
+    step.execution_attempts.append({"attempt_id": "attempt-2", "status": "running"})
+    eng.store.save(task)
+
+    recovered = eng.recover("tester")[0]
+    assert recovered.status == TaskStatus.RUNNING
+    assert recovered.steps[0].status == TaskStepStatus.PENDING
+    assert recovered.steps[0].execution_attempts[-1]["status"] == "interrupted"
+
+
 def test_active_and_current_task_reporting(storage, registry, fresh_cap):
     eng = ExecutiveRuntime(storage=storage, capability_registry=registry)
     a = eng.start_task(f"create a {fresh_cap} capability", "tester", priority=1)
@@ -396,7 +458,8 @@ def test_executive_capability_registered_and_skills():
     skill_names = {s.name for s in cap.skills()}
     for expected in ("executive.start_task", "executive.resume_task", "executive.pause_task",
                      "executive.current_task", "executive.active_tasks", "executive.task_status",
-                     "executive.task_progress", "executive.checkpoint", "executive.recover"):
+                     "executive.task_progress", "executive.checkpoint", "executive.recover",
+                     "executive.resolve_interrupted_step"):
         assert expected in skill_names
 
 

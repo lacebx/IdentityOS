@@ -16,7 +16,7 @@ import uuid
 from typing import Any, Optional
 
 from core.executive import workflow
-from core.executive.executor import ExecutionContext, execute_step
+from core.executive.executor import ExecutionContext, execute_step, replay_policy_for_action
 from core.executive.models import Evidence, Task, TaskStatus, TaskStep, TaskStepStatus
 from core.executive.progress import compute_progress, render_progress_block
 from core.executive.recovery import recover_tasks
@@ -158,12 +158,17 @@ class ExecutiveRuntime:
 
     def _coerce_step(self, s) -> TaskStep:
         if isinstance(s, TaskStep):
-            return s
-        if isinstance(s, dict):
+            step = s
+        elif isinstance(s, dict):
             if "status" in s and not isinstance(s.get("status"), TaskStepStatus):
-                return TaskStep.from_dict(s)
-            return TaskStep(**s)
-        raise TypeError(f"Invalid step definition: {type(s).__name__}")
+                step = TaskStep.from_dict(s)
+            else:
+                step = TaskStep(**s)
+        else:
+            raise TypeError(f"Invalid step definition: {type(s).__name__}")
+        if step.replay_policy is None:
+            step.replay_policy = replay_policy_for_action(step.action)
+        return step
 
     def get_task(self, identity_id: str, task_id: str) -> Optional[Task]:
         return self.store.load(identity_id, task_id)
@@ -200,6 +205,11 @@ class ExecutiveRuntime:
         if task.status in (TaskStatus.RUNNING, TaskStatus.QUEUED):
             pass
         elif task.status == TaskStatus.BLOCKED:
+            if any(s.status == TaskStepStatus.BLOCKED for s in task.steps):
+                raise IllegalTransition(
+                    "Task has an interrupted step with an unknown outcome; use "
+                    "resolve_interrupted_step before resuming"
+                )
             transition(task, TaskStatus.RUNNING)
         elif task.status == TaskStatus.FAILED:
             if not force:
@@ -228,6 +238,55 @@ class ExecutiveRuntime:
 
     def unblock_task(self, identity_id: str, task_id: str) -> Task:
         return self.resume_task(identity_id, task_id)
+
+    def resolve_interrupted_step(
+        self,
+        identity_id: str,
+        task_id: str,
+        *,
+        resolution: str,
+        result: Optional[dict] = None,
+        detail: str = "",
+    ) -> Task:
+        """Reconcile an outcome-unknown step without silently replaying it.
+
+        ``completed`` records independently established success. ``retry``
+        records an explicit decision that repeating the effect is acceptable.
+        Both paths preserve an evidence event before returning the task to the
+        scheduler.
+        """
+        task = self.require(identity_id, task_id)
+        step = next((s for s in task.steps if s.status == TaskStepStatus.BLOCKED), None)
+        if task.status != TaskStatus.BLOCKED or step is None:
+            raise IllegalTransition("Task has no interrupted step awaiting reconciliation")
+        if resolution not in ("completed", "retry"):
+            raise ValueError("resolution must be 'completed' or 'retry'")
+        evidence = Evidence(
+            step=step.action,
+            label=f"interrupted_attempt_{resolution}",
+            detail=detail or f"Interrupted step reconciled as {resolution}",
+            success=True,
+            data={"resolution": resolution},
+        )
+        step.evidence.append(evidence)
+        task.evidence.append(evidence)
+        step.error = None
+        if resolution == "completed":
+            step.status = TaskStepStatus.COMPLETED
+            step.result = result or {"reconciled": True}
+        else:
+            step.status = TaskStepStatus.PENDING
+        task.error = None
+        transition(task, TaskStatus.RUNNING)
+        task.current_step = step.description
+        task.last_updated = _now()
+        task.checkpoint = {
+            "reconciled_step": step.action,
+            "resolution": resolution,
+            "saved_at": _now(),
+        }
+        self.store.save(task)
+        return task
 
     def complete_task(self, identity_id: str, task_id: str, result: Optional[dict] = None) -> Task:
         task = self.require(identity_id, task_id)
@@ -277,7 +336,7 @@ class ExecutiveRuntime:
 
     def recover(self, identity_id: str) -> list[Task]:
         """Reload active tasks and resume any interrupted work."""
-        return recover_tasks(self.store, identity_id)
+        return recover_tasks(self.store, identity_id, replay_policy_for_action)
 
     # ── Execution loop ────────────────────────────────────────────────
 
@@ -348,6 +407,12 @@ class ExecutiveRuntime:
                 continue
 
             next_step.status = TaskStepStatus.RUNNING
+            attempt = {
+                "attempt_id": str(uuid.uuid4()),
+                "status": "running",
+                "started_at": _now(),
+            }
+            next_step.execution_attempts.append(attempt)
             task.current_step = next_step.description
             task.last_updated = _now()
             self.store.save(task)  # checkpoint before executing
@@ -358,9 +423,11 @@ class ExecutiveRuntime:
             task.evidence.extend(evidence)
 
             if ok:
+                attempt["status"] = "completed"
                 next_step.status = TaskStepStatus.COMPLETED
                 next_step.error = None
             else:
+                attempt["status"] = "failed"
                 next_step.retry_count += 1
                 task.retry_count += 1
                 if next_step.retry_count < next_step.max_retries:
@@ -370,8 +437,13 @@ class ExecutiveRuntime:
                     next_step.status = TaskStepStatus.FAILED
                     task.error = f"Step '{next_step.action}' failed after {next_step.retry_count} retries"
                     transition(task, TaskStatus.FAILED)
+                    attempt["finished_at"] = _now()
+                    attempt["evidence_count"] = len(evidence)
                     self.store.save(task)
                     return steps_run + 1
+
+            attempt["finished_at"] = _now()
+            attempt["evidence_count"] = len(evidence)
 
             task.current_step = next_step.description
             task.last_updated = _now()

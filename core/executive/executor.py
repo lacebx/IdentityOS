@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional
 
-from core.executive.models import Evidence, Task, TaskStep
+from core.executive.models import Evidence, ReplayPolicy, Task, TaskStep
 from core.executive.templates import capability_module
 from core.executive.verification import capability_module_path, verify_capability
 
@@ -54,6 +54,17 @@ def execute_step(task: Task, step: TaskStep, ctx: ExecutionContext) -> tuple[boo
             detail=f"No handler for action: {step.action}", success=False,
         )])
     return handler(task, step, ctx)
+
+
+def replay_policy_for_action(action: str) -> ReplayPolicy:
+    """Return the declared crash-replay contract for an executor action.
+
+    Unknown and externally mutating actions deliberately require manual
+    reconciliation. Adding a new handler without declaring a policy therefore
+    fails safe instead of silently duplicating a possible side effect.
+    """
+
+    return _REPLAY_POLICIES.get(action, ReplayPolicy.BLOCK)
 
 
 # ── Generic acquisition handlers ────────────────────────────────────────
@@ -278,6 +289,24 @@ _HANDLERS: dict[str, Any] = {
     "publish_capability": _passthrough_registry("publish_capability"),
     "install_capability": _passthrough_registry("install_capability"),
     "run_command": _passthrough_command,
+}
+
+
+# These handlers are either observational or converge on the same persisted
+# state when invoked repeatedly with the same parameters. Everything omitted
+# from this set is treated as outcome-unknown after an interrupted attempt.
+_REPLAY_POLICIES: dict[str, ReplayPolicy] = {
+    "registry_search": ReplayPolicy.RETRY,
+    "generate": ReplayPolicy.RETRY,
+    "validate": ReplayPolicy.RETRY,
+    "install": ReplayPolicy.RETRY,
+    "verify": ReplayPolicy.RETRY,
+    "create_directory": ReplayPolicy.RETRY,
+    "write_file": ReplayPolicy.RETRY,
+    "validate_syntax": ReplayPolicy.RETRY,
+    "check_interface": ReplayPolicy.RETRY,
+    "list_capabilities": ReplayPolicy.RETRY,
+    "install_capability": ReplayPolicy.RETRY,
 }
 
 

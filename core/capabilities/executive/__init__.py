@@ -59,7 +59,7 @@ class ExecutiveCapability(Capability):
             "- Do NOT ask 'should I build it?' — the task is already committed and running.\n"
             "- When the user asks 'did you finish?', call executive.current_task / executive.task_status "
             "and report the REAL progress from the returned state. Never guess, never restart work that is in progress.\n"
-            "- If a task exists but is blocked or interrupted, call executive.resume_task(task_id=...). Never restart it from scratch.\n"
+            "- If a task is ordinarily paused, call executive.resume_task(task_id=...). If recovery reports an outcome-unknown step, inspect the external state and call executive.resolve_interrupted_step; never replay a possible side effect blindly.\n"
             "- Use executive.cancel_task only when the user explicitly abandons the goal.\n"
             "- When you report completion, you MUST cite the evidence returned by the executive.\n",
         ]
@@ -76,6 +76,7 @@ class ExecutiveCapability(Capability):
         Skill(name="executive.task_progress", description="Return the progress breakdown for a task", permission="public"),
         Skill(name="executive.checkpoint", description="Persist the current state of a task", permission="public"),
         Skill(name="executive.recover", description="Reload and resume any interrupted tasks", permission="public"),
+        Skill(name="executive.resolve_interrupted_step", description="Record the verified outcome of an interrupted side-effecting step or explicitly authorize its retry", permission="public"),
         Skill(name="executive.history", description="Return recently completed/failed tasks", permission="public"),
     ]
 
@@ -99,6 +100,7 @@ class ExecutiveCapability(Capability):
                 "executive.task_progress": self._task_progress,
                 "executive.checkpoint": self._checkpoint,
                 "executive.recover": self._recover,
+                "executive.resolve_interrupted_step": self._resolve_interrupted_step,
                 "executive.history": self._history,
             }
             handler = dispatch.get(skill_name)
@@ -210,6 +212,26 @@ class ExecutiveCapability(Capability):
     def _recover(self, identity_id: str, **kwargs: Any) -> dict:
         recovered = self._engine(identity_id).recover(identity_id)
         return {"recovered": [t.task_id for t in recovered], "count": len(recovered)}
+
+    def _resolve_interrupted_step(
+        self,
+        identity_id: str,
+        task_id: str = "",
+        resolution: str = "",
+        result: Any = None,
+        detail: str = "",
+        **kwargs: Any,
+    ) -> dict:
+        if not task_id:
+            return {"error": "task_id is required"}
+        task = self._engine(identity_id).resolve_interrupted_step(
+            identity_id,
+            task_id,
+            resolution=resolution,
+            result=result if isinstance(result, dict) else {"result": result},
+            detail=detail,
+        )
+        return {"task_id": task.task_id, "status": task.status.value, "resolution": resolution}
 
     def _history(self, identity_id: str, **kwargs: Any) -> dict:
         return {"history": self._engine(identity_id).history(identity_id)}

@@ -46,6 +46,18 @@ class TaskStepStatus(str, enum.Enum):
     BLOCKED = "blocked"
 
 
+class ReplayPolicy(str, enum.Enum):
+    """How recovery handles a step interrupted after execution began.
+
+    ``RETRY`` is reserved for read-only or idempotent handlers. ``BLOCK`` is
+    the safe default for work whose external outcome cannot be established
+    from the task store after a process crash.
+    """
+
+    RETRY = "retry"
+    BLOCK = "block"
+
+
 @dataclass
 class Evidence:
     """A single verifiable fact produced while executing a step."""
@@ -98,6 +110,8 @@ class TaskStep:
     # Continue only if the named prior step's result has `key` falsy.
     run_if_step: Optional[str] = None
     run_if_key: Optional[str] = None
+    replay_policy: Optional[ReplayPolicy] = None
+    execution_attempts: list = field(default_factory=list)
 
     def to_dict(self) -> dict:
         return {
@@ -114,6 +128,8 @@ class TaskStep:
             "run_unless_key": self.run_unless_key,
             "run_if_step": self.run_if_step,
             "run_if_key": self.run_if_key,
+            "replay_policy": self.replay_policy.value if self.replay_policy else None,
+            "execution_attempts": self.execution_attempts,
         }
 
     @classmethod
@@ -132,6 +148,12 @@ class TaskStep:
             run_unless_key=raw.get("run_unless_key"),
             run_if_step=raw.get("run_if_step"),
             run_if_key=raw.get("run_if_key"),
+            replay_policy=(
+                ReplayPolicy(raw["replay_policy"])
+                if raw.get("replay_policy")
+                else None
+            ),
+            execution_attempts=raw.get("execution_attempts", []),
         )
 
 
