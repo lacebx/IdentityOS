@@ -900,7 +900,9 @@ class IdentityRuntime:
             profile_recall = try_explicit_abstain(sanitized_input, user_profile)
 
         stage_started = trace.start_stage()
-        if self.adapter:
+        if profile_recall is not None:
+            raw_output = profile_recall
+        elif self.adapter:
             self._emit(EventType.MODEL_REQUESTED, identity_id=identity.id,
                        session_id=session_id, model=self.adapter.model)
             _t0 = _time_mod.monotonic()
@@ -911,19 +913,16 @@ class IdentityRuntime:
                 generate_kwargs["execute_tool"] = _execute_tool_call
                 generate_kwargs["tool_choice"] = "auto"
 
-            if profile_recall is not None:
-                raw_output = profile_recall
-            else:
-                model_input = user_profile.augment_recall_input(sanitized_input)
-                try:
-                    raw_output = self.adapter.generate(
-                        context=context.render(), user_input=model_input,
-                        identity=identity, **generate_kwargs,
-                    )
-                except TypeError:
-                    raw_output = self.adapter.generate(
-                        context=context.render(), user_input=model_input, identity=identity,
-                    )
+            model_input = user_profile.augment_recall_input(sanitized_input)
+            try:
+                raw_output = self.adapter.generate(
+                    context=context.render(), user_input=model_input,
+                    identity=identity, **generate_kwargs,
+                )
+            except TypeError:
+                raw_output = self.adapter.generate(
+                    context=context.render(), user_input=model_input, identity=identity,
+                )
 
             raw_output = str(raw_output or "")
             raw_output = re.sub(r"\[Thought\]", "<thought>", raw_output, flags=re.IGNORECASE)

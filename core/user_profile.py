@@ -205,31 +205,29 @@ class UserProfile:
     def try_recall_answer(self, user_input: str) -> Optional[str]:
         if not self._facts or not looks_like_recall_question(user_input):
             return None
-        q = user_input.lower()
-        if "token" in q:
-            token = self.get_value("remembered.token")
-            if token is not None:
-                return f"You asked me to remember the token {token}."
-        if "ram" in q or "ceiling" in q:
-            ceiling = self.get_value("constraints.ram_ceiling")
-            if ceiling is not None:
-                return f"The RAM ceiling you asked me to remember is {ceiling}."
-        if "favorite color" in q or ("color" in q and "user" in q):
-            color = self.get_value("preferences.favorite_color")
-            if color is not None:
-                return f"The user's favorite color is {color}."
-        if "name" in q and "user" in q:
-            name = self.get_value("name")
-            if name is not None:
-                return f"The user's name is {name}."
-        if "project" in q:
-            project = self.get_value("project.name")
-            purpose = self.get_value("project.purpose")
-            if project and purpose:
-                return f"Your project is called {project}. Its purpose is {purpose}."
-            if project:
-                return f"Your project is called {project}."
-        return None
+        query_terms = _semantic_terms(user_input, query=True)
+        broad_recall = bool(_BROAD_RECALL.search(user_input))
+        ranked: List[tuple[int, UserFact]] = []
+        for fact in self._facts.values():
+            if fact.uncertain:
+                continue
+            field_terms = _semantic_terms(fact.field)
+            overlap = query_terms & field_terms
+            if overlap:
+                ranked.append((len(overlap), fact))
+            elif broad_recall and not query_terms:
+                ranked.append((1, fact))
+        if not ranked:
+            return None
+        best_score = max(score for score, _ in ranked)
+        matches = [fact for score, fact in ranked if score == best_score]
+        if len(matches) == 1:
+            fact = matches[0]
+            return f"Your {_readable_field(fact.field)} is {fact.value}."
+        lines = ["I have these stored user facts:"]
+        for fact in matches:
+            lines.append(f"- {_readable_field(fact.field)}: {fact.value}")
+        return "\n".join(lines)
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -255,12 +253,12 @@ import re
 
 # Patterns for user self-disclosure
 USER_MY_PREFERENCE = re.compile(
-    r"""my\s+(?:favorite\s+)?(\w[\w\s]*?)\s+is\s+(.+?)(?=\s+and\s+(?:my|I)|[.,!?]|$)""",
+    r"""my\s+(?:(favorite|favourite)\s+)?(\w[\w\s]*?)\s+is\s+(.+?)(?=\s+and\s+(?:my|I)|[.,!?]|$)""",
     re.IGNORECASE,
 )
 
 USER_MY_NAME = re.compile(
-    r"""my\s+name\s+is\s+(.+?)(?=\s+and\s+my|[.,!?]|$)""",
+    r"""my\s+name\s+is\s+(.+?)(?=\s+and\s+(?:my|I)\b|[.,!?]|$)""",
     re.IGNORECASE,
 )
 
@@ -312,53 +310,144 @@ USER_ACCOUNTABILITY = re.compile(
     re.IGNORECASE,
 )
 
-USER_REMEMBER_TOKEN = re.compile(
-    r"remember\s+this\s+token\s+exactly:\s*(\d+)",
+_REMEMBER_DIRECTIVE = re.compile(
+    r"\b(?:please\s+)?remember(?:\s+that)?\s*:?\s*(?P<body>.+)$",
+    re.IGNORECASE | re.DOTALL,
+)
+_FACT_RELATION = re.compile(
+    r"^(?P<label>.+?)\s*(?P<connector>\bis\s+called\b|\bis\b|\bare\b|=|:)\s*(?P<value>.+)$",
     re.IGNORECASE,
 )
-
-USER_REMEMBER_THEIR_NAME = re.compile(
-    r"the user's name is\s+(.+?)(?:[.]|$)",
+_COLLECTION_HEADER = re.compile(
+    r"^(?P<label>(?:these\s+|the\s+)?(?:one|two|three|four|five|six|seven|eight|nine|ten|\d+)?\s*[\w' -]+):\s*(?P<items>.+)$",
+    re.IGNORECASE | re.DOTALL,
+)
+_RECALL_FORM = re.compile(
+    r"(?:\b(?:remember|recall|stored|told|tell)\b"
+    r"|\b(?:do|did)\s+you\s+know\b"
+    r"|\b(?:what|which|who|where|when)\b.*\b(?:my|our|user'?s)\b)",
     re.IGNORECASE,
 )
-
-USER_REMEMBER_THEIR_FAVORITE_COLOR = re.compile(
-    r"the user's favorite color is\s+(.+?)(?:[.]|$)",
+_BROAD_RECALL = re.compile(
+    r"\bwhat\s+did\s+i\s+(?:ask\s+you\s+to\s+remember|tell\s+you)\b",
     re.IGNORECASE,
 )
-
-USER_REMEMBER_PROJECT = re.compile(
-    r"my project is called\s+([^.]+?)(?:\.\s*its purpose is\s+(.+?))?(?:[.]|$)",
-    re.IGNORECASE,
+_SENSITIVE_UNKNOWN_TOPICS = (
+    "social security", "ssn", "government id", "password", "passcode",
+    "credit card", "bank account",
 )
 
-USER_REMEMBER_RAM_CEILING = re.compile(
-    r"(?:the\s+)?hard\s+ram ceiling(?:\s+for this experiment)?\s+is\s+(.+?)(?:[.]|$)",
-    re.IGNORECASE,
-)
-
-USER_COLOR_HINTS = {
-    "red", "blue", "green", "yellow", "purple", "orange", "pink", "brown",
-    "black", "white", "gray", "grey", "teal", "cyan", "magenta", "lime",
-    "indigo", "violet", "gold", "silver", "navy", "turquoise", "coral",
+_TERM_STOPWORDS = {
+    "a", "an", "and", "are", "ask", "called", "did", "do", "does", "for",
+    "have", "i", "is", "it", "me", "my", "of", "our", "please", "remember",
+    "stored", "tell", "told", "the", "this", "to", "user", "users", "was", "what",
+    "when", "where", "which", "who", "you", "your", "exactly", "hard",
+    "favorite", "favourite", "item",
+}
+_FIELD_NAMESPACES = {
+    "remembered", "preferences", "preference", "attributes", "attribute",
 }
 
 
-_RECALL_TOPICS = (
-    "user's name", "user name", "the user's favorite color", "favorite color",
-    "token did i", "token did you", "ask you to remember", "ram ceiling",
-    "project called", "my project", "what does it do", "what did i tell you to remember",
-)
+def _normalized_word(word: str) -> str:
+    word = word.lower().replace("colour", "color")
+    if len(word) > 3 and word.endswith("s") and not word.endswith("ss"):
+        word = word[:-1]
+    return word
 
-_SENSITIVE_UNKNOWN_TOPICS = ("social security", "ssn")
+
+def _semantic_terms(text: str, *, query: bool = False) -> set[str]:
+    normalized = text.replace(".", " ").replace("_", " ").replace("'s", "")
+    words = {_normalized_word(word) for word in re.findall(r"[A-Za-z0-9]+", normalized)}
+    stopwords = _TERM_STOPWORDS | (_FIELD_NAMESPACES if not query else set())
+    return {word for word in words if word not in stopwords and not word.isdigit()}
+
+
+def _slug(text: str) -> str:
+    return "_".join(re.findall(r"[a-z0-9]+", text.lower().replace("colour", "color")))
+
+
+def _normalize_explicit_field(
+    label: str,
+    *,
+    connector: str = "",
+    prior_field: str = "",
+) -> str:
+    raw = label.strip().lower().replace("’", "'")
+    raw = re.sub(r"^(?:the\s+)?user'?s\s+|^(?:my|our|this|the)\s+", "", raw)
+    raw = re.sub(r"^(?:its)\s+", "", raw)
+    raw = re.sub(r"\b(?:exactly|hard)\b", "", raw)
+    raw = re.sub(r"\s+", " ", raw).strip()
+    slug = _slug(raw)
+    if slug in {"name", "full_name"}:
+        return "name"
+    if slug.startswith(("favorite_", "favourite_")):
+        suffix = re.sub(r"^(?:favorite|favourite)_", "", slug)
+        return f"preferences.favorite_{suffix}"
+    if slug == "project" and "called" in connector.lower():
+        return "project.name"
+    if slug == "purpose" and prior_field.startswith("project."):
+        return "project.purpose"
+    if any(term in slug.split("_") for term in ("constraint", "ceiling", "limit")):
+        return f"constraints.{slug}"
+    return f"remembered.{slug or 'fact'}"
+
+
+def _readable_field(field: str) -> str:
+    parts = [part for part in field.split(".") if part not in _FIELD_NAMESPACES]
+    label = " ".join(parts).replace("_", " ")
+    label = re.sub(r"\bitem\s+(\d+)\b", r"item \1", label)
+    return label or "stored fact"
+
+
+def _extract_explicit_remembered_facts(user_input: str) -> List[tuple[str, str]]:
+    match = _REMEMBER_DIRECTIVE.search(user_input)
+    if not match:
+        return []
+    body = match.group("body").strip()
+    collection = _COLLECTION_HEADER.match(body)
+    if collection:
+        items = [
+            re.sub(r"^and\s+", "", item.strip(), flags=re.IGNORECASE).strip(" .")
+            for item in re.split(r"\s*,\s*|\s+and\s+", collection.group("items"))
+            if item.strip().strip(" .")
+        ]
+        label = collection.group("label").strip()
+        label_terms = _semantic_terms(label)
+        if len(items) > 1 and (label_terms or re.search(r"\b\d+\b", label)):
+            namespace = "constraints" if "constraint" in label_terms else f"remembered.{_slug(label)}"
+            return [(f"{namespace}.item_{index}", value) for index, value in enumerate(items, 1)]
+
+    clauses = [
+        clause.strip()
+        for clause in re.split(r"(?<=[.;])\s+|\s+and\s+(?=(?:my|our|the\s+user'?s|its)\b)", body)
+        if clause.strip()
+    ]
+    extracted: List[tuple[str, str]] = []
+    prior_field = ""
+    for clause in clauses:
+        relation = _FACT_RELATION.match(clause.strip().strip(" ."))
+        if not relation:
+            continue
+        field = _normalize_explicit_field(
+            relation.group("label"),
+            connector=relation.group("connector"),
+            prior_field=prior_field,
+        )
+        value = relation.group("value").strip().strip(" .,!?")
+        if field and value:
+            extracted.append((field, value))
+            prior_field = field
+    return extracted
 
 
 def looks_like_recall_question(user_input: str) -> bool:
     text = user_input.strip()
-    if not text.endswith("?"):
+    is_question = text.endswith("?")
+    is_recall_command = bool(re.match(r"^(?:list|recall|remind|show|tell)\b", text, re.IGNORECASE))
+    if not is_question and not is_recall_command:
         return False
-    q = text.lower()
-    return any(topic in q for topic in _RECALL_TOPICS)
+    return bool(_RECALL_FORM.search(text))
 
 
 def has_explicit_abstain_instruction(user_input: str) -> bool:
@@ -375,9 +464,7 @@ def try_sensitive_abstain(user_input: str, profile: "UserProfile") -> Optional[s
     q = user_input.lower()
     if not any(topic in q for topic in _SENSITIVE_UNKNOWN_TOPICS):
         return None
-    if "social security" in q or "ssn" in q:
-        return "I do not know your social security number."
-    return "I do not know."
+    return "I do not know that sensitive value."
 
 
 def try_explicit_abstain(user_input: str, profile: "UserProfile") -> Optional[str]:
@@ -399,12 +486,15 @@ def extract_user_facts(user_input: str, turn_index: int = 0) -> List[UserFact]:
     Deduplicates overlapping field matches (e.g. "my name is X" caught by both patterns).
     """
     seen_fields: set = set()
+    seen_claims: set = set()
     facts: List[UserFact] = []
 
     def _add(field: str, value: str, confidence: float = 0.7, source: str = "") -> None:
-        if field in seen_fields:
+        claim = (frozenset(_semantic_terms(field)), str(value).strip().casefold())
+        if field in seen_fields or claim in seen_claims:
             return
         seen_fields.add(field)
+        seen_claims.add(claim)
         now = datetime.now(timezone.utc).isoformat()
         facts.append(UserFact(
             fact_id=str(uuid.uuid4()),
@@ -420,19 +510,8 @@ def extract_user_facts(user_input: str, turn_index: int = 0) -> List[UserFact]:
             )],
         ))
 
-    for m in USER_REMEMBER_TOKEN.finditer(user_input):
-        _add(field="remembered.token", value=m.group(1).strip(), confidence=0.95)
-    for m in USER_REMEMBER_THEIR_NAME.finditer(user_input):
-        _add(field="name", value=m.group(1).strip().rstrip(".,!?"), confidence=0.95)
-    for m in USER_REMEMBER_THEIR_FAVORITE_COLOR.finditer(user_input):
-        _add(field="preferences.favorite_color", value=m.group(1).strip().rstrip(".,!?"), confidence=0.95)
-    for m in USER_REMEMBER_PROJECT.finditer(user_input):
-        project_name = m.group(1).strip().rstrip(".,!?")
-        _add(field="project.name", value=project_name, confidence=0.95)
-        if m.group(2):
-            _add(field="project.purpose", value=m.group(2).strip().rstrip(".,!?"), confidence=0.95)
-    for m in USER_REMEMBER_RAM_CEILING.finditer(user_input):
-        _add(field="constraints.ram_ceiling", value=m.group(1).strip().rstrip(".,!?"), confidence=0.95)
+    for field, value in _extract_explicit_remembered_facts(user_input):
+        _add(field=field, value=value, confidence=0.95)
 
     # "My name is X"
     for m in USER_MY_NAME.finditer(user_input):
@@ -442,16 +521,20 @@ def extract_user_facts(user_input: str, turn_index: int = 0) -> List[UserFact]:
             confidence=0.9,
         )
 
-    # "My favorite X is Y" — skip if subject is "name" (handled above)
+    # "My [favorite] X is Y" — preferences and general attributes
     for m in USER_MY_PREFERENCE.finditer(user_input):
-        subject = m.group(1).strip().lower()
+        is_favorite = bool(m.group(1))
+        subject = m.group(2).strip().lower()
         if subject == "name":
             continue
-        value = m.group(2).strip()
+        value = m.group(3).strip()
         if value.lower().startswith("called"):
             continue
-        is_color = value.lower().rstrip(".,!?") in USER_COLOR_HINTS
-        field = f"preferences.{subject}" if not is_color else "preferences.favorite_color"
+        field = (
+            f"preferences.favorite_{_slug(subject)}"
+            if is_favorite
+            else f"attributes.{_slug(subject)}"
+        )
         _add(
             field=field,
             value=value.rstrip(".,!?"),
