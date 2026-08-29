@@ -38,6 +38,29 @@ def test_profile_extraction_bounds_adversarial_input() -> None:
     assert all(len(fact.source_conversation) <= 16_384 for fact in facts)
 
 
+@pytest.mark.parametrize(
+    ("statement", "expected_field", "expected_value"),
+    [
+        ("I really love jazz.", "preferences.likes.jazz", "jazz"),
+        ("I don't like olives.", "preferences.dislikes.olives", "olives"),
+        ("Alice is my sister.", "relationships.sister", "Alice"),
+        ("Bob is Alice's husband.", "relationships.husband.of_alice", "Bob"),
+        ("I'm moving to Tokyo next month.", "target_location", "Tokyo"),
+        ("My budget is $1,500 per month.", "budget", "$1,500/month"),
+        ("Help me find platform engineer jobs.", "desired_role", "platform engineer"),
+        ("I want to learn Japanese and practice daily.", "learning_goal", "Japanese"),
+        ("Please keep me accountable.", "preferences.accountability", "wants accountability"),
+    ],
+)
+def test_linear_extractors_preserve_disclosure_behavior(
+    statement: str,
+    expected_field: str,
+    expected_value: str,
+) -> None:
+    by_field = {fact.field: fact.value for fact in extract_user_facts(statement)}
+    assert by_field[expected_field] == expected_value
+
+
 def test_recall_short_circuit_token() -> None:
     profile = UserProfile()
     profile.add_or_update("remembered.token", "77319", source="setup")

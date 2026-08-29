@@ -29,6 +29,7 @@ runtime-observed behavior and regression tests.
 - CI and benchmark scripts preserve failing exit codes.
 - Capability calls use one validation, authorization, execution, and evidence path.
 - Filesystem and command capabilities enforce workspace and subprocess boundaries.
+- JSON persistence derives filesystem keys from fixed-alphabet digests and can read the legacy human-readable layout.
 - User facts, memories, relationships, timelines, and sessions are scoped separately from identity state.
 - Interrupted non-idempotent task steps stop for evidence-based reconciliation rather than replaying blindly.
 - Event subscriber and optional-subsystem failures produce structured diagnostics.
