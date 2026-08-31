@@ -3,7 +3,11 @@ from __future__ import annotations
 from typing import Any, Optional
 
 from .base import Capability, Skill
-from .contracts import CapabilityContractError, validate_parameters
+from .contracts import (
+    CapabilityContractError,
+    normalize_parameters,
+    validate_parameters,
+)
 from .result import CapabilityResult
 
 # ── v0: static in-process registry ─────────────────────────────────────
@@ -162,8 +166,9 @@ class CapabilityRegistry:
                 reason,
                 params=params,
             )
+        normalized_params = normalize_parameters(skill.input_schema, params)
         try:
-            validate_parameters(skill.input_schema, params)
+            validate_parameters(skill.input_schema, normalized_params)
         except CapabilityContractError as exc:
             return CapabilityResult.fail(
                 cap.id,
@@ -173,17 +178,17 @@ class CapabilityRegistry:
                 params=params,
             )
 
-        result = cap.call(skill_name, **params)
+        result = cap.call(skill_name, **normalized_params)
         if isinstance(result, CapabilityResult):
             if not result.params:
-                result.params = dict(params)
+                result.params = dict(normalized_params)
             return result.reclassify_soft_errors()
         return CapabilityResult.from_data(
             cap.id,
             skill_name,
             result,
             source=f"capability:{cap.id}",
-            params=params,
+            params=normalized_params,
         )
 
     def _authorized(

@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
+from .contracts import model_tool_schema
 from .result import CapabilityResult
 
 
@@ -45,7 +46,7 @@ class Skill:
             "function": {
                 "name": name or self.name,
                 "description": self.description,
-                "parameters": self.input_schema,
+                "parameters": model_tool_schema(self.input_schema),
             },
         }
 

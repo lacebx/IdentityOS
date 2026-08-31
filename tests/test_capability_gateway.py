@@ -61,6 +61,47 @@ def test_gateway_enforces_permission_and_parameter_contract(tmp_path):
     assert result.params == {"command": "true", "timeout": 5}
 
 
+def test_optional_model_arguments_accept_null_and_apply_handler_default(tmp_path):
+    registry = _registry(tmp_path)
+    registry.install("tester", "datetime")
+
+    definitions, mapping = registry.tool_catalog("tester")
+    tool_name = next(name for name, skill in mapping.items() if skill == "datetime.now")
+    definition = next(
+        item for item in definitions if item["function"]["name"] == tool_name
+    )
+    assert definition["function"]["parameters"]["properties"]["tz_name"]["type"] == [
+        "string",
+        "null",
+    ]
+
+    result = registry.call("tester", "datetime.now", tz_name=None)
+    assert result.success is True
+    assert result.data["timezone"] == "UTC"
+    assert result.params == {}
+
+
+def test_required_null_remains_an_invalid_parameter(tmp_path):
+    import core.capabilities.command_exec  # noqa: F401
+
+    registry = _registry(tmp_path)
+    registry.install("tester", "command_exec")
+    _grant(registry, "tester", "command_exec", "process:execute")
+
+    definitions, mapping = registry.tool_catalog("tester")
+    tool_name = next(
+        name for name, skill in mapping.items() if skill == "command_exec.run"
+    )
+    definition = next(
+        item for item in definitions if item["function"]["name"] == tool_name
+    )
+    assert definition["function"]["parameters"]["properties"]["command"]["type"] == "string"
+
+    result = registry.call("tester", "command_exec.run", command=None)
+    assert result.success is False
+    assert result.error["type"] == "invalid_parameters"
+
+
 def test_identity_proxy_uses_the_registry_gateway(tmp_path):
     import core.capabilities.command_exec  # noqa: F401
 
