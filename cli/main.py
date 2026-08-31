@@ -35,6 +35,9 @@ from cli.registry_cmds import (
     cmd_cap_install,
     cmd_cap_search,
     cmd_cap_list_installed,
+    cmd_cap_grant,
+    cmd_cap_revoke,
+    cmd_cap_permissions,
     cmd_isp_list,
     cmd_isp_show,
     cmd_isp_install,
@@ -1057,6 +1060,16 @@ def build_parser() -> argparse.ArgumentParser:
     p_cap_install.add_argument("--identity", required=True, help="Identity id to install on")
     p_cap_installed = cap_sub.add_parser("installed", help="List installed capabilities")
     p_cap_installed.add_argument("identity", help="Identity id")
+    p_cap_grant = cap_sub.add_parser("grant", help="Grant an installed capability permission")
+    p_cap_grant.add_argument("id", help="Capability id")
+    p_cap_grant.add_argument("--identity", required=True, help="Identity id")
+    p_cap_grant.add_argument("--permission", required=True, help="Exact declared permission scope")
+    p_cap_revoke = cap_sub.add_parser("revoke", help="Revoke a capability permission")
+    p_cap_revoke.add_argument("id", help="Capability id")
+    p_cap_revoke.add_argument("--identity", required=True, help="Identity id")
+    p_cap_revoke.add_argument("--permission", required=True, help="Exact permission scope")
+    p_cap_permissions = cap_sub.add_parser("permissions", help="List capability permission grants")
+    p_cap_permissions.add_argument("identity", help="Identity id")
 
     # isp
     p_isp = sub.add_parser("isp", help="Identity Skill Pack operations")
@@ -1107,8 +1120,14 @@ def cmd_cap_wrapper(args: argparse.Namespace) -> int:
         cmd_cap_install(args.id, args.identity)
     elif args.cap_command == "installed":
         cmd_cap_list_installed(args.identity)
+    elif args.cap_command == "grant":
+        return cmd_cap_grant(args.id, args.identity, args.permission)
+    elif args.cap_command == "revoke":
+        return cmd_cap_revoke(args.id, args.identity, args.permission)
+    elif args.cap_command == "permissions":
+        return cmd_cap_permissions(args.identity)
     else:
-        print("Usage: identity cap <list|show|install|search|installed>")
+        print("Usage: identity cap <list|show|install|search|installed|grant|revoke|permissions>")
         return 1
     return 0
 

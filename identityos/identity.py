@@ -1070,8 +1070,7 @@ class IdentityObject:
 
     def permissions(self) -> List[Dict[str, Any]]:
         """List all granted permissions."""
-        raw = self._runtime._storage.load(self._identity_id, "capability.permissions")
-        return raw.get("grants", []) if raw else []
+        return self._runtime.capability_registry.permissions(self._identity_id)
 
     def grant(self, capability: str, permission: str) -> None:
         """Grant a permission to a capability.
@@ -1080,21 +1079,19 @@ class IdentityObject:
             capability: capability id (e.g. ``"github"``)
             permission: permission string (e.g. ``"repo:read"``, ``"issues:write"``)
         """
-        import time
-        raw = self._runtime._storage.load(self._identity_id, "capability.permissions") or {}
-        grants = raw.get("grants", [])
-        if not any(
-            grant.get("capability") == capability
-            and grant.get("permission") == permission
-            for grant in grants
-        ):
-            grants.append({
-                "capability": capability,
-                "permission": permission,
-                "granted_at": time.time(),
-            })
-        raw["grants"] = grants
-        self._runtime._storage.save(self._identity_id, "capability.permissions", raw)
+        self._runtime.capability_registry.grant(
+            self._identity_id,
+            capability,
+            permission,
+        )
+
+    def revoke(self, capability: str, permission: str) -> bool:
+        """Revoke a previously granted capability permission."""
+        return self._runtime.capability_registry.revoke(
+            self._identity_id,
+            capability,
+            permission,
+        )
 
     def skills(self) -> List[Dict[str, Any]]:
         """All skills available — both built-in and from installed capabilities."""

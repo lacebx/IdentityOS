@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from typing import Any, Optional
 
 from .base import Capability, Skill
@@ -190,6 +191,51 @@ class CapabilityRegistry:
             source=f"capability:{cap.id}",
             params=normalized_params,
         )
+
+    def permissions(self, identity_id: str) -> list[dict[str, Any]]:
+        """Return persisted capability permission grants for an identity."""
+        raw = self._storage.load(identity_id, "capability.permissions") or {}
+        return list(raw.get("grants", []))
+
+    def grant(self, identity_id: str, capability_id: str, permission: str) -> None:
+        """Persist an idempotent permission grant."""
+        grants = self.permissions(identity_id)
+        if not any(
+            grant.get("capability") == capability_id
+            and grant.get("permission") == permission
+            for grant in grants
+        ):
+            grants.append(
+                {
+                    "capability": capability_id,
+                    "permission": permission,
+                    "granted_at": time.time(),
+                }
+            )
+        self._storage.save(
+            identity_id,
+            "capability.permissions",
+            {"grants": grants},
+        )
+
+    def revoke(self, identity_id: str, capability_id: str, permission: str) -> bool:
+        """Remove an exact permission grant and report whether it existed."""
+        grants = self.permissions(identity_id)
+        retained = [
+            grant
+            for grant in grants
+            if not (
+                grant.get("capability") == capability_id
+                and grant.get("permission") == permission
+            )
+        ]
+        changed = len(retained) != len(grants)
+        self._storage.save(
+            identity_id,
+            "capability.permissions",
+            {"grants": retained},
+        )
+        return changed
 
     def _authorized(
         self,

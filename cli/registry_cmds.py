@@ -287,9 +287,86 @@ def cmd_cap_install(cap_id: str, identity_id: str | None):
         cap = runtime.capability_registry.install(identity_id, cap_id)
         print(f"  installed: {cap_id} -> {identity_id}")
         print(f"  skills:    {len(cap.skills())} added")
+        required = sorted(
+            {
+                skill.permission
+                for skill in cap.skills()
+                if skill.permission not in ("", "public", "local")
+            }
+        )
+        for permission in required:
+            print(f"  grant required: {permission}")
+            print(
+                "  run: identity cap grant "
+                f"{cap_id} --identity {identity_id} --permission {permission}"
+            )
     except ValueError as e:
         print(f"  error: {e}", file=sys.stderr)
         sys.exit(1)
+
+
+def _load_capability_runtime(identity_id: str):
+    from runtime.persistence import JSONFileBackend
+    from runtime.orchestrator import IdentityRuntime
+
+    runtime = IdentityRuntime(storage=JSONFileBackend())
+    runtime.load_persisted()
+    runtime.load(identity_id)
+    return runtime
+
+
+def cmd_cap_grant(cap_id: str, identity_id: str, permission: str):
+    runtime = _load_capability_runtime(identity_id)
+    capability = runtime.capability_registry.get(identity_id, cap_id)
+    if capability is None:
+        print(
+            f"  error: Capability '{cap_id}' is not installed on '{identity_id}'.",
+            file=sys.stderr,
+        )
+        return 1
+    required = sorted(
+        {
+            skill.permission
+            for skill in capability.skills()
+            if skill.permission not in ("", "public", "local")
+        }
+    )
+    if permission not in required:
+        rendered = ", ".join(required) if required else "none (all skills are public/local)"
+        print(
+            f"  error: '{permission}' is not a declared permission for '{cap_id}'. "
+            f"Required: {rendered}",
+            file=sys.stderr,
+        )
+        return 1
+    runtime.capability_registry.grant(identity_id, cap_id, permission)
+    print(f"  granted: {cap_id} -> {permission} ({identity_id})")
+    return 0
+
+
+def cmd_cap_revoke(cap_id: str, identity_id: str, permission: str):
+    runtime = _load_capability_runtime(identity_id)
+    removed = runtime.capability_registry.revoke(identity_id, cap_id, permission)
+    if removed:
+        print(f"  revoked: {cap_id} -> {permission} ({identity_id})")
+        return 0
+    print(f"  no matching grant: {cap_id} -> {permission} ({identity_id})")
+    return 1
+
+
+def cmd_cap_permissions(identity_id: str):
+    runtime = _load_capability_runtime(identity_id)
+    grants = runtime.capability_registry.permissions(identity_id)
+    if not grants:
+        print(f"  no capability permissions granted for {identity_id}")
+        return 0
+    print(f"  capability permissions for {identity_id}:")
+    for grant in grants:
+        print(
+            f"  {grant.get('capability', ''):20s}  "
+            f"{grant.get('permission', '')}"
+        )
+    return 0
 
 
 def cmd_cap_search(query: str):

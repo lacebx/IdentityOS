@@ -114,6 +114,57 @@ def test_identity_proxy_uses_the_registry_gateway(tmp_path):
     assert denied.error["type"] == "permission_denied"
 
 
+def test_permission_grants_are_idempotent_persistent_and_revocable(tmp_path):
+    import core.capabilities.command_exec  # noqa: F401
+
+    store = JSONFileBackend(root_dir=str(tmp_path / "store"))
+    registry = CapabilityRegistry(store)
+    registry.install("tester", "command_exec")
+    registry.grant("tester", "command_exec", "process:execute")
+    registry.grant("tester", "command_exec", "process:execute")
+
+    restarted = CapabilityRegistry(
+        JSONFileBackend(root_dir=str(tmp_path / "store"))
+    )
+    grants = restarted.permissions("tester")
+    assert len(grants) == 1
+    assert grants[0]["capability"] == "command_exec"
+    assert grants[0]["permission"] == "process:execute"
+    assert restarted.call(
+        "tester", "command_exec.run", command="true"
+    ).success is True
+
+    assert restarted.revoke(
+        "tester", "command_exec", "process:execute"
+    ) is True
+    assert restarted.revoke(
+        "tester", "command_exec", "process:execute"
+    ) is False
+    denied = restarted.call("tester", "command_exec.run", command="true")
+    assert denied.success is False
+    assert denied.error["type"] == "permission_denied"
+
+
+def test_capability_permission_cli_arguments_are_explicit():
+    from cli.main import build_parser
+
+    args = build_parser().parse_args(
+        [
+            "cap",
+            "grant",
+            "command_exec",
+            "--identity",
+            "tester",
+            "--permission",
+            "process:execute",
+        ]
+    )
+    assert args.cap_command == "grant"
+    assert args.id == "command_exec"
+    assert args.identity == "tester"
+    assert args.permission == "process:execute"
+
+
 def test_command_execution_does_not_expand_shell_syntax(tmp_path):
     import core.capabilities.command_exec  # noqa: F401
 
