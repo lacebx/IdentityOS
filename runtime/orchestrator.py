@@ -205,6 +205,7 @@ class IdentityRuntime:
         self._session_users: Dict[str, str] = {}
         self._session_modes: Dict[str, SessionMode] = {}
         self._session_fact_stores: Dict[str, FactStore] = {}
+        self._session_tools_offered: set[str] = set()
         self._executive_recovered: set[str] = set()
         self._storage = storage
 
@@ -675,6 +676,7 @@ class IdentityRuntime:
         if mode != SessionMode.NORMAL:
             self._save_session_fact_store(session_id)
         self._session_fact_stores.pop(session_id, None)
+        self._session_tools_offered.discard(session_id)
         if identity_id:
             self._emit(EventType.SESSION_ENDED, identity_id=identity_id, session_id=session_id)
 
@@ -908,7 +910,12 @@ class IdentityRuntime:
             _t0 = _time_mod.monotonic()
 
             generate_kwargs: Dict[str, Any] = {}
-            if _tool_defs and _tool_router.should_offer_tools(sanitized_input):
+            # Always pass tools when the identity has tool-capable skills.
+            # This prevents "Tool choice is none" errors when conversation history
+            # contains tool messages but the current turn doesn't offer tools.
+            # The model (via tool_choice="auto") decides whether to actually call tools.
+            if _tool_defs:
+                self._session_tools_offered.add(session_id)
                 generate_kwargs["tools"] = _tool_defs
                 generate_kwargs["execute_tool"] = _execute_tool_call
                 generate_kwargs["tool_choice"] = "auto"

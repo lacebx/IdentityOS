@@ -385,6 +385,8 @@ class SkillRouter:
             "web": ["fetch", "web page", "http", "url", "website", "download page", "look up", "search for", "wikipedia", "scrape", "webpage"],
             "system": ["operating system", "disk space", "disk usage", "how much disk", "os", "cpu", "what system", "what is the system", "what os", "system info", "platform", "machine"],
             "skill_validator": ["validate", "syntax check", "check skill", "test skill", "verify syntax", "validate skill", "check code", "lint"],
+            "filesystem": ["list files", "list directory", "show files", "show directories", "what files", "files in", "directory contents", "ls", "dir"],
+            "file_tools": ["create file", "write file", "read file", "append file", "make directory", "create directory", "mkdir", "write to file", "save file"],
         }
 
         for domain, keywords in triggers.items():
