@@ -19,17 +19,17 @@
     {
       "name": "filesystem.list_dir",
       "description": "List files and directories at a path",
-      "permission": "public"
+      "permission": "local"
     },
     {
       "name": "filesystem.read_file",
       "description": "Read the contents of a text file",
-      "permission": "public"
+      "permission": "local"
     },
     {
       "name": "filesystem.file_info",
       "description": "Get metadata about a file or directory",
-      "permission": "public"
+      "permission": "local"
     }
   ]
 }

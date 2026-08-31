@@ -19,17 +19,17 @@
     {
       "name": "file_tools.write_file",
       "description": "Write content to a file, creating directories as needed",
-      "permission": "public"
+      "permission": "filesystem:write"
     },
     {
       "name": "file_tools.append_file",
       "description": "Append content to an existing file",
-      "permission": "public"
+      "permission": "filesystem:write"
     },
     {
       "name": "file_tools.create_directory",
       "description": "Create a directory and all parent directories",
-      "permission": "public"
+      "permission": "filesystem:write"
     }
   ]
 }

@@ -24,12 +24,12 @@
     {
       "name": "registry_manager.publish_capability",
       "description": "Publish a new capability to the registry",
-      "permission": "public"
+      "permission": "capability:manage"
     },
     {
       "name": "registry_manager.install_capability",
       "description": "Install a capability from the registry onto an identity",
-      "permission": "public"
+      "permission": "capability:manage"
     }
   ]
 }
