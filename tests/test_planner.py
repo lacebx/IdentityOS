@@ -110,7 +110,9 @@ def test_task_planner_runs_real_command_honest_failure(tmp_path):
     # The real binary is missing → exit 127, honest error surfaced
     assert data.get("exit_code") == 127
     assert "not found" in (data.get("stderr") or "")
-    assert run["success"] is True  # step itself completed
+    assert run["success"] is False
+    assert res.data["all_succeeded"] is False
+    assert res.data["failed"] >= 1
 
 
 def test_evidence_footer_label_no_duplication():

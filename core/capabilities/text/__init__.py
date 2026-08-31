@@ -4,7 +4,7 @@ import collections
 import re
 from typing import Any, Optional
 
-from core.capabilities.base import Capability, Skill
+from core.capabilities.base import Capability, Skill, object_schema
 from core.capabilities.registry import register
 from core.capabilities.result import CapabilityResult
 
@@ -37,10 +37,10 @@ class TextCapability(Capability):
         ]
 
     _SKILLS = [
-        Skill(name="text.stats", description="Return word count, character count, line count, and estimated reading time", permission="public"),
-        Skill(name="text.keywords", description="Extract most frequent words from text (excluding common stop words)", permission="public"),
-        Skill(name="text.extract_pattern", description="Extract URLs, emails, or hashtags from text", permission="public"),
-        Skill(name="text.split", description="Split text into chunks by token count or paragraph", permission="public"),
+        Skill(name="text.stats", description="Return word count, character count, line count, and estimated reading time", permission="public", input_schema=object_schema({"text": {"type": "string"}}, required=("text",)), verification_params={"text": "verification text"}),
+        Skill(name="text.keywords", description="Extract most frequent words from text (excluding common stop words)", permission="public", input_schema=object_schema({"text": {"type": "string"}, "top_n": {"type": "integer", "minimum": 1, "maximum": 100}}, required=("text",))),
+        Skill(name="text.extract_pattern", description="Extract URLs, emails, or hashtags from text", permission="public", input_schema=object_schema({"text": {"type": "string"}, "pattern": {"type": "string", "enum": ["urls", "emails", "hashtags", "mentions"]}}, required=("text", "pattern"))),
+        Skill(name="text.split", description="Split text into chunks by token count or paragraph", permission="public", input_schema=object_schema({"text": {"type": "string"}, "method": {"type": "string", "enum": ["paragraph", "tokens", "lines"]}, "chunk_size": {"type": "integer", "minimum": 1, "maximum": 100000}}, required=("text",))),
     ]
 
     def skills(self) -> list[Skill]:

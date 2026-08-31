@@ -107,6 +107,7 @@ class TestCrossAppContinuity:
     """Identity follows the user across applications."""
 
     ID = "lace"
+    USER_ID = "lace-user"
     SESSION_A = "chatgpt-web"
     SESSION_B = "discord-bot"
 
@@ -124,7 +125,7 @@ class TestCrossAppContinuity:
         status, data = _req("POST", "/process", {
             "message": message,
             "identity_id": self.ID,
-            "user_id": session_id,
+            "user_id": self.USER_ID,
             "session_id": session_id,
         })
         return status, data

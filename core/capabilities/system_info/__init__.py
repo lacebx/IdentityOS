@@ -5,7 +5,7 @@ import platform
 import shutil
 from typing import Any, Optional
 
-from core.capabilities.base import Capability, Skill
+from core.capabilities.base import Capability, Skill, object_schema
 from core.capabilities.registry import register
 from core.capabilities.result import CapabilityResult
 
@@ -38,9 +38,9 @@ class SystemInfoCapability(Capability):
         ]
 
     _SKILLS = [
-        Skill(name="system_info.os", description="Get operating system name, version, and architecture", permission="local"),
-        Skill(name="system_info.disk", description="Get disk usage information (total, used, free)", permission="local"),
-        Skill(name="system_info.cpu", description="Get CPU information (count, architecture)", permission="local"),
+        Skill(name="system_info.os", description="Get operating system name, version, and architecture", permission="local", input_schema=object_schema(), verification_params={}),
+        Skill(name="system_info.disk", description="Get disk usage information (total, used, free)", permission="local", input_schema=object_schema({"path": {"type": "string"}}), verification_params={"path": "/"}),
+        Skill(name="system_info.cpu", description="Get CPU information (count, architecture)", permission="local", input_schema=object_schema(), verification_params={}),
     ]
 
     def skills(self) -> list[Skill]:

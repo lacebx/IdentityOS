@@ -62,11 +62,16 @@ class TestE2EPersistence:
 
     def test_cli_creates_files(self, cli_create, temp_store):
         """Verify the CLI actually wrote files to disk."""
-        ident_dir = Path(temp_store) / ".identity_store" / cli_create
-        assert ident_dir.is_dir(), f"Not found: {ident_dir}"
+        store_dir = Path(temp_store) / ".identity_store"
+        storage = JSONFileBackend(root_dir=str(store_dir))
+        assert cli_create in storage.list_identities()
+        identity_dirs = [directory for directory in store_dir.iterdir() if directory.is_dir()]
+        assert len(identity_dirs) == 1
+        ident_dir = identity_dirs[0]
+        assert ident_dir.name.startswith("identity-")
         files = [f.name for f in ident_dir.glob("*.json")]
-        assert "latest_snapshot.json" in files
-        assert any(f.startswith("snapshot__") for f in files)
+        assert "__identity__.json" in files
+        assert len([name for name in files if name.startswith("namespace-")]) >= 2
 
     def _storage(self, temp_store):
         return JSONFileBackend(root_dir=str(Path(temp_store) / ".identity_store"))

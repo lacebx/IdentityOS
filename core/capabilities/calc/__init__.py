@@ -5,7 +5,7 @@ import math
 import operator
 from typing import Any, Optional
 
-from core.capabilities.base import Capability, Skill
+from core.capabilities.base import Capability, Skill, object_schema
 from core.capabilities.registry import register
 from core.capabilities.result import CapabilityResult
 
@@ -85,9 +85,9 @@ class CalcCapability(Capability):
         ]
 
     _SKILLS = [
-        Skill(name="calc.evaluate", description="Evaluate a mathematical expression safely", permission="public"),
-        Skill(name="calc.convert", description="Convert between supported units", permission="public"),
-        Skill(name="calc.conversions", description="List all available unit conversions", permission="public"),
+        Skill(name="calc.evaluate", description="Evaluate a mathematical expression safely", permission="public", input_schema=object_schema({"expression": {"type": "string", "minLength": 1, "maxLength": 2000}}, required=("expression",)), verification_params={"expression": "2 + 2"}),
+        Skill(name="calc.convert", description="Convert between supported units", permission="public", input_schema=object_schema({"value": {"type": "number"}, "from_unit": {"type": "string", "minLength": 1}, "to_unit": {"type": "string", "minLength": 1}}, required=("value", "from_unit", "to_unit"))),
+        Skill(name="calc.conversions", description="List all available unit conversions", permission="public", input_schema=object_schema(), verification_params={}),
     ]
 
     def skills(self) -> list[Skill]:

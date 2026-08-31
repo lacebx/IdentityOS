@@ -5,6 +5,7 @@ from core.memory import (
     MemoryFragment,
     MemoryStore,
     MemoryType,
+    PersistentMemoryStore,
     make_memory,
 )
 
@@ -44,6 +45,11 @@ class TestMemoryFragment:
         assert restored.confidence == MemoryConfidence.HIGH
         assert restored.tags == ["test"]
 
+    def test_user_id_roundtrip(self):
+        frag = MemoryFragment(identity_id="agent", user_id="alice", content="private")
+        restored = MemoryFragment.from_dict(frag.to_dict())
+        assert restored.user_id == "alice"
+
 
 class TestMemoryStore:
     def test_add_and_get(self):
@@ -68,6 +74,27 @@ class TestMemoryStore:
         assert len(store.by_identity("id-a")) == 1
         assert len(store.by_identity("id-b")) == 1
         assert len(store.by_identity("id-c")) == 0
+
+    def test_by_user_includes_shared_but_not_other_users(self):
+        store = MemoryStore()
+        store.add(MemoryFragment(identity_id="agent", user_id="alice", content="alice"))
+        store.add(MemoryFragment(identity_id="agent", user_id="bob", content="bob"))
+        store.add(MemoryFragment(identity_id="agent", user_id="", content="shared"))
+
+        visible = {fragment.content for fragment in store.by_user("agent", "alice")}
+        assert visible == {"alice", "shared"}
+
+    def test_clear_user_retains_other_users_and_shared_memory(self):
+        store = MemoryStore()
+        store.add(MemoryFragment(identity_id="agent", user_id="alice", content="alice"))
+        store.add(MemoryFragment(identity_id="agent", user_id="bob", content="bob"))
+        store.add(MemoryFragment(identity_id="agent", user_id="", content="shared"))
+
+        assert store.clear_user("agent", "alice") == 1
+        assert {fragment.content for fragment in store.by_identity("agent")} == {
+            "bob",
+            "shared",
+        }
 
     def test_recent(self):
         store = MemoryStore()
@@ -98,3 +125,20 @@ class TestMakeMemory:
         assert frag.identity_id == "id1"
         assert frag.tags == ["hello"]
         assert frag.memory_type == MemoryType.EPISODIC
+
+
+def test_persistent_store_filters_users_after_restart(tmp_path):
+    db_path = str(tmp_path / "memory.db")
+    store = PersistentMemoryStore(db_path)
+    store.add(MemoryFragment(identity_id="agent", user_id="alice", content="alice"))
+    store.add(MemoryFragment(identity_id="agent", user_id="bob", content="bob"))
+    store.add(MemoryFragment(identity_id="agent", user_id="", content="shared"))
+
+    restarted = PersistentMemoryStore(db_path)
+    visible = {fragment.content for fragment in restarted.by_user("agent", "alice")}
+    assert visible == {"alice", "shared"}
+    assert restarted.clear_user("agent", "alice") == 1
+    assert {fragment.content for fragment in restarted.by_identity("agent")} == {
+        "bob",
+        "shared",
+    }

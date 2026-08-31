@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
-from core.capabilities.base import Capability, Skill
+from core.capabilities.base import Capability, Skill, object_schema
 from core.capabilities.registry import register
 from core.capabilities.result import CapabilityResult
 
@@ -51,10 +51,10 @@ class DateTimeCapability(Capability):
         ]
 
     _SKILLS = [
-        Skill(name="datetime.now", description="Get current date and time in a timezone", permission="public"),
-        Skill(name="datetime.convert", description="Convert a time between timezones", permission="public"),
-        Skill(name="datetime.diff", description="Calculate days between two dates", permission="public"),
-        Skill(name="datetime.zones", description="List all supported timezone codes", permission="public"),
+        Skill(name="datetime.now", description="Get current date and time in a timezone", permission="public", input_schema=object_schema({"tz_name": {"type": "string"}}), verification_params={"tz_name": "UTC"}),
+        Skill(name="datetime.convert", description="Convert a time between timezones", permission="public", input_schema=object_schema({"dt_str": {"type": "string"}, "from_tz": {"type": "string"}, "to_tz": {"type": "string"}}, required=("dt_str", "from_tz", "to_tz"))),
+        Skill(name="datetime.diff", description="Calculate days between two dates", permission="public", input_schema=object_schema({"date1": {"type": "string"}, "date2": {"type": "string"}}, required=("date1", "date2"))),
+        Skill(name="datetime.zones", description="List all supported timezone codes", permission="public", input_schema=object_schema(), verification_params={}),
     ]
 
     def skills(self) -> list[Skill]:

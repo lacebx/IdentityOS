@@ -4,6 +4,7 @@ import os
 from typing import Any, Optional
 
 from core.capabilities.base import Capability, Skill
+from core.capabilities.paths import resolve_workspace_path
 from core.capabilities.registry import register
 from core.capabilities.result import CapabilityResult
 
@@ -36,9 +37,9 @@ class FileSystemCapability(Capability):
         ]
 
     _SKILLS = [
-        Skill(name="filesystem.list_dir", description="List files and directories at a path", permission="public"),
-        Skill(name="filesystem.read_file", description="Read the contents of a text file", permission="public"),
-        Skill(name="filesystem.file_info", description="Get metadata about a file or directory", permission="public"),
+        Skill(name="filesystem.list_dir", description="List files and directories within the workspace", permission="local", input_schema={"type": "object", "properties": {"path": {"type": "string"}}, "additionalProperties": False}, verification_params={"path": "."}),
+        Skill(name="filesystem.read_file", description="Read a text file within the workspace", permission="local", input_schema={"type": "object", "properties": {"path": {"type": "string", "minLength": 1}, "max_length": {"type": "integer", "minimum": 1, "maximum": 100000}}, "required": ["path"], "additionalProperties": False}),
+        Skill(name="filesystem.file_info", description="Get metadata about a path within the workspace", permission="local", input_schema={"type": "object", "properties": {"path": {"type": "string", "minLength": 1}}, "required": ["path"], "additionalProperties": False}),
     ]
 
     def skills(self) -> list[Skill]:
@@ -62,36 +63,40 @@ class FileSystemCapability(Capability):
             return CapabilityResult.fail("filesystem", skill_name, type(e).__name__, str(e), duration_ms=(_time.monotonic() - _t0) * 1000)
 
     def _list_dir(self, path: str = ".", **kwargs: Any) -> dict[str, Any]:
-        if not os.path.isdir(path):
-            return {"error": f"Not a directory: {path}"}
+        resolved = resolve_workspace_path(path, self._config)
+        if not resolved.is_dir():
+            return {"error": f"Not a directory: {resolved}"}
         entries = []
-        for entry in sorted(os.scandir(path), key=lambda e: (not e.is_dir(), e.name)):
+        for entry in sorted(os.scandir(resolved), key=lambda e: (not e.is_dir(), e.name)):
             entries.append({
                 "name": entry.name,
                 "type": "directory" if entry.is_dir() else "file",
                 "size": entry.stat().st_size if entry.is_file() else 0,
             })
-        return {"path": os.path.abspath(path), "entries": entries, "count": len(entries)}
+        return {"path": str(resolved), "entries": entries, "count": len(entries)}
 
     def _read_file(self, path: str = "", max_length: int = 5000, **kwargs: Any) -> dict[str, Any]:
-        if not os.path.isfile(path):
-            return {"error": f"Not a file: {path}"}
-        with open(path) as f:
+        resolved = resolve_workspace_path(path, self._config)
+        if not resolved.is_file():
+            return {"error": f"Not a file: {resolved}"}
+        max_length = max(1, min(int(max_length), 100000))
+        with resolved.open() as f:
             content = f.read(max_length)
         return {
-            "path": os.path.abspath(path),
+            "path": str(resolved),
             "content": content,
             "length": len(content),
             "truncated": len(content) >= max_length,
         }
 
     def _file_info(self, path: str = ".", **kwargs: Any) -> dict[str, Any]:
-        if not os.path.exists(path):
-            return {"error": f"Path does not exist: {path}"}
-        stat = os.stat(path)
+        resolved = resolve_workspace_path(path, self._config)
+        if not resolved.exists():
+            return {"error": f"Path does not exist: {resolved}"}
+        stat = os.stat(resolved)
         return {
-            "path": os.path.abspath(path),
-            "type": "directory" if os.path.isdir(path) else "file",
+            "path": str(resolved),
+            "type": "directory" if resolved.is_dir() else "file",
             "size_bytes": stat.st_size,
             "modified": stat.st_mtime,
             "created": stat.st_ctime,

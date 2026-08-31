@@ -195,7 +195,11 @@ class SkillRouter:
                 if matches and skill_name not in seen:
                     seen.add(skill_name)
                     try:
-                        result = cap.call(skill_name, **params)
+                        result = self._registry.call(
+                            self._identity_id,
+                            skill_name,
+                            **params,
+                        )
                     except Exception as e:
                         result = CapabilityResult.fail(
                             cap_id, skill_name, type(e).__name__, str(e),
@@ -209,7 +213,11 @@ class SkillRouter:
                 for cap in caps:
                     if getattr(cap, "id", "") == "task_planner":
                         try:
-                            result = cap.call(planner_skill, goal=user_input)
+                            result = self._registry.call(
+                                self._identity_id,
+                                planner_skill,
+                                goal=user_input,
+                            )
                         except Exception as e:
                             result = CapabilityResult.fail(
                                 "task_planner", planner_skill, type(e).__name__, str(e),
@@ -218,6 +226,48 @@ class SkillRouter:
                         break
 
         return evidence
+
+    def should_offer_tools(self, user_input: str) -> bool:
+        """Return whether an authorized skill is relevant to this request.
+
+        This shares the routing rules used for direct execution, so model tool
+        exposure cannot drift into a second list of benchmark-shaped triggers.
+        """
+        text = user_input.strip().lower()
+        if not text:
+            return False
+        is_multi_step = self._is_compound_request(text)
+        is_diagnostic = any(phrase in text for phrase in self._DIAGNOSTIC_TRIGGERS)
+        contextual = self._is_contextual_request(text)
+
+        for cap in self._registry.list(self._identity_id):
+            cap_id = getattr(cap, "id", "unknown")
+            if is_multi_step and cap_id in self._PLANNER_MANAGED:
+                continue
+            for skill in cap.skills():
+                allowed, _ = self._registry.can(self._identity_id, skill.name)
+                if not allowed:
+                    continue
+                if is_diagnostic and skill.name in self._DIAGNOSTIC_SKILLS:
+                    return True
+                params = self._extract_params(user_input, skill)
+                if self._is_mutating_skill(skill.name):
+                    if (
+                        self._has_explicit_mutating_intent(user_input, skill.name)
+                        and self._has_safe_mutating_params(skill.name, params)
+                    ):
+                        return True
+                    continue
+                if (contextual or self._match(user_input, skill)["matched"]) and self._has_required_read_params(skill.name, params):
+                    return True
+
+        if is_multi_step:
+            allowed, _ = self._registry.can(
+                self._identity_id,
+                "task_planner.plan_and_execute",
+            )
+            return allowed
+        return False
 
     def format_for_context(self, evidence: EvidenceManager) -> str:
         return evidence.build_context_block()
@@ -333,8 +383,10 @@ class SkillRouter:
             "calc": ["calculate", "evaluate", "compute", "plus", "minus", "times", "divided", "% of", "percent", "convert", "conversion", "unit", "km to", "miles to", "celsius", "fahrenheit"],
             "text": ["count words", "word count", "extract", "keywords", "analyze text", "summarize", "pattern", "stats"],
             "web": ["fetch", "web page", "http", "url", "website", "download page", "look up", "search for", "wikipedia", "scrape", "webpage"],
-            "system": ["operating system", "disk space", "disk usage", "how much disk", "os", "cpu", "what system", "what os", "system info", "platform", "machine"],
+            "system": ["operating system", "disk space", "disk usage", "how much disk", "os", "cpu", "what system", "what is the system", "what os", "system info", "platform", "machine"],
             "skill_validator": ["validate", "syntax check", "check skill", "test skill", "verify syntax", "validate skill", "check code", "lint"],
+            "filesystem": ["list files", "list directory", "show files", "show directories", "what files", "files in", "directory contents", "ls", "dir"],
+            "file_tools": ["create file", "write file", "read file", "append file", "make directory", "create directory", "mkdir", "write to file", "save file"],
         }
 
         for domain, keywords in triggers.items():
@@ -454,7 +506,7 @@ class SkillRouter:
             allow_empty = bool(re.search(r"\bempty\s+file\b", lower))
             if not content.strip() and not allow_empty:
                 return {}
-            return {"path": path, "content": content, "allow_empty": allow_empty}
+            return {"path": path, "content": content}
 
         if name == "file_tools.append_file":
             path = self._extract_first_path(text, allow_default=False, require_file=True)

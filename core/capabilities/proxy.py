@@ -17,8 +17,15 @@ class CapabilityProxy:
         # returns CapabilityResult — use .data for the raw result
     """
 
-    def __init__(self, cap: Capability) -> None:
+    def __init__(
+        self,
+        cap: Capability,
+        registry: Any = None,
+        identity_id: str = "",
+    ) -> None:
         self._cap = cap
+        self._registry = registry
+        self._identity_id = identity_id
 
     @property
     def id(self) -> str:
@@ -45,6 +52,8 @@ class CapabilityProxy:
                 f"Capability '{self._cap.id}' has no skill '{name}'"
             )
         def caller(**params: Any) -> CapabilityResult:
+            if self._registry is not None and self._identity_id:
+                return self._registry.call(self._identity_id, skill_name, **params)
             return self._cap.call(skill_name, **params)
         caller.__name__ = name
         caller.__qualname__ = f"{type(self).__name__}.{name}"
@@ -57,6 +66,12 @@ class CapabilityProxy:
 
     def skills(self) -> list[dict[str, Any]]:
         return [
-            {"name": s.name, "description": s.description, "permission": s.permission}
+            {
+                "name": s.name,
+                "description": s.description,
+                "permission": s.permission,
+                "effect": s.effect,
+                "input_schema": s.input_schema,
+            }
             for s in self._cap.skills()
         ]

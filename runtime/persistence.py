@@ -6,6 +6,7 @@ for persisting identity state across sessions. This is M2 of the IdentityOS
 roadmap: every module's state becomes durable, portable, and versionable.
 
 Backends:
+  - InMemoryBackend  : process-local, explicitly non-durable storage
   - JSONFileBackend  : local flat-file storage (default / dev)
   - SQLiteBackend    : embedded relational storage (lightweight production)
   - RemoteBackend    : stub for cloud/remote storage (future)
@@ -20,6 +21,8 @@ Design principles:
 from __future__ import annotations
 
 import abc
+import copy
+import hashlib
 import json
 import sqlite3
 import time
@@ -101,6 +104,10 @@ class StorageBackend(abc.ABC):
         Default implementation is a no-op.
         """
 
+    def delete_user_memories(self, identity_id: str, user_id: str) -> int:
+        """Delete one user's memories while retaining other users and shared state."""
+        return 0
+
     # ------------------------------------------------------------------
     # Convenience helpers (built on top of the abstract primitives)
     # ------------------------------------------------------------------
@@ -146,92 +153,279 @@ class StorageBackend(abc.ABC):
 
 
 # ---------------------------------------------------------------------------
+# In-memory backend
+# ---------------------------------------------------------------------------
+
+class InMemoryBackend(StorageBackend):
+    """Process-local storage for explicitly non-persistent runtimes and tests."""
+
+    def __init__(self) -> None:
+        self._data: dict[str, dict[str, dict[str, Any]]] = {}
+        self._memories: dict[str, list[dict[str, Any]]] = {}
+
+    def save(self, identity_id: str, namespace: str, data: dict[str, Any]) -> None:
+        self._data.setdefault(identity_id, {})[namespace] = copy.deepcopy(data)
+
+    def load(self, identity_id: str, namespace: str) -> Optional[dict[str, Any]]:
+        data = self._data.get(identity_id, {}).get(namespace)
+        return copy.deepcopy(data) if data is not None else None
+
+    def list_namespaces(self, identity_id: str) -> list[str]:
+        return sorted(self._data.get(identity_id, {}))
+
+    def delete(self, identity_id: str, namespace: str) -> None:
+        self._data.get(identity_id, {}).pop(namespace, None)
+
+    def list_identities(self) -> list[str]:
+        return sorted(set(self._data) | set(self._memories))
+
+    def save_memory(self, identity_id: str, memory: dict[str, Any]) -> None:
+        self._memories.setdefault(identity_id, []).append(copy.deepcopy(memory))
+
+    def load_memories(self, identity_id: str) -> list[dict[str, Any]]:
+        return copy.deepcopy(self._memories.get(identity_id, []))
+
+    def delete_memories(self, identity_id: str) -> None:
+        self._memories.pop(identity_id, None)
+
+    def delete_user_memories(self, identity_id: str, user_id: str) -> int:
+        memories = self._memories.get(identity_id, [])
+        kept = [memory for memory in memories if memory.get("user_id", identity_id) != user_id]
+        deleted = len(memories) - len(kept)
+        self._memories[identity_id] = kept
+        return deleted
+
+
+# ---------------------------------------------------------------------------
 # JSON file backend
 # ---------------------------------------------------------------------------
 
 class JSONFileBackend(StorageBackend):
     """
-    Stores each namespace as a separate JSON file under:
-      <root_dir>/<identity_id>/<namespace>.json
+    Stores identities and namespaces under fixed-alphabet SHA-256 keys.
+
+    Caller-provided identifiers are retained inside metadata envelopes, never
+    interpolated into filesystem paths. Existing human-readable v1 directories
+    remain readable so the security boundary does not strand persisted state.
 
     Suitable for local development and single-node deployments.
     Atomic writes via a tmp-file + rename pattern.
     """
 
     def __init__(self, root_dir: str = ".identity_store") -> None:
-        self.root = Path(root_dir)
+        self.root = Path(root_dir).resolve()
         self.root.mkdir(parents=True, exist_ok=True)
 
-    def _ns_path(self, identity_id: str, namespace: str) -> Path:
-        id_dir = self.root / identity_id
-        id_dir.mkdir(parents=True, exist_ok=True)
-        # Replace colons so filenames stay cross-platform safe
-        safe_ns = namespace.replace(":", "__")
-        return id_dir / f"{safe_ns}.json"
+    @staticmethod
+    def _validate_key(value: str, *, label: str) -> str:
+        if not isinstance(value, str) or not value or len(value) > 1_024 or "\x00" in value:
+            raise ValueError(f"Invalid {label}")
+        if "/" in value or "\\" in value or value in {".", ".."}:
+            raise ValueError(f"Invalid {label}: path separators are not allowed")
+        return value
+
+    @staticmethod
+    def _storage_key(value: str, *, prefix: str) -> str:
+        digest = hashlib.sha256(value.encode("utf-8")).hexdigest()
+        return f"{prefix}-{digest}"
+
+    @staticmethod
+    def _write_json(path: Path, data: Any) -> None:
+        tmp = path.parent / f".{path.name}.{uuid.uuid4().hex}.tmp"
+        try:
+            with tmp.open("x", encoding="utf-8") as handle:
+                handle.write(json.dumps(data, indent=2, default=str))
+            tmp.replace(path)
+        finally:
+            if tmp.exists():
+                tmp.unlink()
+
+    @staticmethod
+    def _confined_child(directory: Path, filename: str) -> Path:
+        path = directory / filename
+        if path.exists() or path.is_symlink():
+            resolved = path.resolve()
+            if resolved.parent != directory:
+                raise ValueError("Persisted path escapes its storage directory")
+        return path
+
+    def _identity_dir(self, identity_id: str, *, create: bool = False) -> Path:
+        identity_id = self._validate_key(identity_id, label="identity_id")
+        id_dir = self.root / self._storage_key(identity_id, prefix="identity")
+        if id_dir.exists() or id_dir.is_symlink():
+            resolved = id_dir.resolve()
+            if resolved.parent != self.root or not resolved.is_dir():
+                raise ValueError("Persisted identity path escapes storage root")
+            id_dir = resolved
+        if create:
+            id_dir.mkdir(parents=True, exist_ok=True)
+            metadata_path = self._confined_child(id_dir, "__identity__.json")
+            if metadata_path.exists():
+                metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+                if metadata.get("identity_id") != identity_id:
+                    raise ValueError("Identity storage-key collision")
+            else:
+                self._write_json(metadata_path, {"format": "identityos-json-v2", "identity_id": identity_id})
+        return id_dir
+
+    def _legacy_identity_dir(self, identity_id: str) -> Optional[Path]:
+        identity_id = self._validate_key(identity_id, label="identity_id")
+        if not self.root.exists():
+            return None
+        for candidate in self.root.iterdir():
+            if not candidate.is_dir() or candidate.name != identity_id:
+                continue
+            if (candidate / "__identity__.json").exists():
+                continue
+            resolved = candidate.resolve()
+            if resolved.parent == self.root:
+                return resolved
+        return None
+
+    def _identity_dirs(self, identity_id: str) -> list[Path]:
+        directories: list[Path] = []
+        legacy = self._legacy_identity_dir(identity_id)
+        if legacy is not None:
+            directories.append(legacy)
+        current = self._identity_dir(identity_id)
+        if current.is_dir() and current not in directories:
+            directories.append(current)
+        return directories
+
+    def _ns_path(self, identity_id: str, namespace: str, *, create: bool = False) -> Path:
+        namespace = self._validate_key(namespace, label="namespace")
+        id_dir = self._identity_dir(identity_id, create=create)
+        filename = self._storage_key(namespace, prefix="namespace") + ".json"
+        return self._confined_child(id_dir, filename)
+
+    def _legacy_ns_path(self, identity_id: str, namespace: str) -> Optional[Path]:
+        namespace = self._validate_key(namespace, label="namespace")
+        legacy_dir = self._legacy_identity_dir(identity_id)
+        if legacy_dir is None:
+            return None
+        for candidate in legacy_dir.glob("*.json"):
+            if candidate.name in {"__identity__.json", "__memories__.json"}:
+                continue
+            if candidate.stem.replace("__", ":") == namespace:
+                return self._confined_child(legacy_dir, candidate.name)
+        return None
 
     def save(self, identity_id: str, namespace: str, data: dict[str, Any]) -> None:
-        path = self._ns_path(identity_id, namespace)
-        tmp = path.with_suffix(".tmp")
-        tmp.write_text(json.dumps(data, indent=2, default=str), encoding="utf-8")
-        tmp.replace(path)  # atomic on POSIX; best-effort on Windows
+        path = self._ns_path(identity_id, namespace, create=True)
+        envelope = {
+            "format": "identityos-json-v2",
+            "namespace": namespace,
+            "data": data,
+        }
+        self._write_json(path, envelope)
 
     def load(self, identity_id: str, namespace: str) -> Optional[dict[str, Any]]:
         path = self._ns_path(identity_id, namespace)
-        if not path.exists():
+        if path.exists():
+            envelope = json.loads(path.read_text(encoding="utf-8"))
+            if (
+                envelope.get("format") != "identityos-json-v2"
+                or envelope.get("namespace") != namespace
+                or not isinstance(envelope.get("data"), dict)
+            ):
+                raise ValueError(f"Invalid persisted namespace envelope: {namespace}")
+            return envelope["data"]
+        legacy_path = self._legacy_ns_path(identity_id, namespace)
+        if legacy_path is None:
             return None
-        return json.loads(path.read_text(encoding="utf-8"))
+        return json.loads(legacy_path.read_text(encoding="utf-8"))
 
     def list_namespaces(self, identity_id: str) -> list[str]:
-        id_dir = self.root / identity_id
-        if not id_dir.exists():
-            return []
-        namespaces = []
-        for f in id_dir.glob("*.json"):
-            ns = f.stem.replace("__", ":")
-            namespaces.append(ns)
+        namespaces: set[str] = set()
+        current = self._identity_dir(identity_id)
+        if current.is_dir():
+            for candidate in current.glob("namespace-*.json"):
+                candidate = self._confined_child(current, candidate.name)
+                envelope = json.loads(candidate.read_text(encoding="utf-8"))
+                namespace = envelope.get("namespace")
+                if envelope.get("format") != "identityos-json-v2" or not isinstance(namespace, str):
+                    raise ValueError(f"Invalid persisted namespace envelope: {candidate.name}")
+                namespaces.add(namespace)
+        legacy = self._legacy_identity_dir(identity_id)
+        if legacy is not None:
+            for candidate in legacy.glob("*.json"):
+                if candidate.name not in {"__identity__.json", "__memories__.json"}:
+                    namespaces.add(candidate.stem.replace("__", ":"))
         return sorted(namespaces)
 
     def delete(self, identity_id: str, namespace: str) -> None:
         path = self._ns_path(identity_id, namespace)
         if path.exists():
             path.unlink()
+        legacy_path = self._legacy_ns_path(identity_id, namespace)
+        if legacy_path is not None and legacy_path.exists():
+            legacy_path.unlink()
 
     def list_identities(self) -> list[str]:
         if not self.root.exists():
             return []
-        return sorted(
-            d.name for d in self.root.iterdir() if d.is_dir() and not d.name.startswith(".")
-        )
+        identities: set[str] = set()
+        for directory in self.root.iterdir():
+            if not directory.is_dir() or directory.name.startswith("."):
+                continue
+            directory = directory.resolve()
+            if directory.parent != self.root:
+                raise ValueError("Persisted identity path escapes storage root")
+            metadata_path = self._confined_child(directory, "__identity__.json")
+            if metadata_path.exists():
+                metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+                identity_id = metadata.get("identity_id")
+                if not isinstance(identity_id, str):
+                    raise ValueError(f"Invalid identity metadata: {directory.name}")
+                identities.add(identity_id)
+            else:
+                identities.add(directory.name)
+        return sorted(identities)
 
     # ------------------------------------------------------------------
     # Memory persistence — stored as a single JSON file per identity
     # ------------------------------------------------------------------
 
-    def _memories_path(self, identity_id: str) -> Path:
-        id_dir = self.root / identity_id
-        id_dir.mkdir(parents=True, exist_ok=True)
-        return id_dir / "__memories__.json"
+    def _memories_path(self, identity_id: str, *, create: bool = False) -> Path:
+        directory = self._identity_dir(identity_id, create=create)
+        return self._confined_child(directory, "__memories__.json")
+
+    def _memory_paths(self, identity_id: str) -> list[Path]:
+        return [self._confined_child(directory, "__memories__.json")
+                for directory in self._identity_dirs(identity_id)]
 
     def save_memory(self, identity_id: str, memory: dict[str, Any]) -> None:
-        path = self._memories_path(identity_id)
+        path = self._memories_path(identity_id, create=True)
         memories: list[dict[str, Any]] = []
         if path.exists():
             memories = json.loads(path.read_text(encoding="utf-8"))
         memories.append(memory)
-        tmp = path.with_suffix(".tmp")
-        tmp.write_text(json.dumps(memories, indent=2, default=str), encoding="utf-8")
-        tmp.replace(path)
+        self._write_json(path, memories)
 
     def load_memories(self, identity_id: str) -> list[dict[str, Any]]:
-        path = self._memories_path(identity_id)
-        if not path.exists():
-            return []
-        return json.loads(path.read_text(encoding="utf-8"))
+        memories: list[dict[str, Any]] = []
+        for path in self._memory_paths(identity_id):
+            if path.exists():
+                memories.extend(json.loads(path.read_text(encoding="utf-8")))
+        return memories
 
     def delete_memories(self, identity_id: str) -> None:
-        path = self._memories_path(identity_id)
-        if path.exists():
-            path.unlink()
+        for path in self._memory_paths(identity_id):
+            if path.exists():
+                path.unlink()
+
+    def delete_user_memories(self, identity_id: str, user_id: str) -> int:
+        deleted = 0
+        for path in self._memory_paths(identity_id):
+            if not path.exists():
+                continue
+            memories = json.loads(path.read_text(encoding="utf-8"))
+            kept = [memory for memory in memories if memory.get("user_id", identity_id) != user_id]
+            path_deleted = len(memories) - len(kept)
+            if path_deleted:
+                self._write_json(path, kept)
+                deleted += path_deleted
+        return deleted
 
 
 # ---------------------------------------------------------------------------

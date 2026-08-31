@@ -9,7 +9,7 @@ checks, in order:
   3. capability class is registered
   4. capability is installed for the identity
   5. the capability exposes at least one callable skill
-  6. calling a harmless skill returns a successful result
+  6. calling a skill with explicit verification parameters succeeds
 
 If any check fails the corresponding Evidence is marked failed and the
 caller (executor) decides whether to retry or mark the task failed.
@@ -116,20 +116,33 @@ def verify_capability(
         success=has_skill, data={"has_skill": has_skill},
     ))
 
-    # 6. Skill callable
+    # 6. Skill callable. Never guess arguments or invoke the first skill
+    # blindly: mutating/generated skills must opt into a harmless probe.
     callable_ok = False
+    callable_data: dict[str, Any] = {"callable": False, "executed": False}
     if capability_registry is not None and installed:
         try:
             cap = capability_registry.get(identity_id, cap_id)
             if cap is not None:
                 skills = cap.skills()
-                skill_name = f"{cap_id}.info"
-                if skills:
-                    skill_name = skills[0].name
-                ok, _ = cap.can(skill_name)
-                if ok:
-                    res = cap.call(skill_name)
+                probe = next(
+                    (skill for skill in skills if skill.verification_params is not None),
+                    None,
+                )
+                if probe is not None:
+                    params = dict(probe.verification_params or {})
+                    res = cap.call(probe.name, **params)
                     callable_ok = bool(getattr(res, "success", False))
+                    callable_data = {
+                        "callable": callable_ok,
+                        "executed": True,
+                        "skill": probe.name,
+                        "params": params,
+                    }
+                else:
+                    callable_data["reason"] = (
+                        "no skill declares safe verification parameters"
+                    )
         except Exception as e:
             callable_ok = False
             checks.append(Evidence(
@@ -139,8 +152,8 @@ def verify_capability(
     if not any(e.label == "skill_callable" for e in checks):
         checks.append(Evidence(
             step="verify", label="skill_callable",
-            detail="skill callable" if callable_ok else "skill not callable",
-            success=callable_ok, data={"callable": callable_ok},
+            detail="skill probe succeeded" if callable_ok else "skill probe unavailable or failed",
+            success=callable_ok, data=callable_data,
         ))
 
     return checks

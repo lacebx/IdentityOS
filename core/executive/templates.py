@@ -55,7 +55,7 @@ class {class_name}(Capability):
         return ["## {display_name} Skill\\nUse {skill_run} to invoke {cap_id}, and {skill_info} for capability info."]
 
     _SKILLS = [
-        Skill(name="{skill_info}", description="Return metadata about this capability", permission="public"),
+        Skill(name="{skill_info}", description="Return metadata about this capability", permission="public", verification_params={{}}),
         Skill(name="{skill_run}", description="Invoke the {cap_id} capability", permission="public"),
     ]
 

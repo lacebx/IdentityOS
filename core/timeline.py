@@ -166,12 +166,19 @@ class IdentityTimeline:
         """Return only highly significant events."""
         return [e for e in self._events if e.significance >= min_significance]
 
-    def narrative(self, limit: int = 10) -> str:
+    def narrative(self, limit: int = 10, user_id: Optional[str] = None) -> str:
         """
         Generate a narrative timeline for context injection.
         Shows an identity's history in human-readable form.
         """
-        events = self.significant() or self.recent(limit)
+        visible = [
+            event for event in self._events
+            if user_id is None
+            or not event.metadata.get("user_id")
+            or event.metadata.get("user_id") == user_id
+        ]
+        significant = [event for event in visible if event.significance >= 4]
+        events = significant or visible[-limit:]
         if not events:
             return ""
         now = datetime.now(timezone.utc).replace(tzinfo=None)

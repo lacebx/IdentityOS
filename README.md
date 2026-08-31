@@ -35,7 +35,8 @@ An identity is a persistent digital self. It has:
 - **Capabilities**: skills it can use (check the weather, read files, search GitHub)
 - **Relationships**: trust networks with other identities and users
 
-Identities are **portable**. Export one to JSON, move it to another machine, load it with a different LLM provider,it remembers everything.
+Identities are **portable**. Export one to JSON, move it to another machine,
+and load it with a different LLM provider while preserving persisted state.
 
 > Not shared memory. A shared self.
 
@@ -47,7 +48,9 @@ Identities are **portable**. Export one to JSON, move it to another machine, loa
 
 **Persona**: The character or role of an identity (e.g., "mentor", "analyst", "companion"). This shapes how it responds.
 
-**Capability**: A skill an identity can use. Capabilities are installed at runtime , no retraining needed. Examples: `datetime` (knows the current time), `filesystem` (reads/writes files), `github` (queries repos).
+**Capability**: A skill an identity can use. Capabilities are installed at
+runtime—no retraining needed—and invoked through validated permission and
+evidence contracts. Examples include `datetime`, `filesystem`, and `github`.
 
 **ISP (Identity Skill Pack)**: A bundle of capabilities that work together. Install one ISP and your identity gains multiple skills at once.
 
@@ -97,7 +100,7 @@ OPENAI_BASE_URL="http://localhost:11434/v1"   # Ollama
 OPENAI_API_KEY="ollama"                       # Ollama accepts any key
 ```
 
-IdentityOS works with any LLM , cloud or local. Pick what fits.
+IdentityOS works with cloud or local models through adapters. Pick what fits.
 
 ### Create Your First Identity
 
@@ -317,6 +320,17 @@ Step-by-step guides for recording demos:
 ---
 
 ## Running Tests
+
+```bash
+# Hermetic default suite
+python -m pytest -q
+
+# External integrations (credentials/services may be required)
+python -m pytest -q -m network
+```
+
+See the evidence-backed [project roadmap](docs/ROADMAP.md) for current North
+Star status and remaining runtime gaps.
 
 ```bash
 pip install -e .

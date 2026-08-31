@@ -1,0 +1,14 @@
+{
+  "hypothesis": "Adding a short, explicit instruction to the system prompt to use the provided tools for arithmetic and file operations should improve tool-use and long-task success without affecting truthfulness.",
+  "change": "adapters/openai_adapter.py: enhance system prompt with tool-use guidance",
+  "edits": [
+    {
+      "path": "adapters/openai_adapter.py",
+      "search": "    def _build_messages(self, messages, execute_tool=None):\n        \"\"\"Prepend a tool-use reminder to the system prompt when a tool is available.\"\"\"\n",
+      "replace": "    def _build_messages(self, messages, execute_tool=None):\n        \"\"\"Prepend a tool-use reminder to the system prompt when a tool is available.\"\"\"\n        if execute_tool is not None:\n            # Prepend a concise instruction to use the provided tools for calculations and file operations.\n            tool_hint = (\n                \"You have access to tools for arithmetic and file operations. \"\n                \"When a task requires calculation or file creation, use the appropriate tool \"\n                \"and report the verified result. Do not guess or fabricate results.\"\n            )\n            if messages and messages[0].get('role') == 'system':\n                messages[0]['content'] = tool_hint + \"\\n\\n\" + messages[0]['content']\n            else:\n                messages.insert(0, {'role': 'system', 'content': tool_hint})\n"
+    }
+  ],
+  "tests_to_run": [
+    "tests/test_adapters.py"
+  ]
+}

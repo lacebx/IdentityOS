@@ -4,7 +4,7 @@ import json
 import os
 from typing import Any, Optional
 
-from core.capabilities.base import Capability, Skill
+from core.capabilities.base import Capability, Skill, object_schema
 from core.capabilities.registry import register
 from core.capabilities.result import CapabilityResult
 
@@ -18,7 +18,7 @@ class RegistryManagerCapability(Capability):
     license = "MIT"
     homepage = "https://github.com/lacebx/IdentityOS"
     description = "Publish new capabilities to the registry, install capabilities from the registry, and list available capabilities"
-    permissions = ["public"]
+    permissions = ["public", "capability:manage"]
 
     def __init__(self, config: Optional[dict] = None) -> None:
         super().__init__(config)
@@ -38,9 +38,9 @@ class RegistryManagerCapability(Capability):
         ]
 
     _SKILLS = [
-        Skill(name="registry_manager.list_capabilities", description="List all capabilities available in the local registry", permission="public"),
-        Skill(name="registry_manager.publish_capability", description="Publish a new capability to the local registry with a manifest", permission="public"),
-        Skill(name="registry_manager.install_capability", description="Install a capability from the registry onto the current identity", permission="public"),
+        Skill(name="registry_manager.list_capabilities", description="List all capabilities available in the local registry", permission="public", input_schema=object_schema(), verification_params={}),
+        Skill(name="registry_manager.publish_capability", description="Publish a new capability to the local registry with a manifest", permission="capability:manage", effect="write", input_schema=object_schema({"cap_id": {"type": "string", "minLength": 1}, "name": {"type": "string", "minLength": 1}, "version": {"type": "string"}, "description": {"type": "string"}, "skills": {"type": "array"}}, required=("cap_id", "name"))),
+        Skill(name="registry_manager.install_capability", description="Resolve a capability from the registry for installation", permission="capability:manage", effect="write", input_schema=object_schema({"cap_id": {"type": "string", "minLength": 1}}, required=("cap_id",))),
     ]
 
     def skills(self) -> list[Skill]:

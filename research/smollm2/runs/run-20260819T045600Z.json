@@ -1,0 +1,28 @@
+{
+  "run_id": "bare-20260819T045600Z",
+  "timestamp": "2026-08-19T04:57:01.479785Z",
+  "condition": "bare",
+  "git_branch": "smollm2/idos-beats-bare",
+  "model": "smollm2:360m-instruct-q4_0",
+  "model_digest": "676f4c06b139",
+  "benchmark_version": "v0.1.0",
+  "tasks": 30,
+  "command": "python benchmarks/runner.py --mode bare --freeze",
+  "artifact": "benchmarks/baseline/results.json",
+  "score": 0.3667,
+  "successful_tasks": 11,
+  "total_tasks": 30,
+  "hallucinations": 2,
+  "avg_latency_s": 2.02,
+  "categories": {
+    "reasoning": {"success": 2, "total": 5, "hallucinations": 0},
+    "memory": {"success": 3, "total": 5, "hallucinations": 0},
+    "tools": {"success": 2, "total": 5, "hallucinations": 0},
+    "persistence": {"success": 0, "total": 5, "hallucinations": 0},
+    "long_task": {"success": 1, "total": 5, "hallucinations": 0},
+    "truthfulness": {"success": 3, "total": 5, "hallucinations": 2}
+  },
+  "experiment_id": null,
+  "verdict": "BASELINE",
+  "notes": "Frozen bare-Ollama comparator. Do not update this record."
+}

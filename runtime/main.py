@@ -7,12 +7,12 @@ which runs the full pipeline: policy → context → LLM → evaluate → store.
 import json
 import logging
 import os
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
 
 import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from adapters import ChainAdapter
 from core.evaluation import register_default_criteria
@@ -175,16 +175,18 @@ class ProcessRequest(BaseModel):
 class ProcessResponse(BaseModel):
     output: str
     identity_id: str
+    user_id: str
     session_id: str
     policy_passed: bool
     eval_score: Optional[float] = None
     session_mode: str = "normal"
+    timings_ms: Dict[str, float] = Field(default_factory=dict)
 
 
 # --- Endpoints ---
 
 @app.get("/")
-def root():
+async def root():
     return {
         "service": "Identity Runtime",
         "version": "2.0.0",
@@ -194,7 +196,7 @@ def root():
 
 
 @app.get("/health")
-def health():
+async def health():
     return {"status": "ok"}
 
 
@@ -207,7 +209,10 @@ async def process(req: ProcessRequest):
     Intended for SDK / agentic use where the caller wants the runtime
     to manage the entire lifecycle.
     """
-    session_id = req.session_id or runtime.start_session(req.identity_id)
+    session_id = req.session_id or runtime.start_session(
+        req.identity_id,
+        user_id=req.user_id,
+    )
 
     # Auto-load identity from disk if not already in memory.
     # The /identity POST endpoint writes to disk but does not register
@@ -217,6 +222,7 @@ async def process(req: ProcessRequest):
 
     request = InteractionRequest(
         identity_id=req.identity_id,
+        user_id=req.user_id,
         user_input=req.message,
         session_id=session_id,
     )
@@ -229,10 +235,12 @@ async def process(req: ProcessRequest):
     return ProcessResponse(
         output=result.output,
         identity_id=result.identity_id,
+        user_id=result.user_id,
         session_id=session_id,
         policy_passed=result.policy_passed,
         eval_score=result.eval_score,
         session_mode=runtime.get_session_mode(session_id).value,
+        timings_ms=result.metadata.get("timings_ms", {}),
     )
 
 
@@ -247,13 +255,17 @@ async def get_context(req: ContextRequest):
         raise HTTPException(status_code=404, detail=f"Identity '{req.identity_id}' not found")
 
     session_id = req.session_id or f"{req.user_id}_{req.identity_id}"
+    user_id = runtime._resolved_user_id(req.identity_id, req.user_id)
     ctx = runtime.context_composer.compose(
         identity=identity,
         memory_store=runtime.memory_store,
         skill_registry=runtime.skill_registry,
         goal_engine=runtime.goal_engine,
         identity_graph=runtime.identity_graph,
+        user_profile=runtime._get_user_profile(req.identity_id, user_id),
+        user_id=user_id,
         query=req.message,
+        session_id=session_id,
     )
 
     memories_used = ctx.memory_block.count("\n  [") if ctx.memory_block else 0
@@ -295,6 +307,7 @@ async def evaluate(req: EvaluateRequest):
         output=req.response,
         identity_id=req.identity_id,
         session_id=session_id,
+        user_id=req.user_id,
     )
 
     if stored:
@@ -314,7 +327,7 @@ async def evaluate(req: EvaluateRequest):
 
 
 @app.post("/identity")
-def create_identity(req: CreateIdentityRequest):
+async def create_identity(req: CreateIdentityRequest):
     """Create a new identity."""
     from identityos import Identity
     identity = Identity.create(
@@ -330,7 +343,7 @@ def create_identity(req: CreateIdentityRequest):
 
 
 @app.get("/identity/{identity_id}")
-def get_identity(identity_id: str):
+async def get_identity(identity_id: str):
     """Get a loaded identity spec by ID."""
     identity = runtime.load(identity_id)
     if not identity:
@@ -339,7 +352,7 @@ def get_identity(identity_id: str):
 
 
 @app.get("/identity")
-def list_identities():
+async def list_identities():
     """List all available identity IDs (loaded + stored)."""
     loaded = {s.id for s in runtime.list_identities()}
     stored = set(storage.list_identities())
@@ -348,9 +361,12 @@ def list_identities():
 
 
 @app.get("/memories/{user_id}/{identity_id}", response_model=MemoriesResponse)
-def get_memories(user_id: str, identity_id: str, limit: int = 50):
+async def get_memories(user_id: str, identity_id: str, limit: int = 50):
     """Get stored memories for an identity."""
-    memories = runtime.memory_store.by_identity(identity_id=identity_id)[:limit]
+    memories = runtime.memory_store.by_user(
+        identity_id=identity_id,
+        user_id=user_id,
+    )[:limit]
     return MemoriesResponse(
         identity_id=identity_id,
         user_id=user_id,
@@ -360,20 +376,24 @@ def get_memories(user_id: str, identity_id: str, limit: int = 50):
 
 
 @app.delete("/memories/{user_id}/{identity_id}")
-def clear_memories(user_id: str, identity_id: str):
-    """Clear all memories for an identity."""
-    deleted = runtime.memory_store.clear_identity(identity_id)
+async def clear_memories(user_id: str, identity_id: str):
+    """Clear one user's memories without erasing other users or shared state."""
+    deleted = runtime.memory_store.clear_user(identity_id, user_id)
+    if runtime._storage is not None:
+        runtime._storage.delete_user_memories(identity_id, user_id)
     return {"deleted": deleted, "message": "Memories cleared."}
 
 
 @app.get("/session/{session_id}")
-def get_session(session_id: str):
+async def get_session(session_id: str):
     """Inspect session state (mode, active identity)."""
     identity_id = runtime._sessions.get(session_id)
+    user_id = runtime._session_users.get(session_id)
     mode = runtime.get_session_mode(session_id)
     return {
         "session_id": session_id,
         "identity_id": identity_id,
+        "user_id": user_id,
         "session_mode": mode.value,
         "is_isolated": mode.value != "normal",
     }

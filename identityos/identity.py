@@ -224,11 +224,14 @@ class SessionContext:
 
     _identity: IdentityObject
     session_id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str = ""
 
     def __enter__(self) -> SessionContext:
         self._identity._session_id = self.session_id
         self._identity._runtime.start_session(
-            self._identity._identity_id, session_id=self.session_id,
+            self._identity._identity_id,
+            session_id=self.session_id,
+            user_id=self.user_id or None,
         )
         return self
 
@@ -237,6 +240,8 @@ class SessionContext:
         self._identity._session_id = None
 
     def chat(self, message: str, **kwargs: Any) -> str:
+        if self.user_id and "user_id" not in kwargs:
+            kwargs["user_id"] = self.user_id
         return self._identity.chat(message, **kwargs)
 
     def observe(self, text: str, **kwargs: Any) -> List[Dict[str, Any]]:
@@ -301,8 +306,10 @@ class IdentityObject:
         """Send a message to this identity and get a response."""
         from runtime.orchestrator import InteractionRequest
 
+        user_id = str(kwargs.pop("user_id", "") or "")
         request = InteractionRequest(
             identity_id=self._identity_id,
+            user_id=user_id,
             user_input=message,
             session_id=self._session_id,
             metadata=kwargs,
@@ -326,6 +333,7 @@ class IdentityObject:
         self,
         text: str,
         source: str = "sdk",
+        user_id: str = "",
     ) -> List[Dict[str, Any]]:
         """
         Extract facts from a piece of text and store them as user knowledge.
@@ -334,7 +342,7 @@ class IdentityObject:
         """
         from core.user_profile import extract_user_facts
 
-        profile = self._get_user_profile()
+        profile = self._get_user_profile(user_id)
         raw_facts = extract_user_facts(text)
         results: List[Dict[str, Any]] = []
 
@@ -348,6 +356,8 @@ class IdentityObject:
                 "contradictions": stored.contradictions,
             })
 
+        self._runtime._save_user_profile(self._identity_id, user_id or None)
+
         return results
 
     # ═══════════════════════════════════════════════════════════════════
@@ -359,6 +369,7 @@ class IdentityObject:
         content: str,
         tags: Optional[List[str]] = None,
         memory_type: str = "semantic",
+        user_id: str = "",
     ) -> str:
         """
         Store a memory for this identity.
@@ -370,18 +381,21 @@ class IdentityObject:
         mt = getattr(MemoryType, memory_type.upper(), MemoryType.SEMANTIC)
         frag = MemoryFragment(
             identity_id=self._identity_id,
+            user_id=self._runtime._resolved_user_id(self._identity_id, user_id),
             content=content,
             memory_type=mt,
             session_id=self._session_id,
             tags=tags or [],
         )
         self._runtime.memory_store.add(frag)
+        self._runtime._persist_memory(frag)
         return frag.id
 
     def recall(
         self,
         query: str,
         limit: int = 5,
+        user_id: str = "",
     ) -> List[Dict[str, Any]]:
         """
         Retrieve memories relevant to a query.
@@ -389,7 +403,10 @@ class IdentityObject:
         Returns a list of dicts with id, content, memory_type, importance.
         """
         items = self._runtime.memory_store.search_keywords(
-            query, identity_id=self._identity_id, limit=limit,
+            query,
+            identity_id=self._identity_id,
+            user_id=self._runtime._resolved_user_id(self._identity_id, user_id),
+            limit=limit,
         )
         return [
             {
@@ -411,11 +428,15 @@ class IdentityObject:
         self,
         memory_type: Optional[str] = None,
         limit: int = 50,
+        user_id: str = "",
     ) -> List[Dict[str, Any]]:
         """
         List all memories for this identity, optionally filtered by type.
         """
-        all_mems = self._runtime.memory_store.by_identity(self._identity_id)
+        all_mems = self._runtime.memory_store.by_user(
+            self._identity_id,
+            self._runtime._resolved_user_id(self._identity_id, user_id),
+        )
         if memory_type:
             from core.memory import MemoryType
             mt = getattr(MemoryType, memory_type.upper(), None)
@@ -940,7 +961,12 @@ class IdentityObject:
     # Sessions
     # ═══════════════════════════════════════════════════════════════════
 
-    def session(self, session_id: Optional[str] = None) -> SessionContext:
+    def session(
+        self,
+        session_id: Optional[str] = None,
+        *,
+        user_id: str = "",
+    ) -> SessionContext:
         """
         Create a session context manager.
 
@@ -949,7 +975,7 @@ class IdentityObject:
                 s.chat("Hello in a session")
         """
         sid = session_id or str(uuid.uuid4())
-        return SessionContext(_identity=self, session_id=sid)
+        return SessionContext(_identity=self, session_id=sid, user_id=user_id)
 
     def sessions(self) -> List[Dict[str, Any]]:
         """List active sessions for this identity."""
@@ -980,7 +1006,11 @@ class IdentityObject:
                 f"'{type(self).__name__}' object has no attribute '{name}' "
                 f"and no capability '{name}' is installed"
             )
-        return CapabilityProxy(cap)
+        return CapabilityProxy(
+            cap,
+            registry=self._runtime.capability_registry,
+            identity_id=self._identity_id,
+        )
 
     # ── Lifecycle ──────────────────────────────────────────────────────
 
@@ -1021,7 +1051,11 @@ class IdentityObject:
                 f"Capability '{cap_id}' is not installed. "
                 f"Installed: {[c.id for c in self._runtime.capability_registry.list(self._identity_id)]}"
             )
-        return CapabilityProxy(cap)
+        return CapabilityProxy(
+            cap,
+            registry=self._runtime.capability_registry,
+            identity_id=self._identity_id,
+        )
 
     def use(self, cap_id: str) -> Any:
         """Explicitly select a capability to invoke skills on.
@@ -1049,11 +1083,16 @@ class IdentityObject:
         import time
         raw = self._runtime._storage.load(self._identity_id, "capability.permissions") or {}
         grants = raw.get("grants", [])
-        grants.append({
-            "capability": capability,
-            "permission": permission,
-            "granted_at": time.time(),
-        })
+        if not any(
+            grant.get("capability") == capability
+            and grant.get("permission") == permission
+            for grant in grants
+        ):
+            grants.append({
+                "capability": capability,
+                "permission": permission,
+                "granted_at": time.time(),
+            })
         raw["grants"] = grants
         self._runtime._storage.save(self._identity_id, "capability.permissions", raw)
 
@@ -1175,9 +1214,10 @@ class IdentityObject:
             fact_store_data = fact_store.to_dict_full() if hasattr(fact_store, "to_dict_full") else None
 
         # Gather user profile
-        user_profile_key = f"user_{self._identity_id}"
         profile_data = None
-        profile = self._runtime._user_profiles.get(user_profile_key)
+        profile = self._runtime._user_profiles.get(
+            (self._identity_id, self._identity_id)
+        )
         if profile:
             profile_data = profile.to_dict()
 
@@ -1256,17 +1296,15 @@ class IdentityObject:
     # User profile access
     # ═══════════════════════════════════════════════════════════════════
 
-    def _get_user_profile(self) -> Any:
-        key = f"user_{self._identity_id}"
-        if key not in self._runtime._user_profiles:
-            self._runtime._user_profiles[key] = __import__(
-                "core.user_profile", fromlist=["UserProfile"]
-            ).UserProfile(user_id=key)
-        return self._runtime._user_profiles[key]
+    def _get_user_profile(self, user_id: str = "") -> Any:
+        return self._runtime._get_user_profile(
+            self._identity_id,
+            user_id or None,
+        )
 
-    def user_facts(self) -> List[Dict[str, Any]]:
+    def user_facts(self, user_id: str = "") -> List[Dict[str, Any]]:
         """List all known user facts (preferences, beliefs, etc.)."""
-        profile = self._get_user_profile()
+        profile = self._get_user_profile(user_id)
         if hasattr(profile, "all_facts"):
             return [f.to_dict() for f in profile.all_facts()]
         if hasattr(profile, "_facts"):

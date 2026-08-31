@@ -270,7 +270,8 @@ class TestReadiness:
 
 
 class TestDaedalusActions:
-    def test_goals_lifecycle(self):
+    def test_goals_lifecycle(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
         from scripts.daedalus_actions import complete_goal, save_goals, load_goals
         goals = {
             "primary_goals": [
@@ -289,25 +290,20 @@ class TestDaedalusActions:
         assert "completed_at" in target
         assert "Achieved via test run" in target["evidence"]
 
-    def test_load_goals_default(self):
+    def test_load_goals_default(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
         from scripts.daedalus_actions import load_goals
-        orig = Path(".daedalus/goals.json")
-        if orig.exists():
-            backup = orig.read_text()
-            orig.unlink()
-        try:
-            result = load_goals()
-            assert "primary_goals" in result
-        finally:
-            if orig.exists() is False and backup:
-                orig.write_text(backup)
+        result = load_goals()
+        assert "primary_goals" in result
 
-    def test_check_benchmark_health_no_data(self):
+    def test_check_benchmark_health_no_data(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
         from scripts.daedalus_actions import check_benchmark_health
         result = check_benchmark_health()
         assert result == []
 
-    def test_benchmark_declining_detection(self):
+    def test_benchmark_declining_detection(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
         from scripts.daedalus_actions import check_benchmark_health
         class FakeTrends:
             def rglob(self, pat):

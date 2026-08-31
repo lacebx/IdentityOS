@@ -41,6 +41,15 @@ from cli.registry_cmds import (
     cmd_explain,
     cmd_inspect_dashboard,
 )
+from cli.chat_commands import (  # noqa: F401  (re-exported for chat REPL + tests)
+    ChatContext,
+    dispatch_chat_command,
+    _set_adapter_model,
+    _set_adapter_temperature,
+)
+
+# Backwards-compatible alias used by tests.
+_dispatch_chat_command = dispatch_chat_command
 
 # Load .env if present
 _env_file = Path(__file__).resolve().parent.parent / ".env"
@@ -78,12 +87,112 @@ def _get_snapshot_manager(storage, identity_id: str):
     return SnapshotManager(storage, identity_id)
 
 
+def _fetch_ollama_models(timeout: float = 2.0) -> list[str]:
+    from adapters.openai_adapter import list_ollama_models
+
+    return list_ollama_models(timeout=timeout)
+
+
+def _resolve_ollama_default_model(models: list[str]) -> str:
+    from adapters.openai_adapter import resolve_ollama_model
+
+    env_model = os.environ.get("OLLAMA_MODEL") or os.environ.get("IDENTITY_MODEL") or ""
+    if env_model:
+        resolved = resolve_ollama_model(env_model, models)
+        if resolved:
+            return resolved
+    return models[0]
+
+
+def _interactive_ollama_model_select(models: list[str], default: Optional[str] = None) -> str:
+    """Prompt the user to pick an installed Ollama model (like ``ollama list``)."""
+    if not models:
+        return default or os.environ.get("OLLAMA_MODEL") or os.environ.get("IDENTITY_MODEL") or "llama3.2"
+
+    preferred = default or _resolve_ollama_default_model(models)
+    if preferred not in models:
+        preferred = models[0]
+    if len(models) == 1:
+        print(f"  Ollama model: {models[0]}")
+        return models[0]
+
+    default_idx = models.index(preferred)
+    print("\n  Available Ollama models:")
+    for i, name in enumerate(models, 1):
+        marker = " (default)" if i - 1 == default_idx else ""
+        print(f"    {i}. {name}{marker}")
+
+    while True:
+        try:
+            choice = input(f"\n  Select Ollama model [{default_idx + 1}]: ").strip()
+        except (KeyboardInterrupt, EOFError):
+            print()
+            return preferred
+        if not choice:
+            return preferred
+        try:
+            idx = int(choice) - 1
+            if 0 <= idx < len(models):
+                return models[idx]
+        except ValueError:
+            pass
+        if choice in models:
+            return choice
+        matches = [m for m in models if m.startswith(choice) or choice in m]
+        if len(matches) == 1:
+            return matches[0]
+        print(f"  Enter a number between 1 and {len(models)}, or a model name.")
+
+
+def _chat_model_arg(args: argparse.Namespace) -> str:
+    return getattr(args, "model", "") or ""
+
+
+def _ollama_model_explicitly_set(args: argparse.Namespace) -> bool:
+    model = _chat_model_arg(args)
+    return bool(model and model != "gpt-4o")
+
+
+def _resolve_ollama_model_for_chat(args: argparse.Namespace, models: list[str]) -> str:
+    if _ollama_model_explicitly_set(args):
+        return _chat_model_arg(args)
+    env_model = os.environ.get("OLLAMA_MODEL") or os.environ.get("IDENTITY_MODEL")
+    if env_model and models:
+        from adapters.openai_adapter import resolve_ollama_model
+
+        resolved = resolve_ollama_model(env_model, models)
+        if resolved:
+            return resolved
+    if sys.stdin.isatty() and models:
+        return _interactive_ollama_model_select(models)
+    if models:
+        return _resolve_ollama_default_model(models)
+    return env_model or _chat_model_arg(args) or "llama3.2"
+
+
+def _groq_chat_model() -> str:
+    """Chat Groq model — never the deprecated llama-3.3-70b-versatile default."""
+    return (
+        os.environ.get("GROQ_MODEL")
+        or os.environ.get("IDENTITY_GROQ_MODEL")
+        or "openai/gpt-oss-120b"
+    )
+
+
 def _get_adapter(args: argparse.Namespace):
     from adapters import get_adapter
     import json
+
     config = json.loads(args.adapter_config) if args.adapter_config != "{}" else {}
-    if args.adapter and "model" not in config:
-        config["model"] = getattr(args, "model", None) or "gpt-4o"
+    adapter_type = (args.adapter or "").lower()
+    if adapter_type and "model" not in config:
+        if adapter_type == "ollama":
+            models = _fetch_ollama_models()
+            config["model"] = _resolve_ollama_model_for_chat(args, models)
+        elif adapter_type == "groq":
+            config["model"] = _chat_model_arg(args) if _ollama_model_explicitly_set(args) else _groq_chat_model()
+        else:
+            config["model"] = _chat_model_arg(args) or "gpt-4o"
     return get_adapter(args.adapter, **config)
 
 
@@ -594,9 +703,7 @@ def _interactive_adapter_select():
 
     # Groq (with auto-incrementing key rotation)
     if _has("GROQ_API_KEY"):
-        candidates.append(
-            _probe_adapter("Groq", GroqAdapter, os.environ.get("IDENTITY_MODEL", "llama-3.3-70b-versatile"))
-        )
+        candidates.append(_probe_adapter("Groq", GroqAdapter, _groq_chat_model()))
 
     if _has("SAMBANOVA_API_KEY"):
         candidates.append(
@@ -624,10 +731,16 @@ def _interactive_adapter_select():
         )
 
     # Ollama (local) — auto-start the server if it isn't running, then offer it
-    ollama_model = os.environ.get("IDENTITY_MODEL", "llama3.2")
     ollama_ok, ollama_msg = _ensure_ollama_running()
+    ollama_models = _fetch_ollama_models() if ollama_ok else []
     if ollama_ok:
-        candidates.append(("Ollama (local)", OllamaAdapter(model=ollama_model), None))
+        if ollama_models:
+            ollama_model = _resolve_ollama_default_model(ollama_models)
+            candidates.append(_probe_adapter("Ollama (local)", OllamaAdapter, ollama_model))
+        else:
+            candidates.append(
+                ("Ollama (local)", None, "Ollama: no models pulled (run `ollama pull <model>`)")
+            )
     else:
         candidates.append(("Ollama (local)", None, f"Ollama: {ollama_msg}"))
 
@@ -671,7 +784,12 @@ def _interactive_adapter_select():
     if selected_name != "Ollama (local)":
         ordered += ollama_entry  # local model always last resort
     else:
-        ordered = ollama_entry  # user explicitly chose the local model
+        # User explicitly chose local — pick from `ollama list` equivalents
+        if ollama_models:
+            chosen_model = _interactive_ollama_model_select(ollama_models)
+            ordered = [("Ollama (local)", OllamaAdapter(model=chosen_model))]
+        else:
+            ordered = ollama_entry
 
     adapters = [a for _, a in ordered]
     if len(adapters) == 1:
@@ -719,7 +837,7 @@ def cmd_chat(args: argparse.Namespace) -> int:
     identity_name = identity_spec.get("name", resolved) if isinstance(identity_spec, dict) else resolved
     manager = _get_snapshot_manager(storage, resolved)
     print(f"\n  \u25B6 IdentityOS Chat — {identity_name}")
-    print(f"  Type 'exit' or Ctrl-C to quit. Type ':snapshot' to checkpoint.")
+    print(f"  Type 'exit' or Ctrl-C to quit. Type /help for chat commands.")
     print()
 
     # Resolve adapter
@@ -740,10 +858,21 @@ def cmd_chat(args: argparse.Namespace) -> int:
         print(f"[warn] Could not initialize runtime ({e}). Running in echo mode.")
         runtime_ok = False
 
-    session_turns = 0
+    ctx = ChatContext(
+        runtime=runtime if runtime_ok else None,
+        manager=manager,
+        storage=storage,
+        identity_id=resolved,
+        session_id=session_id if runtime_ok else "echo",
+        identity_name=identity_name,
+    )
+
+    from cli.chat_commands import build_input_reader
+    read_line = build_input_reader()
+
     while True:
         try:
-            user_input = input(f"\n{_color('you>', _GREEN)} ").strip()
+            user_input = read_line(f"\n{_color('you>', _GREEN)} ").strip()
         except (KeyboardInterrupt, EOFError):
             print("\nGoodbye.")
             break
@@ -753,16 +882,12 @@ def cmd_chat(args: argparse.Namespace) -> int:
         if user_input.lower() in ("exit", "quit", "bye"):
             print("Goodbye.")
             break
-        if user_input == ":snapshot":
-            snap_id = manager.capture(
-                latest.modules,
-                label=f"chat-turn-{session_turns}",
-            )
-            print(f"  [snapshot saved: {snap_id[:8]}]")
-            continue
-        if user_input == ":history":
-            for snap in manager.history():
-                print(f"  {snap.summary()}")
+
+        status = dispatch_chat_command(user_input, ctx)
+        if status == "exit":
+            print("Goodbye.")
+            break
+        if status == "handled":
             continue
 
         if runtime_ok:
@@ -770,7 +895,7 @@ def cmd_chat(args: argparse.Namespace) -> int:
                 req = InteractionRequest(
                     identity_id=resolved,
                     user_input=user_input,
-                    session_id=session_id,
+                    session_id=ctx.session_id,
                 )
                 resp = runtime.process(req)
                 output = _render_output(resp.output)
@@ -782,7 +907,7 @@ def cmd_chat(args: argparse.Namespace) -> int:
             print(f"\n{identity_name}> [echo] {user_input}\n")
             print("─" * 40)
 
-        session_turns += 1
+        ctx.turns += 1
 
     return 0
 
@@ -868,7 +993,11 @@ def build_parser() -> argparse.ArgumentParser:
     p_chat.add_argument("--id", required=True, help="Identity id (or name)")
     p_chat.add_argument("--adapter", default="", help="LLM adapter type: openai, anthropic, ollama, openrouter")
     p_chat.add_argument("--adapter-config", default="{}", help="JSON string with adapter config")
-    p_chat.add_argument("--model", default="gpt-4o", help="Model adapter to use")
+    p_chat.add_argument(
+        "--model",
+        default="gpt-4o",
+        help="Model name (for ollama: e.g. smollm2:360m-instruct-q4_0)",
+    )
 
     # list
     p_get = sub.add_parser("list", aliases=["get"], help="List all identities ranked by experience")

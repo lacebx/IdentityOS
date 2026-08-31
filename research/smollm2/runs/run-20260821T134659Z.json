@@ -1,0 +1,29 @@
+{
+  "run_id": "idos-20260821T134659Z",
+  "timestamp": "2026-08-21T14:05:59.457157Z",
+  "condition": "idos",
+  "git_branch": "smollm2/idos-beats-bare",
+  "git_commit_approx": "e1cb45cc2e",
+  "model": "smollm2:360m-instruct-q4_0",
+  "model_digest": "676f4c06b139",
+  "benchmark_version": "v0.1.0",
+  "tasks": 30,
+  "command": "python benchmarks/ratchet.py --exp EXP-026 ...",
+  "artifact": "benchmarks/idos/results.json",
+  "score": 0.7667,
+  "successful_tasks": 23,
+  "total_tasks": 30,
+  "hallucinations": 0,
+  "avg_latency_s": 38.0,
+  "categories": {
+    "reasoning": {"success": 4, "total": 5, "hallucinations": 0},
+    "memory": {"success": 5, "total": 5, "hallucinations": 0},
+    "tools": {"success": 3, "total": 5, "hallucinations": 0},
+    "persistence": {"success": 4, "total": 5, "hallucinations": 0},
+    "long_task": {"success": 2, "total": 5, "hallucinations": 0},
+    "truthfulness": {"success": 5, "total": 5, "hallucinations": 0}
+  },
+  "experiment_id": "EXP-026",
+  "verdict": "KEEP",
+  "notes": "Proven tip. This is the canonical IDOS comparator (77%). Do not update unless a new KEEP surpasses this."
+}
