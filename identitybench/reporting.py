@@ -79,7 +79,9 @@ def generate_report_text(
     lines.append(f"  {BOLD}Category Scores{RESET}")
     lines.append(f"  {'-'*40}")
     for cat in ["Memory", "Planning", "Trust", "Adaptation", "Coordination", "Learning", "Evolution"]:
-        score = cat_scores.get(cat, 0)
+        if cat not in cat_scores:
+            continue
+        score = cat_scores[cat]
         prev = prev_cats.get(cat)
         score_str = _format_change(score, prev)
         lines.append(f"    {cat:20s} {score_str:>20s}  {_bar(score)}")
@@ -283,7 +285,9 @@ def generate_markdown_report(run_data: dict, trend_data: Optional[List[dict]] = 
     lines.append("| Category | Score | Explanation |")
     lines.append("|----------|-------|-------------|")
     for cat in ["Memory", "Planning", "Trust", "Adaptation", "Coordination", "Learning", "Evolution"]:
-        score = cat_scores.get(cat, 0)
+        if cat not in cat_scores:
+            continue
+        score = cat_scores[cat]
         exp = explanations.get(cat, {})
         reasons = exp.get("reasons", [])
         summary = "; ".join(reasons[:2]) if reasons else "—"

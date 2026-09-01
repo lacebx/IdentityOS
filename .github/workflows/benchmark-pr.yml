@@ -65,17 +65,13 @@ jobs:
           set -o pipefail
           identitybench run ${{ env.BENCHMARK_IDENTITY }} --mode smoke --seed 42 2>&1 | tee benchmark-results.txt
           identitybench report ${{ env.BENCHMARK_IDENTITY }} --markdown -o benchmark-report.md
+          identitybench endurance report ${{ env.BENCHMARK_IDENTITY }} -o endurance-report.md
 
-      - name: Compare against baseline (main branch)
+      - name: Compare against restored benchmark history
         id: compare
         run: |
           set -o pipefail
-          git fetch origin main:refs/remotes/origin/main
-          if git show origin/main:.identitybench/benchmark_index.json 2>/dev/null; then
-            identitybench compare --id ${{ env.BENCHMARK_IDENTITY }} --last 2 2>&1 | tee regression-check.txt
-          else
-            echo "No baseline found — this is the first run." | tee regression-check.txt
-          fi
+          identitybench compare --id ${{ env.BENCHMARK_IDENTITY }} --last 2 2>&1 | tee regression-check.txt
 
       - name: Check for regressions
         run: |
@@ -91,6 +87,7 @@ jobs:
           path: |
             benchmark-report.md
             benchmark-results.txt
+            endurance-report.md
             regression-check.txt
             .identitybench/
 
@@ -110,6 +107,11 @@ jobs:
               const report = fs.readFileSync('benchmark-report.md', 'utf8');
               const lines = report.split('\n').slice(0, 40).join('\n');
               summary += '\n### Report Excerpt\n' + lines;
+            } catch(e) {}
+            try {
+              const endurance = fs.readFileSync('endurance-report.md', 'utf8');
+              const lines = endurance.split('\n').slice(0, 28).join('\n');
+              summary += '\n### Endurance Health\n' + lines;
             } catch(e) {}
             github.rest.issues.createComment({
               issue_number: context.issue.number,

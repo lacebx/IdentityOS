@@ -46,8 +46,10 @@ jobs:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
+          mkdir -p .identitybench/reports
           identitybench run ${{ env.BENCHMARK_IDENTITY }} --mode smoke --seed 42 2>&1
           identitybench report ${{ env.BENCHMARK_IDENTITY }} --markdown -o ".identitybench/reports/${{ env.BENCHMARK_IDENTITY }}-nightly.md"
+          identitybench endurance report ${{ env.BENCHMARK_IDENTITY }} -o ".identitybench/reports/${{ env.BENCHMARK_IDENTITY }}-endurance.md"
 
       - uses: actions/upload-artifact@v4
         with:
@@ -91,6 +93,7 @@ jobs:
           identitybench run ${{ env.BENCHMARK_IDENTITY }} --mode full --seed 42 2>&1
           identitybench report ${{ env.BENCHMARK_IDENTITY }} --markdown -o ".identitybench/reports/${{ env.BENCHMARK_IDENTITY }}-weekly.md"
           identitybench history ${{ env.BENCHMARK_IDENTITY }}
+          identitybench endurance report ${{ env.BENCHMARK_IDENTITY }} -o ".identitybench/reports/${{ env.BENCHMARK_IDENTITY }}-endurance.md"
 
       - uses: actions/upload-artifact@v4
         with:
@@ -136,6 +139,7 @@ jobs:
             identitybench report ${{ env.BENCHMARK_IDENTITY }} --markdown -o ".identitybench/reports/${{ env.BENCHMARK_IDENTITY }}-endurance-run$i.md"
           done
           identitybench compare --id ${{ env.BENCHMARK_IDENTITY }} --last 3 2>&1
+          identitybench endurance report ${{ env.BENCHMARK_IDENTITY }} -o ".identitybench/reports/${{ env.BENCHMARK_IDENTITY }}-endurance.md"
 
       - uses: actions/upload-artifact@v4
         with:

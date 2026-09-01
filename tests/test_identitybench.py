@@ -176,9 +176,14 @@ class TestMetrics:
 
     def test_metrics_with_empty_transcript(self):
         scores = compute_all_metrics([])
-        assert isinstance(scores, dict)
-        for v in scores.values():
-            assert v == 50.0
+        assert scores == {}
+
+    def test_unobserved_categories_are_not_scored(self):
+        scores = compute_all_metrics([
+            {"type": "recall_check", "response": "green", "ground_truth": "green"},
+        ])
+        assert scores == {"recall_accuracy": 100.0}
+        assert compute_category_scores(scores) == {"Memory": 100.0}
 
 
 class TestWorlds:
@@ -242,6 +247,13 @@ class TestEngine:
         vals2 = [c2.random() for _ in range(10)]
         assert vals1 == vals2
 
+    def test_load_identity_refuses_placeholder_scoring_without_adapter(self):
+        with tempfile.TemporaryDirectory() as td:
+            engine = IdentityBench(identity_id="test-bot", storage_path=td)
+            with patch("identitybench.engine.build_adapter_from_env", return_value=None):
+                with pytest.raises(RuntimeError, match="requires a configured model adapter"):
+                    engine.load_identity()
+
     def test_run_with_mock_runtime(self):
         with tempfile.TemporaryDirectory() as td:
             engine = IdentityBench(
@@ -258,6 +270,38 @@ class TestEngine:
             results = engine.run(world_classes=[ResearchWorld], seed=42)
             assert "Research" in results
             assert mock_runtime.process.call_count >= 6
+
+    def test_category_aggregation_uses_only_worlds_that_observed_it(self):
+        with tempfile.TemporaryDirectory() as td:
+            engine = IdentityBench(identity_id="test-bot", storage_path=td)
+            engine.runtime = MagicMock()
+            engine._world_results = [
+                WorldResult(world_name="Memory", category_scores={"Memory": 80.0}),
+                WorldResult(world_name="Trust", category_scores={"Trust": 60.0}),
+            ]
+            engine._save_results(0.1)
+            run = engine.storage.load_latest_run("test-bot")
+            assert run["category_scores"] == {"Memory": 80.0, "Trust": 60.0}
+            assert run["overall_score"] == 70.0
+
+    def test_failed_world_is_persisted_and_not_returned_as_a_score(self):
+        class FailingWorld(BenchmarkWorld):
+            name = "Failure Evidence"
+
+            def build_schedule(self):
+                raise RuntimeError("provider unavailable")
+
+        with tempfile.TemporaryDirectory() as td:
+            engine = IdentityBench(identity_id="test-bot", storage_path=td)
+            engine.runtime = MagicMock(adapter=object())
+
+            with pytest.raises(RuntimeError, match="Benchmark worlds failed"):
+                engine.run(world_classes=[FailingWorld])
+
+            run = engine.storage.load_latest_run("test-bot")
+            assert run["status"] == "failed"
+            assert run["overall_score"] == 0.0
+            assert run["worlds"][0]["error"] == "provider unavailable"
 
 
 class TestBenchmarkReport:

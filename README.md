@@ -179,6 +179,10 @@ IdentityOS also ships reference integrations for continuity outside the CLI:
 - [JavaScript SDK](clients/javascript/README.md) for Node.js integrations that
   use the public API without importing runtime internals.
 
+Long-lived runtime health is measured by IdentityBench's durable endurance
+monitor. See [docs/IDENTITYBENCH_ENDURANCE.md](docs/IDENTITYBENCH_ENDURANCE.md)
+for recurring runs, restart evidence, trend graphs, and degradation alerts.
+
 ---
 
 ## Capabilities: Give Your Identity New Skills

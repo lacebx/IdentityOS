@@ -10,6 +10,7 @@ from .openrouter_adapter import OpenRouterAdapter
 from .groq_adapter import GroqAdapter
 from .cerebras_adapter import CerebrasAdapter
 from .sambanova_adapter import SambaNovaAdapter
+from .configuration import build_adapter_from_env, describe_adapter
 
 
 def get_adapter(
@@ -25,6 +26,7 @@ def get_adapter(
         "openrouter": OpenRouterAdapter,
         "groq": GroqAdapter,
         "sambanova": SambaNovaAdapter,
+        "cerebras": CerebrasAdapter,
     }
     if adapter_type not in registry:
         raise ValueError(
@@ -47,4 +49,6 @@ __all__ = [
     "GroqAdapter",
     "SambaNovaAdapter",
     "get_adapter",
+    "build_adapter_from_env",
+    "describe_adapter",
 ]

@@ -47,6 +47,11 @@ class ChainAdapter(BaseAdapter):
     def model(self, val: str) -> None:
         self._model = val
 
+    @property
+    def adapters(self) -> tuple[BaseAdapter, ...]:
+        """Ordered, read-only provider chain for diagnostics."""
+        return tuple(self._adapters)
+
     def _is_exhaustion(self, error: Exception) -> bool:
         """True when the provider is unusable and the next adapter should be tried.
 
