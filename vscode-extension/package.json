@@ -1,0 +1,41 @@
+{
+  "name": "identityos-vscode",
+  "displayName": "IdentityOS",
+  "description": "A persistent, project-aware coding assistant powered by IdentityOS.",
+  "version": "1.0.0",
+  "publisher": "identityos",
+  "license": "Apache-2.0",
+  "engines": { "vscode": "^1.85.0", "node": ">=18" },
+  "categories": ["AI", "Other"],
+  "activationEvents": ["onCommand:identityos.chat", "onCommand:identityos.selectIdentity"],
+  "main": "./extension.js",
+  "scripts": { "package": "vsce package" },
+  "dependencies": { "@identityos/sdk": "file:../clients/javascript" },
+  "devDependencies": { "@vscode/vsce": "^3.0.0" },
+  "contributes": {
+    "commands": [
+      { "command": "identityos.chat", "title": "IdentityOS: Chat" },
+      { "command": "identityos.selectIdentity", "title": "IdentityOS: Select Identity" },
+      { "command": "identityos.rememberSelection", "title": "IdentityOS: Remember Coding Preference" },
+      { "command": "identityos.addProjectGoal", "title": "IdentityOS: Add Project Goal" },
+      { "command": "identityos.showStatus", "title": "IdentityOS: Show Cached Identity Status" }
+    ],
+    "configuration": {
+      "title": "IdentityOS",
+      "properties": {
+        "identityos.runtimeUrl": {
+          "type": "string", "default": "http://localhost:8000",
+          "description": "IdentityOS public API URL."
+        },
+        "identityos.apiKey": {
+          "type": "string", "default": "", "description": "Optional IdentityOS API key."
+        }
+      }
+    },
+    "menus": {
+      "editor/context": [
+        { "command": "identityos.rememberSelection", "when": "editorHasSelection", "group": "navigation@100" }
+      ]
+    }
+  }
+}

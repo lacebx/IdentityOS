@@ -4,7 +4,7 @@ IdentityOS HTTP client — communicate with a remote Identity Runtime API.
 Usage:
     from identityos.client import IdentityClient
 
-    client = IdentityClient(base_url="http://localhost:8765")
+    client = IdentityClient(base_url="http://localhost:8000")
 
     # Create an identity
     client.create_identity("pluto", name="Pluto", base_model="gpt-4o")
@@ -13,8 +13,8 @@ Usage:
     client.add_memory("pluto", "I met Gesicht today. He feels something.", source="story")
 
     # Build context for a prompt
-    ctx = client.build_context("pluto", recent_messages=[], max_tokens=800)
-    print(ctx["context_block"])
+    ctx = client.build_context("pluto", recent_messages=[])
+    print(ctx["augmented_context"])
 """
 
 from __future__ import annotations
@@ -51,17 +51,23 @@ class IdentityClient:
 
     def __init__(
         self,
-        base_url: str = "http://localhost:8765",
+        base_url: str = "http://localhost:8000",
         timeout: float = 10.0,
+        api_key: str = "",
+        user_id: str = "sdk-user",
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
+        self.api_key = api_key
+        self.user_id = user_id
+        headers = {"X-API-Key": api_key} if api_key else {}
 
         if _HTTPX_AVAILABLE:
-            self._client = httpx.Client(base_url=self.base_url, timeout=timeout)
+            self._client = httpx.Client(base_url=self.base_url, timeout=timeout, headers=headers)
             self._mode = "httpx"
         elif _REQUESTS_AVAILABLE:
             self._session = _requests.Session()
+            self._session.headers.update(headers)
             self._mode = "requests"
         else:
             raise ImportError(
@@ -150,17 +156,12 @@ class IdentityClient:
             extra: Any additional fields to merge into the spec.
         """
         payload: Dict[str, Any] = {
-            "id": identity_id,
+            "identity_id": identity_id,
             "name": name or identity_id,
-            "base_model": base_model,
-            "traits": traits or [],
-            "memory_enabled": memory_enabled,
-            "eval_hooks": eval_hooks or [],
-            "avatar": avatar,
+            "persona": (extra or {}).get("persona", ", ".join(traits or [])),
+            "role": (extra or {}).get("role", ""),
         }
-        if extra:
-            payload.update(extra)
-        return self._post(f"/identity/{identity_id}", payload)
+        return self._post("/identity", payload)
 
     def delete_identity(self, identity_id: str) -> Dict[str, Any]:
         """Permanently delete an identity and all its memories."""
@@ -184,10 +185,13 @@ class IdentityClient:
             source: Where it came from (e.g. "chatgpt", "grok", "api").
             memory_type: "episodic" | "semantic" | "core".
         """
-        return self._post(
-            f"/memory/{identity_id}",
-            {"content": content, "source": source, "type": memory_type},
-        )
+        return self._post("/memory", {
+            "identity_id": identity_id,
+            "content": content,
+            "user_id": self.user_id,
+            "memory_type": memory_type,
+            "tags": [source],
+        })
 
     def search_memories(
         self,
@@ -200,11 +204,15 @@ class IdentityClient:
 
         Returns a list of memory objects ordered by relevance.
         """
-        data = self._post(
-            f"/memory/{identity_id}/search",
-            {"query": query, "top_k": top_k},
+        data = self._get(f"/memories/{self.user_id}/{identity_id}?limit={max(top_k * 4, top_k)}")
+        memories = data.get("memories", [])
+        terms = {term.lower() for term in query.split() if term}
+        ranked = sorted(
+            memories,
+            key=lambda memory: sum(term in memory.get("content", "").lower() for term in terms),
+            reverse=True,
         )
-        return data.get("results", [])
+        return ranked[:top_k]
 
     # ─── Context building ────────────────────────────────────────────────────────
 
@@ -225,13 +233,16 @@ class IdentityClient:
         Returns:
             dict with keys: ``context_block`` (str), ``token_estimate`` (int).
         """
-        return self._post(
-            f"/context/{identity_id}",
-            {
-                "recent_messages": recent_messages or [],
-                "max_tokens": max_tokens,
-            },
+        recent = recent_messages or []
+        query = "\n".join(
+            f"{message.get('role', 'user')}: {message.get('content', '')}"
+            for message in recent
         )
+        return self._post("/context", {
+            "message": query,
+            "identity_id": identity_id,
+            "user_id": self.user_id,
+        })
 
     # ─── Eval ────────────────────────────────────────────────────────────────────
 
@@ -246,10 +257,26 @@ class IdentityClient:
 
         Returns a dict with per-hook scores and an overall alignment score.
         """
-        return self._post(
-            f"/eval/{identity_id}",
-            {"prompt": prompt, "response": response},
-        )
+        return self._post("/evaluate", {
+            "identity_id": identity_id,
+            "user_id": self.user_id,
+            "message": prompt,
+            "response": response,
+        })
+
+    def chat(
+        self,
+        identity_id: str,
+        message: str,
+        session_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Run the complete identity pipeline through the public chat API."""
+        return self._post("/chat", {
+            "identity_id": identity_id,
+            "user_id": self.user_id,
+            "session_id": session_id,
+            "message": message,
+        })
 
     # ─── Context manager ─────────────────────────────────────────────────────────
 

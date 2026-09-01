@@ -1,0 +1,10 @@
+{
+  "name": "@identityos/sdk",
+  "version": "2.0.0",
+  "description": "Zero-dependency JavaScript client for the IdentityOS public API",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "scripts": { "test": "node test.js" },
+  "license": "Apache-2.0",
+  "engines": { "node": ">=18" }
+}

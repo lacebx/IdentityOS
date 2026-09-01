@@ -167,6 +167,15 @@ For durable pipeline inspection and identity time travel, see
 [docs/DEBUGGER.md](docs/DEBUGGER.md) or run `identity debug --id <id>` and
 `identity replay --id <id>`.
 
+IdentityOS also ships reference integrations for continuity outside the CLI:
+
+- [Browser bridge](extension/README.md) for user-controlled continuity across
+  ChatGPT, Claude, Gemini, Grok, GitHub, Reddit, and YouTube.
+- [VS Code extension](vscode-extension/README.md) for project-partitioned
+  coding preferences, persistent software goals, and offline identity state.
+- [JavaScript SDK](clients/javascript/README.md) for Node.js integrations that
+  use the public API without importing runtime internals.
+
 ---
 
 ## Capabilities: Give Your Identity New Skills
