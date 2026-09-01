@@ -68,6 +68,8 @@ function loadIdentity(id) {
       renderRelationships(data.relationships);
       renderAdapter(data.adapter);
       renderEvaluation(data.evaluation);
+      renderDebugger(data.debug);
+      renderReplay(data.replay);
       renderPersistence(data.persistence);
       renderContext(data.context_sections || null, data.context);
       updateAllCounts(data);
@@ -80,6 +82,8 @@ function updateAllCounts(data) {
   setCount('goals', data.goals?.length);
   setCount('relationships', data.relationships?.length);
   setCount('persistence', data.persistence?.length);
+  setCount('debug', data.debug?.decision_trace?.length);
+  setCount('replay', data.replay?.event_count);
   if (data.evolution) {
     setCount('evolution', data.evolution.timeline_count);
   }
@@ -529,6 +533,44 @@ function renderEvaluation(evalData) {
     ${evalData.details ? `<div class="eval-detail">${esc(evalData.details)}</div>` : ''}
     ${evalData.criteria ? `<div class="eval-grid" style="margin-top:6px">${evalData.criteria.map(c => `<span class="eval-criterion">${esc(c.name)}</span><span></span><span class="eval-criterion-score" style="color:${c.score >= 0.5 ? 'var(--green)' : 'var(--red)'}">${c.score.toFixed(2)}</span>`).join('')}</div>` : ''}
   `;
+}
+
+function renderDebugger(debug) {
+  const el = document.getElementById('panel-debug-body');
+  if (!debug) {
+    el.innerHTML = '<div class="empty">Run an interaction to capture a durable trace.</div>';
+    return;
+  }
+  const stages = debug.decision_trace || [];
+  const evidence = debug.evidence || [];
+  const memories = debug.retrieved_memories || [];
+  const conflicts = debug.conflicts || [];
+  const laws = debug.laws_consulted || [];
+  el.innerHTML = `
+    <div class="identity-field"><span class="identity-field-label">Request</span><span>${esc(debug.request_id)}</span></div>
+    <div class="identity-field"><span class="identity-field-label">Prompt</span><span>~${debug.prompt?.token_estimate || 0} tokens</span></div>
+    <div class="identity-field"><span class="identity-field-label">Laws</span><span>${laws.map(esc).join(', ') || 'none recorded'}</span></div>
+    <div style="margin-top:6px;font-size:10px;color:var(--text2)">${stages.map(stage => `${esc(stage.stage)} ${Number(stage.duration_ms || 0).toFixed(1)}ms`).join(' → ')}</div>
+    <div style="margin-top:6px;font-size:11px">Retrieved memories: ${memories.length} · Evidence calls: ${evidence.length} · Conflicts: ${conflicts.length}</div>
+    <div style="margin-top:4px;font-size:10px;color:var(--text2)">${esc(debug.note || '')}</div>
+  `;
+}
+
+function renderReplay(replay) {
+  const el = document.getElementById('panel-replay-body');
+  if (!replay || !replay.events?.length) {
+    el.innerHTML = '<div class="empty">No replay events yet.</div>';
+    return;
+  }
+  const events = replay.events.slice(-25).reverse();
+  el.innerHTML = events.map(event => `
+    <div class="tl-item">
+      <span class="tl-icon">&#x25CF;</span>
+      <span class="tl-type">[${esc(event.track)}]</span>
+      <span class="tl-title">${esc(event.title)}</span>
+      <span class="tl-time">${event.timestamp ? timeAgo(event.timestamp) : ''}</span>
+    </div>
+  `).join('');
 }
 
 function renderPersistence(persistEvents) {

@@ -137,6 +137,16 @@
     </div>
 
     <div class="panel">
+      <div class="panel-header" onclick="togglePanel(this)">Debugger <span class="panel-count" id="count-debug"></span><span>&#x25BC;</span></div>
+      <div class="panel-body" id="panel-debug-body"><div class="empty">Run an interaction to capture a durable trace.</div></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header" onclick="togglePanel(this)">Identity Replay <span class="panel-count" id="count-replay"></span><span>&#x25BC;</span></div>
+      <div class="panel-body" id="panel-replay-body"><div class="empty">No replay events yet.</div></div>
+    </div>
+
+    <div class="panel">
       <div class="panel-header" onclick="togglePanel(this)">Persistence Events <span class="panel-count" id="count-persistence"></span><span>&#x25BC;</span></div>
       <div class="panel-body" id="panel-persistence-body"><div class="empty">No persistence events yet.</div></div>
     </div>

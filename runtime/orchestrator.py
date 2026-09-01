@@ -44,6 +44,7 @@ from core.skills import SkillRegistry
 from core.timeline import LifeEvent, LifeEventType, TimelineRegistry
 from core.user_profile import UserProfile, extract_user_facts, try_explicit_abstain
 from runtime.event_bus import EventBus, EventType
+from runtime.debugger import build_debug_record, persist_debug_record
 from runtime.observability import InteractionTrace
 from runtime.persistence import InMemoryBackend
 
@@ -1028,10 +1029,14 @@ class IdentityRuntime:
         mutation_proposals = self.mutation_engine.analyze(
             user_input=sanitized_input, assistant_response=final_output, identity_spec=identity,
         )
+        validated_mutations: List[MutationProposal] = []
         if mutation_proposals:
-            validated = self.mutation_engine.validate(mutation_proposals, existing_records=None)
-            self.mutation_engine.apply_proposals_to_fact_store(validated)
-            for proposal in validated:
+            validated_mutations = self.mutation_engine.validate(
+                mutation_proposals,
+                existing_records=None,
+            )
+            self.mutation_engine.apply_proposals_to_fact_store(validated_mutations)
+            for proposal in validated_mutations:
                 if proposal.status in (MutationStatus.ACCEPTED, MutationStatus.CONFLICT):
                     self._emit(
                         EventType.IDENTITY_MUTATION_ACCEPTED if proposal.status == MutationStatus.ACCEPTED
@@ -1043,9 +1048,15 @@ class IdentityRuntime:
                 else:
                     self._emit(EventType.IDENTITY_MUTATION_REJECTED, identity_id=identity.id,
                                session_id=session_id, field=proposal.field, reason=proposal.rejection_reason)
-            accepted_count = sum(1 for p in validated if p.status == MutationStatus.ACCEPTED)
+            accepted_count = sum(
+                1 for p in validated_mutations if p.status == MutationStatus.ACCEPTED
+            )
             if accepted_count > 0 and session_mode == SessionMode.NORMAL:
-                fields_changed = [p.field for p in validated if p.status == MutationStatus.ACCEPTED]
+                fields_changed = [
+                    p.field
+                    for p in validated_mutations
+                    if p.status == MutationStatus.ACCEPTED
+                ]
                 identity.bump_version(level="patch", changelog=f"Mutated: {', '.join(fields_changed[:3])}")
             if session_mode == SessionMode.NORMAL:
                 self._save_fact_store(identity.id)
@@ -1112,10 +1123,42 @@ class IdentityRuntime:
         timings.clear()
         timings.update(trace.finish())
 
+        debug_recorded = False
+        if self._storage is not None:
+            try:
+                debug_record = build_debug_record(
+                    self,
+                    request_id=request.id,
+                    identity_id=identity.id,
+                    user_id=user_id,
+                    session_id=session_id,
+                    user_input=sanitized_input,
+                    output=final_output,
+                    context=context,
+                    timings_ms=timings,
+                    input_policy=input_policy,
+                    output_policy=output_policy,
+                    evaluation_report=eval_report,
+                    evidence_results=_evidence_results,
+                    mutation_proposals=validated_mutations,
+                )
+                persist_debug_record(self._storage, debug_record)
+                debug_recorded = True
+            except Exception as exc:
+                self._emit_subsystem_failure(
+                    "debug_record",
+                    exc,
+                    identity_id=identity.id,
+                    session_id=session_id,
+                )
+
         return InteractionResponse(
             request_id=request.id, identity_id=identity.id, user_id=user_id, output=final_output,
             context_used=context, policy_passed=policy_passed, eval_score=eval_report.overall_score,
-            metadata={"timings_ms": timings},
+            metadata={
+                "timings_ms": timings,
+                "debug_request_id": request.id if debug_recorded else None,
+            },
         )
 
     def __repr__(self) -> str:

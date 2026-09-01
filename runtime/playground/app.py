@@ -458,6 +458,15 @@ class RuntimeManager:
             "traits": identity_dict.get("traits", []),
         }
 
+        from runtime.debugger import load_debug_record
+        from runtime.replay import build_identity_replay
+
+        debug_record = load_debug_record(self._storage, identity_id)
+        try:
+            replay = build_identity_replay(self._storage, identity_id)
+        except ValueError:
+            replay = None
+
         return {
             "identity": identity_dict,
             "memories": mem_dicts,
@@ -471,6 +480,8 @@ class RuntimeManager:
             "context_sections": context_sections,
             "evolution": evolution,
             "identity_evolution": identity_evolution,
+            "debug": debug_record,
+            "replay": replay,
         }
 
     def process_message(self, identity_id: str, user_input: str) -> dict:
@@ -604,6 +615,27 @@ async def api_create_identity(body: dict):
 async def api_get_identity(identity_id: str):
     data = manager.get_identity_data(identity_id)
     return JSONResponse(data)
+
+
+@app.get("/playground/api/debug/{identity_id}")
+async def api_get_debug_record(identity_id: str, interaction: Optional[str] = None):
+    from runtime.debugger import load_debug_record
+
+    record = load_debug_record(manager._storage, identity_id, interaction)
+    if record is None:
+        return JSONResponse({"error": "debug record not found"}, status_code=404)
+    return JSONResponse(record)
+
+
+@app.get("/playground/api/replay/{identity_id}")
+async def api_get_replay(identity_id: str):
+    from runtime.replay import build_identity_replay
+
+    try:
+        replay = build_identity_replay(manager._storage, identity_id)
+    except ValueError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=404)
+    return JSONResponse(replay)
 
 
 @app.post("/playground/api/chat")
