@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Identity Runtime Bridge",
-  "version": "1.0.0",
-  "description": "Gives AI chatbots persistent identity and memory across models. Powered by identity-runtime.",
+  "name": "IdentityOS Bridge",
+  "version": "1.1.0",
+  "description": "Carries a user-controlled IdentityOS identity across AI and web platforms.",
 
   "permissions": [
     "storage",
@@ -12,9 +12,16 @@
   "host_permissions": [
     "https://chatgpt.com/*",
     "https://chat.openai.com/*",
+    "https://claude.ai/*",
+    "https://gemini.google.com/*",
     "https://grok.com/*",
     "https://x.com/*",
-    "http://localhost:8000/*"
+    "https://github.com/*",
+    "https://www.reddit.com/*",
+    "https://old.reddit.com/*",
+    "https://www.youtube.com/*",
+    "http://localhost/*",
+    "http://127.0.0.1/*"
   ],
 
   "background": {
@@ -24,16 +31,29 @@
 
   "content_scripts": [
     {
-      "matches": ["https://chatgpt.com/*", "https://chat.openai.com/*"],
-      "js": ["content_chatgpt.js"],
-      "run_at": "document_idle"
-    },
-    {
-      "matches": ["https://grok.com/*", "https://x.com/*"],
-      "js": ["content_grok.js"],
+      "matches": [
+        "https://chatgpt.com/*",
+        "https://chat.openai.com/*",
+        "https://claude.ai/*",
+        "https://gemini.google.com/*",
+        "https://grok.com/*",
+        "https://x.com/*",
+        "https://github.com/*",
+        "https://www.reddit.com/*",
+        "https://old.reddit.com/*",
+        "https://www.youtube.com/*"
+      ],
+      "js": ["content_universal.js"],
       "run_at": "document_idle"
     }
   ],
+
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "identityos@lacebx.dev",
+      "strict_min_version": "109.0"
+    }
+  },
 
   "action": {
     "default_popup": "popup.html",

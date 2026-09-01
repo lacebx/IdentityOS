@@ -20,6 +20,7 @@ from pydantic import BaseModel, Field
 
 from adapters import ChainAdapter
 from core.evaluation import register_default_criteria
+from core.relationships import EdgeType
 from runtime.orchestrator import IdentityRuntime, InteractionRequest, InteractionResponse
 from runtime.persistence import JSONFileBackend
 
@@ -575,6 +576,17 @@ async def evaluate(req: EvaluateRequest):
         session_id=session_id,
         user_id=req.user_id,
     )
+
+    # External assistants do not pass through IdentityRuntime.process(), so
+    # record their platform-partitioned user relationship here. This keeps the
+    # relationship graph truthful without asking content scripts to mutate it.
+    runtime.identity_graph.interact_or_connect(
+        source_id=req.identity_id,
+        target_id=req.user_id,
+        edge_type=EdgeType.PEER,
+        bidirectional=False,
+    )
+    runtime._persist_relationships(req.identity_id)
 
     if stored:
         mem_type = stored.tags[-1] if len(stored.tags) > 1 else "general"

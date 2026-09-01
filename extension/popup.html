@@ -172,7 +172,7 @@
       margin-bottom: 8px;
     }
 
-    #runtime-url {
+    #runtime-url, #api-key {
       flex: 1;
       background: #11112a;
       border: 1px solid #2a2a55;
@@ -181,6 +181,27 @@
       padding: 4px 8px;
       font-size: 12px;
       font-family: monospace;
+    }
+
+    #api-key { width: 100%; margin-bottom: 8px; }
+
+    .privacy-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px 10px;
+      color: #aaaacc;
+      font-size: 11px;
+    }
+
+    .privacy-grid label { display: flex; align-items: center; gap: 5px; }
+
+    .partition-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 9px;
+      color: #ccccff;
+      font-size: 11px;
     }
 
     #btn-save-url {
@@ -215,9 +236,28 @@
   <section>
     <div class="section-label">Runtime URL</div>
     <div id="runtime-url-row">
-      <input id="runtime-url" type="text" value="http://localhost:8765" />
+      <input id="runtime-url" type="text" value="http://localhost:8000" />
       <button id="btn-save-url">Save</button>
     </div>
+    <input id="api-key" type="password" placeholder="API key (optional locally)" />
+  </section>
+
+  <div class="divider"></div>
+
+  <section>
+    <div class="section-label">Per-site privacy</div>
+    <div class="privacy-grid">
+      <label><input type="checkbox" data-site="chatgpt"> ChatGPT</label>
+      <label><input type="checkbox" data-site="claude"> Claude</label>
+      <label><input type="checkbox" data-site="gemini"> Gemini</label>
+      <label><input type="checkbox" data-site="grok"> Grok</label>
+      <label><input type="checkbox" data-site="github"> GitHub</label>
+      <label><input type="checkbox" data-site="reddit"> Reddit</label>
+      <label><input type="checkbox" data-site="youtube"> YouTube</label>
+    </div>
+    <label class="partition-row">
+      <input id="partition-platform" type="checkbox"> Partition memory by platform
+    </label>
   </section>
 
   <div class="divider"></div>
@@ -237,7 +277,7 @@
     <button id="btn-disconnect">Disconnect Identity</button>
   </div>
 
-  <footer>Identity Runtime Bridge v0.1.0</footer>
+  <footer>IdentityOS Bridge v1.1.0</footer>
 
   <script src="popup.js"></script>
 </body>

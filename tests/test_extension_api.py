@@ -131,3 +131,8 @@ class TestExtensionAPI:
         assert "memories_stored" in data
         assert isinstance(data["memories_stored"], int)
         assert "summary" in data
+
+        from runtime import main as runtime_main
+
+        relationships = runtime_main.runtime.identity_graph.get_relationships("ext-test-bot")
+        assert any(edge.target_id == "ext-user" for edge in relationships)
