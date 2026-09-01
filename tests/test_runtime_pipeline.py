@@ -11,6 +11,7 @@ Tests for the full IdentityRuntime pipeline:
 - Evaluation triggers persistence
 """
 
+import json
 from pathlib import Path
 
 import pytest
@@ -19,7 +20,11 @@ from core.cognitive_engine import ContextComposer
 from core.evaluation import register_default_criteria
 from core.identity import create_identity
 from core.memory import MemoryType
-from runtime.orchestrator import IdentityRuntime, InteractionRequest
+from runtime.orchestrator import (
+    IdentityRuntime,
+    InteractionRequest,
+    _serialize_tool_result,
+)
 from runtime.persistence import JSONFileBackend
 
 
@@ -39,6 +44,24 @@ def identity(runtime):
     spec = create_identity(name="TestBot", identity_id="test-bot")
     runtime.register(spec)
     return spec
+
+
+class TestToolResultBoundary:
+    def test_small_results_are_preserved(self):
+        result = _serialize_tool_result({"items": [1, 2, 3]}, 256)
+        assert json.loads(result) == {"items": [1, 2, 3]}
+
+    def test_large_results_are_explicitly_bounded(self):
+        result = _serialize_tool_result({"items": ["x" * 5000]}, 512)
+        decoded = json.loads(result)
+
+        assert len(result) <= 512
+        assert decoded["truncated"] is True
+        assert decoded["original_chars"] > 5000
+        assert decoded["result_excerpt"]
+
+    def test_runtime_sanitizes_tool_result_limit(self):
+        assert IdentityRuntime(max_tool_result_chars=1).max_tool_result_chars == 256
 
 
 class TestSemanticExtraction:

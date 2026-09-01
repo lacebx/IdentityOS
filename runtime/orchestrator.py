@@ -180,11 +180,46 @@ class InteractionResponse:
     metadata: Dict[str, Any] = field(default_factory=dict)
     timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
+
+def _serialize_tool_result(data: Any, max_chars: int) -> str:
+    """Serialize a capability result without allowing it to consume the next prompt.
+
+    Capability output is untrusted input to the model loop.  Keep small results
+    unchanged, but make truncation explicit and preserve the original size when a
+    result exceeds the runtime's configured boundary.
+    """
+    limit = max(256, int(max_chars))
+    payload = data if isinstance(data, (dict, list)) else {"result": str(data)}
+    serialized = json.dumps(payload, default=str)
+    if len(serialized) <= limit:
+        return serialized
+
+    envelope = {
+        "truncated": True,
+        "original_chars": len(serialized),
+        "result_excerpt": "",
+    }
+    low = 0
+    high = min(len(serialized), limit)
+    best = json.dumps(envelope, default=str)
+    while low <= high:
+        midpoint = (low + high) // 2
+        envelope["result_excerpt"] = serialized[:midpoint]
+        candidate = json.dumps(envelope, default=str)
+        if len(candidate) <= limit:
+            best = candidate
+            low = midpoint + 1
+        else:
+            high = midpoint - 1
+    return best
+
+
 class IdentityRuntime:
     def __init__(
         self,
         adapter=None,
         max_context_tokens: int = 4000,
+        max_tool_result_chars: int = 8000,
         storage=None,
     ):
         self.identity_store = IdentityStore()
@@ -196,6 +231,7 @@ class IdentityRuntime:
         self.policy_engine = PolicyEngine()
         self.evaluation_engine = EvaluationEngine()
         self.context_composer = ContextComposer(max_tokens=max_context_tokens)
+        self.max_tool_result_chars = max(256, int(max_tool_result_chars))
         self.motivation_engine = MotivationEngine()
         self.mutation_engine = IdentityMutationEngine(min_confidence=0.5)
         self.timeline_registry = TimelineRegistry()
@@ -892,10 +928,11 @@ class IdentityRuntime:
                     "error": {"message": err_msg} if err_msg else None,
                 })
                 if success:
-                    if isinstance(data, (dict, list)):
-                        return json.dumps(data, default=str)
-                    return json.dumps({"result": str(data)}, default=str)
-                return json.dumps({"error": err_msg or "Skill reported failure"}, default=str)
+                    return _serialize_tool_result(data, self.max_tool_result_chars)
+                return _serialize_tool_result(
+                    {"error": err_msg or "Skill reported failure"},
+                    self.max_tool_result_chars,
+                )
             except Exception as e:
                 duration_ms = (_time_mod.monotonic() - t0) * 1000
                 _evidence_results.append({
@@ -903,7 +940,10 @@ class IdentityRuntime:
                     "success": False, "confidence": 0.0, "duration_ms": duration_ms,
                     "error": {"message": f"{type(e).__name__}: {e}"},
                 })
-                return json.dumps({"error": f"{type(e).__name__}: {e}"}, default=str)
+                return _serialize_tool_result(
+                    {"error": f"{type(e).__name__}: {e}"},
+                    self.max_tool_result_chars,
+                )
 
         stage_started = trace.start_stage()
         context = self.context_composer.compose(
