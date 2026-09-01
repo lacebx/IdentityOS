@@ -210,7 +210,13 @@
       "id": "command_exec",
       "name": "Command Exec",
       "version": "1.0.0",
-      "description": "Executes real shell commands and returns actual stdout, stderr, and exit code"
+      "description": "Executes commands without shell expansion and returns actual stdout, stderr, and exit code",
+      "author": "IdentityOS",
+      "skills": 1,
+      "permissions": [
+        "process:execute"
+      ],
+      "url": "command_exec/manifest.json"
     }
   ]
 }

@@ -2,10 +2,15 @@
   "id": "command_exec",
   "name": "Command Exec",
   "version": "1.0.0",
-  "author": "auto-generated",
+  "author": "IdentityOS",
   "license": "MIT",
-  "description": "Executes real shell commands and returns actual stdout, stderr, and exit code",
+  "homepage": "https://github.com/lacebx/IdentityOS",
+  "description": "Executes commands without shell expansion and returns actual stdout, stderr, and exit code",
   "provider": "core.capabilities.command_exec.CommandExecCapability",
+  "config_schema": {
+    "type": "object",
+    "properties": {}
+  },
   "permissions": {
     "network": false,
     "filesystem": true
@@ -13,8 +18,8 @@
   "skills": [
     {
       "name": "command_exec.run",
-      "description": "Generated capability",
-      "permission": "public"
+      "description": "Execute a command without shell expansion, returning actual stdout, stderr, and exit code",
+      "permission": "process:execute"
     }
   ]
 }

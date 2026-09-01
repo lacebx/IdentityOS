@@ -208,42 +208,51 @@ class TaskPlannerCapability(Capability):
         steps = []
 
         if cap_name:
-            cap_dir = f"core/capabilities/{cap_name}"
-            cap_path = f"{cap_dir}/__init__.py"
-            template = TaskPlannerCapability._command_exec_template() if cap_name == "command_exec" else TaskPlannerCapability._capability_template(cap_name)
-            steps.append({
-                "action": "create_directory",
-                "params": {"path": cap_dir},
-                "description": f"Creating {cap_name} capability directory",
-            })
-            steps.append({
-                "action": "write_file",
-                "params": {
-                    "path": cap_path,
-                    "content": template,
-                },
-                "description": f"Writing {cap_name} capability code",
-            })
+            try:
+                lookup(cap_name)
+                capability_exists = True
+            except ValueError:
+                capability_exists = False
 
-            if "valid" in gl or "check" in gl or "syntax" in gl or "test" in gl:
+            # Registered capabilities are authoritative. Reuse them instead of
+            # replacing their source and marketplace metadata with a generated
+            # scaffold merely because the goal also says "create" or "publish".
+            if not capability_exists:
+                cap_dir = f"core/capabilities/{cap_name}"
+                cap_path = f"{cap_dir}/__init__.py"
+                template = TaskPlannerCapability._capability_template(cap_name)
                 steps.append({
-                    "action": "validate_syntax",
-                    "params": {"path": cap_path},
-                    "description": f"Validating {cap_name} syntax",
+                    "action": "create_directory",
+                    "params": {"path": cap_dir},
+                    "description": f"Creating {cap_name} capability directory",
                 })
                 steps.append({
-                    "action": "check_interface",
-                    "params": {"path": cap_path},
-                    "description": f"Checking {cap_name} Capability interface",
+                    "action": "write_file",
+                    "params": {
+                        "path": cap_path,
+                        "content": template,
+                    },
+                    "description": f"Writing {cap_name} capability code",
                 })
 
-            if "publish" in gl or "register" in gl:
-                pub_desc = "Executes real shell commands and returns actual stdout, stderr, and exit code" if cap_name == "command_exec" else f"Auto-generated: {goal[:80]}"
-                steps.append({
-                    "action": "publish_capability",
-                    "params": {"cap_id": cap_name, "name": cap_name.replace("_", " ").title(), "version": "1.0.0", "description": pub_desc},
-                    "description": f"Publishing {cap_name} to registry",
-                })
+                if "valid" in gl or "check" in gl or "syntax" in gl or "test" in gl:
+                    steps.append({
+                        "action": "validate_syntax",
+                        "params": {"path": cap_path},
+                        "description": f"Validating {cap_name} syntax",
+                    })
+                    steps.append({
+                        "action": "check_interface",
+                        "params": {"path": cap_path},
+                        "description": f"Checking {cap_name} Capability interface",
+                    })
+
+                if "publish" in gl or "register" in gl:
+                    steps.append({
+                        "action": "publish_capability",
+                        "params": {"cap_id": cap_name, "name": cap_name.replace("_", " ").title(), "version": "1.0.0", "description": f"Auto-generated: {goal[:80]}"},
+                        "description": f"Publishing {cap_name} to registry",
+                    })
 
             if "install" in gl or "add" in gl or "load" in gl:
                 steps.append({
