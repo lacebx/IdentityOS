@@ -154,6 +154,15 @@ identity playground
 
 Open http://localhost:8000/playground
 
+For non-Python clients, run the public REST service and use its Swagger UI:
+
+```bash
+uvicorn runtime.main:app --host 127.0.0.1 --port 8000
+```
+
+See [docs/API.md](docs/API.md) for authentication, rate limiting, deployment,
+and the complete endpoint list.
+
 ---
 
 ## Capabilities: Give Your Identity New Skills

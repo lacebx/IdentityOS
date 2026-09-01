@@ -7,11 +7,15 @@ which runs the full pipeline: policy → context → LLM → evaluate → store.
 import json
 import logging
 import os
+import secrets
+import threading
+import time
 from typing import Any, Dict, List, Optional
 
 import uvicorn
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from adapters import ChainAdapter
@@ -183,6 +187,116 @@ class ProcessResponse(BaseModel):
     timings_ms: Dict[str, float] = Field(default_factory=dict)
 
 
+class MemoryRequest(BaseModel):
+    identity_id: str
+    content: str
+    user_id: str = ""
+    memory_type: str = "semantic"
+    tags: List[str] = Field(default_factory=list)
+
+
+class GoalRequest(BaseModel):
+    identity_id: str
+    title: str
+    description: str = ""
+    priority: str = "medium"
+    scope: str = "persistent"
+    success_criteria: str = ""
+
+
+class RelationshipRequest(BaseModel):
+    identity_id: str
+    entity_id: str
+    trust_level: float = Field(default=0.5, ge=0.0, le=1.0)
+    edge_type: str = "friend"
+    context: str = ""
+
+
+class TimelineRequest(BaseModel):
+    identity_id: str
+    event_type: str = "milestone"
+    title: str
+    description: str = ""
+    significance: int = Field(default=3, ge=1, le=5)
+
+
+class IdentityRequest(BaseModel):
+    identity_id: str
+
+
+class _FixedWindowRateLimiter:
+    """Small process-local API limiter with deterministic, testable behavior."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._windows: Dict[str, tuple[int, int]] = {}
+
+    def allow(self, key: str, limit: int, now: Optional[float] = None) -> bool:
+        if limit <= 0:
+            return True
+        minute = int((time.time() if now is None else now) // 60)
+        with self._lock:
+            window, count = self._windows.get(key, (minute, 0))
+            if window != minute:
+                window, count = minute, 0
+            if count >= limit:
+                return False
+            self._windows[key] = (window, count + 1)
+            return True
+
+    def reset(self) -> None:
+        with self._lock:
+            self._windows.clear()
+
+
+_rate_limiter = _FixedWindowRateLimiter()
+
+
+def _configured_api_keys() -> List[str]:
+    raw = os.environ.get("IDENTITY_API_KEYS") or os.environ.get("IDENTITY_API_KEY", "")
+    return [key.strip() for key in raw.split(",") if key.strip()]
+
+
+@app.middleware("http")
+async def enforce_api_access(request: Request, call_next):
+    """Apply optional API-key authentication and a per-client rate limit.
+
+    Authentication remains opt-in for backwards-compatible local development.
+    Production deployments enable it with ``IDENTITY_API_KEY`` or a
+    comma-separated ``IDENTITY_API_KEYS`` value.
+    """
+    if request.url.path in {"/health", "/docs", "/redoc", "/openapi.json"}:
+        return await call_next(request)
+
+    configured = _configured_api_keys()
+    supplied = request.headers.get("x-api-key", "")
+    authorization = request.headers.get("authorization", "")
+    if not supplied and authorization.lower().startswith("bearer "):
+        supplied = authorization[7:].strip()
+    if configured and not any(secrets.compare_digest(supplied, key) for key in configured):
+        return JSONResponse(
+            status_code=401,
+            content={"error": "unauthorized", "message": "A valid API key is required."},
+        )
+
+    try:
+        limit = int(os.environ.get("IDENTITY_RATE_LIMIT_PER_MINUTE", "120"))
+    except ValueError:
+        limit = 120
+    client_host = request.client.host if request.client else "unknown"
+    bucket = supplied or client_host
+    if not _rate_limiter.allow(bucket, limit):
+        return JSONResponse(
+            status_code=429,
+            headers={"Retry-After": "60"},
+            content={
+                "error": "rate_limit_exceeded",
+                "message": f"Rate limit of {limit} requests per minute exceeded.",
+            },
+        )
+    return await call_next(request)
+
+
 # --- Endpoints ---
 
 @app.get("/")
@@ -198,6 +312,13 @@ async def root():
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+
+
+def _load_identity_or_404(identity_id: str):
+    identity = runtime.load(identity_id)
+    if not identity:
+        raise HTTPException(status_code=404, detail=f"Identity '{identity_id}' not found")
+    return identity
 
 
 @app.post("/process", response_model=ProcessResponse)
@@ -242,6 +363,151 @@ async def process(req: ProcessRequest):
         session_mode=runtime.get_session_mode(session_id).value,
         timings_ms=result.metadata.get("timings_ms", {}),
     )
+
+
+@app.post("/chat", response_model=ProcessResponse)
+async def chat(req: ProcessRequest):
+    """Public chat alias for the full IdentityOS processing pipeline."""
+    return await process(req)
+
+
+@app.post("/memory")
+async def create_memory(req: MemoryRequest):
+    """Persist a memory with explicit identity and user provenance."""
+    _load_identity_or_404(req.identity_id)
+    from core.memory import MemoryFragment, MemoryType
+
+    try:
+        memory_type = MemoryType(req.memory_type.lower())
+    except ValueError as exc:
+        allowed = ", ".join(item.value for item in MemoryType)
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown memory_type '{req.memory_type}'. Allowed: {allowed}",
+        ) from exc
+    fragment = MemoryFragment(
+        identity_id=req.identity_id,
+        user_id=runtime._resolved_user_id(req.identity_id, req.user_id),
+        content=req.content,
+        memory_type=memory_type,
+        tags=req.tags,
+    )
+    runtime.memory_store.add(fragment)
+    runtime._persist_memory(fragment)
+    return {"id": fragment.id, "status": "stored", "memory": fragment.to_dict()}
+
+
+@app.post("/goal")
+async def create_goal(req: GoalRequest):
+    """Create and durably persist a goal."""
+    _load_identity_or_404(req.identity_id)
+    from core.goals import Goal, GoalPriority, GoalScope
+
+    try:
+        priority = GoalPriority[req.priority.upper()]
+        scope = GoalScope(req.scope.lower())
+    except (KeyError, ValueError) as exc:
+        raise HTTPException(
+            status_code=400,
+            detail="priority must be low|medium|high|critical and scope must be immediate|session|persistent|lifelong",
+        ) from exc
+    goal = Goal(
+        title=req.title,
+        description=req.description,
+        priority=priority,
+        scope=scope,
+        success_criteria=req.success_criteria,
+    )
+    runtime.goal_engine.add(goal)
+    runtime._persist_goals(req.identity_id)
+    return {"status": "created", "goal": goal.to_dict()}
+
+
+@app.post("/relationship")
+async def create_relationship(req: RelationshipRequest):
+    """Create or update an identity relationship and persist the graph edge."""
+    _load_identity_or_404(req.identity_id)
+    from identity_graph.graph import EdgeType, TrustLevel
+
+    try:
+        edge_type = EdgeType(req.edge_type.lower())
+    except ValueError as exc:
+        allowed = ", ".join(item.value for item in EdgeType)
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown edge_type '{req.edge_type}'. Allowed: {allowed}",
+        ) from exc
+    trust_level = (
+        TrustLevel.ABSOLUTE if req.trust_level >= 0.9
+        else TrustLevel.HIGH if req.trust_level >= 0.7
+        else TrustLevel.MEDIUM if req.trust_level >= 0.4
+        else TrustLevel.LOW if req.trust_level >= 0.1
+        else TrustLevel.NONE
+    )
+    edge = runtime.identity_graph.connect(
+        source_id=req.identity_id,
+        target_id=req.entity_id,
+        edge_type=edge_type,
+        trust_level=trust_level,
+        context=req.context,
+    )
+    runtime._persist_relationships(req.identity_id)
+    return {
+        "status": "recorded",
+        "relationship": {
+            "id": edge.id,
+            "source_id": edge.source_id,
+            "target_id": edge.target_id,
+            "edge_type": edge.edge_type.value,
+            "trust_level": edge.trust_level.value,
+            "strength": edge.strength,
+            "context": edge.context,
+        },
+    }
+
+
+@app.post("/timeline")
+async def create_timeline_event(req: TimelineRequest):
+    """Record and persist a chronological identity event."""
+    _load_identity_or_404(req.identity_id)
+    from core.timeline import LifeEvent, LifeEventType
+
+    try:
+        event_type = LifeEventType(req.event_type.lower())
+    except ValueError as exc:
+        allowed = ", ".join(item.value for item in LifeEventType)
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown event_type '{req.event_type}'. Allowed: {allowed}",
+        ) from exc
+    event = LifeEvent(
+        identity_id=req.identity_id,
+        event_type=event_type,
+        title=req.title,
+        description=req.description,
+        significance=req.significance,
+    )
+    runtime.timeline_registry.record_event(req.identity_id, event)
+    runtime._persist_timeline(req.identity_id)
+    return {"status": "recorded", "event_id": event.id}
+
+
+@app.post("/constitution")
+async def inspect_constitution(req: IdentityRequest):
+    """Return the governing constitution and laws for an identity."""
+    _load_identity_or_404(req.identity_id)
+    from identityos.identity import IdentityObject
+
+    return IdentityObject(runtime, req.identity_id).constitution()
+
+
+@app.post("/export")
+async def export_identity(req: IdentityRequest):
+    """Export a complete portable identity snapshot as JSON."""
+    _load_identity_or_404(req.identity_id)
+    from identityos.identity import IdentityObject
+
+    return IdentityObject(runtime, req.identity_id).export()
 
 
 @app.post("/context", response_model=ContextResponse)
