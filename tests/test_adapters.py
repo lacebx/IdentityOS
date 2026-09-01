@@ -19,7 +19,7 @@ sys.modules["openai"] = _openai_mock
 sys.modules["anthropic"] = _anthropic_mock
 
 from adapters.base import BaseAdapter  # noqa: E402
-from adapters.openai_adapter import OpenAIAdapter, AnthropicAdapter, OllamaAdapter, list_ollama_models, resolve_ollama_model  # noqa: E402
+from adapters.openai_adapter import OpenAIAdapter, AnthropicAdapter, OllamaAdapter, list_ollama_models, ollama_model_capabilities, resolve_ollama_model  # noqa: E402
 from adapters.openrouter_adapter import OpenRouterAdapter  # noqa: E402
 from adapters import get_adapter  # noqa: E402
 
@@ -113,6 +113,14 @@ class TestBaseAdapter:
 # ---------------------------------------------------------------------------
 
 class TestOpenAIAdapter:
+    def test_sdk_retries_are_disabled_because_adapter_owns_retry_policy(
+        self, mock_openai_client
+    ):
+        adapter = OpenAIAdapter(api_key="sk-test", timeout=7)
+        adapter._get_client()
+        kwargs = mock_openai_client.call_args.kwargs
+        assert kwargs["max_retries"] == 0
+
     def test_generate(self, mock_openai_client):
         adapter = OpenAIAdapter(api_key="sk-test")
         result = adapter.generate(
@@ -393,6 +401,7 @@ class TestOllamaAdapter:
             return '{"result": 411804}'
 
         adapter = OllamaAdapter(model="smollm2:360m-instruct-q4_0")
+        adapter._supports_native_tools = False
         result = adapter.generate(
             context="Use tools for math.",
             user_input="Calculate 837 * 492",
@@ -405,6 +414,157 @@ class TestOllamaAdapter:
         first_call = client.chat.completions.create.call_args_list[0]
         assert "tools" not in first_call[1]
         assert first_call[1]["extra_body"] == {"think": False}
+
+    def test_legacy_tool_loop_describes_relevant_safe_tools(self, mock_openai_client):
+        client = mock_openai_client.return_value
+        client.chat.completions.create.side_effect = [
+            MagicMock(
+                choices=[
+                    MagicMock(
+                        message=MagicMock(
+                            content='<function=datetime__now>{"tz_name": null}</function>',
+                            tool_calls=None,
+                        ),
+                    )
+                ]
+            ),
+            MagicMock(
+                choices=[
+                    MagicMock(message=MagicMock(content="12:00 UTC", tool_calls=None)),
+                ]
+            ),
+        ]
+        tools = [
+            {
+                "type": "function",
+                "function": {
+                    "name": "datetime__now",
+                    "description": "Get the current date and time in a timezone",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {"tz_name": {"type": ["string", "null"]}},
+                        "additionalProperties": False,
+                    },
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "filesystem__read_file",
+                    "description": "Read a local file",
+                    "parameters": {"type": "object", "properties": {}},
+                },
+            },
+        ]
+        executed = []
+
+        adapter = OllamaAdapter(model="phi4-mini:latest")
+        adapter._supports_native_tools = False
+        output = adapter.generate(
+            context="Identity context",
+            user_input="What is the current time in UTC?",
+            identity=_MockIdentity(),
+            tools=tools,
+            execute_tool=lambda name, args: executed.append((name, args)) or '{"timezone":"UTC"}',
+        )
+
+        assert output == "12:00 UTC"
+        assert executed == [("datetime__now", {"tz_name": None})]
+        first_context = client.chat.completions.create.call_args_list[0][1]["messages"][0]["content"]
+        assert "<function=TOOL_NAME>{JSON_ARGUMENTS}</function>" in first_context
+        assert "datetime__now" in first_context
+        assert "call template: <function=datetime__now>{}</function>" in first_context
+        assert '"null"' in first_context
+        assert "filesystem__read_file" not in first_context
+
+    def test_native_capable_ollama_model_keeps_structured_tools(
+        self, mock_openai_client
+    ):
+        mock_openai_client.return_value.chat.completions.create.return_value.choices[
+            0
+        ].message.tool_calls = None
+        adapter = OllamaAdapter(model="qwen3:4b")
+        adapter._supports_native_tools = True
+        tools = [
+            {
+                "type": "function",
+                "function": {
+                    "name": "datetime__now",
+                    "description": "Get current time",
+                    "parameters": {"type": "object", "properties": {}},
+                },
+            }
+        ]
+
+        output = adapter.generate(
+            context="Identity context",
+            user_input="What time is it?",
+            identity=_MockIdentity(),
+            tools=tools,
+            execute_tool=lambda name, args: "unused",
+        )
+
+        assert output == "Hello from the mock!"
+        request = mock_openai_client.return_value.chat.completions.create.call_args
+        assert request.kwargs["tools"] == tools
+        assert request.kwargs["tool_choice"] == "auto"
+        assert "Executable tools" not in request.kwargs["messages"][0]["content"]
+
+    def test_native_ollama_text_call_is_executed_only_for_offered_tool(
+        self, mock_openai_client
+    ):
+        client = mock_openai_client.return_value
+        client.chat.completions.create.side_effect = [
+            MagicMock(
+                choices=[
+                    MagicMock(
+                        message=MagicMock(
+                            content='datetime__now({"tz_name": "UTC"})',
+                            tool_calls=None,
+                        )
+                    )
+                ]
+            ),
+            MagicMock(
+                choices=[
+                    MagicMock(
+                        message=MagicMock(
+                            content="The verified time is 12:00 UTC.",
+                            tool_calls=None,
+                        )
+                    )
+                ]
+            ),
+        ]
+        tools = [
+            {
+                "type": "function",
+                "function": {
+                    "name": "datetime__now",
+                    "description": "Get current time",
+                    "parameters": {"type": "object", "properties": {}},
+                },
+            }
+        ]
+        executed = []
+        adapter = OllamaAdapter(model="phi4-mini:latest")
+        adapter._supports_native_tools = True
+
+        output = adapter.generate(
+            context="Identity context",
+            user_input="What time is it?",
+            identity=_MockIdentity(),
+            tools=tools,
+            execute_tool=lambda name, args: executed.append((name, args))
+            or '{"datetime":"12:00","timezone":"UTC"}',
+        )
+
+        assert output == "The verified time is 12:00 UTC."
+        assert executed == [("datetime__now", {"tz_name": "UTC"})]
+        assert adapter._supports_native_tools is False
+        second_request = client.chat.completions.create.call_args_list[1]
+        assert "tools" not in second_request.kwargs
+        assert "12:00" in second_request.kwargs["messages"][1]["content"]
 
 
 
@@ -432,6 +592,33 @@ class TestOllamaModelHelpers:
 
         monkeypatch.setattr("urllib.request.urlopen", lambda *a, **k: _Resp())
         assert list_ollama_models() == ["smollm2:360m-instruct-q4_0"]
+
+    def test_ollama_model_capabilities_uses_resolved_model_name(self, monkeypatch):
+        class _Resp:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+            def read(self):
+                return json.dumps(
+                    {
+                        "models": [
+                            {
+                                "name": "qwen3:4b",
+                                "capabilities": ["completion", "tools", "thinking"],
+                            }
+                        ]
+                    }
+                ).encode()
+
+        monkeypatch.setattr("urllib.request.urlopen", lambda *a, **k: _Resp())
+        assert ollama_model_capabilities("qwen3") == {
+            "completion",
+            "tools",
+            "thinking",
+        }
 
 
 # ---------------------------------------------------------------------------
