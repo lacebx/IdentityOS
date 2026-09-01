@@ -9,26 +9,29 @@ Usage:
 
 from __future__ import annotations
 
+import asyncio
+import json
 import queue
 import threading
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Callable, Dict, List, Optional
 from dataclasses import dataclass, field
 
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 import os
 
-from runtime.orchestrator import IdentityRuntime, InteractionRequest
+from runtime.orchestrator import IdentityRuntime, InteractionRequest, SessionMode
 from runtime.persistence import JSONFileBackend
 from runtime.event_bus import EventType, Event
 from core.cognitive_engine import ComposedContext
 from core.identity import create_identity, IdentitySpec
 from core.evaluation import register_default_criteria
 from core.goals import Goal, GoalPriority, GoalScope
+from core.intentions import Intention, IntentionPriority
 
 import datetime as _dt
 
@@ -93,7 +96,9 @@ STAGE_MAP: dict[EventType, PipelineEvent] = {
 
 
 def _capture_pipeline_events(
-    runtime: IdentityRuntime, request: InteractionRequest
+    runtime: IdentityRuntime,
+    request: InteractionRequest,
+    on_event: Optional[Callable[[PipelineEvent], None]] = None,
 ) -> tuple[List[PipelineEvent], Optional[str], Optional[ComposedContext]]:
     """Run process() and capture all EventBus events as PipelineEvents."""
     events_queue: queue.Queue[Event] = queue.Queue()
@@ -169,7 +174,12 @@ def _capture_pipeline_events(
             data["description"] = str(payload.get("description", ""))[:60]
             data["title"] = str(payload.get("title", ""))[:40]
 
-        captured.append(PipelineEvent(stage=pe.stage, label=pe.label, data=data))
+        captured_event = PipelineEvent(stage=pe.stage, label=pe.label, data=data)
+        captured.append(captured_event)
+        if on_event:
+            on_event(captured_event)
+
+    runtime.event_bus.unsubscribe_all(handler)
 
     # Post-process: enrich compose event with section info from context_used
     if context_used:
@@ -193,9 +203,12 @@ def _capture_pipeline_events(
     # Add synthetic stages with runtime data
     identity_id = request.identity_id
     rel_count = len(runtime.identity_graph.get_relationships(identity_id)) if identity_id else 0
-    captured.append(PipelineEvent("relationship", "Relationship Update", {
+    relationship_event = PipelineEvent("relationship", "Relationship Update", {
         "edge_count": rel_count,
-    }))
+    })
+    captured.append(relationship_event)
+    if on_event:
+        on_event(relationship_event)
 
     persist_ns = []
     if hasattr(runtime, '_storage') and runtime._storage:
@@ -203,16 +216,22 @@ def _capture_pipeline_events(
             persist_ns = runtime._storage.list_namespaces(identity_id) if identity_id else []
         except Exception:
             pass
-    captured.append(PipelineEvent("persist", "Persistence", {
+    persist_event = PipelineEvent("persist", "Persistence", {
         "namespaces": len(persist_ns),
-    }))
+    })
+    captured.append(persist_event)
+    if on_event:
+        on_event(persist_event)
 
     # Ensure we have a response event
     if output is not None:
-        captured.append(PipelineEvent("response", "Response", {
+        response_event = PipelineEvent("response", "Response", {
             "output": output[:120],
             "output_length": len(output),
-        }))
+        })
+        captured.append(response_event)
+        if on_event:
+            on_event(response_event)
 
     return captured, output, context_used
 
@@ -341,7 +360,10 @@ class RuntimeManager:
             ]
 
         # Goals
-        goals = rt.goal_engine.active() if identity_id else []
+        goals = [
+            goal for goal in rt.goal_engine.all()
+            if goal.metadata.get("identity_id") in (None, identity_id)
+        ] if identity_id else []
         goal_dicts = [
             {
                 "id": g.id,
@@ -354,6 +376,13 @@ class RuntimeManager:
             }
             for g in goals
         ]
+
+        rt.intention_engine.check_expiry()
+        intentions = [
+            intention.to_dict()
+            for intention in rt.intention_engine.all()
+            if intention.metadata.get("identity_id") in (None, identity_id)
+        ] if identity_id else []
 
         # Relationships
         edges = rt.identity_graph.get_relationships(identity_id) if identity_id else []
@@ -472,6 +501,7 @@ class RuntimeManager:
             "memories": mem_dicts,
             "timeline": tl_events,
             "goals": goal_dicts,
+            "intentions": intentions,
             "relationships": edge_dicts,
             "adapter": adapter_info,
             "evaluation": last_eval,
@@ -482,9 +512,15 @@ class RuntimeManager:
             "identity_evolution": identity_evolution,
             "debug": debug_record,
             "replay": replay,
+            "session": self.session_info(identity_id),
         }
 
-    def process_message(self, identity_id: str, user_input: str) -> dict:
+    def process_message(
+        self,
+        identity_id: str,
+        user_input: str,
+        on_event: Optional[Callable[[PipelineEvent], None]] = None,
+    ) -> dict:
         rt = self.get_or_create_runtime()
         self._maybe_configure_adapter(rt)
 
@@ -507,14 +543,16 @@ class RuntimeManager:
                 title="Learn and grow",
                 priority=GoalPriority.MEDIUM,
                 scope=GoalScope.PERSISTENT,
+                metadata={"identity_id": identity_id},
             ))
+            rt._persist_goals(identity_id)
 
         request = InteractionRequest(
             identity_id=identity_id,
             user_input=user_input,
             session_id=session_id,
         )
-        events, output, context_used = _capture_pipeline_events(rt, request)
+        events, output, context_used = _capture_pipeline_events(rt, request, on_event=on_event)
 
         context_text = ""
         context_sections = []
@@ -527,7 +565,106 @@ class RuntimeManager:
             "events": [{"stage": e.stage, "label": e.label, "data": e.data} for e in events],
             "context": context_text or "",
             "context_sections": context_sections,
+            "session": self.session_info(identity_id),
         }
+
+    def session_info(self, identity_id: str) -> dict:
+        session_id = self._sessions.get(identity_id)
+        mode = SessionMode.NORMAL
+        if session_id and self._runtime:
+            mode = self._runtime.get_session_mode(session_id)
+        return {"id": session_id, "mode": mode.value}
+
+    def set_session_mode(self, identity_id: str, mode: str) -> dict:
+        rt = self.get_or_create_runtime()
+        if not (rt.identity_store.get(identity_id) or rt.load(identity_id)):
+            raise ValueError(f"Identity '{identity_id}' not found")
+        try:
+            session_mode = SessionMode(mode.lower())
+        except ValueError as exc:
+            allowed = ", ".join(item.value for item in SessionMode)
+            raise ValueError(f"Unknown session mode. Allowed: {allowed}") from exc
+        old_session = self._sessions.pop(identity_id, None)
+        if old_session:
+            rt.end_session(old_session)
+        session_id = rt.start_session(identity_id, mode=session_mode)
+        self._sessions[identity_id] = session_id
+        return {"id": session_id, "mode": session_mode.value}
+
+    def add_goal(self, identity_id: str, title: str, priority: str = "medium") -> dict:
+        rt = self.get_or_create_runtime()
+        if not (rt.identity_store.get(identity_id) or rt.load(identity_id)):
+            raise ValueError(f"Identity '{identity_id}' not found")
+        try:
+            goal_priority = GoalPriority[priority.upper()]
+        except KeyError as exc:
+            raise ValueError("priority must be low, medium, high, or critical") from exc
+        goal = Goal(
+            title=title,
+            priority=goal_priority,
+            scope=GoalScope.PERSISTENT,
+            metadata={"identity_id": identity_id},
+        )
+        rt.goal_engine.add(goal)
+        rt._persist_goals(identity_id)
+        return goal.to_dict()
+
+    def complete_goal(self, identity_id: str, goal_id: str) -> dict:
+        rt = self.get_or_create_runtime()
+        goal = rt.goal_engine.get(goal_id)
+        if not goal or goal.metadata.get("identity_id") not in (None, identity_id):
+            raise ValueError("Goal not found")
+        goal.mark_completed("Completed from Identity Chat")
+        rt._persist_goals(identity_id)
+        return goal.to_dict()
+
+    def add_intention(
+        self, identity_id: str, description: str, priority: str = "medium", hours: int = 24,
+    ) -> dict:
+        rt = self.get_or_create_runtime()
+        if not (rt.identity_store.get(identity_id) or rt.load(identity_id)):
+            raise ValueError(f"Identity '{identity_id}' not found")
+        priority_map = {
+            "low": IntentionPriority.LOW,
+            "medium": IntentionPriority.MEDIUM,
+            "high": IntentionPriority.HIGH,
+        }
+        if priority.lower() not in priority_map or not 1 <= hours <= 8760:
+            raise ValueError("priority must be low, medium, or high and hours must be 1..8760")
+        intention = Intention(
+            description=description,
+            priority=priority_map[priority.lower()],
+            expires_at=_dt.datetime.now(_dt.timezone.utc).replace(tzinfo=None) + _dt.timedelta(hours=hours),
+            metadata={"identity_id": identity_id},
+        )
+        rt.intention_engine.add(intention)
+        rt._persist_intentions(identity_id)
+        return intention.to_dict()
+
+    def complete_intention(self, identity_id: str, intention_id: str) -> dict:
+        rt = self.get_or_create_runtime()
+        intention = rt.intention_engine.get(intention_id)
+        if not intention or intention.metadata.get("identity_id") not in (None, identity_id):
+            raise ValueError("Intention not found")
+        intention.complete("Completed from Identity Chat")
+        rt._persist_intentions(identity_id)
+        return intention.to_dict()
+
+    def constitution(self, identity_id: str) -> dict:
+        from identityos.identity import IdentityObject
+
+        rt = self.get_or_create_runtime()
+        if not (rt.identity_store.get(identity_id) or rt.load(identity_id)):
+            raise ValueError(f"Identity '{identity_id}' not found")
+        return IdentityObject(rt, identity_id).constitution()
+
+    def export_identity(self, identity_id: str) -> dict:
+        from identityos.identity import IdentityObject
+
+        rt = self.get_or_create_runtime()
+        if not (rt.identity_store.get(identity_id) or rt.load(identity_id)):
+            raise ValueError(f"Identity '{identity_id}' not found")
+        return IdentityObject(rt, identity_id).export()
 
     def restart_identity(self, identity_id: str) -> dict:
         rt = self.get_or_create_runtime()
@@ -648,6 +785,137 @@ async def api_chat(body: dict):
         return JSONResponse({"error": "user_input is required"}, status_code=400)
     result = manager.process_message(identity_id, user_input)
     return JSONResponse(result)
+
+
+@app.post("/playground/api/chat/stream")
+async def api_chat_stream(body: dict):
+    """Stream live pipeline events and chunked output as newline-delimited JSON."""
+    identity_id = body.get("identity_id", "")
+    user_input = body.get("user_input", "")
+    if not identity_id or not user_input:
+        return JSONResponse(
+            {"error": "identity_id and user_input are required"}, status_code=400,
+        )
+
+    async def generate():
+        stream_queue: queue.Queue[dict] = queue.Queue()
+        done = threading.Event()
+
+        def emit(event: PipelineEvent) -> None:
+            stream_queue.put({
+                "type": "event",
+                "event": {"stage": event.stage, "label": event.label, "data": event.data},
+            })
+
+        def run() -> None:
+            try:
+                result = manager.process_message(identity_id, user_input, on_event=emit)
+                if result.get("error"):
+                    stream_queue.put({"type": "error", "error": result["error"]})
+                    return
+                stream_queue.put({
+                    "type": "meta",
+                    "context": result.get("context", ""),
+                    "context_sections": result.get("context_sections", []),
+                    "session": result.get("session", {}),
+                })
+                output = result.get("output", "")
+                for offset in range(0, len(output), 48):
+                    stream_queue.put({"type": "chunk", "text": output[offset:offset + 48]})
+                stream_queue.put({"type": "done"})
+            except Exception as exc:
+                stream_queue.put({"type": "error", "error": str(exc)})
+            finally:
+                done.set()
+
+        threading.Thread(target=run, daemon=True).start()
+        while not done.is_set() or not stream_queue.empty():
+            try:
+                item = stream_queue.get_nowait()
+            except queue.Empty:
+                await asyncio.sleep(0.02)
+                continue
+            yield json.dumps(item, default=str) + "\n"
+
+    return StreamingResponse(generate(), media_type="application/x-ndjson")
+
+
+@app.post("/playground/api/session")
+async def api_set_session(body: dict):
+    try:
+        session = manager.set_session_mode(body.get("identity_id", ""), body.get("mode", "normal"))
+    except ValueError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
+    return JSONResponse(session)
+
+
+@app.post("/playground/api/goals")
+async def api_add_goal(body: dict):
+    title = str(body.get("title", "")).strip()
+    if not title:
+        return JSONResponse({"error": "title is required"}, status_code=400)
+    try:
+        goal = manager.add_goal(body.get("identity_id", ""), title, body.get("priority", "medium"))
+    except ValueError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
+    return JSONResponse(goal)
+
+
+@app.post("/playground/api/goals/{goal_id}/complete")
+async def api_complete_goal(goal_id: str, body: dict):
+    try:
+        goal = manager.complete_goal(body.get("identity_id", ""), goal_id)
+    except ValueError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=404)
+    return JSONResponse(goal)
+
+
+@app.post("/playground/api/intentions")
+async def api_add_intention(body: dict):
+    description = str(body.get("description", "")).strip()
+    if not description:
+        return JSONResponse({"error": "description is required"}, status_code=400)
+    try:
+        intention = manager.add_intention(
+            body.get("identity_id", ""),
+            description,
+            body.get("priority", "medium"),
+            int(body.get("hours", 24)),
+        )
+    except (TypeError, ValueError) as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
+    return JSONResponse(intention)
+
+
+@app.post("/playground/api/intentions/{intention_id}/complete")
+async def api_complete_intention(intention_id: str, body: dict):
+    try:
+        intention = manager.complete_intention(body.get("identity_id", ""), intention_id)
+    except ValueError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=404)
+    return JSONResponse(intention)
+
+
+@app.get("/playground/api/constitution/{identity_id}")
+async def api_constitution(identity_id: str):
+    try:
+        return JSONResponse(manager.constitution(identity_id))
+    except ValueError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=404)
+
+
+@app.get("/playground/api/export/{identity_id}")
+async def api_export(identity_id: str):
+    try:
+        data = manager.export_identity(identity_id)
+    except ValueError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=404)
+    safe_name = "".join(char for char in identity_id if char.isalnum() or char in "-_") or "identity"
+    return Response(
+        json.dumps(data, indent=2, default=str),
+        media_type="application/json",
+        headers={"Content-Disposition": f'attachment; filename="{safe_name}.json"'},
+    )
 
 
 @app.post("/playground/api/configure-adapter")

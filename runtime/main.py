@@ -418,6 +418,7 @@ async def create_goal(req: GoalRequest):
         priority=priority,
         scope=scope,
         success_criteria=req.success_criteria,
+        metadata={"identity_id": req.identity_id},
     )
     runtime.goal_engine.add(goal)
     runtime._persist_goals(req.identity_id)

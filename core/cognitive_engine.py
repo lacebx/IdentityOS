@@ -294,10 +294,10 @@ class ContextComposer:
                 ctx.skills_block = skill_registry.to_prompt_manifest()
 
         if self.include_goals and goal_engine:
-            ctx.goals_block = goal_engine.to_prompt_summary()
+            ctx.goals_block = goal_engine.to_prompt_summary(identity.id)
 
         if intention_engine:
-            ctx.intentions_block = intention_engine.to_prompt_summary()
+            ctx.intentions_block = intention_engine.to_prompt_summary(identity.id)
 
         if self.include_relationships and identity_graph:
             ctx.relationships_block = identity_graph.to_prompt_block(

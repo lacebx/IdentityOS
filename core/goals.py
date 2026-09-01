@@ -253,10 +253,11 @@ class GoalEngine:
     def get(self, goal_id: str) -> Optional[Goal]:
         return self._goals.get(goal_id)
 
-    def active(self) -> List[Goal]:
+    def active(self, identity_id: Optional[str] = None) -> List[Goal]:
         return [
             g for g in self._goals.values()
             if g.status == GoalStatus.ACTIVE
+            and (identity_id is None or g.metadata.get("identity_id") in (None, identity_id))
         ]
 
     def top_priority(self) -> Optional[Goal]:
@@ -292,9 +293,9 @@ class GoalEngine:
                 unblocked += 1
         return unblocked
 
-    def to_prompt_summary(self) -> str:
+    def to_prompt_summary(self, identity_id: Optional[str] = None) -> str:
         """Summarize active goals for context injection."""
-        active = self.active()
+        active = self.active(identity_id)
         if not active:
             return "No active goals."
         sorted_goals = sorted(active, key=lambda g: -g.priority.value)

@@ -154,6 +154,9 @@ identity playground
 
 Open http://localhost:8000/playground
 
+See [docs/IDENTITY_CHAT.md](docs/IDENTITY_CHAT.md) for session modes, streaming,
+state panels, goal/intention controls, restart verification, and export.
+
 For non-Python clients, run the public REST service and use its Swagger UI:
 
 ```bash

@@ -14,7 +14,15 @@
     <select id="identity-select">
       <option value="">-- Select identity --</option>
     </select>
+    <select id="session-mode" title="Session mode">
+      <option value="normal">NORMAL</option>
+      <option value="roleplay">ROLEPLAY</option>
+      <option value="simulation">SIMULATION</option>
+      <option value="dream">DREAM</option>
+      <option value="hypothetical">HYPOTHETICAL</option>
+    </select>
     <button class="btn btn-sm" id="btn-create">+ New</button>
+    <button class="btn btn-sm" id="btn-export">&#x21E9; Export</button>
     <button class="btn btn-sm" id="btn-configure-adapter">&#x2699; Adapter</button>
     <button class="btn btn-sm btn-danger" id="btn-restart">&#x21bb; Restart</button>
   </div>
@@ -112,13 +120,23 @@
     </div>
 
     <div class="panel">
-      <div class="panel-header" onclick="togglePanel(this)">Goals <span class="panel-count" id="count-goals"></span><span>&#x25BC;</span></div>
+      <div class="panel-header" onclick="togglePanel(this)">Goals <button class="btn btn-sm panel-action" id="btn-add-goal" onclick="event.stopPropagation()">+</button><span class="panel-count" id="count-goals"></span><span>&#x25BC;</span></div>
       <div class="panel-body" id="panel-goals-body"><div class="empty">Select an identity to begin.</div></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header" onclick="togglePanel(this)">Intentions <button class="btn btn-sm panel-action" id="btn-add-intention" onclick="event.stopPropagation()">+</button><span class="panel-count" id="count-intentions"></span><span>&#x25BC;</span></div>
+      <div class="panel-body" id="panel-intentions-body"><div class="empty">Select an identity to begin.</div></div>
     </div>
 
     <div class="panel">
       <div class="panel-header" onclick="togglePanel(this)">Relationships <span class="panel-count" id="count-relationships"></span><span>&#x25BC;</span></div>
       <div class="panel-body" id="panel-relationships-body"><div class="empty">Select an identity to begin.</div></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header" onclick="togglePanel(this)">Constitution <span class="panel-count" id="count-constitution"></span><span>&#x25BC;</span></div>
+      <div class="panel-body" id="panel-constitution-body"><div class="empty">Select an identity to begin.</div></div>
     </div>
 
     <div class="panel context-panel">
@@ -162,7 +180,7 @@
 <script>
 function togglePanel(header) {
   const body = header.nextElementSibling;
-  const arrow = header.querySelector('span');
+  const arrow = header.querySelector('span:last-child');
   body.classList.toggle('collapsed');
   arrow.textContent = body.classList.contains('collapsed') ? '\u25B6' : '\u25BC';
 }

@@ -297,6 +297,7 @@ class IdentityRuntime:
                 self._load_timeline(spec.id)
                 self._load_relationships(spec.id)
                 self._load_goals(spec.id)
+                self._load_intentions(spec.id)
                 self._load_fact_store(spec.id)
                 self._load_persisted_memories(spec.id)
                 return spec
@@ -443,9 +444,36 @@ class IdentityRuntime:
         if not self._storage:
             return
         try:
-            self._storage.save(identity_id, "goals", self.goal_engine.to_dict())
+            goals = [
+                goal.to_dict()
+                for goal in self.goal_engine.all()
+                if goal.metadata.get("identity_id") in (None, identity_id)
+            ]
+            self._storage.save(identity_id, "goals", {"goals": goals})
         except Exception:
             pass
+
+    def _persist_intentions(self, identity_id: str) -> None:
+        if not self._storage:
+            return
+        intentions = [
+            intention.to_dict()
+            for intention in self.intention_engine.all()
+            if intention.metadata.get("identity_id") in (None, identity_id)
+        ]
+        self._storage.save(identity_id, "intentions", {"intentions": intentions})
+
+    def _load_intentions(self, identity_id: str) -> None:
+        if not self._storage:
+            return
+        data = self._storage.load(identity_id, "intentions")
+        if not data:
+            return
+        loaded = IntentionEngine.from_dict(data)
+        for intention in loaded.all():
+            intention.metadata.setdefault("identity_id", identity_id)
+            if self.intention_engine.get(intention.id) is None:
+                self.intention_engine.add(intention)
 
     def _persist_identity(self, identity: IdentitySpec) -> None:
         if not self._storage:
@@ -466,6 +494,7 @@ class IdentityRuntime:
                 return
             loaded = GoalEngine.from_dict(data)
             for g in loaded.all():
+                g.metadata.setdefault("identity_id", identity_id)
                 self.goal_engine.add(g)
         except Exception:
             pass
@@ -1094,6 +1123,7 @@ class IdentityRuntime:
         )
         self._persist_relationships(identity.id)
         self._persist_goals(identity.id)
+        self._persist_intentions(identity.id)
 
         if _evidence_results and policy_passed:
             footer_lines = ["\n\n---\n📊 **Evidence Sources**"]

@@ -173,10 +173,11 @@ class IntentionEngine:
     def remove(self, intention_id: str) -> bool:
         return bool(self._intentions.pop(intention_id, None))
 
-    def active(self) -> List[Intention]:
+    def active(self, identity_id: Optional[str] = None) -> List[Intention]:
         return [
             i for i in self._intentions.values()
             if i.is_active()
+            and (identity_id is None or i.metadata.get("identity_id") in (None, identity_id))
         ]
 
     def active_by_priority(self) -> List[Intention]:
@@ -221,9 +222,9 @@ class IntentionEngine:
         intention.promote(goal_id, reason, detail)
         return True
 
-    def to_prompt_summary(self) -> str:
+    def to_prompt_summary(self, identity_id: Optional[str] = None) -> str:
         """Summarize active intentions for context injection."""
-        active = self.active()
+        active = self.active(identity_id)
         if not active:
             return ""
         sorted_i = sorted(active, key=lambda i: (-i.priority.value, i.created_at))
