@@ -19,7 +19,7 @@
     {
       "name": "task_planner.plan_and_execute",
       "description": "Plan and execute a multi-step task from a goal description",
-      "permission": "public"
+      "permission": "task:execute"
     }
   ]
 }

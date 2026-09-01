@@ -6,14 +6,15 @@ Guards against the evidence-footprint regressions:
   2. "date"-ish tokens must not fire datetime inside words like "validate".
   3. Description-overlap must ignore stop words.
   4. Generic "what is" must not fire calc.
-  5. task_planner can generate a real command_exec capability and run it,
-     reporting honest exit codes/stdout instead of fabricated output.
+  5. task_planner reuses the registered command_exec capability and runs it,
+     reporting honest exit codes/stdout without replacing repository files.
 """
 
 import os
 import re
 import tempfile
 import ast
+from pathlib import Path
 
 import pytest
 
@@ -85,7 +86,9 @@ def test_task_planner_generates_command_exec_plan():
     plan = TaskPlannerCapability._generate_plan("create a command execution capability and run hostname")
     actions = [s["action"] for s in plan]
     assert "run_command" in actions
-    assert "write_file" in actions
+    assert "install_capability" in actions
+    assert "write_file" not in actions
+    assert "publish_capability" not in actions
     run_step = next(s for s in plan if s["action"] == "run_command")
     assert run_step["params"]["command"] == "hostname"
 
@@ -99,6 +102,14 @@ def test_command_exec_template_is_valid_python():
 
 def test_task_planner_runs_real_command_honest_failure(tmp_path):
     from core.capabilities.task_planner import TaskPlannerCapability
+    root = Path(__file__).resolve().parents[1]
+    catalog_path = root / "registry" / "capabilities" / "index.json"
+    manifest_path = root / "registry" / "capabilities" / "command_exec" / "manifest.json"
+    source_path = root / "core" / "capabilities" / "command_exec" / "__init__.py"
+    before = {
+        path: path.read_bytes()
+        for path in (catalog_path, manifest_path, source_path)
+    }
     res = TaskPlannerCapability({}).call(
         "task_planner.plan_and_execute",
         goal="create a command execution capability and run a-command-that-does-not-exist-xyz",
@@ -113,6 +124,7 @@ def test_task_planner_runs_real_command_honest_failure(tmp_path):
     assert run["success"] is False
     assert res.data["all_succeeded"] is False
     assert res.data["failed"] >= 1
+    assert {path: path.read_bytes() for path in before} == before
 
 
 def test_evidence_footer_label_no_duplication():

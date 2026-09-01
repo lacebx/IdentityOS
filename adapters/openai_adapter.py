@@ -61,6 +61,123 @@ def _parse_legacy_function_call(text: str) -> Optional[tuple[str, dict]]:
         args = {}
     return name, args
 
+
+def _legacy_tool_context(
+    context: str,
+    user_input: str,
+    tools: list[dict[str, Any]],
+    *,
+    limit: int = 8,
+) -> str:
+    """Add a compact, relevant text protocol for models without native tools."""
+    selected = _select_relevant_tools(user_input, tools, limit=limit)
+    if not selected:
+        return context
+
+    lines = [
+        "## Executable tools",
+        "The following tools are real runtime functions. When the request requires one, "
+        "call it instead of guessing.",
+        "Emit exactly `<function=TOOL_NAME>{JSON_ARGUMENTS}</function>` using the exact "
+        "safe tool name below. Do not use a dotted capability name.",
+        "Copy the call template for the selected tool and replace only placeholder values. "
+        "Never copy schema keys such as properties, required, type, or additionalProperties "
+        "into JSON_ARGUMENTS.",
+    ]
+    for tool in selected:
+        function = tool.get("function", {})
+        name = function.get("name", "")
+        description = function.get("description", "")
+        schema = json.dumps(
+            function.get("parameters", {"type": "object"}),
+            separators=(",", ":"),
+            sort_keys=True,
+        )
+        template = _legacy_call_template(name, function.get("parameters", {}))
+        lines.append(
+            f"- {name}: {description}\n  call template: {template}\n  argument schema: {schema}"
+        )
+    return context + "\n\n" + "\n".join(lines)
+
+
+def _select_relevant_tools(
+    user_input: str,
+    tools: list[dict[str, Any]],
+    *,
+    limit: int,
+) -> list[dict[str, Any]]:
+    """Rank tool definitions by lexical relevance without capability-specific rules."""
+    input_words = set(re.findall(r"[a-z0-9]+", user_input.lower()))
+    scored: list[tuple[int, int, dict[str, Any]]] = []
+    for position, tool in enumerate(tools):
+        function = tool.get("function", {})
+        searchable = " ".join(
+            [
+                str(function.get("name", "")).replace("__", " ").replace("_", " "),
+                str(function.get("description", "")),
+            ]
+        ).lower()
+        tool_words = set(re.findall(r"[a-z0-9]+", searchable))
+        score = len(input_words & tool_words)
+        exact_name = str(function.get("name", "")).lower()
+        dotted_name = exact_name.replace("__", ".")
+        if exact_name and (
+            exact_name in user_input.lower() or dotted_name in user_input.lower()
+        ):
+            score += 10
+        scored.append((score, -position, tool))
+
+    relevant = [item for item in scored if item[0] > 0]
+    if not relevant:
+        relevant = scored
+    relevant.sort(key=lambda item: (item[0], item[1]), reverse=True)
+    return [item[2] for item in relevant[:limit]]
+
+
+def _legacy_call_template(name: str, schema: dict[str, Any]) -> str:
+    properties = schema.get("properties", {})
+    required = schema.get("required", [])
+    arguments: dict[str, Any] = {}
+    placeholders = {
+        "string": "VALUE",
+        "integer": 1,
+        "number": 1,
+        "boolean": True,
+        "array": [],
+        "object": {},
+    }
+    for parameter in required:
+        prop = properties.get(parameter, {})
+        expected = prop.get("type", "string")
+        if isinstance(expected, list):
+            expected = next((item for item in expected if item != "null"), "string")
+        arguments[parameter] = placeholders.get(expected, "VALUE")
+    return f"<function={name}>{json.dumps(arguments, separators=(',', ':'))}</function>"
+
+
+def _parse_known_text_tool_call(
+    text: str,
+    tools: list[dict[str, Any]],
+) -> Optional[tuple[str, dict[str, Any]]]:
+    """Parse Ollama's ``safe_name({...})`` fallback for an offered tool only."""
+    names = [
+        str(tool.get("function", {}).get("name", ""))
+        for tool in tools
+        if tool.get("function", {}).get("name")
+    ]
+    for name in names:
+        pattern = rf"(?<![A-Za-z0-9_]){re.escape(name)}\s*\(\s*(\{{.*?\}})\s*\)"
+        match = re.search(pattern, text, flags=re.DOTALL)
+        if not match:
+            continue
+        try:
+            arguments = json.loads(match.group(1))
+        except json.JSONDecodeError:
+            continue
+        if isinstance(arguments, dict):
+            return name, arguments
+    return None
+
 class OpenAIAdapter(BaseAdapter):
     def __init__(
         self,
@@ -99,6 +216,10 @@ class OpenAIAdapter(BaseAdapter):
                     base_url=self.base_url,
                     organization=self.organization,
                     timeout=httpx.Timeout(timeout=self.timeout, connect=5.0),
+                    # Retry policy lives in ``generate`` and provider-specific
+                    # adapters. SDK retries would multiply the configured
+                    # timeout and make fallback latency unpredictable.
+                    max_retries=0,
                 )
             except ImportError:
                 raise ImportError("openai package not found. Install with: pip install openai")
@@ -338,6 +459,37 @@ def list_ollama_models(
     return [name for name in names if name]
 
 
+def ollama_model_capabilities(
+    model: str,
+    base_url: str = "http://localhost:11434/v1",
+    timeout: float = 2.0,
+) -> set[str]:
+    """Return capabilities advertised for an installed Ollama model."""
+    import urllib.error
+    import urllib.request
+
+    host = _ollama_host_from_base_url(base_url)
+    try:
+        with urllib.request.urlopen(f"{host}/api/tags", timeout=timeout) as resp:
+            payload = json.loads(resp.read().decode())
+    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError):
+        return set()
+
+    models = payload.get("models", [])
+    resolved = resolve_ollama_model(
+        model,
+        [entry.get("name", "") for entry in models if entry.get("name")],
+    )
+    entry = next((item for item in models if item.get("name") == resolved), None)
+    if entry is None:
+        return set()
+    return {
+        str(capability)
+        for capability in entry.get("capabilities", [])
+        if capability
+    }
+
+
 def resolve_ollama_model(preferred: str, models: list[str]) -> Optional[str]:
     """Map *preferred* to an installed Ollama model name, if possible."""
     if not models:
@@ -432,6 +584,17 @@ class OllamaAdapter(OpenAIAdapter):
             **kwargs,
         )
         self.think = think
+        self._supports_native_tools: Optional[bool] = None
+
+    def _native_tools_supported(self) -> bool:
+        if self._supports_native_tools is None:
+            capabilities = ollama_model_capabilities(
+                self.model,
+                base_url=self.base_url,
+                timeout=min(self.timeout, 5.0),
+            )
+            self._supports_native_tools = "tools" in capabilities
+        return self._supports_native_tools
 
     def generate(
         self,
@@ -442,7 +605,7 @@ class OllamaAdapter(OpenAIAdapter):
         **kwargs
     ) -> str:
         execute_tool = kwargs.pop("execute_tool", None)
-        kwargs.pop("tools", None)
+        tools = kwargs.pop("tools", None) or []
         # Ollama's OpenAI-compatible endpoint does not accept native tool
         # selection when tools themselves are handled by the legacy loop.
         kwargs.pop("tool_choice", None)
@@ -450,7 +613,42 @@ class OllamaAdapter(OpenAIAdapter):
         extra = dict(kwargs.pop("extra_body", None) or {})
         extra["think"] = self.think if think is None else think
 
+        if execute_tool and tools and self._native_tools_supported():
+            output = super().generate(
+                context,
+                user_input,
+                identity,
+                tools=tools,
+                execute_tool=execute_tool,
+                tool_choice="auto",
+                extra_body=extra,
+                **kwargs,
+            )
+            text_call = _parse_known_text_tool_call(output, tools)
+            if text_call is None:
+                return output
+            name, arguments = text_call
+            self._supports_native_tools = False
+            try:
+                result = execute_tool(name, arguments)
+            except Exception as exc:
+                result = json.dumps({"error": f"{type(exc).__name__}: {exc}"})
+            logger.warning(
+                "Recovered Ollama text-form call for offered tool %s; "
+                "re-prompting with runtime result.",
+                name,
+            )
+            return super().generate(
+                context,
+                f"{user_input}\n\n[Tool `{name}` returned]\n{result}\n\n"
+                "Use that verified result in your answer to the user.",
+                identity,
+                extra_body=extra,
+                **kwargs,
+            )
+
         if execute_tool:
+            context = _legacy_tool_context(context, user_input, tools)
             return self._legacy_tool_loop(
                 context,
                 user_input,

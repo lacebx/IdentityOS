@@ -13,7 +13,7 @@ class CommandExecCapability(Capability):
     id = "command_exec"
     name = "Command Exec"
     version = "1.0.0"
-    author = "auto-generated"
+    author = "IdentityOS"
     license = "MIT"
     description = "Executes real commands without shell expansion and returns actual stdout/stderr/exit code"
     permissions = ["process:execute"]

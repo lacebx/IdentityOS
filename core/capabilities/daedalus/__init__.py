@@ -8,7 +8,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from core.capabilities.base import Capability, Skill
+from core.capabilities.base import Capability, Skill, object_schema
 from core.capabilities.registry import register
 from core.capabilities.result import CapabilityResult
 
@@ -63,11 +63,11 @@ class ArchitectureAnalysisCapability(Capability):
         ]
 
     _SKILLS = [
-        Skill(name="architecture_analysis.analyze_module", description="Analyze a specific module or package for architectural health", permission="public"),
-        Skill(name="architecture_analysis.detect_coupling", description="Detect tight coupling between layers or modules", permission="public"),
-        Skill(name="architecture_analysis.evaluate_separation", description="Evaluate whether layers are properly separated with clean interfaces", permission="public"),
-        Skill(name="architecture_analysis.identify_weaknesses", description="Identify architectural weaknesses with evidence and recommended improvements", permission="public"),
-        Skill(name="architecture_analysis.produce_report", description="Produce comprehensive architecture health report", permission="public"),
+        Skill(name="architecture_analysis.analyze_module", description="Analyze a specific module or package for architectural health", permission="public", input_schema=object_schema({"module_name": {"type": "string"}}), verification_params={"module_name": "core/capabilities/base.py"}),
+        Skill(name="architecture_analysis.detect_coupling", description="Detect tight coupling between layers or modules", permission="public", input_schema=object_schema(), verification_params={}),
+        Skill(name="architecture_analysis.evaluate_separation", description="Evaluate whether layers are properly separated with clean interfaces", permission="public", input_schema=object_schema(), verification_params={}),
+        Skill(name="architecture_analysis.identify_weaknesses", description="Identify architectural weaknesses with evidence and recommended improvements", permission="public", input_schema=object_schema(), verification_params={}),
+        Skill(name="architecture_analysis.produce_report", description="Produce comprehensive architecture health report", permission="public", input_schema=object_schema(), verification_params={}),
     ]
 
     def skills(self) -> list[Skill]:
@@ -278,11 +278,11 @@ class CodeReviewCapability(Capability):
         ]
 
     _SKILLS = [
-        Skill(name="code_review.review_pr", description="Review a pull request with architectural perspective", permission="public"),
-        Skill(name="code_review.check_regressions", description="Check for benchmark regressions in a change", permission="public"),
-        Skill(name="code_review.verify_separation", description="Verify layer separation is maintained after a change", permission="public"),
-        Skill(name="code_review.detect_technical_debt", description="Detect technical debt introduced or addressed by a change", permission="public"),
-        Skill(name="code_review.assess_readiness", description="Assess whether a PR is ready for merge or needs changes", permission="public"),
+        Skill(name="code_review.review_pr", description="Review a pull request with architectural perspective", permission="public", input_schema=object_schema({"diff_path": {"type": "string"}, "title": {"type": "string"}}), verification_params={}),
+        Skill(name="code_review.check_regressions", description="Check for benchmark regressions in a change", permission="public", input_schema=object_schema()),
+        Skill(name="code_review.verify_separation", description="Verify layer separation is maintained after a change", permission="public", input_schema=object_schema({"diff_path": {"type": "string"}}), verification_params={}),
+        Skill(name="code_review.detect_technical_debt", description="Detect technical debt introduced or addressed by a change", permission="public", input_schema=object_schema({"diff_path": {"type": "string"}}), verification_params={}),
+        Skill(name="code_review.assess_readiness", description="Assess whether a PR is ready for merge or needs changes", permission="public", input_schema=object_schema({"diff_path": {"type": "string"}}), verification_params={}),
     ]
 
     def skills(self) -> list[Skill]:
@@ -427,10 +427,10 @@ class ChangelogGenCapability(Capability):
         ]
 
     _SKILLS = [
-        Skill(name="changelog_gen.generate", description="Generate changelog from git history between two refs", permission="public"),
-        Skill(name="changelog_gen.detect_breaking", description="Detect breaking changes from commit history", permission="public"),
-        Skill(name="changelog_gen.categorize", description="Categorize changes by type (feat, fix, refactor, etc.)", permission="public"),
-        Skill(name="changelog_gen.format_release", description="Format changelog for a specific release version", permission="public"),
+        Skill(name="changelog_gen.generate", description="Generate changelog from git history between two refs", permission="public", input_schema=object_schema({"from_ref": {"type": "string"}, "to_ref": {"type": "string"}}), verification_params={"from_ref": "HEAD", "to_ref": "HEAD"}),
+        Skill(name="changelog_gen.detect_breaking", description="Detect breaking changes from commit history", permission="public", input_schema=object_schema({"from_ref": {"type": "string"}, "to_ref": {"type": "string"}}), verification_params={"from_ref": "HEAD", "to_ref": "HEAD"}),
+        Skill(name="changelog_gen.categorize", description="Categorize changes by type (feat, fix, refactor, etc.)", permission="public", input_schema=object_schema({"from_ref": {"type": "string"}, "to_ref": {"type": "string"}}), verification_params={"from_ref": "HEAD", "to_ref": "HEAD"}),
+        Skill(name="changelog_gen.format_release", description="Format changelog for a specific release version", permission="public", input_schema=object_schema({"version": {"type": "string"}, "from_ref": {"type": "string"}, "to_ref": {"type": "string"}}), verification_params={"version": "0.0.0", "from_ref": "HEAD", "to_ref": "HEAD"}),
     ]
 
     def skills(self) -> list[Skill]:
@@ -530,11 +530,11 @@ class RepoHealthCapability(Capability):
         ]
 
     _SKILLS = [
-        Skill(name="repo_health.assess_code_quality", description="Assess code quality metrics from repository analysis", permission="public"),
-        Skill(name="repo_health.check_test_health", description="Analyze test coverage and test reliability", permission="public"),
-        Skill(name="repo_health.evaluate_documentation", description="Evaluate documentation freshness and completeness", permission="public"),
-        Skill(name="repo_health.analyze_benchmark_trend", description="Analyze IdentityBench benchmark trends over time", permission="public"),
-        Skill(name="repo_health.produce_report", description="Produce comprehensive repository health report", permission="public"),
+        Skill(name="repo_health.assess_code_quality", description="Assess code quality metrics from repository analysis", permission="public", input_schema=object_schema(), verification_params={}),
+        Skill(name="repo_health.check_test_health", description="Analyze test coverage and test reliability", permission="public", input_schema=object_schema(), verification_params={}),
+        Skill(name="repo_health.evaluate_documentation", description="Evaluate documentation freshness and completeness", permission="public", input_schema=object_schema(), verification_params={}),
+        Skill(name="repo_health.analyze_benchmark_trend", description="Analyze IdentityBench benchmark trends over time", permission="public", input_schema=object_schema()),
+        Skill(name="repo_health.produce_report", description="Produce comprehensive repository health report", permission="public", input_schema=object_schema()),
     ]
 
     def skills(self) -> list[Skill]:
@@ -653,10 +653,10 @@ class DependencyGraphCapability(Capability):
         ]
 
     _SKILLS = [
-        Skill(name="dependency_graph.analyze_module_deps", description="Analyze import dependencies for a specific module", permission="public"),
-        Skill(name="dependency_graph.detect_cycles", description="Detect circular dependencies in the codebase", permission="public"),
-        Skill(name="dependency_graph.map_capability_deps", description="Map dependencies between capabilities", permission="public"),
-        Skill(name="dependency_graph.visualize", description="Generate dependency graph visualization", permission="public"),
+        Skill(name="dependency_graph.analyze_module_deps", description="Analyze import dependencies for a specific module", permission="public", input_schema=object_schema({"module_path": {"type": "string"}}), verification_params={"module_path": "core/capabilities/base.py"}),
+        Skill(name="dependency_graph.detect_cycles", description="Detect circular dependencies in the codebase", permission="public", input_schema=object_schema(), verification_params={}),
+        Skill(name="dependency_graph.map_capability_deps", description="Map dependencies between capabilities", permission="public", input_schema=object_schema(), verification_params={}),
+        Skill(name="dependency_graph.visualize", description="Generate dependency graph visualization", permission="public", input_schema=object_schema({"format": {"type": "string", "enum": ["text"]}}), verification_params={"format": "text"}),
     ]
 
     def skills(self) -> list[Skill]:

@@ -276,26 +276,12 @@
       "id": "command_exec",
       "name": "Command Exec",
       "version": "1.0.0",
-      "description": "Auto-generated: create a command execution capability and run hostname",
-      "skills": [],
-      "published": "auto",
+      "description": "Executes commands without shell expansion and returns actual stdout, stderr, and exit code",
+      "skills": [
+        "command_exec.run"
+      ],
+      "published": "2026-08-31",
       "updated": true
-    },
-    {
-      "id": "speech",
-      "name": "Speech",
-      "version": "1.0.0",
-      "description": "Generic capability: speech",
-      "skills": [],
-      "published": "auto"
-    },
-    {
-      "id": "skills",
-      "name": "Skills",
-      "version": "1.0.0",
-      "description": "Generic capability: skills",
-      "skills": [],
-      "published": "auto"
     }
   ]
 }
