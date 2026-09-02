@@ -346,3 +346,11 @@ class TestDaedalusActions:
             assert len(declining) > 0
         finally:
             trend_file.unlink()
+
+
+def test_review_workflow_uses_repository_scoped_token_for_github_writes():
+    root = Path(__file__).resolve().parents[1]
+    workflow = (root / ".github/workflows/daedalus-review.yml").read_text()
+
+    assert "github-token: ${{ github.token }}" in workflow
+    assert "DAEDALUS_GITHUB_TOKEN" not in workflow

@@ -51,7 +51,6 @@ jobs:
       - name: Run Daedalus PR review (static + AI analysis)
         id: daedalus
         env:
-          DAEDALUS_GITHUB_TOKEN: ${{ secrets.DAEDALUS_GITHUB_TOKEN }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           GROQ_API_KEY_2: ${{ secrets.GROQ_API_KEY_2 }}
           GROQ_API_KEY_3: ${{ secrets.GROQ_API_KEY_3 }}
@@ -72,13 +71,12 @@ jobs:
             --base-ref "${{ github.base_ref }}" \
             --title "${{ github.event.pull_request.title }}" \
             --output /tmp/daedalus-review.md \
-            --token "${{ secrets.DAEDALUS_GITHUB_TOKEN }}" \
             --test-results /tmp/test-results.txt
 
       - name: Daedalus posts review on PR
         uses: actions/github-script@v7
         with:
-          github-token: ${{ secrets.DAEDALUS_GITHUB_TOKEN }}
+          github-token: ${{ github.token }}
           script: |
             const fs = require('fs');
             let body = '';
@@ -97,7 +95,7 @@ jobs:
       - name: Daedalus applies labels and self-assigns
         uses: actions/github-script@v7
         with:
-          github-token: ${{ secrets.DAEDALUS_GITHUB_TOKEN }}
+          github-token: ${{ github.token }}
           script: |
             const reviewStatus = '${{ steps.daedalus.outputs.status }}';
             const labels = ['daedalus-reviewed'];
