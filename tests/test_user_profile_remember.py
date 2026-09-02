@@ -32,6 +32,38 @@ def test_self_disclosures_are_split_without_regex_backtracking() -> None:
     }
 
 
+def test_compound_conversation_facts_support_complete_model_independent_recall() -> None:
+    statements = [
+        "My name is Alex. I'm a web developer and my favorite framework is FastAPI.",
+        "I also love hiking and my dog's name is Max.",
+    ]
+    profile = UserProfile()
+    for statement in statements:
+        for fact in extract_user_facts(statement):
+            profile.add_or_update(fact.field, fact.value, source=statement)
+
+    answer = profile.try_recall_answer(
+        "Do you remember our conversation? What is my name, what do I do, "
+        "what's my favorite framework, and what's my dog's name?"
+    )
+
+    assert answer
+    assert all(value in answer for value in ("Alex", "web developer", "FastAPI", "Max"))
+
+
+def test_trip_and_excitement_disclosures_are_distinct_facts() -> None:
+    facts = extract_user_facts(
+        "My name is Alice and I'm planning a trip to Japan next month."
+    ) + extract_user_facts(
+        "I'm most excited about trying the street food in Tokyo."
+    )
+    by_field = {fact.field: fact.value for fact in facts}
+
+    assert by_field["name"] == "Alice"
+    assert by_field["travel_destination"] == "Japan"
+    assert by_field["current_excitement"] == "trying the street food in Tokyo"
+
+
 def test_profile_extraction_bounds_adversarial_input() -> None:
     facts = extract_user_facts("My name is Lace. " + ("my " * 100_000))
     assert {fact.field: fact.value for fact in facts}["name"] == "Lace"
@@ -171,6 +203,36 @@ def test_holdout_fact_recalls_after_runtime_restart_without_model() -> None:
         ))
 
         assert "ap-southeast-2" in response.output
+        assert not restarted.event_bus.history(event_type=EventType.MODEL_REQUESTED)
+
+
+def test_compound_conversation_recall_is_complete_after_restart_without_model() -> None:
+    with tempfile.TemporaryDirectory() as store_dir:
+        identity_id = "compound-recall"
+        first = IdentityRuntime(storage=JSONFileBackend(root_dir=store_dir))
+        first.register(create_identity(name="Recall", identity_id=identity_id))
+        for message in (
+            "My name is Alice and I'm planning a trip to Japan next month.",
+            "I'm most excited about trying the street food in Tokyo.",
+        ):
+            first.process(InteractionRequest(
+                identity_id=identity_id,
+                user_input=message,
+            ))
+
+        restarted = IdentityRuntime(storage=JSONFileBackend(root_dir=store_dir))
+        restarted.load(identity_id)
+        response = restarted.process(InteractionRequest(
+            identity_id=identity_id,
+            user_input=(
+                "Do you remember our previous conversation? What is my name, "
+                "where am I going, and what am I most excited about?"
+            ),
+        ))
+
+        assert all(value in response.output for value in (
+            "Alice", "Japan", "street food", "Tokyo",
+        ))
         assert not restarted.event_bus.history(event_type=EventType.MODEL_REQUESTED)
 
 

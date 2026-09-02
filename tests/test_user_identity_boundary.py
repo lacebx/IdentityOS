@@ -139,3 +139,38 @@ def test_session_cannot_be_rebound_to_another_user(tmp_path):
     assert first.policy_passed is True
     assert second.policy_passed is False
     assert "different user" in second.output.lower()
+
+
+def test_legacy_session_id_is_an_implicit_user_boundary(tmp_path):
+    runtime = _runtime(tmp_path)
+    response = runtime.process(InteractionRequest(
+        identity_id="boundary-bot",
+        session_id="legacy-user",
+        user_input="My favorite editor is Helix.",
+    ))
+
+    assert response.user_id == "legacy-user"
+    assert runtime._get_user_profile(
+        "boundary-bot", "legacy-user"
+    ).get_value("preferences.favorite_editor") == "Helix"
+    targets = [
+        edge.target_id
+        for edge in runtime.identity_graph.get_relationships("boundary-bot")
+    ]
+    assert "legacy-user" in targets
+
+
+def test_prebound_session_supplies_missing_user_id(tmp_path):
+    runtime = _runtime(tmp_path)
+    runtime.start_session(
+        "boundary-bot", session_id="bound-session", user_id="alice"
+    )
+
+    response = runtime.process(InteractionRequest(
+        identity_id="boundary-bot",
+        session_id="bound-session",
+        user_input="Hello",
+    ))
+
+    assert response.policy_passed is True
+    assert response.user_id == "alice"

@@ -781,9 +781,31 @@ class IdentityRuntime:
             )
 
         stage_started = trace.start_stage()
-        user_id = self._resolved_user_id(identity.id, request.user_id)
-        session_id = request.session_id or f"default:{identity.id}:{user_id}"
+        explicit_user = (request.user_id or "").strip()
+        default_user = self._resolved_user_id(identity.id, explicit_user)
+        session_id = request.session_id or f"default:{identity.id}:{default_user}"
+        bound_identity = self._sessions.get(session_id)
+        if bound_identity is not None and bound_identity != identity.id:
+            return InteractionResponse(
+                request_id=request.id,
+                identity_id=identity.id,
+                user_id=explicit_user or default_user,
+                output="[Error] Session belongs to a different identity.",
+                policy_passed=False,
+                metadata={"timings_ms": trace.finish()},
+            )
         bound_user = self._session_users.get(session_id)
+        if explicit_user:
+            user_id = explicit_user
+        elif bound_user is not None:
+            user_id = bound_user
+        elif request.session_id:
+            # Legacy callers historically used a stable session id as their
+            # only user boundary. Preserve that isolation until they migrate
+            # to the explicit user_id field.
+            user_id = request.session_id
+        else:
+            user_id = default_user
         if bound_user is not None and bound_user != user_id:
             return InteractionResponse(
                 request_id=request.id,
