@@ -2,11 +2,15 @@ from __future__ import annotations
 
 import json
 import os
+import threading
 from typing import Any, Optional
 
 from core.capabilities.base import Capability, Skill, object_schema
 from core.capabilities.registry import register
 from core.capabilities.result import CapabilityResult
+
+
+_PUBLISH_LOCK = threading.Lock()
 
 
 @register
@@ -101,13 +105,27 @@ class RegistryManagerCapability(Capability):
             return {"error": "cap_id is required"}
         if not name:
             return {"error": "name is required"}
-        index = self._load_index()
-        caps = index.get("capabilities", [])
-        existing = [c for c in caps if c.get("id") == cap_id]
-        if existing:
-            existing[0]["version"] = version
-            existing[0]["updated"] = True
-        else:
+        with _PUBLISH_LOCK:
+            index = self._load_index()
+            caps = index.get("capabilities", [])
+            manifest_path = os.path.join(
+                self._registry_path(), "capabilities", cap_id, "manifest.json"
+            )
+            if any(c.get("id") == cap_id for c in caps) or os.path.exists(manifest_path):
+                return {
+                    "error": (
+                        f"Capability '{cap_id}' already exists; refusing to overwrite "
+                        "published capability metadata."
+                    ),
+                    "cap_id": cap_id,
+                    "conflict": True,
+                }
+
+            marketplace = self._publish_to_marketplace(
+                cap_id, name, version, description, skills
+            )
+            if marketplace.get("error"):
+                return {"error": marketplace["error"], "cap_id": cap_id}
             caps.append({
                 "id": cap_id,
                 "name": name,
@@ -116,9 +134,8 @@ class RegistryManagerCapability(Capability):
                 "skills": skills or [],
                 "published": "auto",
             })
-        index["capabilities"] = caps
-        self._save_index(index)
-        marketplace = self._publish_to_marketplace(cap_id, name, version, description, skills)
+            index["capabilities"] = caps
+            self._save_index(index)
         return {
             "cap_id": cap_id,
             "name": name,
@@ -145,7 +162,7 @@ class RegistryManagerCapability(Capability):
                 "permissions": {"network": False, "filesystem": True},
                 "skills": skills or [{"name": f"{cap_id}.run" if cap_id == "command_exec" else f"{cap_id}.greet", "description": "Generated capability", "permission": "public"}],
             }
-            with open(os.path.join(mk_dir, "manifest.json"), "w") as f:
+            with open(os.path.join(mk_dir, "manifest.json"), "x") as f:
                 json.dump(manifest, f, indent=2)
 
             mk_index = os.path.join(self._registry_path(), "capabilities", "index.json")

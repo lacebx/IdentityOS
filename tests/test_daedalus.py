@@ -165,6 +165,7 @@ class TestArchitecturalImpact:
         files = [{"path": "runtime/orchestrator.py", "lines": ["+pass"]}]
         result = analyze_architectural_impact(files)
         assert any("Critical file" in r for r in result)
+        assert assess_readiness({"architecture": result})[0] == "READY"
 
     def test_detects_layers(self):
         files = [{"path": "identitybench/atlas/health.py", "lines": ["+pass"]}]
@@ -264,6 +265,29 @@ class TestReadiness:
     def test_not_ready(self):
         result = assess_readiness({"separation": ["❌ blocker"]})
         assert result[0] == "NOT_READY"
+
+
+class TestThinkingEngineProviderSelection:
+    def test_each_provider_is_attempted_at_most_once(self, monkeypatch):
+        from core.capabilities.daedalus.thinking_engine import ThinkingEngine
+
+        monkeypatch.setenv("GROQ_API_KEY", "groq-test")
+        monkeypatch.setenv("ZEN_API_KEY", "zen-test")
+        for name in (
+            "OPENAI_API_KEY",
+            "CEREBRAS_API_KEY",
+            "CEREBRAS_API_KEY_2",
+            "SAMBANOVA_API_KEY",
+            "ANTHROPIC_API_KEY",
+            "OPENROUTER_API_KEY",
+        ):
+            monkeypatch.delenv(name, raising=False)
+        monkeypatch.setattr("random.shuffle", lambda values: None)
+        engine = ThinkingEngine()
+
+        assert engine._pick_provider([])[0] == "groq"
+        assert engine._pick_provider(["groq"])[0] == "zen"
+        assert engine._pick_provider(["groq", "zen"]) == (None, None, None)
 
 
 # ─── Daedalus Actions Tests ──────────────────────────────────────────

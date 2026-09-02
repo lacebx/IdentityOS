@@ -17,7 +17,7 @@ import random
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Collection, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -82,8 +82,11 @@ def _find_key_for_provider(provider: str) -> Optional[str]:
     return random.choice(keys) if keys else None
 
 
-def _find_any_working_key(exclude: Optional[str] = None) -> Tuple[Optional[str], Optional[str], Optional[str]]:
-    providers = [p for p in PROVIDER_CONFIGS if p != exclude]
+def _find_any_working_key(
+    exclude: Optional[Collection[str]] = None,
+) -> Tuple[Optional[str], Optional[str], Optional[str]]:
+    excluded = set(exclude or ())
+    providers = [provider for provider in PROVIDER_CONFIGS if provider not in excluded]
     random.shuffle(providers)
     for provider in providers:
         config = PROVIDER_CONFIGS[provider]
@@ -186,7 +189,7 @@ class ThinkingEngine:
             if key:
                 config = PROVIDER_CONFIGS.get(self.preferred_provider, {})
                 return self.preferred_provider, key, config.get("base_url")
-        return _find_any_working_key(exclude=tried[-1] if tried else None)
+        return _find_any_working_key(exclude=tried)
 
 
 MEMORY_PATH = Path(".daedalus/memory.json")

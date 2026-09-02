@@ -26,10 +26,13 @@ from core.identity import create_identity
 from runtime.orchestrator import IdentityRuntime, InteractionRequest
 from runtime.persistence import JSONFileBackend
 
-pytestmark = pytest.mark.skipif(
-    not os.environ.get("GROQ_API_KEY"),
-    reason="Requires GROQ_API_KEY",
-)
+pytestmark = [
+    pytest.mark.network,
+    pytest.mark.skipif(
+        not os.environ.get("GROQ_API_KEY"),
+        reason="Requires GROQ_API_KEY",
+    ),
+]
 
 
 @pytest.fixture

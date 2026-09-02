@@ -37,13 +37,13 @@ from core.identity_mutation import (
 from core.memory import MemoryFragment, MemoryStore, MemoryType
 from core.motivations import MotivationEngine
 from core.policies import PolicyEngine, PolicyScope
-from core.planner import SkillRouter
 from core.relationships import EdgeType, IdentityGraph, TrustLevel
 from core.capabilities import CapabilityRegistry as PluginRegistry
 from core.skills import SkillRegistry
 from core.timeline import LifeEvent, LifeEventType, TimelineRegistry
 from core.user_profile import UserProfile, extract_user_facts, try_explicit_abstain
 from runtime.event_bus import EventBus, EventType
+from runtime.debugger import build_debug_record, persist_debug_record
 from runtime.observability import InteractionTrace
 from runtime.persistence import InMemoryBackend
 
@@ -179,11 +179,47 @@ class InteractionResponse:
     metadata: Dict[str, Any] = field(default_factory=dict)
     timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
+
+def _serialize_tool_result(data: Any, max_chars: int) -> str:
+    """Serialize a capability result without allowing it to consume the next prompt.
+
+    Capability output is untrusted input to the model loop.  Keep small results
+    unchanged, but make truncation explicit and preserve the original size when a
+    result exceeds the runtime's configured boundary.
+    """
+    limit = max(256, int(max_chars))
+    payload = data if isinstance(data, (dict, list)) else {"result": str(data)}
+    serialized = json.dumps(payload, default=str)
+    if len(serialized) <= limit:
+        return serialized
+
+    envelope = {
+        "truncated": True,
+        "original_chars": len(serialized),
+        "result_excerpt": "",
+    }
+    low = 0
+    high = min(len(serialized), limit)
+    best = json.dumps(envelope, default=str)
+    while low <= high:
+        midpoint = (low + high) // 2
+        envelope["result_excerpt"] = serialized[:midpoint]
+        candidate = json.dumps(envelope, default=str)
+        if len(candidate) <= limit:
+            best = candidate
+            low = midpoint + 1
+        else:
+            high = midpoint - 1
+    return best
+
+
 class IdentityRuntime:
     def __init__(
         self,
         adapter=None,
         max_context_tokens: int = 4000,
+        max_tool_result_chars: int = 8000,
+        max_tools_per_request: int = 8,
         storage=None,
     ):
         self.identity_store = IdentityStore()
@@ -195,6 +231,8 @@ class IdentityRuntime:
         self.policy_engine = PolicyEngine()
         self.evaluation_engine = EvaluationEngine()
         self.context_composer = ContextComposer(max_tokens=max_context_tokens)
+        self.max_tool_result_chars = max(256, int(max_tool_result_chars))
+        self.max_tools_per_request = max(1, int(max_tools_per_request))
         self.motivation_engine = MotivationEngine()
         self.mutation_engine = IdentityMutationEngine(min_confidence=0.5)
         self.timeline_registry = TimelineRegistry()
@@ -296,6 +334,7 @@ class IdentityRuntime:
                 self._load_timeline(spec.id)
                 self._load_relationships(spec.id)
                 self._load_goals(spec.id)
+                self._load_intentions(spec.id)
                 self._load_fact_store(spec.id)
                 self._load_persisted_memories(spec.id)
                 return spec
@@ -442,9 +481,36 @@ class IdentityRuntime:
         if not self._storage:
             return
         try:
-            self._storage.save(identity_id, "goals", self.goal_engine.to_dict())
+            goals = [
+                goal.to_dict()
+                for goal in self.goal_engine.all()
+                if goal.metadata.get("identity_id") in (None, identity_id)
+            ]
+            self._storage.save(identity_id, "goals", {"goals": goals})
         except Exception:
             pass
+
+    def _persist_intentions(self, identity_id: str) -> None:
+        if not self._storage:
+            return
+        intentions = [
+            intention.to_dict()
+            for intention in self.intention_engine.all()
+            if intention.metadata.get("identity_id") in (None, identity_id)
+        ]
+        self._storage.save(identity_id, "intentions", {"intentions": intentions})
+
+    def _load_intentions(self, identity_id: str) -> None:
+        if not self._storage:
+            return
+        data = self._storage.load(identity_id, "intentions")
+        if not data:
+            return
+        loaded = IntentionEngine.from_dict(data)
+        for intention in loaded.all():
+            intention.metadata.setdefault("identity_id", identity_id)
+            if self.intention_engine.get(intention.id) is None:
+                self.intention_engine.add(intention)
 
     def _persist_identity(self, identity: IdentitySpec) -> None:
         if not self._storage:
@@ -465,6 +531,7 @@ class IdentityRuntime:
                 return
             loaded = GoalEngine.from_dict(data)
             for g in loaded.all():
+                g.metadata.setdefault("identity_id", identity_id)
                 self.goal_engine.add(g)
         except Exception:
             pass
@@ -715,9 +782,31 @@ class IdentityRuntime:
             )
 
         stage_started = trace.start_stage()
-        user_id = self._resolved_user_id(identity.id, request.user_id)
-        session_id = request.session_id or f"default:{identity.id}:{user_id}"
+        explicit_user = (request.user_id or "").strip()
+        default_user = self._resolved_user_id(identity.id, explicit_user)
+        session_id = request.session_id or f"default:{identity.id}:{default_user}"
+        bound_identity = self._sessions.get(session_id)
+        if bound_identity is not None and bound_identity != identity.id:
+            return InteractionResponse(
+                request_id=request.id,
+                identity_id=identity.id,
+                user_id=explicit_user or default_user,
+                output="[Error] Session belongs to a different identity.",
+                policy_passed=False,
+                metadata={"timings_ms": trace.finish()},
+            )
         bound_user = self._session_users.get(session_id)
+        if explicit_user:
+            user_id = explicit_user
+        elif bound_user is not None:
+            user_id = bound_user
+        elif request.session_id:
+            # Legacy callers historically used a stable session id as their
+            # only user boundary. Preserve that isolation until they migrate
+            # to the explicit user_id field.
+            user_id = request.session_id
+        else:
+            user_id = default_user
         if bound_user is not None and bound_user != user_id:
             return InteractionResponse(
                 request_id=request.id,
@@ -812,9 +901,12 @@ class IdentityRuntime:
         session_fact_store = self._get_fact_store_for_session(identity.id, session_id)
         cap_prompts = self.capability_registry.all_prompts(identity.id)
 
-        _tool_defs, _tool_map = self.capability_registry.tool_catalog(identity.id)
+        _tool_defs, _tool_map = self.capability_registry.tool_catalog(
+            identity.id,
+            query=sanitized_input,
+            limit=self.max_tools_per_request,
+        )
         _evidence_results: List[Dict[str, Any]] = []
-        _tool_router = SkillRouter(self.capability_registry, identity.id)
 
         def _execute_tool_call(func_name: str, args: Any) -> str:
             t0 = _time_mod.monotonic()
@@ -826,7 +918,12 @@ class IdentityRuntime:
             if not isinstance(args, dict):
                 args = {}
 
-            skill_name = _tool_map.get(func_name)
+            # Some models reproduce the canonical dotted skill name even
+            # though providers require the offered ``__``-safe name. Resolve
+            # that alias only when it maps to a tool in this request's
+            # authorized catalog.
+            safe_func_name = func_name.replace(".", "__")
+            skill_name = _tool_map.get(func_name) or _tool_map.get(safe_func_name)
             if not skill_name:
                 return json.dumps({"error": f"Unknown tool: {func_name}"})
 
@@ -862,10 +959,11 @@ class IdentityRuntime:
                     "error": {"message": err_msg} if err_msg else None,
                 })
                 if success:
-                    if isinstance(data, (dict, list)):
-                        return json.dumps(data, default=str)
-                    return json.dumps({"result": str(data)}, default=str)
-                return json.dumps({"error": err_msg or "Skill reported failure"}, default=str)
+                    return _serialize_tool_result(data, self.max_tool_result_chars)
+                return _serialize_tool_result(
+                    {"error": err_msg or "Skill reported failure"},
+                    self.max_tool_result_chars,
+                )
             except Exception as e:
                 duration_ms = (_time_mod.monotonic() - t0) * 1000
                 _evidence_results.append({
@@ -873,7 +971,10 @@ class IdentityRuntime:
                     "success": False, "confidence": 0.0, "duration_ms": duration_ms,
                     "error": {"message": f"{type(e).__name__}: {e}"},
                 })
-                return json.dumps({"error": f"{type(e).__name__}: {e}"}, default=str)
+                return _serialize_tool_result(
+                    {"error": f"{type(e).__name__}: {e}"},
+                    self.max_tool_result_chars,
+                )
 
         stage_started = trace.start_stage()
         context = self.context_composer.compose(
@@ -1028,10 +1129,14 @@ class IdentityRuntime:
         mutation_proposals = self.mutation_engine.analyze(
             user_input=sanitized_input, assistant_response=final_output, identity_spec=identity,
         )
+        validated_mutations: List[MutationProposal] = []
         if mutation_proposals:
-            validated = self.mutation_engine.validate(mutation_proposals, existing_records=None)
-            self.mutation_engine.apply_proposals_to_fact_store(validated)
-            for proposal in validated:
+            validated_mutations = self.mutation_engine.validate(
+                mutation_proposals,
+                existing_records=None,
+            )
+            self.mutation_engine.apply_proposals_to_fact_store(validated_mutations)
+            for proposal in validated_mutations:
                 if proposal.status in (MutationStatus.ACCEPTED, MutationStatus.CONFLICT):
                     self._emit(
                         EventType.IDENTITY_MUTATION_ACCEPTED if proposal.status == MutationStatus.ACCEPTED
@@ -1043,9 +1148,15 @@ class IdentityRuntime:
                 else:
                     self._emit(EventType.IDENTITY_MUTATION_REJECTED, identity_id=identity.id,
                                session_id=session_id, field=proposal.field, reason=proposal.rejection_reason)
-            accepted_count = sum(1 for p in validated if p.status == MutationStatus.ACCEPTED)
+            accepted_count = sum(
+                1 for p in validated_mutations if p.status == MutationStatus.ACCEPTED
+            )
             if accepted_count > 0 and session_mode == SessionMode.NORMAL:
-                fields_changed = [p.field for p in validated if p.status == MutationStatus.ACCEPTED]
+                fields_changed = [
+                    p.field
+                    for p in validated_mutations
+                    if p.status == MutationStatus.ACCEPTED
+                ]
                 identity.bump_version(level="patch", changelog=f"Mutated: {', '.join(fields_changed[:3])}")
             if session_mode == SessionMode.NORMAL:
                 self._save_fact_store(identity.id)
@@ -1083,6 +1194,7 @@ class IdentityRuntime:
         )
         self._persist_relationships(identity.id)
         self._persist_goals(identity.id)
+        self._persist_intentions(identity.id)
 
         if _evidence_results and policy_passed:
             footer_lines = ["\n\n---\n📊 **Evidence Sources**"]
@@ -1112,10 +1224,42 @@ class IdentityRuntime:
         timings.clear()
         timings.update(trace.finish())
 
+        debug_recorded = False
+        if self._storage is not None:
+            try:
+                debug_record = build_debug_record(
+                    self,
+                    request_id=request.id,
+                    identity_id=identity.id,
+                    user_id=user_id,
+                    session_id=session_id,
+                    user_input=sanitized_input,
+                    output=final_output,
+                    context=context,
+                    timings_ms=timings,
+                    input_policy=input_policy,
+                    output_policy=output_policy,
+                    evaluation_report=eval_report,
+                    evidence_results=_evidence_results,
+                    mutation_proposals=validated_mutations,
+                )
+                persist_debug_record(self._storage, debug_record)
+                debug_recorded = True
+            except Exception as exc:
+                self._emit_subsystem_failure(
+                    "debug_record",
+                    exc,
+                    identity_id=identity.id,
+                    session_id=session_id,
+                )
+
         return InteractionResponse(
             request_id=request.id, identity_id=identity.id, user_id=user_id, output=final_output,
             context_used=context, policy_passed=policy_passed, eval_score=eval_report.overall_score,
-            metadata={"timings_ms": timings},
+            metadata={
+                "timings_ms": timings,
+                "debug_request_id": request.id if debug_recorded else None,
+            },
         )
 
     def __repr__(self) -> str:

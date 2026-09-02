@@ -247,8 +247,8 @@ def analyze_architectural_impact(files: List[Dict[str, Any]]) -> List[str]:
         for critical in CRITICAL_DIRECTORIES:
             if f["path"] == critical:
                 findings.append(
-                    f"- \u26a0\ufe0f **Critical file modified**: `{f['path']}` \u2014 "
-                    "this file is central to IdentityOS architecture"
+                    f"- \u2139\ufe0f **Critical file modified**: `{f['path']}` \u2014 "
+                    "review with additional care because this file is central to IdentityOS architecture"
                 )
     if impacted_layers:
         layer_details = []

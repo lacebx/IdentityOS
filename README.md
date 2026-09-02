@@ -154,6 +154,35 @@ identity playground
 
 Open http://localhost:8000/playground
 
+See [docs/IDENTITY_CHAT.md](docs/IDENTITY_CHAT.md) for session modes, streaming,
+state panels, goal/intention controls, restart verification, and export.
+
+For non-Python clients, run the public REST service and use its Swagger UI:
+
+```bash
+uvicorn runtime.main:app --host 127.0.0.1 --port 8000
+```
+
+See [docs/API.md](docs/API.md) for authentication, rate limiting, deployment,
+and the complete endpoint list.
+
+For durable pipeline inspection and identity time travel, see
+[docs/DEBUGGER.md](docs/DEBUGGER.md) or run `identity debug --id <id>` and
+`identity replay --id <id>`.
+
+IdentityOS also ships reference integrations for continuity outside the CLI:
+
+- [Browser bridge](extension/README.md) for user-controlled continuity across
+  ChatGPT, Claude, Gemini, Grok, GitHub, Reddit, and YouTube.
+- [VS Code extension](vscode-extension/README.md) for project-partitioned
+  coding preferences, persistent software goals, and offline identity state.
+- [JavaScript SDK](clients/javascript/README.md) for Node.js integrations that
+  use the public API without importing runtime internals.
+
+Long-lived runtime health is measured by IdentityBench's durable endurance
+monitor. See [docs/IDENTITYBENCH_ENDURANCE.md](docs/IDENTITYBENCH_ENDURANCE.md)
+for recurring runs, restart evidence, trend graphs, and degradation alerts.
+
 ---
 
 ## Capabilities: Give Your Identity New Skills

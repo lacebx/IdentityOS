@@ -62,6 +62,76 @@ def _parse_legacy_function_call(text: str) -> Optional[tuple[str, dict]]:
     return name, args
 
 
+def _parse_failed_generation_tool_call(text: str) -> Optional[tuple[str, dict]]:
+    """Extract a structured tool call embedded in a provider error message.
+
+    OpenAI-compatible providers commonly include ``failed_generation`` as a
+    quoted Python-repr value.  Its JSON is therefore escaped (for example,
+    newlines arrive as the two characters ``\\n``), so attempting to decode the
+    surrounding exception text directly is not sufficient.
+    """
+    candidates: list[str] = []
+    marker = re.search(r"[\"']?failed_generation[\"']?\s*:\s*", text)
+    if marker:
+        value_start = marker.end()
+        if value_start < len(text) and text[value_start] in {"'", '"'}:
+            quote = text[value_start]
+            escaped = False
+            for index in range(value_start + 1, len(text)):
+                char = text[index]
+                if char == quote and not escaped:
+                    try:
+                        decoded = ast.literal_eval(text[value_start:index + 1])
+                    except (SyntaxError, ValueError):
+                        decoded = None
+                    if isinstance(decoded, str):
+                        candidates.append(decoded)
+                    break
+                if char == "\\" and not escaped:
+                    escaped = True
+                else:
+                    escaped = False
+
+    candidates.append(text)
+    for candidate in candidates:
+        match = re.search(r'\{\s*"name"\s*:', candidate)
+        if match is None:
+            continue
+        try:
+            payload, _ = json.JSONDecoder().raw_decode(candidate[match.start():])
+        except (json.JSONDecodeError, TypeError):
+            payload = None
+        if isinstance(payload, dict):
+            name = payload.get("name")
+            args = payload.get("arguments", {})
+            if isinstance(args, str):
+                try:
+                    args = json.loads(args)
+                except json.JSONDecodeError:
+                    try:
+                        args = ast.literal_eval(args)
+                    except (SyntaxError, ValueError):
+                        args = {}
+            if isinstance(name, str) and isinstance(args, dict):
+                return name, args
+    return None
+
+
+def _is_output_parse_error(text: str) -> bool:
+    lowered = text.lower()
+    return "output_parse_failed" in lowered or (
+        "parsing failed" in lowered and "failed_generation" in lowered
+    )
+
+
+def _runtime_evidence_fallback(evidence: list[tuple[str, str]]) -> str:
+    lines = [
+        "Model synthesis was unavailable. Verified runtime evidence:",
+    ]
+    lines.extend(f"- {name}: {result}" for name, result in evidence)
+    return "\n".join(lines)
+
+
 def _legacy_tool_context(
     context: str,
     user_input: str,
@@ -187,6 +257,7 @@ class OpenAIAdapter(BaseAdapter):
         organization: Optional[str] = None,
         temperature: float = 0.7,
         max_tokens: int = 1024,
+        max_tool_rounds: int = 4,
         timeout: Optional[float] = None,
         **kwargs
     ):
@@ -200,6 +271,7 @@ class OpenAIAdapter(BaseAdapter):
         self.organization = organization
         self.temperature = temperature
         self.max_tokens = max_tokens
+        self.max_tool_rounds = max(1, int(max_tool_rounds))
 
         if timeout is None:
             timeout = float(os.environ.get("OPENAI_TIMEOUT", "") or 0) or 120.0
@@ -245,10 +317,28 @@ class OpenAIAdapter(BaseAdapter):
         ]
         model = self.model or "gpt-4o"
         last_exc = None
-        max_tool_turns = 10
         effective_max = max_tokens or self.max_tokens
+        tool_rounds = 0
+        tool_evidence: list[tuple[str, str]] = []
+        final_instruction_added = False
 
-        for turn in range(max_tool_turns):
+        # Each tool round requires another full provider request.  Keep that
+        # resource use finite and reserve one final request for synthesizing
+        # the observed evidence into an answer.
+        for _ in range(self.max_tool_rounds + 1):
+            if (
+                tool_rounds >= self.max_tool_rounds
+                and tool_evidence
+                and not final_instruction_added
+            ):
+                messages.append({
+                    "role": "user",
+                    "content": (
+                        "The tool-call budget is exhausted. Do not call another tool. "
+                        "Answer now using only the verified tool results above."
+                    ),
+                })
+                final_instruction_added = True
             response = None
             recovered = False
             attempt = 0
@@ -256,12 +346,16 @@ class OpenAIAdapter(BaseAdapter):
             while attempt < retries + shrinks:
                 attempt += 1
                 try:
+                    request_kwargs = dict(kwargs)
+                    if tool_rounds >= self.max_tool_rounds:
+                        request_kwargs.pop("tools", None)
+                        request_kwargs.pop("tool_choice", None)
                     response = client.chat.completions.create(
                         model=model,
                         messages=messages,
                         temperature=temperature or self.temperature,
                         max_tokens=effective_max,
-                        **kwargs
+                        **request_kwargs
                     )
                     break
                 except Exception as exc:
@@ -285,12 +379,48 @@ class OpenAIAdapter(BaseAdapter):
                             effective_max, msg,
                         )
                         continue
-                    # Groq and other providers reject legacy <function=...> text
-                    # syntax with a 400 'tool_use_failed'.  Recover by treating
-                    # the failed generation as a real tool call.
-                    if execute_tool and self._recover_legacy_tool_call(
-                        msg, messages, execute_tool
+                    # Some providers reject model-emitted tool syntax before
+                    # returning a response. Feed the rejected call through the
+                    # runtime gateway so authorized calls execute and unknown
+                    # calls become explicit error evidence.
+                    rejected_call = (
+                        _parse_legacy_function_call(msg)
+                        or _parse_failed_generation_tool_call(msg)
+                    )
+                    if (
+                        tool_rounds >= self.max_tool_rounds
+                        and tool_evidence
+                        and (rejected_call is not None or _is_output_parse_error(msg))
                     ):
+                        logger.warning(
+                            "Model synthesis failed after verified tool execution; "
+                            "returning explicit runtime evidence."
+                        )
+                        return _runtime_evidence_fallback(tool_evidence)
+                    recovered_tool = None
+                    if execute_tool and tool_rounds < self.max_tool_rounds:
+                        recovered_tool = self._recover_rejected_tool_call(
+                            msg, messages, execute_tool
+                        )
+                    if recovered_tool is not None:
+                        tool_evidence.append(recovered_tool)
+                        tool_rounds += 1
+                        recovered = True
+                        break
+                    if (
+                        execute_tool
+                        and tool_rounds < self.max_tool_rounds
+                        and _is_output_parse_error(msg)
+                    ):
+                        messages.append({
+                            "role": "user",
+                            "content": (
+                                "The provider could not parse the previous response. "
+                                "Do not call a tool. Answer the user directly; when no "
+                                "runtime evidence is available, state that you cannot verify the claim."
+                            ),
+                        })
+                        tool_rounds = self.max_tool_rounds
                         recovered = True
                         break
                     raise RuntimeError(
@@ -311,6 +441,11 @@ class OpenAIAdapter(BaseAdapter):
 
             # --- Tool Calling Loop ---
             if getattr(message, "tool_calls", None) and execute_tool:
+                if tool_rounds >= self.max_tool_rounds:
+                    raise RuntimeError(
+                        f"Adapter tool-call limit reached after {tool_rounds} round(s); "
+                        "refusing to execute an unbounded model tool loop."
+                    )
                 assistant_msg = {
                     "role": "assistant",
                     "content": message.content or "",
@@ -335,39 +470,47 @@ class OpenAIAdapter(BaseAdapter):
                         func_args = {}
 
                     tool_result = execute_tool(func_name, func_args)
+                    tool_evidence.append((func_name, str(tool_result)))
 
                     messages.append({
                         "role": "tool",
                         "tool_call_id": tool_call.id,
                         "content": str(tool_result),
                     })
+                tool_rounds += 1
                 continue
 
             return message.content or ""
 
-        return message.content or ""
+        raise RuntimeError(
+            f"Adapter tool-call limit reached after {tool_rounds} round(s) without "
+            "a final model response."
+        )
 
-    def _recover_legacy_tool_call(
+    def _recover_rejected_tool_call(
         self,
         error_msg: str,
         messages: list,
         execute_tool: Any,
-    ) -> bool:
-        """Recover from a 400 'tool_use_failed' by executing the legacy call.
+    ) -> Optional[tuple[str, str]]:
+        """Recover from a provider-rejected tool call through the gateway.
 
         Some models (e.g. Llama on Groq) emit legacy Anthropic-style
         ``<function=name>{args}</function>`` text instead of native JSON
-        ``tool_calls``.  The provider rejects the request with
-        ``tool_use_failed``.  This method parses the rejected generation,
-        executes the tool, appends the result as a user message, and returns
-        True so the caller retries the model with the result in context.
+        ``tool_calls``; others attempt an unavailable structured tool.  The
+        runtime callback remains authoritative: it executes only an offered,
+        authorized tool and returns error evidence for any unknown name.
 
-        Returns False when no legacy call could be extracted.
+        Returns the tool name and observed result, or ``None`` when no rejected
+        call could be extracted.
         """
-        legacy = _parse_legacy_function_call(error_msg)
-        if legacy is None:
-            return False
-        func_name, func_args = legacy
+        rejected = (
+            _parse_legacy_function_call(error_msg)
+            or _parse_failed_generation_tool_call(error_msg)
+        )
+        if rejected is None:
+            return None
+        func_name, func_args = rejected
         try:
             tool_result = execute_tool(func_name, func_args)
         except Exception as exc:
@@ -377,11 +520,11 @@ class OpenAIAdapter(BaseAdapter):
             "content": f"[tool result for {func_name}]: {tool_result}",
         })
         logger.warning(
-            "Recovered from legacy <function=%s> tool call (provider rejected "
-            "text-syntax tool use). Executed tool and retrying model.",
+            "Recovered provider-rejected tool call %s through the runtime "
+            "gateway; retrying model with its observed result.",
             func_name,
         )
-        return True
+        return func_name, str(tool_result)
 
     def health_check(self) -> bool:
         try:
@@ -677,18 +820,22 @@ class OllamaAdapter(OpenAIAdapter):
         **kwargs: Any,
     ) -> str:
         follow_up = user_input
-        last_text = ""
-        for _turn in range(10):
-            last_text = super().generate(
+        for tool_round in range(self.max_tool_rounds + 1):
+            text = super().generate(
                 context,
                 follow_up,
                 identity,
                 extra_body=extra_body,
                 **kwargs,
             )
-            legacy = _parse_legacy_function_call(last_text)
+            legacy = _parse_legacy_function_call(text)
             if legacy is None:
-                return last_text
+                return text
+            if tool_round >= self.max_tool_rounds:
+                raise RuntimeError(
+                    f"Adapter tool-call limit reached after {tool_round} round(s); "
+                    "refusing to execute an unbounded model tool loop."
+                )
 
             name, args = legacy
             try:
@@ -706,7 +853,10 @@ class OllamaAdapter(OpenAIAdapter):
                 name,
             )
 
-        return last_text
+        raise RuntimeError(
+            f"Adapter tool-call limit reached after {self.max_tool_rounds} round(s) "
+            "without a final model response."
+        )
 
     def health_check(self) -> bool:
         models = list_ollama_models(base_url=self.base_url, timeout=min(self.timeout, 5.0))

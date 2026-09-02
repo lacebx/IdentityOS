@@ -11,6 +11,7 @@ Tests for the full IdentityRuntime pipeline:
 - Evaluation triggers persistence
 """
 
+import json
 from pathlib import Path
 
 import pytest
@@ -19,7 +20,11 @@ from core.cognitive_engine import ContextComposer
 from core.evaluation import register_default_criteria
 from core.identity import create_identity
 from core.memory import MemoryType
-from runtime.orchestrator import IdentityRuntime, InteractionRequest
+from runtime.orchestrator import (
+    IdentityRuntime,
+    InteractionRequest,
+    _serialize_tool_result,
+)
 from runtime.persistence import JSONFileBackend
 
 
@@ -39,6 +44,55 @@ def identity(runtime):
     spec = create_identity(name="TestBot", identity_id="test-bot")
     runtime.register(spec)
     return spec
+
+
+class TestToolResultBoundary:
+    def test_small_results_are_preserved(self):
+        result = _serialize_tool_result({"items": [1, 2, 3]}, 256)
+        assert json.loads(result) == {"items": [1, 2, 3]}
+
+    def test_large_results_are_explicitly_bounded(self):
+        result = _serialize_tool_result({"items": ["x" * 5000]}, 512)
+        decoded = json.loads(result)
+
+        assert len(result) <= 512
+        assert decoded["truncated"] is True
+        assert decoded["original_chars"] > 5000
+        assert decoded["result_excerpt"]
+
+    def test_runtime_sanitizes_tool_result_limit(self):
+        assert IdentityRuntime(max_tool_result_chars=1).max_tool_result_chars == 256
+
+    def test_runtime_sanitizes_tool_catalog_limit(self):
+        assert IdentityRuntime(max_tools_per_request=0).max_tools_per_request == 1
+
+    def test_runtime_resolves_dotted_alias_only_for_an_offered_tool(self, tmp_path):
+        class DottedToolAdapter:
+            model = "dotted-tool-test"
+
+            def __init__(self):
+                self.tool_result = ""
+
+            def generate(self, context, user_input, identity, **kwargs):
+                self.tool_result = kwargs["execute_tool"]("datetime.now", {"tz_name": "UTC"})
+                return self.tool_result
+
+        adapter = DottedToolAdapter()
+        storage = JSONFileBackend(root_dir=str(tmp_path / "store"))
+        runtime = IdentityRuntime(storage=storage, adapter=adapter)
+        identity = create_identity("Alias Bot", identity_id="alias-bot")
+        runtime.register(identity)
+        runtime.capability_registry.install(identity.id, "datetime")
+        session_id = runtime.start_session(identity.id)
+
+        runtime.process(InteractionRequest(
+            identity_id=identity.id,
+            user_input="What is the time?",
+            session_id=session_id,
+        ))
+
+        assert "Unknown tool" not in adapter.tool_result
+        assert json.loads(adapter.tool_result)["timezone"] == "UTC"
 
 
 class TestSemanticExtraction:

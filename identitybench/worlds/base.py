@@ -3,6 +3,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
+import time as real_time
 
 from runtime.orchestrator import InteractionRequest
 
@@ -76,7 +77,14 @@ class BenchmarkWorld(ABC):
                 user_input=entry.user_input,
                 session_id=entry.session_id,
             )
+            interval = getattr(runtime, "_benchmark_request_interval_seconds", 0.0)
+            previous_request = getattr(runtime, "_benchmark_last_request_monotonic", 0.0)
+            if isinstance(interval, (int, float)) and interval > 0 and previous_request:
+                remaining = interval - (real_time.monotonic() - previous_request)
+                if remaining > 0:
+                    real_time.sleep(remaining)
             resp = runtime.process(req)
+            runtime._benchmark_last_request_monotonic = real_time.monotonic()
 
             self.results.append({
                 "tick": self.clock.tick_count,

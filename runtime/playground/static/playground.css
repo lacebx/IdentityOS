@@ -748,6 +748,31 @@ body {
   border-top: 1px solid var(--border);
 }
 
+.panel-action {
+  width: 22px;
+  min-width: 22px;
+  padding: 0 5px;
+  margin-left: auto;
+  margin-right: 6px;
+}
+
+.item-complete {
+  width: auto;
+  padding: 1px 5px;
+  margin-left: 5px;
+  background: transparent;
+  color: var(--green);
+  border: 1px solid var(--border);
+}
+
+.constitution-text {
+  max-height: 280px;
+  overflow: auto;
+  white-space: pre-wrap;
+  font-size: 10px;
+  color: var(--text2);
+}
+
 /* Timeline evolution event type colors */
 .tl-type.preference_learned { color: var(--orange); }
 .tl-type.belief_adopted { color: var(--purple); }

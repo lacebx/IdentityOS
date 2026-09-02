@@ -17,5 +17,12 @@ Or create a new identity:
 
 from identityos.identity import Identity, IdentityObject
 from identityos.client import IdentityClient
+from identityos.diagnostics import IdentityDiagnostics, IdentityHealthEvidence
 
-__all__ = ["Identity", "IdentityObject", "IdentityClient"]
+__all__ = [
+    "Identity",
+    "IdentityObject",
+    "IdentityClient",
+    "IdentityDiagnostics",
+    "IdentityHealthEvidence",
+]

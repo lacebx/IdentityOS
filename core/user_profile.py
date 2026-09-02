@@ -215,12 +215,11 @@ class UserProfile:
             overlap = query_terms & field_terms
             if overlap:
                 ranked.append((len(overlap), fact))
-            elif broad_recall and not query_terms:
+            elif broad_recall:
                 ranked.append((1, fact))
         if not ranked:
             return None
-        best_score = max(score for score, _ in ranked)
-        matches = [fact for score, fact in ranked if score == best_score]
+        matches = [fact for _, fact in ranked]
         if len(matches) == 1:
             fact = matches[0]
             return f"Your {_readable_field(fact.field)} is {fact.value}."
@@ -324,7 +323,9 @@ def _claim_end(text: str, start: int) -> int:
     while index < len(text):
         if text[index] in ".,!?":
             return index
-        if lowered.startswith(" and my ", index) or lowered.startswith(" and i ", index):
+        if any(lowered.startswith(boundary, index) for boundary in (
+            " and my ", " and i ", " and i'm ", " and i’m ",
+        )):
             return index
         index += 1
     return len(text)
@@ -507,6 +508,37 @@ def _iter_moving_claims(text: str) -> List[str]:
             locations.append(value)
         index = _advance_past_value(tokens, value_index + 1, value_end)
     return locations
+
+
+def _iter_trip_claims(text: str) -> List[str]:
+    """Extract destinations from ordinary first-person trip plans."""
+    tokens = _word_tokens(text)
+    destinations: List[str] = []
+    phrases = (
+        ("i'm", "planning", "a", "trip", "to"),
+        ("i", "am", "planning", "a", "trip", "to"),
+        ("i'm", "planning", "to", "visit"),
+        ("i", "am", "planning", "to", "visit"),
+    )
+    index = 0
+    while index < len(tokens):
+        phrase = next(
+            (candidate for candidate in phrases if _tokens_match(tokens, index, candidate)),
+            None,
+        )
+        if phrase is None:
+            index += 1
+            continue
+        value_index = index + len(phrase)
+        if value_index >= len(tokens):
+            break
+        value_start = tokens[value_index][1]
+        value_end = _end_before_word(text, value_start, {"next", "in", "with", "and"})
+        value = text[value_start:value_end].strip().rstrip(".,!?")
+        if value:
+            destinations.append(value)
+        index = _advance_past_value(tokens, value_index + 1, value_end)
+    return destinations
 
 
 def _parse_budget_amount(text: str, start: int) -> Optional[tuple[str, str, int]]:
@@ -772,6 +804,8 @@ def _is_broad_recall(user_input: str) -> bool:
     return (
         "what did i ask you to remember" in normalized
         or "what did i tell you" in normalized
+        or "remember our conversation" in normalized
+        or "remember our previous conversation" in normalized
     )
 
 
@@ -873,12 +907,39 @@ def extract_user_facts(user_input: str, turn_index: int = 0) -> List[UserFact]:
     for location in _iter_moving_claims(parsed_input):
         _add(field="target_location", value=location, confidence=0.85)
 
+    for destination in _iter_trip_claims(parsed_input):
+        _add(field="travel_destination", value=destination, confidence=0.85)
+
+    for excitement in _iter_phrase_values(
+        parsed_input,
+        (
+            ("i'm", "most", "excited", "about"),
+            ("i", "am", "most", "excited", "about"),
+            ("i'm", "excited", "about"),
+            ("i", "am", "excited", "about"),
+        ),
+        stop_at_and=True,
+    ):
+        _add(field="current_excitement", value=excitement, confidence=0.85)
+
     # "I have a $X budget" — budget disclosures
     for amount, period in _iter_budget_claims(parsed_input):
         value = f"${amount}/{period}" if period else f"${amount}"
         _add(field="budget", value=value, confidence=0.9)
 
     # Job role disclosures
+    for role in _iter_phrase_values(
+        parsed_input,
+        (
+            ("i'm", "a"),
+            ("i'm", "an"),
+            ("i", "am", "a"),
+            ("i", "am", "an"),
+        ),
+        stop_at_and=True,
+    ):
+        _add(field="occupation", value=role, confidence=0.85)
+
     job_phrases = (("help", "me", "find"), ("looking", "for"))
     for role in _iter_phrase_values(parsed_input, job_phrases):
         # Strip common trailing words

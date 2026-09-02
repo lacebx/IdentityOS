@@ -27,7 +27,7 @@ import pytest
 from core.capabilities.registry import lookup
 from core.executive import ExecutiveRuntime
 from core.executive.engine import get_executive_for, register_executive
-from core.executive.models import TaskStatus, TaskStepStatus
+from core.executive.models import Task, TaskStatus, TaskStep, TaskStepStatus
 from core.executive.state import IllegalTransition
 from core.executive.workflow import extract_capability_name, is_acquisition_goal
 from runtime.persistence import JSONFileBackend
@@ -86,6 +86,7 @@ def _cleanup_generated(cap_id):
         data["capabilities"] = [c for c in caps if c.get("id") != cap_id]
         with open(index, "w") as f:
             json.dump(data, f, indent=2)
+            f.write("\n")
     root_index = os.path.normpath(os.path.join(root, "registry/index.json"))
     if os.path.exists(root_index):
         import json
@@ -308,6 +309,46 @@ def test_marketplace_found_skips_generation(engine):
     assert statuses["generate"] == TaskStepStatus.SKIPPED
     assert statuses["validate"] == TaskStepStatus.SKIPPED
     assert statuses["publish"] == TaskStepStatus.SKIPPED
+
+
+def test_running_step_blocks_later_steps(engine):
+    task = Task(task_id="in-flight", goal="acquire", identity_id="tester")
+    task.steps = [
+        TaskStep(
+            action="registry_search",
+            description="Searching",
+            status=TaskStepStatus.RUNNING,
+        ),
+        TaskStep(action="generate", description="Generating"),
+    ]
+
+    assert engine._next_step(task) is None
+
+
+def test_generation_refuses_to_overwrite_existing_capability(engine):
+    from core.executive.executor import ExecutionContext, execute_step
+    from core.executive.verification import capability_module_path
+
+    path = capability_module_path("system_info")
+    before = path.read_text(encoding="utf-8")
+    task = Task(task_id="conflict", goal="acquire", identity_id="tester")
+    step = TaskStep(
+        action="generate",
+        description="Generating",
+        params={"capability": "system_info"},
+    )
+    context = ExecutionContext(
+        identity_id="tester",
+        capability_registry=engine.capability_registry,
+        storage=engine.storage,
+    )
+
+    ok, result, evidence = execute_step(task, step, context)
+
+    assert ok is False
+    assert result["conflict"] is True
+    assert evidence[0].label == "generation_blocked_existing_source"
+    assert path.read_text(encoding="utf-8") == before
 
 
 def test_loose_capability_name_resolves_canonical_id(engine):

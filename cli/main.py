@@ -8,6 +8,8 @@ Usage:
     identity create --name "Mentor" --persona mentor    Create an identity
     identity chat --id mentor-01                         Chat with an identity
     identity inspect --id mentor-01                      Inspect identity state
+    identity debug --id mentor-01                        Inspect the latest runtime trace
+    identity replay --id mentor-01                       Replay identity evolution
     identity list                                        List all identities
     identity playground                                  Launch web UI
     identity registry list                               Browse identity registry
@@ -345,6 +347,55 @@ def cmd_inspect(args: argparse.Namespace) -> int:
         },
     }
     _print_json(state)
+    return 0
+
+
+def cmd_debug(args: argparse.Namespace) -> int:
+    """Inspect a durable runtime decision trace as structured JSON."""
+    from runtime.debugger import load_debug_record
+
+    storage = _get_storage(args)
+    record = load_debug_record(storage, args.id, args.interaction)
+    if record is None:
+        print(
+            f"No debug record found for identity '{args.id}'. Run an interaction first.",
+            file=sys.stderr,
+        )
+        return 1
+    rendered = json.dumps(record, indent=2, default=str)
+    if args.output:
+        Path(args.output).write_text(rendered + "\n", encoding="utf-8")
+        print(f"Debug record written to {args.output}")
+    else:
+        print(rendered)
+    return 0
+
+
+def cmd_replay(args: argparse.Namespace) -> int:
+    """Replay durable identity evolution chronologically."""
+    from runtime.replay import build_identity_replay
+
+    storage = _get_storage(args)
+    try:
+        replay = build_identity_replay(storage, args.id)
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    if args.output:
+        Path(args.output).write_text(
+            json.dumps(replay, indent=2, default=str) + "\n",
+            encoding="utf-8",
+        )
+        print(f"Replay written to {args.output}")
+        return 0
+
+    print(f"Identity Replay — {replay['identity_name']} ({replay['identity_id']})")
+    print(f"Version: {replay['current_version']} · Events: {replay['event_count']}")
+    for event in replay["events"]:
+        print(
+            f"  {event['timestamp']:<32} "
+            f"[{event['track']}] {event['title']}"
+        )
     return 0
 
 
@@ -971,6 +1022,17 @@ def build_parser() -> argparse.ArgumentParser:
     p_inspect.add_argument("--id", required=True, help="Identity id")
     p_inspect.add_argument("--dashboard", action="store_true", help="Show rich dashboard view")
 
+    # debug
+    p_debug = sub.add_parser("debug", help="Inspect a persisted runtime decision trace")
+    p_debug.add_argument("--id", required=True, help="Identity id")
+    p_debug.add_argument("--interaction", default=None, help="Request id (default: latest)")
+    p_debug.add_argument("--output", default=None, help="Write JSON report to this path")
+
+    # replay
+    p_replay = sub.add_parser("replay", help="Replay durable identity evolution")
+    p_replay.add_argument("--id", required=True, help="Identity id")
+    p_replay.add_argument("--output", default=None, help="Write portable replay JSON")
+
     # snapshot
     p_snapshot = sub.add_parser("snapshot", help="Manually capture a snapshot")
     p_snapshot.add_argument("--id", required=True, help="Identity id")
@@ -1152,6 +1214,8 @@ def cmd_isp_wrapper(args: argparse.Namespace) -> int:
 COMMAND_MAP = {
     "create": cmd_create,
     "inspect": cmd_inspect,
+    "debug": cmd_debug,
+    "replay": cmd_replay,
     "snapshot": cmd_snapshot,
     "history": cmd_history,
     "rollback": cmd_rollback,

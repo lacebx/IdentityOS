@@ -75,6 +75,11 @@ class TestGroqKeyRotation:
         a._cooldowns[2] = time.time() + 9999
         assert a._rotate_key() is None
 
+    def test_single_key_can_be_reselected_after_cooldown(self):
+        a = self._groq(n_keys=1)
+        a._cooldowns[0] = time.time() - 1
+        assert a._rotate_key() == "g-0"
+
     def test_wait_shortest_cooldown_falls_through_when_too_long(self):
         a = self._groq()
         a._cooldowns[0] = time.time() + 9999
@@ -143,6 +148,12 @@ class TestSambaNovaCooldown:
         a._cooldowns[0] = time.time() + 9999
         assert a._rotate_key() == "s-1"
 
+    def test_single_key_can_be_reselected_after_cooldown(self):
+        from adapters.sambanova_adapter import SambaNovaAdapter
+        a = SambaNovaAdapter(api_keys=["s-0"])
+        a._cooldowns[0] = time.time() - 1
+        assert a._rotate_key() == "s-0"
+
 
 class TestCerebrasCooldown:
     def test_falls_through_when_all_on_cooldown(self):
@@ -160,3 +171,9 @@ class TestCerebrasCooldown:
         a = CerebrasAdapter(api_keys=["c-0", "c-1", "c-2"])
         a._cooldowns[0] = time.time() + 9999
         assert a._rotate_key() == "c-1"
+
+    def test_single_key_can_be_reselected_after_cooldown(self):
+        from adapters.cerebras_adapter import CerebrasAdapter
+        a = CerebrasAdapter(api_keys=["c-0"])
+        a._cooldowns[0] = time.time() - 1
+        assert a._rotate_key() == "c-0"

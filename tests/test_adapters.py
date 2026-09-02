@@ -151,6 +151,91 @@ class TestOpenAIAdapter:
         call_kwargs = mock_openai_client.return_value.chat.completions.create.call_args[1]
         assert call_kwargs["max_tokens"] == 500
 
+    def test_tool_round_limit_reserves_a_schema_free_synthesis_request(
+        self, mock_openai_client
+    ):
+        client = mock_openai_client.return_value
+        tool_call = MagicMock()
+        tool_call.id = "call-1"
+        tool_call.function.name = "datetime__now"
+        tool_call.function.arguments = '{"tz_name": "UTC"}'
+        client.chat.completions.create.side_effect = [
+            MagicMock(
+                choices=[MagicMock(message=MagicMock(content="", tool_calls=[tool_call]))]
+            ),
+            MagicMock(
+                choices=[
+                    MagicMock(
+                        message=MagicMock(content="It is noon UTC.", tool_calls=None)
+                    )
+                ]
+            ),
+        ]
+        tools = [{
+            "type": "function",
+            "function": {
+                "name": "datetime__now",
+                "description": "Get the current time",
+                "parameters": {"type": "object", "properties": {}},
+            },
+        }]
+        executed = []
+
+        adapter = OpenAIAdapter(api_key="sk-test", max_tool_rounds=1)
+        result = adapter.generate(
+            context="Use evidence.",
+            user_input="What time is it?",
+            identity=_MockIdentity(),
+            tools=tools,
+            tool_choice="auto",
+            execute_tool=lambda name, args: executed.append((name, args))
+            or '{"datetime":"12:00","timezone":"UTC"}',
+        )
+
+        assert result == "It is noon UTC."
+        assert executed == [("datetime__now", {"tz_name": "UTC"})]
+        calls = client.chat.completions.create.call_args_list
+        assert calls[0].kwargs["tools"] == tools
+        assert calls[0].kwargs["tool_choice"] == "auto"
+        assert "tools" not in calls[1].kwargs
+        assert "tool_choice" not in calls[1].kwargs
+
+    def test_tool_round_limit_does_not_execute_an_unbounded_loop(
+        self, mock_openai_client
+    ):
+        client = mock_openai_client.return_value
+        first_call = MagicMock()
+        first_call.id = "call-1"
+        first_call.function.name = "datetime__now"
+        first_call.function.arguments = "{}"
+        unexpected_call = MagicMock()
+        unexpected_call.id = "call-2"
+        unexpected_call.function.name = "datetime__now"
+        unexpected_call.function.arguments = "{}"
+        client.chat.completions.create.side_effect = [
+            MagicMock(
+                choices=[MagicMock(message=MagicMock(content="", tool_calls=[first_call]))]
+            ),
+            MagicMock(
+                choices=[
+                    MagicMock(message=MagicMock(content="", tool_calls=[unexpected_call]))
+                ]
+            ),
+        ]
+        executed = []
+        adapter = OpenAIAdapter(api_key="sk-test", max_tool_rounds=1)
+
+        with pytest.raises(RuntimeError, match="tool-call limit reached"):
+            adapter.generate(
+                context="Use evidence.",
+                user_input="Keep calling forever",
+                identity=_MockIdentity(),
+                tools=[{"type": "function", "function": {"name": "datetime__now"}}],
+                execute_tool=lambda name, args: executed.append((name, args)) or "{}",
+            )
+
+        assert executed == [("datetime__now", {})]
+
     def test_health_check_success(self, mock_openai_client):
         adapter = OpenAIAdapter(api_key="sk-test")
         assert adapter.health_check() is True
@@ -213,6 +298,120 @@ class TestOpenAIAdapter:
         assert result == "Task committed!"
         assert executed == [("executive__start_task", {"goal": "getting_to_know_each_other"})]
 
+    def test_recovers_rejected_unknown_structured_tool_as_error_evidence(
+        self, mock_openai_client
+    ):
+        client = mock_openai_client.return_value
+        err_msg = (
+            "Error code: 400 - {'error': {'code': 'tool_use_failed', "
+            "'failed_generation': '{\"name\": \"web_search\", \"arguments\": "
+            "{\"query\": \"efficient inference\"}}'}}"
+        )
+        client.chat.completions.create.side_effect = [
+            RuntimeError(err_msg),
+            MagicMock(
+                choices=[
+                    MagicMock(
+                        message=MagicMock(
+                            content="That search tool is unavailable, so I cannot verify it.",
+                            tool_calls=None,
+                        )
+                    )
+                ]
+            ),
+        ]
+        executed = []
+        adapter = OpenAIAdapter(api_key="sk-test", max_tool_rounds=1)
+
+        result = adapter.generate(
+            context="Use only runtime evidence.",
+            user_input="Research efficient inference",
+            identity=_MockIdentity(),
+            tools=[{"type": "function", "function": {"name": "github__search_repositories"}}],
+            execute_tool=lambda name, args: executed.append((name, args))
+            or '{"error":"Unknown tool: web_search"}',
+        )
+
+        assert "unavailable" in result
+        assert executed == [("web_search", {"query": "efficient inference"})]
+        second_call = client.chat.completions.create.call_args_list[1]
+        assert "tools" not in second_call.kwargs
+        assert any(
+            "Unknown tool: web_search" in message["content"]
+            for message in second_call.kwargs["messages"]
+            if isinstance(message.get("content"), str)
+        )
+
+    def test_retries_unparsed_tool_mode_output_without_tools(self, mock_openai_client):
+        client = mock_openai_client.return_value
+        err_msg = (
+            "Error code: 400 - {'error': {'code': 'output_parse_failed', "
+            "'message': 'Parsing failed. See failed_generation', "
+            "'failed_generation': 'I cannot verify that claim.'}}"
+        )
+        client.chat.completions.create.side_effect = [
+            RuntimeError(err_msg),
+            MagicMock(
+                choices=[
+                    MagicMock(
+                        message=MagicMock(
+                            content="I cannot verify that claim without evidence.",
+                            tool_calls=None,
+                        )
+                    )
+                ]
+            ),
+        ]
+        adapter = OpenAIAdapter(api_key="sk-test", max_tool_rounds=1)
+
+        result = adapter.generate(
+            context="Use only runtime evidence.",
+            user_input="Can you confirm this claim?",
+            identity=_MockIdentity(),
+            tools=[{"type": "function", "function": {"name": "github__get_repository"}}],
+            execute_tool=lambda name, args: "unused",
+        )
+
+        assert result == "I cannot verify that claim without evidence."
+        second_call = client.chat.completions.create.call_args_list[1]
+        assert "tools" not in second_call.kwargs
+        assert "cannot verify" in second_call.kwargs["messages"][-1]["content"]
+
+    def test_returns_runtime_evidence_when_final_synthesis_is_rejected(
+        self, mock_openai_client
+    ):
+        client = mock_openai_client.return_value
+        tool_call = MagicMock()
+        tool_call.id = "call-1"
+        tool_call.function.name = "calc__evaluate"
+        tool_call.function.arguments = '{"expression": "(2+2)*5"}'
+        rejected_final = (
+            "Error code: 400 - {'error': {'code': 'tool_use_failed', "
+            "'failed_generation': '{\"name\": \"calc.evaluate\", \"arguments\": "
+            "{\"expression\": \"(2+2)*5\"}}'}}"
+        )
+        client.chat.completions.create.side_effect = [
+            MagicMock(
+                choices=[MagicMock(message=MagicMock(content="", tool_calls=[tool_call]))]
+            ),
+            RuntimeError(rejected_final),
+        ]
+        executed = []
+        adapter = OpenAIAdapter(api_key="sk-test", max_tool_rounds=1)
+
+        result = adapter.generate(
+            context="Use only runtime evidence.",
+            user_input="Calculate (2+2)*5",
+            identity=_MockIdentity(),
+            tools=[{"type": "function", "function": {"name": "calc__evaluate"}}],
+            execute_tool=lambda name, args: executed.append((name, args))
+            or '{"result":20}',
+        )
+
+        assert "Model synthesis was unavailable" in result
+        assert 'calc__evaluate: {"result":20}' in result
+        assert executed == [("calc__evaluate", {"expression": "(2+2)*5"})]
+
     def test_parse_legacy_function_call_json_and_dict(self):
         from adapters.openai_adapter import _parse_legacy_function_call
 
@@ -223,6 +422,26 @@ class TestOpenAIAdapter:
         assert _parse_legacy_function_call(dict_form) == ("executive__start_task", {"goal": "hi"})
 
         assert _parse_legacy_function_call("no function here") is None
+
+    def test_parse_failed_generation_tool_call(self):
+        from adapters.openai_adapter import _parse_failed_generation_tool_call
+
+        error = (
+            "Error code: 400 - {'error': {'code': 'tool_use_failed', "
+            "'failed_generation': '"
+            '{"name": "calc.evaluate", "arguments": {\\n'
+            '  "expression": "(2+2)*5"\\n}}\'}}'
+        )
+        assert _parse_failed_generation_tool_call(error) == (
+            "calc.evaluate",
+            {"expression": "(2+2)*5"},
+        )
+
+        direct = '{"name":"web_search","arguments":{"query":"IdentityOS"}}'
+        assert _parse_failed_generation_tool_call(direct) == (
+            "web_search",
+            {"query": "IdentityOS"},
+        )
 
     def test_shrinks_max_tokens_on_token_limit_rejection(self, mock_openai_client):
         """A 413/token-budget rejection should shrink max_tokens and retry.
@@ -414,6 +633,41 @@ class TestOllamaAdapter:
         first_call = client.chat.completions.create.call_args_list[0]
         assert "tools" not in first_call[1]
         assert first_call[1]["extra_body"] == {"think": False}
+
+    def test_legacy_tool_loop_stops_at_configured_round_limit(
+        self, mock_openai_client
+    ):
+        client = mock_openai_client.return_value
+        call_text = '<function=calc__evaluate>{"expression": "2+2"}</function>'
+        client.chat.completions.create.side_effect = [
+            MagicMock(
+                choices=[
+                    MagicMock(message=MagicMock(content=call_text, tool_calls=None))
+                ]
+            ),
+            MagicMock(
+                choices=[
+                    MagicMock(message=MagicMock(content=call_text, tool_calls=None))
+                ]
+            ),
+        ]
+        executed = []
+        adapter = OllamaAdapter(
+            model="smollm2:360m-instruct-q4_0",
+            max_tool_rounds=1,
+        )
+        adapter._supports_native_tools = False
+
+        with pytest.raises(RuntimeError, match="tool-call limit reached"):
+            adapter.generate(
+                context="Use tools for math.",
+                user_input="Calculate 2+2",
+                identity=_MockIdentity(),
+                tools=[{"type": "function", "function": {"name": "calc__evaluate"}}],
+                execute_tool=lambda name, args: executed.append((name, args)) or "4",
+            )
+
+        assert executed == [("calc__evaluate", {"expression": "2+2"})]
 
     def test_legacy_tool_loop_describes_relevant_safe_tools(self, mock_openai_client):
         client = mock_openai_client.return_value

@@ -97,6 +97,51 @@ def test_fresh_identity_installs_all_capabilities_and_reloads_them(tmp_path):
     assert result.data["timezone"] == "UTC"
 
 
+def test_analysis_capabilities_report_absent_benchmarks_as_observed_no_data(
+    tmp_path, monkeypatch
+):
+    monkeypatch.chdir(tmp_path)
+    registry = CapabilityRegistry(JSONFileBackend(root_dir=str(tmp_path / "store")))
+    registry.install("tester", "code_review")
+    registry.install("tester", "repo_health")
+
+    regressions = registry.call("tester", "code_review.check_regressions")
+    trend = registry.call("tester", "repo_health.analyze_benchmark_trend")
+
+    assert regressions.success is True
+    assert regressions.data["status"] == "no_data"
+    assert regressions.data["regressions"] == []
+    assert trend.success is True
+    assert trend.data == {"trend_files_found": 0, "status": "no_data"}
+
+
+def test_registry_publish_refuses_to_replace_existing_manifest(tmp_path):
+    registry_root = tmp_path / "registry"
+    capability_dir = registry_root / "capabilities" / "existing"
+    capability_dir.mkdir(parents=True)
+    manifest = capability_dir / "manifest.json"
+    original_manifest = '{"id": "existing", "version": "1.0.0"}'
+    manifest.write_text(original_manifest)
+    (registry_root / "index.json").write_text(json.dumps({
+        "capabilities": [{"id": "existing", "version": "1.0.0"}],
+    }))
+
+    manager = lookup("registry_manager")()
+    manager._registry_path = lambda: str(registry_root)  # type: ignore[method-assign]
+    result = manager.call(
+        "registry_manager.publish_capability",
+        cap_id="existing",
+        name="Replacement",
+        version="2.0.0",
+    )
+
+    assert result.success is False
+    assert result.data["conflict"] is True
+    assert manifest.read_text() == original_manifest
+    index = json.loads((registry_root / "index.json").read_text())
+    assert index["capabilities"][0]["version"] == "1.0.0"
+
+
 def test_every_local_marketplace_skill_executes_through_gateway(tmp_path):
     store_path = tmp_path / "store"
     workspace = tmp_path / "workspace"

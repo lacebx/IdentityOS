@@ -8,6 +8,8 @@ on:
 
 env:
   BENCHMARK_IDENTITY: "benchmark-bot"
+  GROQ_MODEL: "openai/gpt-oss-20b"
+  BENCHMARK_MODEL_KEY: "gpt-oss-20b"
 
 permissions:
   contents: read
@@ -30,24 +32,27 @@ jobs:
           path: |
             .identity_store/
             .identitybench/
-          key: benchmark-${{ env.BENCHMARK_IDENTITY }}-nightly-${{ github.run_id }}
+          key: benchmark-nightly-${{ env.BENCHMARK_IDENTITY }}-${{ env.BENCHMARK_MODEL_KEY }}-${{ github.run_id }}
           restore-keys: |
-            benchmark-${{ env.BENCHMARK_IDENTITY }}-nightly-
-            benchmark-${{ env.BENCHMARK_IDENTITY }}-
+            benchmark-nightly-${{ env.BENCHMARK_IDENTITY }}-${{ env.BENCHMARK_MODEL_KEY }}-
 
       - name: Create benchmark identity (first run only)
-        if: steps.nightly-cache.outputs.cache-hit != 'true'
         run: |
-          identity create --name "BenchmarkBot" --id ${{ env.BENCHMARK_IDENTITY }} --persona "benchmark"
-          echo "Identity ${{ env.BENCHMARK_IDENTITY }} created."
+          if identity inspect ${{ env.BENCHMARK_IDENTITY }} >/dev/null 2>&1; then
+            echo "Reusing persisted identity ${{ env.BENCHMARK_IDENTITY }}."
+          else
+            identity create --name "BenchmarkBot" --id ${{ env.BENCHMARK_IDENTITY }} --persona "benchmark"
+          fi
 
       - name: Run nightly smoke benchmark
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
+          mkdir -p .identitybench/reports
           identitybench run ${{ env.BENCHMARK_IDENTITY }} --mode smoke --seed 42 2>&1
           identitybench report ${{ env.BENCHMARK_IDENTITY }} --markdown -o ".identitybench/reports/${{ env.BENCHMARK_IDENTITY }}-nightly.md"
+          identitybench endurance report ${{ env.BENCHMARK_IDENTITY }} -o ".identitybench/reports/${{ env.BENCHMARK_IDENTITY }}-endurance.md"
 
       - uses: actions/upload-artifact@v4
         with:
@@ -71,16 +76,17 @@ jobs:
           path: |
             .identity_store/
             .identitybench/
-          key: benchmark-${{ env.BENCHMARK_IDENTITY }}-weekly-${{ github.run_id }}
+          key: benchmark-weekly-${{ env.BENCHMARK_IDENTITY }}-${{ env.BENCHMARK_MODEL_KEY }}-${{ github.run_id }}
           restore-keys: |
-            benchmark-${{ env.BENCHMARK_IDENTITY }}-weekly-
-            benchmark-${{ env.BENCHMARK_IDENTITY }}-
+            benchmark-weekly-${{ env.BENCHMARK_IDENTITY }}-${{ env.BENCHMARK_MODEL_KEY }}-
 
       - name: Create benchmark identity (first run only)
-        if: steps.weekly-cache.outputs.cache-hit != 'true'
         run: |
-          identity create --name "BenchmarkBot" --id ${{ env.BENCHMARK_IDENTITY }} --persona "benchmark"
-          echo "Identity ${{ env.BENCHMARK_IDENTITY }} created."
+          if identity inspect ${{ env.BENCHMARK_IDENTITY }} >/dev/null 2>&1; then
+            echo "Reusing persisted identity ${{ env.BENCHMARK_IDENTITY }}."
+          else
+            identity create --name "BenchmarkBot" --id ${{ env.BENCHMARK_IDENTITY }} --persona "benchmark"
+          fi
 
       - name: Run weekly full benchmark
         env:
@@ -91,6 +97,7 @@ jobs:
           identitybench run ${{ env.BENCHMARK_IDENTITY }} --mode full --seed 42 2>&1
           identitybench report ${{ env.BENCHMARK_IDENTITY }} --markdown -o ".identitybench/reports/${{ env.BENCHMARK_IDENTITY }}-weekly.md"
           identitybench history ${{ env.BENCHMARK_IDENTITY }}
+          identitybench endurance report ${{ env.BENCHMARK_IDENTITY }} -o ".identitybench/reports/${{ env.BENCHMARK_IDENTITY }}-endurance.md"
 
       - uses: actions/upload-artifact@v4
         with:
@@ -114,16 +121,17 @@ jobs:
           path: |
             .identity_store/
             .identitybench/
-          key: benchmark-${{ env.BENCHMARK_IDENTITY }}-monthly-${{ github.run_id }}
+          key: benchmark-monthly-${{ env.BENCHMARK_IDENTITY }}-${{ env.BENCHMARK_MODEL_KEY }}-${{ github.run_id }}
           restore-keys: |
-            benchmark-${{ env.BENCHMARK_IDENTITY }}-monthly-
-            benchmark-${{ env.BENCHMARK_IDENTITY }}-
+            benchmark-monthly-${{ env.BENCHMARK_IDENTITY }}-${{ env.BENCHMARK_MODEL_KEY }}-
 
       - name: Create benchmark identity (first run only)
-        if: steps.monthly-cache.outputs.cache-hit != 'true'
         run: |
-          identity create --name "BenchmarkBot" --id ${{ env.BENCHMARK_IDENTITY }} --persona "benchmark"
-          echo "Identity ${{ env.BENCHMARK_IDENTITY }} created."
+          if identity inspect ${{ env.BENCHMARK_IDENTITY }} >/dev/null 2>&1; then
+            echo "Reusing persisted identity ${{ env.BENCHMARK_IDENTITY }}."
+          else
+            identity create --name "BenchmarkBot" --id ${{ env.BENCHMARK_IDENTITY }} --persona "benchmark"
+          fi
 
       - name: Run monthly endurance benchmark
         env:
@@ -136,6 +144,7 @@ jobs:
             identitybench report ${{ env.BENCHMARK_IDENTITY }} --markdown -o ".identitybench/reports/${{ env.BENCHMARK_IDENTITY }}-endurance-run$i.md"
           done
           identitybench compare --id ${{ env.BENCHMARK_IDENTITY }} --last 3 2>&1
+          identitybench endurance report ${{ env.BENCHMARK_IDENTITY }} -o ".identitybench/reports/${{ env.BENCHMARK_IDENTITY }}-endurance.md"
 
       - uses: actions/upload-artifact@v4
         with:

@@ -8,6 +8,9 @@ from typing import Any, Dict, List, Optional, Type
 
 from runtime.orchestrator import IdentityRuntime
 from runtime.persistence import JSONFileBackend
+from adapters import build_adapter_from_env, describe_adapter
+from adapters.chain import ChainAdapter
+from adapters.groq_adapter import GroqAdapter
 
 from identitybench.storage import BenchmarkStorage
 from identitybench.worlds.base import BenchmarkWorld, WorldResult
@@ -64,13 +67,68 @@ class IdentityBench:
         self._world_results: List[WorldResult] = []
         self.capability_journal = CapabilityJournal(storage_path)
         self.evolution_history = EvolutionHistory(storage_path)
+        self._seed = 42
+        self._request_interval_seconds = 0.0
+        self._context_tokens = 1200
+        self._response_tokens = 256
+        self._tool_result_chars = 1200
+        self._tools_per_request = 3
+        self._tool_rounds = 1
+        self._cooldown_wait_seconds = 30.0
 
     def load_identity(self, identity_id: Optional[str] = None) -> None:
         target = identity_id or self.identity_id
         if not self.runtime:
             storage_backend = JSONFileBackend(root_dir=".identity_store")
-            self.runtime = IdentityRuntime(storage=storage_backend)
-            count = self.runtime.load_persisted()
+            adapter = build_adapter_from_env()
+            if adapter is None:
+                raise RuntimeError(
+                    "IdentityBench requires a configured model adapter; refusing to score "
+                    "the runtime's no-adapter placeholder as model behavior."
+                )
+            self._context_tokens = int(os.environ.get("IDENTITYBENCH_CONTEXT_TOKENS", "1200"))
+            self._response_tokens = int(os.environ.get("IDENTITYBENCH_RESPONSE_TOKENS", "256"))
+            self._tool_result_chars = int(
+                os.environ.get("IDENTITYBENCH_TOOL_RESULT_CHARS", "1200")
+            )
+            self._tools_per_request = max(
+                1, int(os.environ.get("IDENTITYBENCH_TOOLS_PER_REQUEST", "3"))
+            )
+            self._tool_rounds = max(
+                1, int(os.environ.get("IDENTITYBENCH_TOOL_ROUNDS", "1"))
+            )
+            self._cooldown_wait_seconds = max(
+                0.0, float(os.environ.get("IDENTITYBENCH_COOLDOWN_WAIT_SECONDS", "30"))
+            )
+            self.runtime = IdentityRuntime(
+                storage=storage_backend,
+                adapter=adapter,
+                max_context_tokens=self._context_tokens,
+                max_tool_result_chars=self._tool_result_chars,
+                max_tools_per_request=self._tools_per_request,
+            )
+            leaves = adapter.adapters if isinstance(adapter, ChainAdapter) else (adapter,)
+            for leaf in leaves:
+                if hasattr(leaf, "max_tokens"):
+                    leaf.max_tokens = min(int(leaf.max_tokens), self._response_tokens)
+                if hasattr(leaf, "max_tool_rounds"):
+                    leaf.max_tool_rounds = self._tool_rounds
+                if isinstance(leaf, GroqAdapter):
+                    leaf._MAX_COOLDOWN_WAIT = self._cooldown_wait_seconds
+            configured_interval = os.environ.get("IDENTITYBENCH_REQUEST_INTERVAL_SECONDS")
+            if configured_interval is not None:
+                self._request_interval_seconds = max(0.0, float(configured_interval))
+            elif any(isinstance(leaf, GroqAdapter) for leaf in leaves):
+                # A tool-using interaction can make multiple provider requests.
+                # Leave enough room for the complete loop under Groq's smallest
+                # observed token-per-minute quota.
+                self._request_interval_seconds = 35.0
+            self.runtime._benchmark_request_interval_seconds = self._request_interval_seconds
+            if self._request_interval_seconds > 0:
+                # Reserve a clean provider window before the first interaction,
+                # including when another CI job used the shared quota recently.
+                self.runtime._benchmark_last_request_monotonic = real_time.monotonic()
+            self.runtime.load_persisted()
         spec = self.runtime.load(target)
         if not spec:
             raise ValueError(
@@ -88,6 +146,9 @@ class IdentityBench:
             world_classes = DEFAULT_WORLDS
         if not self.runtime:
             self.load_identity()
+        if getattr(self.runtime, "adapter", None) is None:
+            raise RuntimeError("IdentityBench cannot run without a model adapter.")
+        self._seed = seed
 
         for cls in world_classes:
             if cls is MultiAgentWorld and self.runtime:
@@ -116,16 +177,22 @@ class IdentityBench:
                 results[cls.name] = WorldResult(
                     world_name=cls.name,
                     overall_score=0.0,
+                    raw_data={"error": str(e)},
                 )
 
         elapsed = real_time.time() - start_wall
         self._world_results = list(results.values())
         self._save_results(elapsed)
+        failures = [result for result in results.values() if result.raw_data.get("error")]
+        if failures:
+            names = ", ".join(result.world_name for result in failures)
+            raise RuntimeError(f"Benchmark worlds failed: {names}")
         return results
 
     def _save_results(self, elapsed_seconds: float) -> None:
         all_metrics: Dict[str, float] = {}
         all_categories: Dict[str, float] = {}
+        category_counts: Dict[str, int] = {}
         all_explanations: Dict[str, Dict[str, list]] = {}
         world_data = []
         for wr in self._world_results:
@@ -137,6 +204,7 @@ class IdentityBench:
                 "overall_score": wr.overall_score,
                 "metrics": metrics,
                 "category_scores": cats,
+                "error": wr.raw_data.get("error"),
                 "entries": [
                     {
                         "tick": e["tick"],
@@ -150,6 +218,7 @@ class IdentityBench:
             all_metrics.update(metrics)
             for cat, score in cats.items():
                 all_categories[cat] = all_categories.get(cat, 0) + score
+                category_counts[cat] = category_counts.get(cat, 0) + 1
             
             try:
                 explanations = compute_category_explanations(
@@ -169,9 +238,8 @@ class IdentityBench:
             except Exception:
                 pass
 
-        num_worlds = len(self._world_results)
         for cat in all_categories:
-            all_categories[cat] = round(all_categories[cat] / num_worlds, 1)
+            all_categories[cat] = round(all_categories[cat] / category_counts[cat], 1)
         overall = round(sum(all_categories.values()) / len(all_categories), 1) if all_categories else 0.0
         
         # Load previous run for diff
@@ -190,9 +258,18 @@ class IdentityBench:
             "explanations": all_explanations,
             "worlds": world_data,
             "config": {
-                "seed": 42,
+                "seed": self._seed,
                 "worlds": [wr.world_name for wr in self._world_results],
+                "adapter": describe_adapter(getattr(self.runtime, "adapter", None)),
+                "request_interval_seconds": self._request_interval_seconds,
+                "context_tokens": self._context_tokens,
+                "response_tokens": self._response_tokens,
+                "tool_result_chars": self._tool_result_chars,
+                "tools_per_request": self._tools_per_request,
+                "tool_rounds": self._tool_rounds,
+                "cooldown_wait_seconds": self._cooldown_wait_seconds,
             },
+            "status": "failed" if any(wr.raw_data.get("error") for wr in self._world_results) else "completed",
         }
 
         # Analytics

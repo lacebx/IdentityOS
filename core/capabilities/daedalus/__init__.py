@@ -340,7 +340,11 @@ class CodeReviewCapability(Capability):
     def _check_regressions(self, **kwargs: Any) -> Dict[str, Any]:
         bench_dir = Path(".identitybench")
         if not bench_dir.exists():
-            return {"error": "No benchmark data found", "regressions": []}
+            return {
+                "status": "no_data",
+                "regressions": [],
+                "benchmark_status": "No benchmark data to compare against",
+            }
         return {
             "regressions": [],
             "benchmark_status": "No benchmark data to compare against",
@@ -609,7 +613,7 @@ class RepoHealthCapability(Capability):
     def _analyze_benchmark_trend(self, **kwargs: Any) -> Dict[str, Any]:
         bench_dir = Path(".identitybench")
         if not bench_dir.exists():
-            return {"error": "No benchmark data found", "status": "no_data"}
+            return {"trend_files_found": 0, "status": "no_data"}
         trend_files = list(bench_dir.rglob("*trend*"))
         return {
             "trend_files_found": len(trend_files),

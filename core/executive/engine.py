@@ -482,6 +482,11 @@ class ExecutiveRuntime:
 
     def _next_step(self, task: Task) -> Optional[TaskStep]:
         for s in task.steps:
+            # A persisted RUNNING step has an unresolved outcome. Never skip
+            # past it and execute later steps in the same task; restart
+            # recovery will reconcile it according to its replay policy.
+            if s.status == TaskStepStatus.RUNNING:
+                return None
             if s.status == TaskStepStatus.PENDING:
                 return s
         return None

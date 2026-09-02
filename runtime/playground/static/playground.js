@@ -14,6 +14,10 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btn-create').addEventListener('click', showCreateModal);
   document.getElementById('btn-restart').addEventListener('click', restartRuntime);
   document.getElementById('btn-configure-adapter').addEventListener('click', showAdapterModal);
+  document.getElementById('btn-export').addEventListener('click', exportIdentity);
+  document.getElementById('session-mode').addEventListener('change', changeSessionMode);
+  document.getElementById('btn-add-goal').addEventListener('click', createGoal);
+  document.getElementById('btn-add-intention').addEventListener('click', createIntention);
 
   // Clear log via double-click on log panel header
   const logPanel = document.querySelector('#panel-log-body')?.closest('.panel');
@@ -65,11 +69,16 @@ function loadIdentity(id) {
       renderMemories(data.memories);
       renderTimeline(data.timeline);
       renderGoals(data.goals);
+      renderIntentions(data.intentions);
       renderRelationships(data.relationships);
+      loadConstitution(id);
       renderAdapter(data.adapter);
       renderEvaluation(data.evaluation);
+      renderDebugger(data.debug);
+      renderReplay(data.replay);
       renderPersistence(data.persistence);
       renderContext(data.context_sections || null, data.context);
+      document.getElementById('session-mode').value = data.session?.mode || 'normal';
       updateAllCounts(data);
     });
 }
@@ -78,8 +87,11 @@ function updateAllCounts(data) {
   setCount('memories', data.memories?.length);
   setCount('timeline', data.timeline?.length);
   setCount('goals', data.goals?.length);
+  setCount('intentions', data.intentions?.length);
   setCount('relationships', data.relationships?.length);
   setCount('persistence', data.persistence?.length);
+  setCount('debug', data.debug?.decision_trace?.length);
+  setCount('replay', data.replay?.event_count);
   if (data.evolution) {
     setCount('evolution', data.evolution.timeline_count);
   }
@@ -293,9 +305,10 @@ function renderGoals(goals) {
     const pct = Math.round((g.progress || 0) * 100);
     return `<div class="goal-item" data-id="${esc(g.id)}">
       <span class="goal-priority ${esc(g.priority)}">[${esc(g.priority)}]</span>
-      <span class="goal-title">${esc(g.title)}</span>
+      <span class="goal-title">${esc(g.title)}${g.status !== 'active' ? ` · ${esc(g.status)}` : ''}</span>
       <div class="goal-bar"><div class="goal-bar-fill" style="width:${pct}%"></div></div>
       <span class="goal-progress">${pct}%</span>
+      ${g.status === 'active' ? `<button class="item-complete" title="Complete goal" onclick="completeGoal('${esc(g.id)}')">&#x2713;</button>` : ''}
     </div>`;
   }).join('');
 
@@ -311,6 +324,106 @@ function renderGoals(goals) {
       }
     }
   });
+}
+
+function renderIntentions(intentions) {
+  const el = document.getElementById('panel-intentions-body');
+  if (!intentions || intentions.length === 0) {
+    el.innerHTML = '<div class="empty">No intentions.</div>';
+    return;
+  }
+  el.innerHTML = intentions.map(intention => {
+    const expiry = intention.expires_at ? timeAgo(intention.expires_at) : 'no expiry';
+    return `<div class="goal-item" data-id="${esc(intention.id)}">
+      <span class="goal-priority">[${esc(String(intention.priority))}]</span>
+      <span class="goal-title">${esc(intention.description)} · ${esc(intention.status)}</span>
+      <span class="goal-progress" title="Expires ${esc(intention.expires_at || '')}">${esc(expiry)}</span>
+      ${intention.status === 'active' ? `<button class="item-complete" title="Complete intention" onclick="completeIntention('${esc(intention.id)}')">&#x2713;</button>` : ''}
+    </div>`;
+  }).join('');
+}
+
+function renderConstitution(data) {
+  const el = document.getElementById('panel-constitution-body');
+  if (!data || data.error) {
+    el.innerHTML = '<div class="empty">Constitution unavailable.</div>';
+    return;
+  }
+  const laws = Object.entries(data.laws || {});
+  el.innerHTML = `
+    <details><summary>Governing constitution</summary><div class="constitution-text">${esc(data.constitution || 'No constitution document found.')}</div></details>
+    ${laws.map(([name, text]) => `<details><summary>${esc(name)}</summary><div class="constitution-text">${esc(text)}</div></details>`).join('')}
+  `;
+  setCount('constitution', laws.length + (data.constitution ? 1 : 0));
+}
+
+function loadConstitution(identityId) {
+  fetch(`/playground/api/constitution/${encodeURIComponent(identityId)}`)
+    .then(response => response.json())
+    .then(renderConstitution)
+    .catch(() => renderConstitution(null));
+}
+
+async function mutate(path, body) {
+  const response = await fetch(path, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(body),
+  });
+  const data = await response.json();
+  if (!response.ok || data.error) throw new Error(data.error || `HTTP ${response.status}`);
+  return data;
+}
+
+async function createGoal() {
+  if (!currentIdentity) return alert('Select an identity first.');
+  const title = prompt('Persistent goal:');
+  if (!title?.trim()) return;
+  try {
+    await mutate('/playground/api/goals', { identity_id: currentIdentity, title: title.trim() });
+    loadIdentity(currentIdentity);
+  } catch (error) { alert(`Goal failed: ${error.message}`); }
+}
+
+async function completeGoal(goalId) {
+  try {
+    await mutate(`/playground/api/goals/${encodeURIComponent(goalId)}/complete`, { identity_id: currentIdentity });
+    loadIdentity(currentIdentity);
+  } catch (error) { alert(`Goal completion failed: ${error.message}`); }
+}
+
+async function createIntention() {
+  if (!currentIdentity) return alert('Select an identity first.');
+  const description = prompt('Short-term intention (expires in 24 hours):');
+  if (!description?.trim()) return;
+  try {
+    await mutate('/playground/api/intentions', {
+      identity_id: currentIdentity, description: description.trim(), hours: 24,
+    });
+    loadIdentity(currentIdentity);
+  } catch (error) { alert(`Intention failed: ${error.message}`); }
+}
+
+async function completeIntention(intentionId) {
+  try {
+    await mutate(`/playground/api/intentions/${encodeURIComponent(intentionId)}/complete`, { identity_id: currentIdentity });
+    loadIdentity(currentIdentity);
+  } catch (error) { alert(`Intention completion failed: ${error.message}`); }
+}
+
+async function changeSessionMode(event) {
+  if (!currentIdentity) return;
+  try {
+    const session = await mutate('/playground/api/session', {
+      identity_id: currentIdentity, mode: event.target.value,
+    });
+    addLog('info', `Session ${session.id} started in ${session.mode.toUpperCase()} mode`);
+  } catch (error) { alert(`Session change failed: ${error.message}`); }
+}
+
+function exportIdentity() {
+  if (!currentIdentity) return alert('Select an identity first.');
+  window.location.assign(`/playground/api/export/${encodeURIComponent(currentIdentity)}`);
 }
 
 /* Edge type colors */
@@ -531,6 +644,44 @@ function renderEvaluation(evalData) {
   `;
 }
 
+function renderDebugger(debug) {
+  const el = document.getElementById('panel-debug-body');
+  if (!debug) {
+    el.innerHTML = '<div class="empty">Run an interaction to capture a durable trace.</div>';
+    return;
+  }
+  const stages = debug.decision_trace || [];
+  const evidence = debug.evidence || [];
+  const memories = debug.retrieved_memories || [];
+  const conflicts = debug.conflicts || [];
+  const laws = debug.laws_consulted || [];
+  el.innerHTML = `
+    <div class="identity-field"><span class="identity-field-label">Request</span><span>${esc(debug.request_id)}</span></div>
+    <div class="identity-field"><span class="identity-field-label">Prompt</span><span>~${debug.prompt?.token_estimate || 0} tokens</span></div>
+    <div class="identity-field"><span class="identity-field-label">Laws</span><span>${laws.map(esc).join(', ') || 'none recorded'}</span></div>
+    <div style="margin-top:6px;font-size:10px;color:var(--text2)">${stages.map(stage => `${esc(stage.stage)} ${Number(stage.duration_ms || 0).toFixed(1)}ms`).join(' → ')}</div>
+    <div style="margin-top:6px;font-size:11px">Retrieved memories: ${memories.length} · Evidence calls: ${evidence.length} · Conflicts: ${conflicts.length}</div>
+    <div style="margin-top:4px;font-size:10px;color:var(--text2)">${esc(debug.note || '')}</div>
+  `;
+}
+
+function renderReplay(replay) {
+  const el = document.getElementById('panel-replay-body');
+  if (!replay || !replay.events?.length) {
+    el.innerHTML = '<div class="empty">No replay events yet.</div>';
+    return;
+  }
+  const events = replay.events.slice(-25).reverse();
+  el.innerHTML = events.map(event => `
+    <div class="tl-item">
+      <span class="tl-icon">&#x25CF;</span>
+      <span class="tl-type">[${esc(event.track)}]</span>
+      <span class="tl-title">${esc(event.title)}</span>
+      <span class="tl-time">${event.timestamp ? timeAgo(event.timestamp) : ''}</span>
+    </div>
+  `).join('');
+}
+
 function renderPersistence(persistEvents) {
   const el = document.getElementById('panel-persistence-body');
   if (!persistEvents || persistEvents.length === 0) { el.innerHTML = '<div class="empty">No persistence events yet.</div>'; return; }
@@ -542,7 +693,7 @@ function renderPersistence(persistEvents) {
   `).join('');
 }
 
-function onChatSubmit(e) {
+async function onChatSubmit(e) {
   e.preventDefault();
   if (!currentIdentity) { alert('Select an identity first.'); return; }
   const input = document.getElementById('chat-input');
@@ -562,41 +713,61 @@ function onChatSubmit(e) {
   document.getElementById('chat-send').disabled = true;
   document.getElementById('chat-send').textContent = 'Sending...';
 
-  fetch('/playground/api/chat', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({ identity_id: currentIdentity, user_input: text }),
-  })
-  .then(r => r.json())
-  .then(data => {
-    removePendingMessage(pendingId);
-    document.getElementById('chat-send').disabled = false;
-    document.getElementById('chat-send').textContent = 'Send';
-    if (data.error) {
-      addChatMessage('assistant', `Error: ${data.error}`);
-      return;
-    }
+  const content = document.querySelector(`#${pendingId} .msg-content`);
+  let output = '';
+  try {
+    const response = await fetch('/playground/api/chat/stream', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ identity_id: currentIdentity, user_input: text }),
+    });
+    if (!response.ok || !response.body) throw new Error(`HTTP ${response.status}`);
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
 
-    // Play pipeline stages
-    if (data.events && data.events.length) {
-      playPipeline(data.events);
-    }
+    const handle = item => {
+      if (item.type === 'event') showStreamEvent(item.event);
+      if (item.type === 'meta') renderContext(item.context_sections || null, item.context);
+      if (item.type === 'chunk') {
+        output += item.text || '';
+        content.style.color = '';
+        content.textContent = output;
+        content.closest('.chat-messages').scrollTop = content.closest('.chat-messages').scrollHeight;
+      }
+      if (item.type === 'error') throw new Error(item.error || 'stream failed');
+    };
 
-    // Show response
-    setTimeout(() => {
-      addChatMessage('assistant', data.output || '[Empty response]');
-      // Update context panel with structured sections
-      renderContext(data.context_sections || null, data.context);
-      // Refresh all panels
-      loadIdentity(currentIdentity);
-    }, data.events ? Math.min(data.events.length * 250, 2500) : 200);
-  })
-  .catch(err => {
+    while (true) {
+      const {value, done} = await reader.read();
+      buffer += decoder.decode(value || new Uint8Array(), {stream: !done});
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+      for (const line of lines) if (line.trim()) handle(JSON.parse(line));
+      if (done) break;
+    }
+    if (buffer.trim()) handle(JSON.parse(buffer));
+    if (!output) content.textContent = '[Empty response]';
+    loadIdentity(currentIdentity);
+  } catch (err) {
     removePendingMessage(pendingId);
-    document.getElementById('chat-send').disabled = false;
-    document.getElementById('chat-send').textContent = 'Send';
     addChatMessage('assistant', `Request failed: ${err.message}`);
-  });
+  } finally {
+    document.getElementById('chat-send').disabled = false;
+    document.getElementById('chat-send').textContent = 'Send';
+  }
+}
+
+function showStreamEvent(event) {
+  const stageName = event.stage || '';
+  const badge = document.getElementById(`stage-${stageName}`);
+  if (!badge) return;
+  badge.className = 'stage-badge done';
+  badge.textContent = event.label || stageName.replace('_', ' ');
+  const diagnostic = formatStageDiagnostic(stageName, event.data || {});
+  if (diagnostic) badge.title = diagnostic;
+  const arrow = document.getElementById(`arrow-${stageName}`);
+  if (arrow) arrow.className = 'stage-arrow active';
 }
 
 function addChatMessage(role, text) {
@@ -755,6 +926,12 @@ function timeAgo(iso) {
   const d = new Date(iso);
   const now = new Date();
   const sec = Math.floor((now - d) / 1000);
+  if (sec < 0) {
+    const remaining = Math.abs(sec);
+    if (remaining < 3600) return `in ${Math.ceil(remaining / 60)}m`;
+    if (remaining < 86400) return `in ${Math.ceil(remaining / 3600)}h`;
+    return `in ${Math.ceil(remaining / 86400)}d`;
+  }
   if (sec < 60) return `${sec}s ago`;
   const min = Math.floor(sec / 60);
   if (min < 60) return `${min}m ago`;

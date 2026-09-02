@@ -182,6 +182,13 @@ class EventBus:
         """Register a handler that receives ALL events."""
         self._wildcard_handlers.append(handler)
 
+    def unsubscribe_all(self, handler: EventHandler) -> bool:
+        """Remove a wildcard handler previously registered with subscribe_all."""
+        if handler in self._wildcard_handlers:
+            self._wildcard_handlers.remove(handler)
+            return True
+        return False
+
     def unsubscribe(
         self,
         event_type: EventType,

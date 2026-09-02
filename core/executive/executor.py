@@ -84,6 +84,14 @@ def _generate(task: Task, step: TaskStep, ctx: ExecutionContext) -> tuple[bool, 
     cap = step.params.get("capability", "")
     path = capability_module_path(cap)
     try:
+        if path.exists():
+            return (False, {"path": str(path), "conflict": True}, [Evidence(
+                step=step.action,
+                label="generation_blocked_existing_source",
+                detail=f"refusing to overwrite existing capability source: {path}",
+                success=False,
+                data={"path": str(path), "conflict": True},
+            )])
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(capability_module(cap), encoding="utf-8")
         evidence = [Evidence(

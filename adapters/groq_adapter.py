@@ -70,7 +70,7 @@ class GroqAdapter(OpenAIAdapter):
     def _rotate_key(self) -> Optional[str]:
         """Move to the next key not in cooldown. Returns None if all are on cooldown."""
         now = time.time()
-        for _ in range(len(self._keys) - 1):
+        for _ in range(len(self._keys)):
             self._key_index = (self._key_index + 1) % len(self._keys)
             cooldown_until = self._cooldowns.get(self._key_index, 0)
             if cooldown_until <= now:

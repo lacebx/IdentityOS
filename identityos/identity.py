@@ -503,7 +503,9 @@ class IdentityObject:
             success_criteria=success_criteria,
             **kwargs,
         )
+        goal.metadata.setdefault("identity_id", self._identity_id)
         self._runtime.goal_engine.add(goal)
+        self._runtime._persist_goals(self._identity_id)
         return self._goal_to_dict(goal)
 
     def goals(
@@ -511,7 +513,10 @@ class IdentityObject:
         status: str = "active",
     ) -> List[Dict[str, Any]]:
         """List all goals, optionally filtered by status."""
-        all_goals = self._runtime.goal_engine.all()
+        all_goals = [
+            goal for goal in self._runtime.goal_engine.all()
+            if goal.metadata.get("identity_id") in (None, self._identity_id)
+        ]
         if status and status != "all":
             from core.goals import GoalStatus
             target = getattr(GoalStatus, status.upper(), None)
@@ -525,6 +530,7 @@ class IdentityObject:
         if not goal:
             return False
         goal.mark_completed(reason=reason)
+        self._runtime._persist_goals(self._identity_id)
         return True
 
     def abandon_goal(self, goal_id: str, reason: str = "") -> bool:
@@ -533,6 +539,7 @@ class IdentityObject:
         if not goal:
             return False
         goal.abandon(reason=reason)
+        self._runtime._persist_goals(self._identity_id)
         return True
 
     @staticmethod
@@ -593,7 +600,9 @@ class IdentityObject:
             + timedelta(hours=hours),
             **kwargs,
         )
+        intention.metadata.setdefault("identity_id", self._identity_id)
         self._runtime.intention_engine.add(intention)
+        self._runtime._persist_intentions(self._identity_id)
         return self._intention_to_dict(intention)
 
     def intentions(
@@ -604,7 +613,10 @@ class IdentityObject:
         # Auto-expire before listing
         self._runtime.intention_engine.check_expiry()
 
-        all_intentions = self._runtime.intention_engine.all()
+        all_intentions = [
+            intention for intention in self._runtime.intention_engine.all()
+            if intention.metadata.get("identity_id") in (None, self._identity_id)
+        ]
         if status and status != "all":
             from core.intentions import IntentionStatus
             target = getattr(IntentionStatus, status.upper(), None)
@@ -618,6 +630,7 @@ class IdentityObject:
         if not intention:
             return False
         intention.complete(reason=reason)
+        self._runtime._persist_intentions(self._identity_id)
         return True
 
     def promote_intention(
@@ -636,11 +649,14 @@ class IdentityObject:
             "user_request": PromotionReason.USER_REQUEST,
             "system_promotion": PromotionReason.SYSTEM_PROMOTION,
         }
-        return self._runtime.intention_engine.promote_to_goal(
+        promoted = self._runtime.intention_engine.promote_to_goal(
             intention_id, goal_id,
             reason=reason_map.get(reason, PromotionReason.SYSTEM_PROMOTION),
             detail=detail,
         )
+        if promoted:
+            self._runtime._persist_intentions(self._identity_id)
+        return promoted
 
     @staticmethod
     def _intention_to_dict(intention: Any) -> Dict[str, Any]:
@@ -1234,8 +1250,14 @@ class IdentityObject:
             "memories": [
                 m.to_dict() for m in self._runtime.memory_store.by_identity(self._identity_id)
             ],
-            "goals": [g.to_dict() for g in self._runtime.goal_engine.all()],
-            "intentions": [i.to_dict() for i in self._runtime.intention_engine.all()],
+            "goals": [
+                g.to_dict() for g in self._runtime.goal_engine.all()
+                if g.metadata.get("identity_id") in (None, self._identity_id)
+            ],
+            "intentions": [
+                i.to_dict() for i in self._runtime.intention_engine.all()
+                if i.metadata.get("identity_id") in (None, self._identity_id)
+            ],
             "timeline": timeline_data,
             "fact_store": fact_store_data,
             "user_profile": profile_data,

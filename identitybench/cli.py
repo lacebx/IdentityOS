@@ -5,6 +5,10 @@ import json
 import sys
 from typing import Any, Dict, List, Optional
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 from identitybench.engine import IdentityBench, DEFAULT_WORLDS, SMOKE_WORLDS
 from identitybench.reporting import (
     build_comparison_data,
@@ -34,6 +38,7 @@ from identitybench.atlas.capability_lifecycle import (
     format_capability_ranking,
     explain_score_change,
 )
+from identitybench.endurance import EnduranceMonitor
 
 
 def cmd_run(args: argparse.Namespace) -> None:
@@ -56,6 +61,31 @@ def cmd_run(args: argparse.Namespace) -> None:
         world_classes = selected
     print(f"Running IdentityBench [{args.mode}] for {args.identity}...")
     engine.run(world_classes=world_classes, seed=args.seed)
+    monitor = EnduranceMonitor(benchmark_dir=args.storage_dir)
+    sample = monitor.record_latest(args.identity)
+    print(
+        "  Endurance sample: "
+        f"restart={sample['restart_recovery_pct']}% "
+        f"consistency={sample['identity_consistency_pct']}%"
+    )
+
+
+def cmd_endurance(args: argparse.Namespace) -> None:
+    monitor = EnduranceMonitor(
+        benchmark_dir=args.storage_dir,
+        identity_store=args.identity_store,
+    )
+    if args.action == "record":
+        sample = monitor.record_latest(args.identity)
+        print(json.dumps(sample, indent=2))
+        return
+    report = monitor.report(args.identity)
+    if args.output:
+        with open(args.output, "w") as handle:
+            handle.write(report)
+        print(f"Endurance report written to {args.output}")
+    else:
+        print(report)
 
 
 def cmd_report(args: argparse.Namespace) -> None:
@@ -414,6 +444,13 @@ def build_parser() -> argparse.ArgumentParser:
     p_atlas.add_argument("identity", help="Identity ID")
     p_atlas.add_argument("-o", "--output", help="Write report to file")
     p_atlas.set_defaults(func=cmd_forecast)
+
+    p_endurance = sub.add_parser("endurance", help="Record or report durable long-running health")
+    p_endurance.add_argument("action", choices=["record", "report"])
+    p_endurance.add_argument("identity", help="Identity ID")
+    p_endurance.add_argument("--identity-store", default=".identity_store", help="Identity persistence directory")
+    p_endurance.add_argument("-o", "--output", help="Write Markdown report to file")
+    p_endurance.set_defaults(func=cmd_endurance)
 
     return parser
 

@@ -11,6 +11,9 @@ env:
 jobs:
   review:
     runs-on: ubuntu-latest
+    concurrency:
+      group: identityos-provider-pr-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
     permissions:
       contents: read
       checks: write
@@ -40,38 +43,10 @@ jobs:
           git diff origin/${{ github.base_ref }}...HEAD > /tmp/pr.diff
           echo "Diff size: $(wc -l < /tmp/pr.diff) lines"
 
-      - name: Restore benchmark identity from cache
-        uses: actions/cache@v4
-        id: identity-cache
-        with:
-          path: |
-            .identity_store/
-            .identitybench/
-          key: benchmark-daedalus-${{ github.base_ref }}-${{ hashFiles('identitybench/**/*.py') }}
-          restore-keys: |
-            benchmark-daedalus-${{ github.base_ref }}-
-            benchmark-daedalus-
-
-      - name: Create benchmark identity (first run only)
-        if: steps.identity-cache.outputs.cache-hit != 'true'
-        run: |
-          identity create --name "DaedalusBench" --id daedalus-bench --persona "engineering" 2>&1 || true
-          echo "Benchmark identity created."
-
       - name: Run unit tests
-        continue-on-error: true
         run: |
           set -o pipefail
           python -m pytest tests/ --ignore=tests/test_cross_app_continuity.py -q --tb=short 2>&1 | tee /tmp/test-results.txt
-
-      - name: Run IdentityBench smoke suite
-        env:
-          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        continue-on-error: true
-        run: |
-          set -o pipefail
-          identitybench run daedalus-bench --mode smoke --seed 42 2>&1 | tee /tmp/benchmark-results.txt
 
       - name: Run Daedalus PR review (static + AI analysis)
         id: daedalus
@@ -98,8 +73,7 @@ jobs:
             --title "${{ github.event.pull_request.title }}" \
             --output /tmp/daedalus-review.md \
             --token "${{ secrets.DAEDALUS_GITHUB_TOKEN }}" \
-            --test-results /tmp/test-results.txt \
-            --benchmark-results /tmp/benchmark-results.txt
+            --test-results /tmp/test-results.txt
 
       - name: Daedalus posts review on PR
         uses: actions/github-script@v7
@@ -130,6 +104,19 @@ jobs:
             if (reviewStatus === 'NEEDS_WORK') labels.push('needs-changes');
             if (reviewStatus === 'NOT_READY') labels.push('blocked');
             if (reviewStatus === 'READY') labels.push('ready-to-merge');
+
+            for (const label of ['needs-changes', 'blocked', 'ready-to-merge']) {
+              try {
+                await github.rest.issues.removeLabel({
+                  issue_number: context.issue.number,
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  name: label
+                });
+              } catch(e) {
+                if (e.status !== 404) console.log(`Could not remove ${label}: ${e.message}`);
+              }
+            }
 
             try {
               await github.rest.issues.addLabels({
