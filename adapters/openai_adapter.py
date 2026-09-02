@@ -62,6 +62,27 @@ def _parse_legacy_function_call(text: str) -> Optional[tuple[str, dict]]:
     return name, args
 
 
+def _parse_failed_generation_tool_call(text: str) -> Optional[tuple[str, dict]]:
+    """Extract a structured tool call embedded in a provider error message."""
+    start = text.find('{"name"')
+    if start >= 0:
+        try:
+            payload, _ = json.JSONDecoder().raw_decode(text[start:])
+        except (json.JSONDecodeError, TypeError):
+            payload = None
+        if isinstance(payload, dict):
+            name = payload.get("name")
+            args = payload.get("arguments", {})
+            if isinstance(args, str):
+                try:
+                    args = json.loads(args)
+                except json.JSONDecodeError:
+                    args = {}
+            if isinstance(name, str) and isinstance(args, dict):
+                return name, args
+    return None
+
+
 def _legacy_tool_context(
     context: str,
     user_input: str,
@@ -294,14 +315,15 @@ class OpenAIAdapter(BaseAdapter):
                             effective_max, msg,
                         )
                         continue
-                    # Groq and other providers reject legacy <function=...> text
-                    # syntax with a 400 'tool_use_failed'.  Recover by treating
-                    # the failed generation as a real tool call.
+                    # Some providers reject model-emitted tool syntax before
+                    # returning a response. Feed the rejected call through the
+                    # runtime gateway so authorized calls execute and unknown
+                    # calls become explicit error evidence.
                     if (
                         execute_tool
                         and tool_rounds < self.max_tool_rounds
-                        and self._recover_legacy_tool_call(
-                        msg, messages, execute_tool
+                        and self._recover_rejected_tool_call(
+                            msg, messages, execute_tool
                         )
                     ):
                         tool_rounds += 1
@@ -370,27 +392,29 @@ class OpenAIAdapter(BaseAdapter):
             "a final model response."
         )
 
-    def _recover_legacy_tool_call(
+    def _recover_rejected_tool_call(
         self,
         error_msg: str,
         messages: list,
         execute_tool: Any,
     ) -> bool:
-        """Recover from a 400 'tool_use_failed' by executing the legacy call.
+        """Recover from a provider-rejected tool call through the gateway.
 
         Some models (e.g. Llama on Groq) emit legacy Anthropic-style
         ``<function=name>{args}</function>`` text instead of native JSON
-        ``tool_calls``.  The provider rejects the request with
-        ``tool_use_failed``.  This method parses the rejected generation,
-        executes the tool, appends the result as a user message, and returns
-        True so the caller retries the model with the result in context.
+        ``tool_calls``; others attempt an unavailable structured tool.  The
+        runtime callback remains authoritative: it executes only an offered,
+        authorized tool and returns error evidence for any unknown name.
 
-        Returns False when no legacy call could be extracted.
+        Returns False when no rejected call could be extracted.
         """
-        legacy = _parse_legacy_function_call(error_msg)
-        if legacy is None:
+        rejected = (
+            _parse_legacy_function_call(error_msg)
+            or _parse_failed_generation_tool_call(error_msg)
+        )
+        if rejected is None:
             return False
-        func_name, func_args = legacy
+        func_name, func_args = rejected
         try:
             tool_result = execute_tool(func_name, func_args)
         except Exception as exc:
@@ -400,8 +424,8 @@ class OpenAIAdapter(BaseAdapter):
             "content": f"[tool result for {func_name}]: {tool_result}",
         })
         logger.warning(
-            "Recovered from legacy <function=%s> tool call (provider rejected "
-            "text-syntax tool use). Executed tool and retrying model.",
+            "Recovered provider-rejected tool call %s through the runtime "
+            "gateway; retrying model with its observed result.",
             func_name,
         )
         return True

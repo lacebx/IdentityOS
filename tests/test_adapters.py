@@ -298,6 +298,46 @@ class TestOpenAIAdapter:
         assert result == "Task committed!"
         assert executed == [("executive__start_task", {"goal": "getting_to_know_each_other"})]
 
+    def test_recovers_rejected_unknown_structured_tool_as_error_evidence(
+        self, mock_openai_client
+    ):
+        client = mock_openai_client.return_value
+        err_msg = (
+            "Error code: 400 - {'error': {'code': 'tool_use_failed', "
+            "'failed_generation': '{\"name\": \"web_search\", \"arguments\": "
+            "{\"query\": \"efficient inference\"}}'}}"
+        )
+        client.chat.completions.create.side_effect = [
+            RuntimeError(err_msg),
+            MagicMock(
+                choices=[
+                    MagicMock(
+                        message=MagicMock(
+                            content="That search tool is unavailable, so I cannot verify it.",
+                            tool_calls=None,
+                        )
+                    )
+                ]
+            ),
+        ]
+        executed = []
+        adapter = OpenAIAdapter(api_key="sk-test", max_tool_rounds=1)
+
+        result = adapter.generate(
+            context="Use only runtime evidence.",
+            user_input="Research efficient inference",
+            identity=_MockIdentity(),
+            tools=[{"type": "function", "function": {"name": "github__search_repositories"}}],
+            execute_tool=lambda name, args: executed.append((name, args))
+            or '{"error":"Unknown tool: web_search"}',
+        )
+
+        assert "unavailable" in result
+        assert executed == [("web_search", {"query": "efficient inference"})]
+        second_call = client.chat.completions.create.call_args_list[1]
+        assert "tools" not in second_call.kwargs
+        assert "Unknown tool: web_search" in second_call.kwargs["messages"][-1]["content"]
+
     def test_parse_legacy_function_call_json_and_dict(self):
         from adapters.openai_adapter import _parse_legacy_function_call
 
@@ -308,6 +348,18 @@ class TestOpenAIAdapter:
         assert _parse_legacy_function_call(dict_form) == ("executive__start_task", {"goal": "hi"})
 
         assert _parse_legacy_function_call("no function here") is None
+
+    def test_parse_failed_generation_tool_call(self):
+        from adapters.openai_adapter import _parse_failed_generation_tool_call
+
+        error = (
+            "tool_use_failed: failed_generation='"
+            '{"name":"web_search","arguments":{"query":"IdentityOS"}}\''
+        )
+        assert _parse_failed_generation_tool_call(error) == (
+            "web_search",
+            {"query": "IdentityOS"},
+        )
 
     def test_shrinks_max_tokens_on_token_limit_rejection(self, mock_openai_client):
         """A 413/token-budget rejection should shrink max_tokens and retry.

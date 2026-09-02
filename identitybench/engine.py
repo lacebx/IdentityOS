@@ -124,6 +124,10 @@ class IdentityBench:
                 # observed token-per-minute quota.
                 self._request_interval_seconds = 35.0
             self.runtime._benchmark_request_interval_seconds = self._request_interval_seconds
+            if self._request_interval_seconds > 0:
+                # Reserve a clean provider window before the first interaction,
+                # including when another CI job used the shared quota recently.
+                self.runtime._benchmark_last_request_monotonic = real_time.monotonic()
             self.runtime.load_persisted()
         spec = self.runtime.load(target)
         if not spec:
