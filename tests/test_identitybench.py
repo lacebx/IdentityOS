@@ -151,7 +151,8 @@ class TestMetrics:
     def test_trust_metrics(self, good_transcript):
         m = TrustMetrics(good_transcript)
         scores = m.compute()
-        assert scores["hallucination_rate"] == 100.0
+        assert scores["truthfulness_rate"] == 100.0
+        assert scores["hallucination_rate"] == 0.0
         assert scores["verification_rate"] == 100.0
 
     def test_adaptation_metrics(self, good_transcript):
@@ -168,9 +169,10 @@ class TestMetrics:
 
     def test_compute_all(self, good_transcript):
         scores = compute_all_metrics(good_transcript)
-        for key in ["recall_accuracy", "false_memories", "hallucination_rate", "verification_rate"]:
+        for key in ["recall_accuracy", "false_memories", "truthfulness_rate", "verification_rate"]:
             assert key in scores
             assert scores[key] == 100.0
+        assert scores["hallucination_rate"] == 0.0
         cat = compute_category_scores(scores)
         assert "Memory" in cat
         assert "Trust" in cat
