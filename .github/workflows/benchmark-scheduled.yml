@@ -8,6 +8,8 @@ on:
 
 env:
   BENCHMARK_IDENTITY: "benchmark-bot"
+  GROQ_MODEL: "openai/gpt-oss-20b"
+  BENCHMARK_MODEL_KEY: "gpt-oss-20b"
 
 permissions:
   contents: read
@@ -30,10 +32,9 @@ jobs:
           path: |
             .identity_store/
             .identitybench/
-          key: benchmark-${{ env.BENCHMARK_IDENTITY }}-nightly-${{ github.run_id }}
+          key: benchmark-nightly-${{ env.BENCHMARK_IDENTITY }}-${{ env.BENCHMARK_MODEL_KEY }}-${{ github.run_id }}
           restore-keys: |
-            benchmark-${{ env.BENCHMARK_IDENTITY }}-nightly-
-            benchmark-${{ env.BENCHMARK_IDENTITY }}-
+            benchmark-nightly-${{ env.BENCHMARK_IDENTITY }}-${{ env.BENCHMARK_MODEL_KEY }}-
 
       - name: Create benchmark identity (first run only)
         run: |
@@ -75,10 +76,9 @@ jobs:
           path: |
             .identity_store/
             .identitybench/
-          key: benchmark-${{ env.BENCHMARK_IDENTITY }}-weekly-${{ github.run_id }}
+          key: benchmark-weekly-${{ env.BENCHMARK_IDENTITY }}-${{ env.BENCHMARK_MODEL_KEY }}-${{ github.run_id }}
           restore-keys: |
-            benchmark-${{ env.BENCHMARK_IDENTITY }}-weekly-
-            benchmark-${{ env.BENCHMARK_IDENTITY }}-
+            benchmark-weekly-${{ env.BENCHMARK_IDENTITY }}-${{ env.BENCHMARK_MODEL_KEY }}-
 
       - name: Create benchmark identity (first run only)
         run: |
@@ -121,10 +121,9 @@ jobs:
           path: |
             .identity_store/
             .identitybench/
-          key: benchmark-${{ env.BENCHMARK_IDENTITY }}-monthly-${{ github.run_id }}
+          key: benchmark-monthly-${{ env.BENCHMARK_IDENTITY }}-${{ env.BENCHMARK_MODEL_KEY }}-${{ github.run_id }}
           restore-keys: |
-            benchmark-${{ env.BENCHMARK_IDENTITY }}-monthly-
-            benchmark-${{ env.BENCHMARK_IDENTITY }}-
+            benchmark-monthly-${{ env.BENCHMARK_IDENTITY }}-${{ env.BENCHMARK_MODEL_KEY }}-
 
       - name: Create benchmark identity (first run only)
         run: |

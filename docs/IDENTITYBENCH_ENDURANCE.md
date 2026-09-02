@@ -40,3 +40,11 @@ policy and to 35 seconds for Groq, where a single interaction may require more
 than one provider request to complete a capability call. Every run records the
 effective public adapter/model and resource profile in its result; credentials
 are never included.
+
+Hosted PR and scheduled benchmarks use Groq's `openai/gpt-oss-20b` as the
+canonical resource-bounded baseline. This keeps the engineering signal on a
+supported tool-capable model while leaving the runtime's normal model default
+unchanged. Cache histories are isolated by model and run type (PR, nightly,
+weekly, and monthly), so comparisons never silently mix model families or
+benchmark modes. Changing the hosted baseline therefore starts a new history
+instead of presenting a model change as a product regression or improvement.

@@ -6,6 +6,8 @@ on:
 
 env:
   BENCHMARK_IDENTITY: "benchmark-bot"
+  GROQ_MODEL: "openai/gpt-oss-20b"
+  BENCHMARK_MODEL_KEY: "gpt-oss-20b"
 
 jobs:
   benchmark:
@@ -39,10 +41,9 @@ jobs:
           path: |
             .identity_store/
             .identitybench/
-          key: benchmark-${{ env.BENCHMARK_IDENTITY }}-${{ github.base_ref }}-${{ hashFiles('identitybench/**/*.py') }}
+          key: benchmark-pr-${{ env.BENCHMARK_IDENTITY }}-${{ env.BENCHMARK_MODEL_KEY }}-${{ github.base_ref }}-${{ hashFiles('identitybench/**/*.py') }}
           restore-keys: |
-            benchmark-${{ env.BENCHMARK_IDENTITY }}-${{ github.base_ref }}-
-            benchmark-${{ env.BENCHMARK_IDENTITY }}-
+            benchmark-pr-${{ env.BENCHMARK_IDENTITY }}-${{ env.BENCHMARK_MODEL_KEY }}-${{ github.base_ref }}-
 
       - name: Create benchmark identity (first run only)
         run: |
