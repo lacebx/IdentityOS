@@ -66,6 +66,34 @@ class TestToolResultBoundary:
     def test_runtime_sanitizes_tool_catalog_limit(self):
         assert IdentityRuntime(max_tools_per_request=0).max_tools_per_request == 1
 
+    def test_runtime_resolves_dotted_alias_only_for_an_offered_tool(self, tmp_path):
+        class DottedToolAdapter:
+            model = "dotted-tool-test"
+
+            def __init__(self):
+                self.tool_result = ""
+
+            def generate(self, context, user_input, identity, **kwargs):
+                self.tool_result = kwargs["execute_tool"]("datetime.now", {"tz_name": "UTC"})
+                return self.tool_result
+
+        adapter = DottedToolAdapter()
+        storage = JSONFileBackend(root_dir=str(tmp_path / "store"))
+        runtime = IdentityRuntime(storage=storage, adapter=adapter)
+        identity = create_identity("Alias Bot", identity_id="alias-bot")
+        runtime.register(identity)
+        runtime.capability_registry.install(identity.id, "datetime")
+        session_id = runtime.start_session(identity.id)
+
+        runtime.process(InteractionRequest(
+            identity_id=identity.id,
+            user_input="What is the time?",
+            session_id=session_id,
+        ))
+
+        assert "Unknown tool" not in adapter.tool_result
+        assert json.loads(adapter.tool_result)["timezone"] == "UTC"
+
 
 class TestSemanticExtraction:
     """process() must extract and store semantic memories from user input."""

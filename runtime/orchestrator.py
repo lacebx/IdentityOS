@@ -918,7 +918,12 @@ class IdentityRuntime:
             if not isinstance(args, dict):
                 args = {}
 
-            skill_name = _tool_map.get(func_name)
+            # Some models reproduce the canonical dotted skill name even
+            # though providers require the offered ``__``-safe name. Resolve
+            # that alias only when it maps to a tool in this request's
+            # authorized catalog.
+            safe_func_name = func_name.replace(".", "__")
+            skill_name = _tool_map.get(func_name) or _tool_map.get(safe_func_name)
             if not skill_name:
                 return json.dumps({"error": f"Unknown tool: {func_name}"})
 

@@ -336,7 +336,81 @@ class TestOpenAIAdapter:
         assert executed == [("web_search", {"query": "efficient inference"})]
         second_call = client.chat.completions.create.call_args_list[1]
         assert "tools" not in second_call.kwargs
-        assert "Unknown tool: web_search" in second_call.kwargs["messages"][-1]["content"]
+        assert any(
+            "Unknown tool: web_search" in message["content"]
+            for message in second_call.kwargs["messages"]
+            if isinstance(message.get("content"), str)
+        )
+
+    def test_retries_unparsed_tool_mode_output_without_tools(self, mock_openai_client):
+        client = mock_openai_client.return_value
+        err_msg = (
+            "Error code: 400 - {'error': {'code': 'output_parse_failed', "
+            "'message': 'Parsing failed. See failed_generation', "
+            "'failed_generation': 'I cannot verify that claim.'}}"
+        )
+        client.chat.completions.create.side_effect = [
+            RuntimeError(err_msg),
+            MagicMock(
+                choices=[
+                    MagicMock(
+                        message=MagicMock(
+                            content="I cannot verify that claim without evidence.",
+                            tool_calls=None,
+                        )
+                    )
+                ]
+            ),
+        ]
+        adapter = OpenAIAdapter(api_key="sk-test", max_tool_rounds=1)
+
+        result = adapter.generate(
+            context="Use only runtime evidence.",
+            user_input="Can you confirm this claim?",
+            identity=_MockIdentity(),
+            tools=[{"type": "function", "function": {"name": "github__get_repository"}}],
+            execute_tool=lambda name, args: "unused",
+        )
+
+        assert result == "I cannot verify that claim without evidence."
+        second_call = client.chat.completions.create.call_args_list[1]
+        assert "tools" not in second_call.kwargs
+        assert "cannot verify" in second_call.kwargs["messages"][-1]["content"]
+
+    def test_returns_runtime_evidence_when_final_synthesis_is_rejected(
+        self, mock_openai_client
+    ):
+        client = mock_openai_client.return_value
+        tool_call = MagicMock()
+        tool_call.id = "call-1"
+        tool_call.function.name = "calc__evaluate"
+        tool_call.function.arguments = '{"expression": "(2+2)*5"}'
+        rejected_final = (
+            "Error code: 400 - {'error': {'code': 'tool_use_failed', "
+            "'failed_generation': '{\"name\": \"calc.evaluate\", \"arguments\": "
+            "{\"expression\": \"(2+2)*5\"}}'}}"
+        )
+        client.chat.completions.create.side_effect = [
+            MagicMock(
+                choices=[MagicMock(message=MagicMock(content="", tool_calls=[tool_call]))]
+            ),
+            RuntimeError(rejected_final),
+        ]
+        executed = []
+        adapter = OpenAIAdapter(api_key="sk-test", max_tool_rounds=1)
+
+        result = adapter.generate(
+            context="Use only runtime evidence.",
+            user_input="Calculate (2+2)*5",
+            identity=_MockIdentity(),
+            tools=[{"type": "function", "function": {"name": "calc__evaluate"}}],
+            execute_tool=lambda name, args: executed.append((name, args))
+            or '{"result":20}',
+        )
+
+        assert "Model synthesis was unavailable" in result
+        assert 'calc__evaluate: {"result":20}' in result
+        assert executed == [("calc__evaluate", {"expression": "(2+2)*5"})]
 
     def test_parse_legacy_function_call_json_and_dict(self):
         from adapters.openai_adapter import _parse_legacy_function_call
