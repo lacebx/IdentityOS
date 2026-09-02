@@ -2,16 +2,13 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 import statistics
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Optional
+from typing import Optional
 
-from runtime.debugger import load_debug_record
-from runtime.orchestrator import IdentityRuntime
-from runtime.persistence import JSONFileBackend
+from identityos.diagnostics import IdentityDiagnostics
 
 from identitybench.storage import BenchmarkStorage
 
@@ -27,32 +24,6 @@ DEFAULT_THRESHOLDS = {
 }
 
 
-def _identity_fingerprint(spec: Any) -> str:
-    stable = {
-        "id": spec.id,
-        "identity_class": getattr(getattr(spec, "identity_class", None), "value", ""),
-        "created_at": spec.created_at.isoformat() if spec.created_at else "",
-    }
-    return hashlib.sha256(json.dumps(stable, sort_keys=True).encode()).hexdigest()
-
-
-def _state_counts(runtime: IdentityRuntime, identity_id: str) -> dict[str, int]:
-    return {
-        "memories": len(runtime.memory_store.by_identity(identity_id)),
-        "goals": len([
-            goal for goal in runtime.goal_engine.all()
-            if goal.metadata.get("identity_id") in (None, identity_id)
-        ]),
-        "intentions": len([
-            intention for intention in runtime.intention_engine.all()
-            if intention.metadata.get("identity_id") in (None, identity_id)
-        ]),
-        "relationships": len(runtime.identity_graph.get_relationships(identity_id)),
-        "timeline": len(runtime.timeline_registry.get(identity_id).events())
-        if runtime.timeline_registry.get(identity_id) else 0,
-    }
-
-
 def _honesty_score(run: Optional[dict]) -> Optional[float]:
     values = []
     for world in (run or {}).get("worlds", []):
@@ -60,24 +31,6 @@ def _honesty_score(run: Optional[dict]) -> Optional[float]:
         if score is not None:
             values.append(float(score))
     return sum(values) / len(values) if values else None
-
-
-def _completion_rate(runtime: IdentityRuntime, identity_id: str) -> float:
-    goals = [
-        goal for goal in runtime.goal_engine.all()
-        if goal.metadata.get("identity_id") in (None, identity_id)
-    ]
-    if not goals:
-        return 100.0
-    completed = sum(goal.status.value == "completed" for goal in goals)
-    return round(completed / len(goals) * 100, 1)
-
-
-def _relationship_signature(runtime: IdentityRuntime, identity_id: str) -> set[str]:
-    return {
-        f"{edge.source_id}:{edge.target_id}:{edge.edge_type.value}"
-        for edge in runtime.identity_graph.get_relationships(identity_id)
-    }
 
 
 class EnduranceMonitor:
@@ -92,6 +45,7 @@ class EnduranceMonitor:
         self.root = Path(benchmark_dir) / "endurance"
         self.root.mkdir(parents=True, exist_ok=True)
         self.thresholds = {**DEFAULT_THRESHOLDS, **(thresholds or {})}
+        self.diagnostics = IdentityDiagnostics(identity_store)
 
     def _path(self, identity_id: str) -> Path:
         return self.root / f"{identity_id}.json"
@@ -102,33 +56,15 @@ class EnduranceMonitor:
             return {"identity_id": identity_id, "samples": [], "alerts": []}
         return json.loads(path.read_text(encoding="utf-8"))
 
-    def _verify_restart(self, runtime: IdentityRuntime, identity_id: str) -> tuple[float, dict]:
-        before = _state_counts(runtime, identity_id)
-        restarted = IdentityRuntime(
-            storage=JSONFileBackend(root_dir=self.identity_store),
-            adapter=runtime.adapter,
-        )
-        spec = restarted.load(identity_id)
-        after = _state_counts(restarted, identity_id) if spec else {}
-        checks = {key: after.get(key) == value for key, value in before.items()}
-        checks["identity"] = spec is not None
-        score = round(sum(checks.values()) / len(checks) * 100, 1)
-        return score, {"before": before, "after": after, "checks": checks}
-
     def record(self, identity_id: str, run: Optional[dict] = None) -> dict:
-        backend = JSONFileBackend(root_dir=self.identity_store)
-        runtime = IdentityRuntime(storage=backend)
-        spec = runtime.load(identity_id)
-        if not spec:
-            raise ValueError(f"Identity '{identity_id}' not found in {self.identity_store}")
-
+        health = self.diagnostics.inspect_health(identity_id)
         document = self.load(identity_id)
         samples = document.setdefault("samples", [])
-        fingerprint = _identity_fingerprint(spec)
+        fingerprint = health.identity_fingerprint
         baseline = document.setdefault("identity_fingerprint", fingerprint)
         previous = samples[-1] if samples else None
-        counts = _state_counts(runtime, identity_id)
-        relationships = _relationship_signature(runtime, identity_id)
+        counts = health.counts
+        relationships = set(health.relationship_signature)
 
         previous_relationships = set((previous or {}).get("relationship_signature", []))
         union = relationships | previous_relationships
@@ -144,11 +80,7 @@ class EnduranceMonitor:
             days = max((now - previous_time).total_seconds() / 86400, 1 / 24)
             memory_growth = round((counts["memories"] - previous["memory_count"]) / days, 2)
 
-        debug = load_debug_record(backend, identity_id) or {}
-        timings = debug.get("latency_ms", {})
-        latency = float(timings.get("total", sum(timings.values()) if timings else 0.0))
         honesty = _honesty_score(run)
-        restart_score, restart_evidence = self._verify_restart(runtime, identity_id)
 
         sample = {
             "timestamp": now.isoformat(),
@@ -158,15 +90,15 @@ class EnduranceMonitor:
             "memory_count": counts["memories"],
             "memory_growth_per_day": memory_growth,
             "goal_count": counts["goals"],
-            "goal_completion_pct": _completion_rate(runtime, identity_id),
+            "goal_completion_pct": health.goal_completion_pct,
             "relationship_count": counts["relationships"],
             "relationship_stability_pct": relationship_stability,
             "relationship_signature": sorted(relationships),
-            "prompt_tokens": int(debug.get("prompt", {}).get("token_estimate", 0)),
-            "latency_ms": round(latency, 1),
+            "prompt_tokens": health.prompt_tokens,
+            "latency_ms": health.latency_ms,
             "hallucination_rate_pct": round(100.0 - honesty, 1) if honesty is not None else None,
-            "restart_recovery_pct": restart_score,
-            "restart_evidence": restart_evidence,
+            "restart_recovery_pct": health.restart_recovery_pct,
+            "restart_evidence": health.restart_evidence,
         }
         samples.append(sample)
         document["samples"] = samples[-730:]
