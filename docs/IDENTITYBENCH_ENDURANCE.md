@@ -57,3 +57,7 @@ hash plus a unique run ID, preserving new history without restoring results
 from changed scoring code. Uploaded artifacts explicitly include the hidden
 `.identitybench` directory; the raw world transcripts and configuration remain
 available alongside the human-readable report as execution evidence.
+
+The proposed protected evaluator, multiple-daily schedule, paired statistical
+gate, and autonomous improvement workflow are specified in
+[`IDENTITYBENCH_INTEGRITY.md`](IDENTITYBENCH_INTEGRITY.md).
