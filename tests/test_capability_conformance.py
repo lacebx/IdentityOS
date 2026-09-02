@@ -97,6 +97,24 @@ def test_fresh_identity_installs_all_capabilities_and_reloads_them(tmp_path):
     assert result.data["timezone"] == "UTC"
 
 
+def test_analysis_capabilities_report_absent_benchmarks_as_observed_no_data(
+    tmp_path, monkeypatch
+):
+    monkeypatch.chdir(tmp_path)
+    registry = CapabilityRegistry(JSONFileBackend(root_dir=str(tmp_path / "store")))
+    registry.install("tester", "code_review")
+    registry.install("tester", "repo_health")
+
+    regressions = registry.call("tester", "code_review.check_regressions")
+    trend = registry.call("tester", "repo_health.analyze_benchmark_trend")
+
+    assert regressions.success is True
+    assert regressions.data["status"] == "no_data"
+    assert regressions.data["regressions"] == []
+    assert trend.success is True
+    assert trend.data == {"trend_files_found": 0, "status": "no_data"}
+
+
 def test_registry_publish_refuses_to_replace_existing_manifest(tmp_path):
     registry_root = tmp_path / "registry"
     capability_dir = registry_root / "capabilities" / "existing"
