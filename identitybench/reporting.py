@@ -13,6 +13,7 @@ from identitybench.analytics.root_cause import analyze_root_causes
 from identitybench.analytics.timeline import build_evolution_timeline, format_timeline
 from identitybench.visualization.timeline import render_ascii_timeline
 from identitybench.visualization.trends import render_trend_chart
+from identitybench.provenance import comparison_signature, runs_are_comparable
 
 
 def _clamp(v: float) -> float:
@@ -55,6 +56,7 @@ def generate_report_text(
     trend_data: Optional[List[dict]] = None,
     comparison_data: Optional[Dict[str, dict]] = None,
 ) -> str:
+    trend_data = _comparable_trends(run_data, trend_data)
     lines: List[str] = []
     lines.append(f"{BOLD}{'='*60}{RESET}")
     lines.append(f"{BOLD}  IdentityBench Report{RESET}")
@@ -249,8 +251,34 @@ def _find_previous_run(run_data: dict, trend_data: Optional[List[dict]]) -> Opti
     if not trend_data or len(trend_data) < 2:
         return None
     sorted_trends = sorted(trend_data, key=lambda x: x.get("timestamp", ""))
-    prev = sorted_trends[-2]
-    return {"category_scores": {k: v for k, v in prev.items() if k != "timestamp"}, "overall_score": prev.get("overall_score", 0)}
+    current_signature = comparison_signature(run_data)
+    candidates = sorted_trends[:-1]
+    if current_signature is not None:
+        candidates = [
+            trend for trend in candidates
+            if trend.get("comparison_signature") == current_signature
+        ]
+    if not candidates:
+        return None
+    prev = candidates[-1]
+    metadata = {"timestamp", "overall_score", "comparison_signature"}
+    return {
+        "category_scores": {k: v for k, v in prev.items() if k not in metadata},
+        "overall_score": prev.get("overall_score", 0),
+    }
+
+
+def _comparable_trends(
+    run_data: dict,
+    trend_data: Optional[List[dict]],
+) -> Optional[List[dict]]:
+    if not trend_data:
+        return trend_data
+    current_signature = comparison_signature(run_data)
+    return [
+        trend for trend in trend_data
+        if trend.get("comparison_signature") == current_signature
+    ]
 
 
 def _load_capability_journal(identity_id: str) -> List[dict]:
@@ -264,6 +292,7 @@ def _load_capability_journal(identity_id: str) -> List[dict]:
 
 
 def generate_markdown_report(run_data: dict, trend_data: Optional[List[dict]] = None) -> str:
+    trend_data = _comparable_trends(run_data, trend_data)
     lines: List[str] = []
     lines.append("# IdentityBench Report\n")
     identity = run_data.get("identity_id", "unknown")
@@ -370,6 +399,10 @@ def generate_regression_summary(
     curr_run: dict,
     threshold: float = 5.0,
 ) -> Dict[str, Any]:
+    if not runs_are_comparable(prev_run, curr_run):
+        raise ValueError(
+            "Benchmark runs are not comparable: schema, suite, model, or resource profile changed."
+        )
     regressions: List[Dict[str, Any]] = []
     improvements: List[Dict[str, Any]] = []
     prev_cats = prev_run.get("category_scores", {})

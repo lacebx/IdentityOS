@@ -55,7 +55,7 @@ def detect_regressions(
 
 
 def _collect_metric_names(trends: List[Dict[str, Any]]) -> List[str]:
-    exclude = {"timestamp", "runs", "identity_id"}
+    exclude = {"timestamp", "runs", "identity_id", "comparison_signature"}
     names: set = set()
     for t in trends:
         names.update(k for k in t.keys() if k not in exclude)

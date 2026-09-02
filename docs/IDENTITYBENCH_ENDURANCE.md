@@ -48,3 +48,16 @@ unchanged. Cache histories are isolated by model and run type (PR, nightly,
 weekly, and monthly), so comparisons never silently mix model families or
 benchmark modes. Changing the hosted baseline therefore starts a new history
 instead of presenting a model change as a product regression or improvement.
+
+Every result records a scoring-schema version, a SHA-256 fingerprint of the
+executable benchmark suite, and a comparison signature covering the suite,
+model, seed, worlds, and resource budgets. Regression analysis refuses to
+compare mismatched signatures. CI cache chains use the same suite and workflow
+hash plus a unique run ID, preserving new history without restoring results
+from changed scoring code. Uploaded artifacts explicitly include the hidden
+`.identitybench` directory; the raw world transcripts and configuration remain
+available alongside the human-readable report as execution evidence.
+
+The proposed protected evaluator, multiple-daily schedule, paired statistical
+gate, and autonomous improvement workflow are specified in
+[`IDENTITYBENCH_INTEGRITY.md`](IDENTITYBENCH_INTEGRITY.md).

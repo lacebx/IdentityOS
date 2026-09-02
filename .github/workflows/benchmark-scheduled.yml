@@ -32,9 +32,9 @@ jobs:
           path: |
             .identity_store/
             .identitybench/
-          key: benchmark-nightly-${{ env.BENCHMARK_IDENTITY }}-${{ env.BENCHMARK_MODEL_KEY }}-${{ github.run_id }}
+          key: benchmark-nightly-${{ env.BENCHMARK_IDENTITY }}-${{ env.BENCHMARK_MODEL_KEY }}-${{ hashFiles('identitybench/**', '.github/workflows/benchmark-scheduled.yml') }}-${{ github.run_id }}
           restore-keys: |
-            benchmark-nightly-${{ env.BENCHMARK_IDENTITY }}-${{ env.BENCHMARK_MODEL_KEY }}-
+            benchmark-nightly-${{ env.BENCHMARK_IDENTITY }}-${{ env.BENCHMARK_MODEL_KEY }}-${{ hashFiles('identitybench/**', '.github/workflows/benchmark-scheduled.yml') }}-
 
       - name: Create benchmark identity (first run only)
         run: |
@@ -57,6 +57,8 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: nightly-benchmark
+          include-hidden-files: true
+          if-no-files-found: error
           path: .identitybench/
 
   weekly-full:
@@ -76,9 +78,9 @@ jobs:
           path: |
             .identity_store/
             .identitybench/
-          key: benchmark-weekly-${{ env.BENCHMARK_IDENTITY }}-${{ env.BENCHMARK_MODEL_KEY }}-${{ github.run_id }}
+          key: benchmark-weekly-${{ env.BENCHMARK_IDENTITY }}-${{ env.BENCHMARK_MODEL_KEY }}-${{ hashFiles('identitybench/**', '.github/workflows/benchmark-scheduled.yml') }}-${{ github.run_id }}
           restore-keys: |
-            benchmark-weekly-${{ env.BENCHMARK_IDENTITY }}-${{ env.BENCHMARK_MODEL_KEY }}-
+            benchmark-weekly-${{ env.BENCHMARK_IDENTITY }}-${{ env.BENCHMARK_MODEL_KEY }}-${{ hashFiles('identitybench/**', '.github/workflows/benchmark-scheduled.yml') }}-
 
       - name: Create benchmark identity (first run only)
         run: |
@@ -102,6 +104,8 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: weekly-benchmark
+          include-hidden-files: true
+          if-no-files-found: error
           path: .identitybench/
 
   monthly-endurance:
@@ -121,9 +125,9 @@ jobs:
           path: |
             .identity_store/
             .identitybench/
-          key: benchmark-monthly-${{ env.BENCHMARK_IDENTITY }}-${{ env.BENCHMARK_MODEL_KEY }}-${{ github.run_id }}
+          key: benchmark-monthly-${{ env.BENCHMARK_IDENTITY }}-${{ env.BENCHMARK_MODEL_KEY }}-${{ hashFiles('identitybench/**', '.github/workflows/benchmark-scheduled.yml') }}-${{ github.run_id }}
           restore-keys: |
-            benchmark-monthly-${{ env.BENCHMARK_IDENTITY }}-${{ env.BENCHMARK_MODEL_KEY }}-
+            benchmark-monthly-${{ env.BENCHMARK_IDENTITY }}-${{ env.BENCHMARK_MODEL_KEY }}-${{ hashFiles('identitybench/**', '.github/workflows/benchmark-scheduled.yml') }}-
 
       - name: Create benchmark identity (first run only)
         run: |
@@ -149,4 +153,6 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: monthly-endurance-benchmark
+          include-hidden-files: true
+          if-no-files-found: error
           path: .identitybench/

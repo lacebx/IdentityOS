@@ -18,6 +18,7 @@ METRIC_CHECK_TYPES = {
     "completion_rate": {"task_assignment", "completion_check"},
     "deadline_accuracy": {"deadline_check"},
     "reprioritization_quality": {"reprioritization_check"},
+    "truthfulness_rate": {"verification_check", "truth_check"},
     "hallucination_rate": {"verification_check", "truth_check"},
     "verification_rate": {"verification_check"},
     "stale_knowledge_detection": {"stale_knowledge_check"},
@@ -92,7 +93,7 @@ def compute_category_scores(scores: Dict[str, float]) -> Dict[str, float]:
     categories = {
         "Memory": ["recall_accuracy", "false_memories", "forgotten_tasks"],
         "Planning": ["completion_rate", "deadline_accuracy", "reprioritization_quality"],
-        "Trust": ["hallucination_rate", "verification_rate", "stale_knowledge_detection", "confidence_calibration"],
+        "Trust": ["truthfulness_rate", "verification_rate", "stale_knowledge_detection", "confidence_calibration"],
         "Adaptation": ["updated_beliefs", "corrected_assumptions", "proactive_verification"],
         "Coordination": ["memory_leakage", "responsibility_leakage", "coordination_efficiency"],
         "Evolution": ["gap_detection", "search_quality", "install_success", "retry_success",

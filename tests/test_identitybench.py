@@ -13,6 +13,12 @@ from identitybench.metrics import compute_all_metrics, compute_category_scores
 from identitybench.metrics.memory import MemoryMetrics
 from identitybench.metrics.planning import PlanningMetrics
 from identitybench.metrics.trust import TrustMetrics
+from identitybench.provenance import (
+    BENCHMARK_SCHEMA_VERSION,
+    build_comparison_signature,
+    runs_are_comparable,
+    suite_fingerprint,
+)
 from identitybench.metrics.adaptation import AdaptationMetrics
 from identitybench.metrics.coordination import CoordinationMetrics
 from identitybench.metrics.learning import LearningMetrics
@@ -151,7 +157,8 @@ class TestMetrics:
     def test_trust_metrics(self, good_transcript):
         m = TrustMetrics(good_transcript)
         scores = m.compute()
-        assert scores["hallucination_rate"] == 100.0
+        assert scores["truthfulness_rate"] == 100.0
+        assert scores["hallucination_rate"] == 0.0
         assert scores["verification_rate"] == 100.0
 
     def test_adaptation_metrics(self, good_transcript):
@@ -168,9 +175,10 @@ class TestMetrics:
 
     def test_compute_all(self, good_transcript):
         scores = compute_all_metrics(good_transcript)
-        for key in ["recall_accuracy", "false_memories", "hallucination_rate", "verification_rate"]:
+        for key in ["recall_accuracy", "false_memories", "truthfulness_rate", "verification_rate"]:
             assert key in scores
             assert scores[key] == 100.0
+        assert scores["hallucination_rate"] == 0.0
         cat = compute_category_scores(scores)
         assert "Memory" in cat
         assert "Trust" in cat
@@ -307,6 +315,9 @@ class TestEngine:
             run = engine.storage.load_latest_run("test-bot")
             assert run["category_scores"] == {"Memory": 80.0, "Trust": 60.0}
             assert run["overall_score"] == 70.0
+            assert run["schema_version"] == BENCHMARK_SCHEMA_VERSION
+            assert len(run["config"]["suite_fingerprint"]) == 64
+            assert len(run["config"]["comparison_signature"]) == 64
 
     def test_failed_world_is_persisted_and_not_returned_as_a_score(self):
         class FailingWorld(BenchmarkWorld):
@@ -327,6 +338,24 @@ class TestEngine:
             assert run["overall_score"] == 0.0
             assert run["worlds"][0]["error"] == "provider unavailable"
 
+    def test_changed_resource_profile_starts_a_new_comparison_baseline(self):
+        with tempfile.TemporaryDirectory() as td:
+            engine = IdentityBench(identity_id="test-bot", storage_path=td)
+            engine.runtime = MagicMock(adapter=None)
+            engine._world_results = [
+                WorldResult(world_name="Trust", category_scores={"Trust": 80.0}),
+            ]
+            engine._save_results(0.1)
+            first = engine.storage.load_latest_run("test-bot")
+
+            engine._response_tokens = 512
+            engine._save_results(0.1)
+            second = engine.storage.load_latest_run("test-bot")
+
+            assert not runs_are_comparable(first, second)
+            assert second["comparison_status"]["comparable"] is False
+            assert "diff_vs_previous" not in second
+
 
 class TestBenchmarkReport:
     def test_generate_regression_summary(self):
@@ -337,6 +366,18 @@ class TestBenchmarkReport:
         assert len(summary["regressions"]) > 0
         assert any(r["category"] == "Memory" for r in summary["regressions"])
         assert summary["overall"]["verdict"] == "REGRESSION"
+
+    def test_regression_summary_rejects_incomparable_runs(self):
+        prev = {
+            "config": {"comparison_signature": "suite-a"},
+            "overall_score": 90,
+        }
+        curr = {
+            "config": {"comparison_signature": "suite-b"},
+            "overall_score": 95,
+        }
+        with pytest.raises(ValueError, match="not comparable"):
+            generate_regression_summary(prev, curr)
 
     def test_generate_report_text(self):
         run_data = {
@@ -433,3 +474,54 @@ class TestCLI:
         assert args.command == "compare"
         assert args.identity_id == "gabe"
         assert args.last == 8
+
+
+class TestBenchmarkProvenance:
+    def test_suite_fingerprint_changes_with_executable_suite(self, tmp_path):
+        metric = tmp_path / "metric.py"
+        metric.write_text("SCORE = 1\n", encoding="utf-8")
+        first = suite_fingerprint(tmp_path)
+        metric.write_text("SCORE = 2\n", encoding="utf-8")
+        second = suite_fingerprint(tmp_path)
+
+        assert len(first) == 64
+        assert first != second
+
+    def test_comparison_signature_covers_model_and_resource_profile(self):
+        config = {
+            "suite_fingerprint": "abc",
+            "seed": 42,
+            "worlds": ["Trust"],
+            "adapter": {"providers": [{"adapter": "GroqAdapter", "model": "model-a"}]},
+            "context_tokens": 1200,
+            "response_tokens": 256,
+            "tool_result_chars": 1200,
+            "tools_per_request": 3,
+            "tool_rounds": 1,
+            "request_interval_seconds": 35.0,
+            "cooldown_wait_seconds": 30.0,
+        }
+        first = build_comparison_signature(config)
+        config["adapter"]["providers"][0]["model"] = "model-b"
+        second = build_comparison_signature(config)
+
+        assert first != second
+        assert not runs_are_comparable(
+            {"config": {"comparison_signature": first}},
+            {"config": {"comparison_signature": second}},
+        )
+
+    def test_workflows_upload_raw_evidence_and_version_cache_by_suite(self):
+        root = Path(__file__).resolve().parents[1]
+        pr_workflow = (root / ".github/workflows/benchmark-pr.yml").read_text()
+        scheduled = (root / ".github/workflows/benchmark-scheduled.yml").read_text()
+
+        assert "include-hidden-files: true" in pr_workflow
+        assert "if-no-files-found: error" in pr_workflow
+        assert "hashFiles('identitybench/**', '.github/workflows/benchmark-pr.yml')" in pr_workflow
+        assert "${{ github.run_id }}" in pr_workflow
+        assert scheduled.count("include-hidden-files: true") == 3
+        assert scheduled.count("if-no-files-found: error") == 3
+        assert scheduled.count(
+            "hashFiles('identitybench/**', '.github/workflows/benchmark-scheduled.yml')"
+        ) == 6

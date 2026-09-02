@@ -34,6 +34,12 @@ from identitybench.analytics.recommendations import generate_recommendations
 from identitybench.analytics.roi import calculate_capability_roi
 from identitybench.analytics.root_cause import analyze_root_causes
 from identitybench.analytics.timeline import build_evolution_timeline
+from identitybench.provenance import (
+    BENCHMARK_SCHEMA_VERSION,
+    build_comparison_signature,
+    runs_are_comparable,
+    suite_fingerprint,
+)
 
 
 DEFAULT_WORLDS: List[Type[BenchmarkWorld]] = [
@@ -249,7 +255,22 @@ class IdentityBench:
         for cap_id in capability_history:
             cap_entries.extend(self.capability_journal.get_journal(self.identity_id, cap_id))
 
+        run_config = {
+            "seed": self._seed,
+            "worlds": [wr.world_name for wr in self._world_results],
+            "adapter": describe_adapter(getattr(self.runtime, "adapter", None)),
+            "request_interval_seconds": self._request_interval_seconds,
+            "context_tokens": self._context_tokens,
+            "response_tokens": self._response_tokens,
+            "tool_result_chars": self._tool_result_chars,
+            "tools_per_request": self._tools_per_request,
+            "tool_rounds": self._tool_rounds,
+            "cooldown_wait_seconds": self._cooldown_wait_seconds,
+            "suite_fingerprint": suite_fingerprint(),
+        }
+        run_config["comparison_signature"] = build_comparison_signature(run_config)
         run_data: Dict[str, Any] = {
+            "schema_version": BENCHMARK_SCHEMA_VERSION,
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "identity_id": self.identity_id,
             "elapsed_seconds": round(elapsed_seconds, 1),
@@ -257,26 +278,19 @@ class IdentityBench:
             "category_scores": all_categories,
             "explanations": all_explanations,
             "worlds": world_data,
-            "config": {
-                "seed": self._seed,
-                "worlds": [wr.world_name for wr in self._world_results],
-                "adapter": describe_adapter(getattr(self.runtime, "adapter", None)),
-                "request_interval_seconds": self._request_interval_seconds,
-                "context_tokens": self._context_tokens,
-                "response_tokens": self._response_tokens,
-                "tool_result_chars": self._tool_result_chars,
-                "tools_per_request": self._tools_per_request,
-                "tool_rounds": self._tool_rounds,
-                "cooldown_wait_seconds": self._cooldown_wait_seconds,
-            },
+            "config": run_config,
             "status": "failed" if any(wr.raw_data.get("error") for wr in self._world_results) else "completed",
         }
 
         # Analytics
-        if prev_run:
+        if prev_run and runs_are_comparable(prev_run, run_data):
             diff = compute_benchmark_diff(prev_run, run_data)
             run_data["diff_vs_previous"] = diff
-            trends = self.storage.load_trends(self.identity_id)
+            signature = run_config["comparison_signature"]
+            trends = [
+                trend for trend in self.storage.load_trends(self.identity_id)
+                if trend.get("comparison_signature") == signature
+            ]
             regressions = detect_regressions(trends) if trends else []
             run_data["regressions"] = regressions
             root_causes = analyze_root_causes(diff, prev_run, run_data, cap_entries)
@@ -287,11 +301,17 @@ class IdentityBench:
                 regressions=regressions,
                 capability_history=cap_entries,
             )
+        elif prev_run:
+            run_data["comparison_status"] = {
+                "comparable": False,
+                "reason": "benchmark schema, suite, model, or resource profile changed",
+            }
 
         filepath = self.storage.save_run(self.identity_id, run_data)
         trend_entry = {
             "timestamp": run_data["timestamp"],
             "overall_score": overall,
+            "comparison_signature": run_config["comparison_signature"],
             **all_categories,
         }
         self.storage.save_trend(self.identity_id, trend_entry)

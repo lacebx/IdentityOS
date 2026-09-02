@@ -119,7 +119,10 @@ def describe_adapter(adapter: Optional[BaseAdapter]) -> dict[str, Any]:
     return {
         "configured": True,
         "providers": [
-            {"adapter": type(item).__name__, "model": getattr(item, "model", "")}
+            {
+                "adapter": type(item).__name__,
+                "model": str(getattr(item, "model", "") or ""),
+            }
             for item in leaves
         ],
     }

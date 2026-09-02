@@ -45,7 +45,7 @@ def benchmark_run(score=85.0, honesty=80.0):
     return {
         "timestamp": "2026-09-01T00:00:00+00:00",
         "overall_score": score,
-        "worlds": [{"metrics": {"hallucination_rate": honesty}}],
+        "worlds": [{"metrics": {"truthfulness_rate": honesty}}],
     }
 
 
@@ -62,6 +62,7 @@ def test_endurance_sample_measures_and_restart_verifies_real_state(tmp_path):
     assert sample["relationship_stability_pct"] == 100.0
     assert sample["prompt_tokens"] == 321
     assert sample["latency_ms"] == 123.0
+    assert sample["truthfulness_rate_pct"] == 80.0
     assert sample["hallucination_rate_pct"] == 20.0
     assert sample["restart_recovery_pct"] == 100.0
     assert all(sample["restart_evidence"]["checks"].values())
@@ -85,4 +86,20 @@ def test_endurance_report_has_graphs_thresholds_and_multiple_samples(tmp_path):
     report = monitor.report("endurance-bot")
     assert "xychart-beta" in report
     assert "Restart recovery" in report
+    assert "Truthfulness rate | 100.0%" in report
+    assert "Hallucination rate | 0.0%" in report
     assert "CRITICAL" in report
+
+
+def test_endurance_reads_legacy_mislabeled_truthfulness_metric(tmp_path):
+    identity_store = tmp_path / "identities"
+    benchmark_dir = tmp_path / "benchmarks"
+    build_persisted_identity(identity_store)
+    monitor = EnduranceMonitor(str(benchmark_dir), str(identity_store))
+    legacy_run = benchmark_run(honesty=75.0)
+    legacy_run["worlds"][0]["metrics"] = {"hallucination_rate": 75.0}
+
+    sample = monitor.record("endurance-bot", legacy_run)
+
+    assert sample["truthfulness_rate_pct"] == 75.0
+    assert sample["hallucination_rate_pct"] == 25.0

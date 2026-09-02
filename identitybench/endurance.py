@@ -11,6 +11,7 @@ from typing import Optional
 from identityos.diagnostics import IdentityDiagnostics
 
 from identitybench.storage import BenchmarkStorage
+from identitybench.provenance import comparison_signature
 
 
 DEFAULT_THRESHOLDS = {
@@ -24,10 +25,19 @@ DEFAULT_THRESHOLDS = {
 }
 
 
-def _honesty_score(run: Optional[dict]) -> Optional[float]:
+def _truthfulness_score(run: Optional[dict]) -> Optional[float]:
+    """Read the positive truthfulness score, including legacy run records.
+
+    Before schema v2, ``hallucination_rate`` actually stored the percentage of
+    honest/abstaining responses.  Treat it as a legacy alias while ensuring all
+    new runs and reports use an unambiguous name.
+    """
     values = []
     for world in (run or {}).get("worlds", []):
-        score = world.get("metrics", {}).get("hallucination_rate")
+        metrics = world.get("metrics", {})
+        score = metrics.get("truthfulness_rate")
+        if score is None:
+            score = metrics.get("hallucination_rate")
         if score is not None:
             values.append(float(score))
     return sum(values) / len(values) if values else None
@@ -80,12 +90,13 @@ class EnduranceMonitor:
             days = max((now - previous_time).total_seconds() / 86400, 1 / 24)
             memory_growth = round((counts["memories"] - previous["memory_count"]) / days, 2)
 
-        honesty = _honesty_score(run)
+        truthfulness = _truthfulness_score(run)
 
         sample = {
             "timestamp": now.isoformat(),
             "benchmark_timestamp": (run or {}).get("timestamp"),
             "benchmark_score": (run or {}).get("overall_score"),
+            "benchmark_comparison_signature": comparison_signature(run),
             "identity_consistency_pct": 100.0 if fingerprint == baseline else 0.0,
             "memory_count": counts["memories"],
             "memory_growth_per_day": memory_growth,
@@ -96,7 +107,10 @@ class EnduranceMonitor:
             "relationship_signature": sorted(relationships),
             "prompt_tokens": health.prompt_tokens,
             "latency_ms": health.latency_ms,
-            "hallucination_rate_pct": round(100.0 - honesty, 1) if honesty is not None else None,
+            "truthfulness_rate_pct": round(truthfulness, 1) if truthfulness is not None else None,
+            "hallucination_rate_pct": (
+                round(100.0 - truthfulness, 1) if truthfulness is not None else None
+            ),
             "restart_recovery_pct": health.restart_recovery_pct,
             "restart_evidence": health.restart_evidence,
         }
@@ -157,7 +171,15 @@ class EnduranceMonitor:
                 })
             previous_score = history[-1].get("benchmark_score")
             latest_score = latest.get("benchmark_score")
-            if previous_score is not None and latest_score is not None and previous_score - latest_score > self.thresholds["score_drop_max"]:
+            previous_signature = history[-1].get("benchmark_comparison_signature")
+            latest_signature = latest.get("benchmark_comparison_signature")
+            scores_are_comparable = previous_signature == latest_signature
+            if (
+                scores_are_comparable
+                and previous_score is not None
+                and latest_score is not None
+                and previous_score - latest_score > self.thresholds["score_drop_max"]
+            ):
                 alerts.append({
                     "severity": "critical", "metric": "benchmark_score",
                     "current": latest_score, "threshold": previous_score - self.thresholds["score_drop_max"],
@@ -171,6 +193,16 @@ class EnduranceMonitor:
         if not samples:
             return f"# IdentityBench Endurance Report\n\nNo samples for `{identity_id}`.\n"
         latest = samples[-1]
+        hallucination_rate = latest.get("hallucination_rate_pct")
+        truthfulness_rate = latest.get("truthfulness_rate_pct")
+        if truthfulness_rate is None and hallucination_rate is not None:
+            truthfulness_rate = round(100.0 - float(hallucination_rate), 1)
+        truthfulness_display = (
+            f"{truthfulness_rate}%" if truthfulness_rate is not None else "not observed"
+        )
+        hallucination_display = (
+            f"{hallucination_rate}%" if hallucination_rate is not None else "not observed"
+        )
         lines = [
             "# IdentityBench Endurance Report", "",
             f"**Identity:** `{identity_id}`  ",
@@ -186,7 +218,8 @@ class EnduranceMonitor:
             f"| Relationship stability | {latest['relationship_stability_pct']}% |",
             f"| Prompt size | {latest['prompt_tokens']} tokens |",
             f"| Pipeline latency | {latest['latency_ms']} ms |",
-            f"| Hallucination rate | {latest['hallucination_rate_pct'] if latest['hallucination_rate_pct'] is not None else 'not observed'} |",
+            f"| Truthfulness rate | {truthfulness_display} |",
+            f"| Hallucination rate | {hallucination_display} |",
             f"| Restart recovery | {latest['restart_recovery_pct']}% |", "",
             "## Trend graph", "",
             "```mermaid", "xychart-beta", '  title "Endurance health over samples"',

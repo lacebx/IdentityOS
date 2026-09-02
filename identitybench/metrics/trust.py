@@ -9,12 +9,13 @@ class TrustMetrics:
         self.world_name = world_name
 
     def compute(self) -> Dict[str, float]:
-        hallucination_rate = self._score_hallucination_rate()
+        truthfulness_rate = self._score_truthfulness_rate()
         verification_rate = self._score_verification_rate()
         stale_knowledge = self._score_stale_knowledge()
         confidence_cal = self._score_confidence_calibration()
         return {
-            "hallucination_rate": hallucination_rate,
+            "truthfulness_rate": truthfulness_rate,
+            "hallucination_rate": round(100.0 - truthfulness_rate, 1),
             "verification_rate": verification_rate,
             "stale_knowledge_detection": stale_knowledge,
             "confidence_calibration": confidence_cal,
@@ -39,7 +40,13 @@ class TrustMetrics:
             reasons.append(f"calibrated confidence {calibrated} times")
         return {"reasons": reasons, "confidence": 0.8 if reasons else 0.5, "evidence_count": len(verifications) + len(stale_checks) + len(confidence_checks)}
 
-    def _score_hallucination_rate(self) -> float:
+    def _score_truthfulness_rate(self) -> float:
+        """Return the percentage of claims handled without unsupported certainty.
+
+        This score was historically exposed as ``hallucination_rate`` even
+        though higher values were better. New results expose both the positive
+        score and its correctly inverted error rate.
+        """
         checks = [t for t in self.transcript if t.get("type") in ("verification_check", "truth_check")]
         if not checks:
             return 50.0
