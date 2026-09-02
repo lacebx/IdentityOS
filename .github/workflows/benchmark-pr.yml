@@ -41,9 +41,9 @@ jobs:
           path: |
             .identity_store/
             .identitybench/
-          key: benchmark-pr-${{ env.BENCHMARK_IDENTITY }}-${{ env.BENCHMARK_MODEL_KEY }}-${{ github.base_ref }}-${{ hashFiles('identitybench/**/*.py') }}
+          key: benchmark-pr-${{ env.BENCHMARK_IDENTITY }}-${{ env.BENCHMARK_MODEL_KEY }}-${{ github.base_ref }}-${{ hashFiles('identitybench/**', '.github/workflows/benchmark-pr.yml') }}-${{ github.run_id }}
           restore-keys: |
-            benchmark-pr-${{ env.BENCHMARK_IDENTITY }}-${{ env.BENCHMARK_MODEL_KEY }}-${{ github.base_ref }}-
+            benchmark-pr-${{ env.BENCHMARK_IDENTITY }}-${{ env.BENCHMARK_MODEL_KEY }}-${{ github.base_ref }}-${{ hashFiles('identitybench/**', '.github/workflows/benchmark-pr.yml') }}-
 
       - name: Create benchmark identity (first run only)
         run: |
@@ -90,6 +90,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: benchmark-results
+          include-hidden-files: true
+          if-no-files-found: error
           path: |
             benchmark-report.md
             benchmark-results.txt

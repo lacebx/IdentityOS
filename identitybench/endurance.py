@@ -11,6 +11,7 @@ from typing import Optional
 from identityos.diagnostics import IdentityDiagnostics
 
 from identitybench.storage import BenchmarkStorage
+from identitybench.provenance import comparison_signature
 
 
 DEFAULT_THRESHOLDS = {
@@ -95,6 +96,7 @@ class EnduranceMonitor:
             "timestamp": now.isoformat(),
             "benchmark_timestamp": (run or {}).get("timestamp"),
             "benchmark_score": (run or {}).get("overall_score"),
+            "benchmark_comparison_signature": comparison_signature(run),
             "identity_consistency_pct": 100.0 if fingerprint == baseline else 0.0,
             "memory_count": counts["memories"],
             "memory_growth_per_day": memory_growth,
@@ -169,7 +171,15 @@ class EnduranceMonitor:
                 })
             previous_score = history[-1].get("benchmark_score")
             latest_score = latest.get("benchmark_score")
-            if previous_score is not None and latest_score is not None and previous_score - latest_score > self.thresholds["score_drop_max"]:
+            previous_signature = history[-1].get("benchmark_comparison_signature")
+            latest_signature = latest.get("benchmark_comparison_signature")
+            scores_are_comparable = previous_signature == latest_signature
+            if (
+                scores_are_comparable
+                and previous_score is not None
+                and latest_score is not None
+                and previous_score - latest_score > self.thresholds["score_drop_max"]
+            ):
                 alerts.append({
                     "severity": "critical", "metric": "benchmark_score",
                     "current": latest_score, "threshold": previous_score - self.thresholds["score_drop_max"],

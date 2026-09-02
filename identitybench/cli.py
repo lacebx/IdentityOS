@@ -39,6 +39,7 @@ from identitybench.atlas.capability_lifecycle import (
     explain_score_change,
 )
 from identitybench.endurance import EnduranceMonitor
+from identitybench.provenance import comparison_signature
 
 
 def cmd_run(args: argparse.Namespace) -> None:
@@ -144,19 +145,23 @@ def cmd_compare(args: argparse.Namespace) -> None:
         print(report)
     elif args.last and args.identity_id:
         identity_id = args.identity_id
-        trends = storage.load_trends(identity_id)
-        sorted_trends = sorted(trends, key=lambda x: x.get("timestamp", ""))
-        recent = sorted_trends[-args.last:] if args.last < len(sorted_trends) else sorted_trends
-        if len(recent) < 2:
-            print(f"Need at least 2 runs to compare. Found {len(recent)}.")
-            return
-        curr_run_data = None
-        prev_run_data = None
         runs = storage.list_runs(identity_id)
-        recent_filenames = [r["filename"] for r in runs[:args.last]]
-        if len(recent_filenames) >= 2:
-            curr_run_data = storage.load_run(identity_id, recent_filenames[0])
-            prev_run_data = storage.load_run(identity_id, recent_filenames[1])
+        loaded_runs = [
+            storage.load_run(identity_id, entry["filename"])
+            for entry in runs
+        ]
+        loaded_runs = [run for run in loaded_runs if run and run.get("status") != "failed"]
+        latest_signature = comparison_signature(loaded_runs[0]) if loaded_runs else None
+        loaded_runs = [
+            run for run in loaded_runs
+            if comparison_signature(run) == latest_signature
+        ]
+        recent = loaded_runs[:args.last]
+        if len(recent) < 2:
+            print(f"Need at least 2 comparable runs to compare. Found {len(recent)}.")
+            return
+        curr_run_data = recent[0]
+        prev_run_data = recent[1]
         if curr_run_data and prev_run_data:
             summary = generate_regression_summary(prev_run_data, curr_run_data)
             print(f"Comparison for {identity_id} (last {args.last} runs):\n")
