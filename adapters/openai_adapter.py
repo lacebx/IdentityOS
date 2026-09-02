@@ -63,11 +63,42 @@ def _parse_legacy_function_call(text: str) -> Optional[tuple[str, dict]]:
 
 
 def _parse_failed_generation_tool_call(text: str) -> Optional[tuple[str, dict]]:
-    """Extract a structured tool call embedded in a provider error message."""
-    start = text.find('{"name"')
-    if start >= 0:
+    """Extract a structured tool call embedded in a provider error message.
+
+    OpenAI-compatible providers commonly include ``failed_generation`` as a
+    quoted Python-repr value.  Its JSON is therefore escaped (for example,
+    newlines arrive as the two characters ``\\n``), so attempting to decode the
+    surrounding exception text directly is not sufficient.
+    """
+    candidates: list[str] = []
+    marker = re.search(r"[\"']?failed_generation[\"']?\s*:\s*", text)
+    if marker:
+        value_start = marker.end()
+        if value_start < len(text) and text[value_start] in {"'", '"'}:
+            quote = text[value_start]
+            escaped = False
+            for index in range(value_start + 1, len(text)):
+                char = text[index]
+                if char == quote and not escaped:
+                    try:
+                        decoded = ast.literal_eval(text[value_start:index + 1])
+                    except (SyntaxError, ValueError):
+                        decoded = None
+                    if isinstance(decoded, str):
+                        candidates.append(decoded)
+                    break
+                if char == "\\" and not escaped:
+                    escaped = True
+                else:
+                    escaped = False
+
+    candidates.append(text)
+    for candidate in candidates:
+        match = re.search(r'\{\s*"name"\s*:', candidate)
+        if match is None:
+            continue
         try:
-            payload, _ = json.JSONDecoder().raw_decode(text[start:])
+            payload, _ = json.JSONDecoder().raw_decode(candidate[match.start():])
         except (json.JSONDecodeError, TypeError):
             payload = None
         if isinstance(payload, dict):
@@ -77,7 +108,10 @@ def _parse_failed_generation_tool_call(text: str) -> Optional[tuple[str, dict]]:
                 try:
                     args = json.loads(args)
                 except json.JSONDecodeError:
-                    args = {}
+                    try:
+                        args = ast.literal_eval(args)
+                    except (SyntaxError, ValueError):
+                        args = {}
             if isinstance(name, str) and isinstance(args, dict):
                 return name, args
     return None

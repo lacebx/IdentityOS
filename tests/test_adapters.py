@@ -427,10 +427,18 @@ class TestOpenAIAdapter:
         from adapters.openai_adapter import _parse_failed_generation_tool_call
 
         error = (
-            "tool_use_failed: failed_generation='"
-            '{"name":"web_search","arguments":{"query":"IdentityOS"}}\''
+            "Error code: 400 - {'error': {'code': 'tool_use_failed', "
+            "'failed_generation': '"
+            '{"name": "calc.evaluate", "arguments": {\\n'
+            '  "expression": "(2+2)*5"\\n}}\'}}'
         )
         assert _parse_failed_generation_tool_call(error) == (
+            "calc.evaluate",
+            {"expression": "(2+2)*5"},
+        )
+
+        direct = '{"name":"web_search","arguments":{"query":"IdentityOS"}}'
+        assert _parse_failed_generation_tool_call(direct) == (
             "web_search",
             {"query": "IdentityOS"},
         )
