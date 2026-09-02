@@ -42,10 +42,12 @@ jobs:
             benchmark-${{ env.BENCHMARK_IDENTITY }}-
 
       - name: Create benchmark identity (first run only)
-        if: steps.identity-cache.outputs.cache-hit != 'true'
         run: |
-          identity create --name "BenchmarkBot" --id ${{ env.BENCHMARK_IDENTITY }} --persona "benchmark"
-          echo "Identity ${{ env.BENCHMARK_IDENTITY }} created for long-term benchmarking."
+          if identity inspect ${{ env.BENCHMARK_IDENTITY }} >/dev/null 2>&1; then
+            echo "Reusing persisted identity ${{ env.BENCHMARK_IDENTITY }}."
+          else
+            identity create --name "BenchmarkBot" --id ${{ env.BENCHMARK_IDENTITY }} --persona "benchmark"
+          fi
 
       - name: Run unit tests
         run: |

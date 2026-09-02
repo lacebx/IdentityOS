@@ -36,10 +36,12 @@ jobs:
             benchmark-${{ env.BENCHMARK_IDENTITY }}-
 
       - name: Create benchmark identity (first run only)
-        if: steps.nightly-cache.outputs.cache-hit != 'true'
         run: |
-          identity create --name "BenchmarkBot" --id ${{ env.BENCHMARK_IDENTITY }} --persona "benchmark"
-          echo "Identity ${{ env.BENCHMARK_IDENTITY }} created."
+          if identity inspect ${{ env.BENCHMARK_IDENTITY }} >/dev/null 2>&1; then
+            echo "Reusing persisted identity ${{ env.BENCHMARK_IDENTITY }}."
+          else
+            identity create --name "BenchmarkBot" --id ${{ env.BENCHMARK_IDENTITY }} --persona "benchmark"
+          fi
 
       - name: Run nightly smoke benchmark
         env:
@@ -79,10 +81,12 @@ jobs:
             benchmark-${{ env.BENCHMARK_IDENTITY }}-
 
       - name: Create benchmark identity (first run only)
-        if: steps.weekly-cache.outputs.cache-hit != 'true'
         run: |
-          identity create --name "BenchmarkBot" --id ${{ env.BENCHMARK_IDENTITY }} --persona "benchmark"
-          echo "Identity ${{ env.BENCHMARK_IDENTITY }} created."
+          if identity inspect ${{ env.BENCHMARK_IDENTITY }} >/dev/null 2>&1; then
+            echo "Reusing persisted identity ${{ env.BENCHMARK_IDENTITY }}."
+          else
+            identity create --name "BenchmarkBot" --id ${{ env.BENCHMARK_IDENTITY }} --persona "benchmark"
+          fi
 
       - name: Run weekly full benchmark
         env:
@@ -123,10 +127,12 @@ jobs:
             benchmark-${{ env.BENCHMARK_IDENTITY }}-
 
       - name: Create benchmark identity (first run only)
-        if: steps.monthly-cache.outputs.cache-hit != 'true'
         run: |
-          identity create --name "BenchmarkBot" --id ${{ env.BENCHMARK_IDENTITY }} --persona "benchmark"
-          echo "Identity ${{ env.BENCHMARK_IDENTITY }} created."
+          if identity inspect ${{ env.BENCHMARK_IDENTITY }} >/dev/null 2>&1; then
+            echo "Reusing persisted identity ${{ env.BENCHMARK_IDENTITY }}."
+          else
+            identity create --name "BenchmarkBot" --id ${{ env.BENCHMARK_IDENTITY }} --persona "benchmark"
+          fi
 
       - name: Run monthly endurance benchmark
         env:

@@ -81,6 +81,24 @@ def test_optional_model_arguments_accept_null_and_apply_handler_default(tmp_path
     assert result.params == {}
 
 
+def test_tool_catalog_limits_schemas_by_query_relevance(tmp_path):
+    registry = _registry(tmp_path)
+    registry.install("tester", "github")
+
+    definitions, mapping = registry.tool_catalog(
+        "tester",
+        query="Find the latest release of lacebx/IdentityOS on GitHub",
+        limit=2,
+    )
+
+    assert len(definitions) == 2
+    assert len(mapping) == 2
+    assert "github__summarize_release" in mapping
+    assert set(mapping) == {
+        definition["function"]["name"] for definition in definitions
+    }
+
+
 def test_required_null_remains_an_invalid_parameter(tmp_path):
     import core.capabilities.command_exec  # noqa: F401
 

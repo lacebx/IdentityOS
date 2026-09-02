@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import time
 from typing import Any, Optional
 
@@ -127,18 +128,54 @@ class CapabilityRegistry:
             return None
         return next((skill for skill in cap.skills() if skill.name == skill_name), None)
 
-    def tool_catalog(self, identity_id: str) -> tuple[list[dict], dict[str, str]]:
-        """Return authorized model tools plus safe-name → skill-name mapping."""
-        definitions: list[dict] = []
-        mapping: dict[str, str] = {}
+    def tool_catalog(
+        self,
+        identity_id: str,
+        *,
+        query: Optional[str] = None,
+        limit: Optional[int] = None,
+    ) -> tuple[list[dict], dict[str, str]]:
+        """Return an authorized, optionally relevance-bounded model tool catalog.
+
+        Tool schemas count toward every provider request.  Identities can acquire
+        many capabilities over time, so passing the entire catalog makes normal
+        turns progressively slower and can exhaust provider token quotas.  Query
+        ranking is deliberately capability-agnostic: it only compares words in
+        the request with each tool's public name and description.
+        """
+        catalog: list[tuple[dict, str, str]] = []
         for cap in self.list(identity_id):
             for skill in cap.skills():
                 allowed, _ = self._authorized(identity_id, cap.id, skill.permission)
                 if not allowed:
                     continue
                 safe_name = skill.name.replace(".", "__")
-                definitions.append(skill.tool_definition(name=safe_name))
-                mapping[safe_name] = skill.name
+                catalog.append((skill.tool_definition(name=safe_name), safe_name, skill.name))
+
+        if limit is not None:
+            bounded_limit = max(0, int(limit))
+            if query:
+                input_words = set(re.findall(r"[a-z0-9]+", query.lower()))
+                ranked: list[tuple[int, int, tuple[dict, str, str]]] = []
+                for position, item in enumerate(catalog):
+                    definition, safe_name, _ = item
+                    function = definition.get("function", {})
+                    searchable = " ".join((
+                        safe_name.replace("__", " ").replace("_", " "),
+                        str(function.get("description", "")),
+                    )).lower()
+                    score = len(input_words & set(re.findall(r"[a-z0-9]+", searchable)))
+                    dotted_name = safe_name.replace("__", ".").lower()
+                    if safe_name.lower() in query.lower() or dotted_name in query.lower():
+                        score += 10
+                    ranked.append((score, -position, item))
+                ranked.sort(key=lambda candidate: (candidate[0], candidate[1]), reverse=True)
+                catalog = [candidate[2] for candidate in ranked[:bounded_limit]]
+            else:
+                catalog = catalog[:bounded_limit]
+
+        definitions = [item[0] for item in catalog]
+        mapping = {item[1]: item[2] for item in catalog}
         return definitions, mapping
 
     def can(self, identity_id: str, skill_name: str) -> tuple[bool, str]:

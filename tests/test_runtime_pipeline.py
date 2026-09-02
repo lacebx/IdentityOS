@@ -63,6 +63,9 @@ class TestToolResultBoundary:
     def test_runtime_sanitizes_tool_result_limit(self):
         assert IdentityRuntime(max_tool_result_chars=1).max_tool_result_chars == 256
 
+    def test_runtime_sanitizes_tool_catalog_limit(self):
+        assert IdentityRuntime(max_tools_per_request=0).max_tools_per_request == 1
+
 
 class TestSemanticExtraction:
     """process() must extract and store semantic memories from user input."""

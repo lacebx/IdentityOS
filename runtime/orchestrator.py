@@ -37,7 +37,6 @@ from core.identity_mutation import (
 from core.memory import MemoryFragment, MemoryStore, MemoryType
 from core.motivations import MotivationEngine
 from core.policies import PolicyEngine, PolicyScope
-from core.planner import SkillRouter
 from core.relationships import EdgeType, IdentityGraph, TrustLevel
 from core.capabilities import CapabilityRegistry as PluginRegistry
 from core.skills import SkillRegistry
@@ -220,6 +219,7 @@ class IdentityRuntime:
         adapter=None,
         max_context_tokens: int = 4000,
         max_tool_result_chars: int = 8000,
+        max_tools_per_request: int = 8,
         storage=None,
     ):
         self.identity_store = IdentityStore()
@@ -232,6 +232,7 @@ class IdentityRuntime:
         self.evaluation_engine = EvaluationEngine()
         self.context_composer = ContextComposer(max_tokens=max_context_tokens)
         self.max_tool_result_chars = max(256, int(max_tool_result_chars))
+        self.max_tools_per_request = max(1, int(max_tools_per_request))
         self.motivation_engine = MotivationEngine()
         self.mutation_engine = IdentityMutationEngine(min_confidence=0.5)
         self.timeline_registry = TimelineRegistry()
@@ -900,9 +901,12 @@ class IdentityRuntime:
         session_fact_store = self._get_fact_store_for_session(identity.id, session_id)
         cap_prompts = self.capability_registry.all_prompts(identity.id)
 
-        _tool_defs, _tool_map = self.capability_registry.tool_catalog(identity.id)
+        _tool_defs, _tool_map = self.capability_registry.tool_catalog(
+            identity.id,
+            query=sanitized_input,
+            limit=self.max_tools_per_request,
+        )
         _evidence_results: List[Dict[str, Any]] = []
-        _tool_router = SkillRouter(self.capability_registry, identity.id)
 
         def _execute_tool_call(func_name: str, args: Any) -> str:
             t0 = _time_mod.monotonic()

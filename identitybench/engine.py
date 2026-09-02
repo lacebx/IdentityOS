@@ -72,6 +72,9 @@ class IdentityBench:
         self._context_tokens = 1200
         self._response_tokens = 256
         self._tool_result_chars = 1200
+        self._tools_per_request = 3
+        self._tool_rounds = 1
+        self._cooldown_wait_seconds = 30.0
 
     def load_identity(self, identity_id: Optional[str] = None) -> None:
         target = identity_id or self.identity_id
@@ -88,16 +91,30 @@ class IdentityBench:
             self._tool_result_chars = int(
                 os.environ.get("IDENTITYBENCH_TOOL_RESULT_CHARS", "1200")
             )
+            self._tools_per_request = max(
+                1, int(os.environ.get("IDENTITYBENCH_TOOLS_PER_REQUEST", "3"))
+            )
+            self._tool_rounds = max(
+                1, int(os.environ.get("IDENTITYBENCH_TOOL_ROUNDS", "1"))
+            )
+            self._cooldown_wait_seconds = max(
+                0.0, float(os.environ.get("IDENTITYBENCH_COOLDOWN_WAIT_SECONDS", "30"))
+            )
             self.runtime = IdentityRuntime(
                 storage=storage_backend,
                 adapter=adapter,
                 max_context_tokens=self._context_tokens,
                 max_tool_result_chars=self._tool_result_chars,
+                max_tools_per_request=self._tools_per_request,
             )
             leaves = adapter.adapters if isinstance(adapter, ChainAdapter) else (adapter,)
             for leaf in leaves:
                 if hasattr(leaf, "max_tokens"):
                     leaf.max_tokens = min(int(leaf.max_tokens), self._response_tokens)
+                if hasattr(leaf, "max_tool_rounds"):
+                    leaf.max_tool_rounds = self._tool_rounds
+                if isinstance(leaf, GroqAdapter):
+                    leaf._MAX_COOLDOWN_WAIT = self._cooldown_wait_seconds
             configured_interval = os.environ.get("IDENTITYBENCH_REQUEST_INTERVAL_SECONDS")
             if configured_interval is not None:
                 self._request_interval_seconds = max(0.0, float(configured_interval))
@@ -244,6 +261,9 @@ class IdentityBench:
                 "context_tokens": self._context_tokens,
                 "response_tokens": self._response_tokens,
                 "tool_result_chars": self._tool_result_chars,
+                "tools_per_request": self._tools_per_request,
+                "tool_rounds": self._tool_rounds,
+                "cooldown_wait_seconds": self._cooldown_wait_seconds,
             },
             "status": "failed" if any(wr.raw_data.get("error") for wr in self._world_results) else "completed",
         }

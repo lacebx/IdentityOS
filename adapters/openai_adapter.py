@@ -187,6 +187,7 @@ class OpenAIAdapter(BaseAdapter):
         organization: Optional[str] = None,
         temperature: float = 0.7,
         max_tokens: int = 1024,
+        max_tool_rounds: int = 4,
         timeout: Optional[float] = None,
         **kwargs
     ):
@@ -200,6 +201,7 @@ class OpenAIAdapter(BaseAdapter):
         self.organization = organization
         self.temperature = temperature
         self.max_tokens = max_tokens
+        self.max_tool_rounds = max(1, int(max_tool_rounds))
 
         if timeout is None:
             timeout = float(os.environ.get("OPENAI_TIMEOUT", "") or 0) or 120.0
@@ -245,10 +247,13 @@ class OpenAIAdapter(BaseAdapter):
         ]
         model = self.model or "gpt-4o"
         last_exc = None
-        max_tool_turns = 10
         effective_max = max_tokens or self.max_tokens
+        tool_rounds = 0
 
-        for turn in range(max_tool_turns):
+        # Each tool round requires another full provider request.  Keep that
+        # resource use finite and reserve one final request for synthesizing
+        # the observed evidence into an answer.
+        for _ in range(self.max_tool_rounds + 1):
             response = None
             recovered = False
             attempt = 0
@@ -256,12 +261,16 @@ class OpenAIAdapter(BaseAdapter):
             while attempt < retries + shrinks:
                 attempt += 1
                 try:
+                    request_kwargs = dict(kwargs)
+                    if tool_rounds >= self.max_tool_rounds:
+                        request_kwargs.pop("tools", None)
+                        request_kwargs.pop("tool_choice", None)
                     response = client.chat.completions.create(
                         model=model,
                         messages=messages,
                         temperature=temperature or self.temperature,
                         max_tokens=effective_max,
-                        **kwargs
+                        **request_kwargs
                     )
                     break
                 except Exception as exc:
@@ -288,9 +297,14 @@ class OpenAIAdapter(BaseAdapter):
                     # Groq and other providers reject legacy <function=...> text
                     # syntax with a 400 'tool_use_failed'.  Recover by treating
                     # the failed generation as a real tool call.
-                    if execute_tool and self._recover_legacy_tool_call(
+                    if (
+                        execute_tool
+                        and tool_rounds < self.max_tool_rounds
+                        and self._recover_legacy_tool_call(
                         msg, messages, execute_tool
+                        )
                     ):
+                        tool_rounds += 1
                         recovered = True
                         break
                     raise RuntimeError(
@@ -311,6 +325,11 @@ class OpenAIAdapter(BaseAdapter):
 
             # --- Tool Calling Loop ---
             if getattr(message, "tool_calls", None) and execute_tool:
+                if tool_rounds >= self.max_tool_rounds:
+                    raise RuntimeError(
+                        f"Adapter tool-call limit reached after {tool_rounds} round(s); "
+                        "refusing to execute an unbounded model tool loop."
+                    )
                 assistant_msg = {
                     "role": "assistant",
                     "content": message.content or "",
@@ -341,11 +360,15 @@ class OpenAIAdapter(BaseAdapter):
                         "tool_call_id": tool_call.id,
                         "content": str(tool_result),
                     })
+                tool_rounds += 1
                 continue
 
             return message.content or ""
 
-        return message.content or ""
+        raise RuntimeError(
+            f"Adapter tool-call limit reached after {tool_rounds} round(s) without "
+            "a final model response."
+        )
 
     def _recover_legacy_tool_call(
         self,
@@ -677,18 +700,22 @@ class OllamaAdapter(OpenAIAdapter):
         **kwargs: Any,
     ) -> str:
         follow_up = user_input
-        last_text = ""
-        for _turn in range(10):
-            last_text = super().generate(
+        for tool_round in range(self.max_tool_rounds + 1):
+            text = super().generate(
                 context,
                 follow_up,
                 identity,
                 extra_body=extra_body,
                 **kwargs,
             )
-            legacy = _parse_legacy_function_call(last_text)
+            legacy = _parse_legacy_function_call(text)
             if legacy is None:
-                return last_text
+                return text
+            if tool_round >= self.max_tool_rounds:
+                raise RuntimeError(
+                    f"Adapter tool-call limit reached after {tool_round} round(s); "
+                    "refusing to execute an unbounded model tool loop."
+                )
 
             name, args = legacy
             try:
@@ -706,7 +733,10 @@ class OllamaAdapter(OpenAIAdapter):
                 name,
             )
 
-        return last_text
+        raise RuntimeError(
+            f"Adapter tool-call limit reached after {self.max_tool_rounds} round(s) "
+            "without a final model response."
+        )
 
     def health_check(self) -> bool:
         models = list_ollama_models(base_url=self.base_url, timeout=min(self.timeout, 5.0))

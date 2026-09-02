@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from adapters.groq_adapter import GroqAdapter
 from identitybench.engine import IdentityBench
 from identitybench.metrics import compute_all_metrics, compute_category_scores
 from identitybench.metrics.memory import MemoryMetrics
@@ -253,6 +254,29 @@ class TestEngine:
             with patch("identitybench.engine.build_adapter_from_env", return_value=None):
                 with pytest.raises(RuntimeError, match="requires a configured model adapter"):
                     engine.load_identity()
+
+    def test_load_identity_applies_bounded_provider_resource_configuration(self):
+        adapter = GroqAdapter(api_keys=["groq-test-key"])
+        runtime = MagicMock()
+        runtime.load.return_value = MagicMock()
+        environment = {
+            "IDENTITYBENCH_TOOLS_PER_REQUEST": "2",
+            "IDENTITYBENCH_TOOL_ROUNDS": "1",
+            "IDENTITYBENCH_COOLDOWN_WAIT_SECONDS": "25",
+        }
+
+        with tempfile.TemporaryDirectory() as td:
+            engine = IdentityBench(identity_id="test-bot", storage_path=td)
+            with (
+                patch("identitybench.engine.build_adapter_from_env", return_value=adapter),
+                patch("identitybench.engine.IdentityRuntime", return_value=runtime) as runtime_type,
+                patch.dict("os.environ", environment, clear=True),
+            ):
+                engine.load_identity()
+
+        assert runtime_type.call_args.kwargs["max_tools_per_request"] == 2
+        assert adapter.max_tool_rounds == 1
+        assert adapter._MAX_COOLDOWN_WAIT == 25.0
 
     def test_run_with_mock_runtime(self):
         with tempfile.TemporaryDirectory() as td:
