@@ -86,6 +86,24 @@ class BenchmarkWorld(ABC):
             resp = runtime.process(req)
             runtime._benchmark_last_request_monotonic = real_time.monotonic()
 
+            response_metadata = resp.metadata if isinstance(resp.metadata, dict) else {}
+            timings = response_metadata.get("timings_ms", {})
+            if not isinstance(timings, dict):
+                timings = {}
+            latency_ms = timings.get("total", 0.0)
+            if not isinstance(latency_ms, (int, float)):
+                latency_ms = 0.0
+            context = getattr(resp, "context_used", None)
+            try:
+                prompt_tokens = context.token_estimate() if context is not None else 0
+            except (AttributeError, TypeError, ValueError):
+                prompt_tokens = 0
+            if not isinstance(prompt_tokens, (int, float)):
+                prompt_tokens = 0
+            capability_results = response_metadata.get("capability_results", [])
+            if not isinstance(capability_results, list):
+                capability_results = []
+
             self.results.append({
                 "tick": self.clock.tick_count,
                 "timestamp": self.clock.now().isoformat(),
@@ -95,6 +113,14 @@ class BenchmarkWorld(ABC):
                 "expected_hints": entry.expected_hints,
                 "ground_truth": entry.ground_truth,
                 "should_refuse": entry.should_refuse,
+                "runtime_evidence": {
+                    "request_id": resp.request_id,
+                    "debug_request_id": response_metadata.get("debug_request_id"),
+                    "latency_ms": round(float(latency_ms), 3),
+                    "prompt_tokens": int(prompt_tokens),
+                    "policy_passed": resp.policy_passed,
+                    "capability_results": capability_results,
+                },
                 **entry.metadata,
             })
 

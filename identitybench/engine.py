@@ -37,9 +37,11 @@ from identitybench.analytics.timeline import build_evolution_timeline
 from identitybench.provenance import (
     BENCHMARK_SCHEMA_VERSION,
     build_comparison_signature,
+    capability_manifest_fingerprint,
     runs_are_comparable,
     suite_fingerprint,
 )
+from identitybench.integrity import evidence_digest
 
 
 DEFAULT_WORLDS: List[Type[BenchmarkWorld]] = [
@@ -211,15 +213,7 @@ class IdentityBench:
                 "metrics": metrics,
                 "category_scores": cats,
                 "error": wr.raw_data.get("error"),
-                "entries": [
-                    {
-                        "tick": e["tick"],
-                        "type": e["type"],
-                        "user_input": e.get("user_input", ""),
-                        "response": e.get("response", ""),
-                    }
-                    for e in wr.entries
-                ],
+                "entries": [dict(entry) for entry in wr.entries],
             })
             all_metrics.update(metrics)
             for cat, score in cats.items():
@@ -255,6 +249,12 @@ class IdentityBench:
         for cap_id in capability_history:
             cap_entries.extend(self.capability_journal.get_journal(self.identity_id, cap_id))
 
+        current_suite_fingerprint = suite_fingerprint()
+        trial_index_raw = os.environ.get("IDENTITYBENCH_TRIAL_INDEX", "")
+        try:
+            trial_index = int(trial_index_raw) if trial_index_raw else None
+        except ValueError:
+            trial_index = None
         run_config = {
             "seed": self._seed,
             "worlds": [wr.world_name for wr in self._world_results],
@@ -266,11 +266,32 @@ class IdentityBench:
             "tools_per_request": self._tools_per_request,
             "tool_rounds": self._tool_rounds,
             "cooldown_wait_seconds": self._cooldown_wait_seconds,
-            "suite_fingerprint": suite_fingerprint(),
+            "suite_fingerprint": current_suite_fingerprint,
+            "evaluator_digest": os.environ.get(
+                "IDENTITYBENCH_EVALUATOR_DIGEST", current_suite_fingerprint
+            ),
+            "protected_suite_digest": os.environ.get(
+                "IDENTITYBENCH_PROTECTED_SUITE_DIGEST", ""
+            ),
+            "lane": os.environ.get("IDENTITYBENCH_LANE", "public"),
+            "commit_sha": os.environ.get(
+                "IDENTITYBENCH_COMMIT_SHA", os.environ.get("GITHUB_SHA", "")
+            ),
+            "base_commit_sha": os.environ.get("IDENTITYBENCH_BASE_SHA", ""),
+            "candidate_commit_sha": os.environ.get("IDENTITYBENCH_CANDIDATE_SHA", ""),
+            "trial_index": trial_index,
+            "seed_commitment": os.environ.get("IDENTITYBENCH_SEED_COMMITMENT", ""),
+            "identity_state_origin": os.environ.get(
+                "IDENTITYBENCH_IDENTITY_STATE_ORIGIN", "local"
+            ),
+            "capability_manifest_digest": capability_manifest_fingerprint(
+                self.runtime, self.identity_id
+            ),
         }
         run_config["comparison_signature"] = build_comparison_signature(run_config)
         run_data: Dict[str, Any] = {
             "schema_version": BENCHMARK_SCHEMA_VERSION,
+            "evidence_schema_version": 1,
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "identity_id": self.identity_id,
             "elapsed_seconds": round(elapsed_seconds, 1),
@@ -281,6 +302,7 @@ class IdentityBench:
             "config": run_config,
             "status": "failed" if any(wr.raw_data.get("error") for wr in self._world_results) else "completed",
         }
+        run_data["evidence_digest"] = evidence_digest(run_data)
 
         # Analytics
         if prev_run and runs_are_comparable(prev_run, run_data):

@@ -40,6 +40,7 @@ def test_runtime_reports_stage_timings_and_completion_event():
     ))
 
     timings = response.metadata["timings_ms"]
+    assert response.metadata["capability_results"] == []
     assert timings["total"] >= 0
     for stage in (
         "identity_lookup",
