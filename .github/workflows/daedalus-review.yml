@@ -44,7 +44,6 @@ jobs:
           echo "Diff size: $(wc -l < /tmp/pr.diff) lines"
 
       - name: Run unit tests
-        continue-on-error: true
         run: |
           set -o pipefail
           python -m pytest tests/ --ignore=tests/test_cross_app_continuity.py -q --tb=short 2>&1 | tee /tmp/test-results.txt
@@ -105,6 +104,19 @@ jobs:
             if (reviewStatus === 'NEEDS_WORK') labels.push('needs-changes');
             if (reviewStatus === 'NOT_READY') labels.push('blocked');
             if (reviewStatus === 'READY') labels.push('ready-to-merge');
+
+            for (const label of ['needs-changes', 'blocked', 'ready-to-merge']) {
+              try {
+                await github.rest.issues.removeLabel({
+                  issue_number: context.issue.number,
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  name: label
+                });
+              } catch(e) {
+                if (e.status !== 404) console.log(`Could not remove ${label}: ${e.message}`);
+              }
+            }
 
             try {
               await github.rest.issues.addLabels({
