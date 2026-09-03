@@ -3,7 +3,8 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from typing import Any, Dict, List, Optional
+from pathlib import Path
+from typing import Any, Dict, List, Mapping, Optional
 
 from dotenv import load_dotenv
 
@@ -39,7 +40,16 @@ from identitybench.atlas.capability_lifecycle import (
     explain_score_change,
 )
 from identitybench.endurance import EnduranceMonitor
-from identitybench.provenance import comparison_signature
+from identitybench.provenance import comparison_signature, suite_fingerprint
+from identitybench.integrity import (
+    IntegrityError,
+    append_ledger_record,
+    build_trial_plan,
+    evaluate_promotion,
+    score_pair,
+    verify_ledger,
+    verify_trial_reveal,
+)
 
 
 def cmd_run(args: argparse.Namespace) -> None:
@@ -87,6 +97,147 @@ def cmd_endurance(args: argparse.Namespace) -> None:
         print(f"Endurance report written to {args.output}")
     else:
         print(report)
+
+
+def _read_json(path: str | Path) -> dict[str, Any]:
+    with Path(path).open(encoding="utf-8") as handle:
+        value = json.load(handle)
+    if not isinstance(value, dict):
+        raise IntegrityError(f"expected a JSON object in {path}")
+    return value
+
+
+def _write_json(path: str | Path, value: Mapping[str, Any]) -> None:
+    destination = Path(path)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    with destination.open("w", encoding="utf-8") as handle:
+        json.dump(value, handle, indent=2, sort_keys=True)
+        handle.write("\n")
+
+
+def cmd_integrity_plan(args: argparse.Namespace) -> None:
+    evaluator = args.evaluator_digest or suite_fingerprint()
+    commitments, reveal = build_trial_plan(
+        base_sha=args.base_sha,
+        candidate_sha=args.candidate_sha,
+        window_id=args.window_id,
+        beacon=args.beacon,
+        evaluator_digest=evaluator,
+        trial_count=args.trials,
+    )
+    _write_json(args.commitments, commitments)
+    _write_json(args.reveal, reveal)
+    print(f"Trial commitments written to {args.commitments}")
+    print(f"Trial reveal written to {args.reveal}")
+    print(f"Plan digest: {commitments['plan_digest']}")
+
+
+def cmd_integrity_trial(args: argparse.Namespace) -> None:
+    commitments = _read_json(args.commitments)
+    reveal = _read_json(args.reveal)
+    verify_trial_reveal(commitments, reveal)
+    trial = next(
+        (item for item in reveal["trials"] if item.get("trial_index") == args.trial_index),
+        None,
+    )
+    if trial is None:
+        raise IntegrityError(f"trial {args.trial_index} is not in the reveal")
+    values = {
+        "seed": trial["seed"],
+        "seed_commitment": trial["seed_commitment"],
+        "base_sha": reveal["base_sha"],
+        "candidate_sha": reveal["candidate_sha"],
+        "evaluator_digest": reveal["evaluator_digest"],
+        "plan_digest": reveal["plan_digest"],
+    }
+    if args.github_output:
+        with Path(args.github_output).open("a", encoding="utf-8") as handle:
+            for key, value in values.items():
+                handle.write(f"{key}={value}\n")
+    print(json.dumps(values, sort_keys=True))
+
+
+def _integrity_summary(decision: Mapping[str, Any]) -> str:
+    lines = [
+        "# IdentityBench integrity decision",
+        "",
+        f"Verdict: **{decision['verdict']}**",
+        f"Promotion authorized: **{str(decision['promotion_authorized']).lower()}**",
+        f"Trials: {decision['observed_trials']}/{decision['required_trials']}",
+        f"Median paired delta: {decision.get('median_paired_delta')}",
+        f"95% interval: {decision.get('confidence_interval_95')}",
+        "",
+        "## Gates",
+        "",
+    ]
+    for item in decision["gates"]:
+        marker = "PASS" if item["passed"] else "FAIL"
+        lines.append(f"- `{marker}` {item['name']}: {item['detail']}")
+    return "\n".join(lines) + "\n"
+
+
+def cmd_integrity_gate(args: argparse.Namespace) -> None:
+    commitments = _read_json(args.commitments)
+    reveal = _read_json(args.reveal)
+    verify_trial_reveal(commitments, reveal)
+    evaluator = suite_fingerprint()
+    if commitments.get("evaluator_digest") != evaluator:
+        raise IntegrityError(
+            "the executing evaluator does not match the committed evaluator digest"
+        )
+
+    pairs = []
+    for revealed_trial in reveal["trials"]:
+        index = revealed_trial["trial_index"]
+        trial_dir = Path(args.pairs_dir) / f"trial-{index}"
+        base_run = _read_json(trial_dir / "base.json")
+        candidate_run = _read_json(trial_dir / "candidate.json")
+        trial = {
+            **revealed_trial,
+            "base_sha": reveal["base_sha"],
+            "candidate_sha": reveal["candidate_sha"],
+        }
+        pairs.append(score_pair(
+            base_run,
+            candidate_run,
+            trial,
+            expected_evaluator_digest=evaluator,
+        ))
+
+    decision = evaluate_promotion(
+        pairs,
+        protected=args.protected,
+        attestation_verified=args.evidence_attestations_verified,
+        provider_receipts_verified=args.provider_receipts_verified,
+        required_trials=commitments["trial_count"],
+        minimum_delta=args.minimum_delta,
+        max_world_regression=args.max_world_regression,
+        max_latency_regression_pct=args.max_latency_regression_pct,
+        max_prompt_growth_pct=args.max_prompt_growth_pct,
+    )
+    decision["plan_digest"] = commitments["plan_digest"]
+    decision["window_id"] = commitments["window_id"]
+    decision["base_sha"] = commitments["base_sha"]
+    decision["candidate_sha"] = commitments["candidate_sha"]
+    decision["evaluator_digest"] = evaluator
+    _write_json(args.output, decision)
+    if args.summary:
+        destination = Path(args.summary)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_text(_integrity_summary(decision), encoding="utf-8")
+    if args.ledger:
+        record = append_ledger_record(args.ledger, decision)
+        decision["ledger_record_hash"] = record["record_hash"]
+        _write_json(args.output, decision)
+    print(_integrity_summary(decision), end="")
+    if args.enforce and not decision["promotion_authorized"]:
+        raise SystemExit(1)
+
+
+def cmd_integrity_verify_ledger(args: argparse.Namespace) -> None:
+    records = verify_ledger(args.ledger)
+    head = records[-1]["record_hash"] if records else "0" * 64
+    print(json.dumps({"records": len(records), "head": head}, sort_keys=True))
 
 
 def cmd_report(args: argparse.Namespace) -> None:
@@ -456,6 +607,59 @@ def build_parser() -> argparse.ArgumentParser:
     p_endurance.add_argument("--identity-store", default=".identity_store", help="Identity persistence directory")
     p_endurance.add_argument("-o", "--output", help="Write Markdown report to file")
     p_endurance.set_defaults(func=cmd_endurance)
+
+    p_integrity = sub.add_parser(
+        "integrity",
+        help="Generate and enforce independently scored paired benchmark gates",
+    )
+    integrity_sub = p_integrity.add_subparsers(dest="integrity_command", required=True)
+
+    p_integrity_plan = integrity_sub.add_parser(
+        "plan", help="Commit post-SHA randomized trial seeds before execution"
+    )
+    p_integrity_plan.add_argument("--base-sha", required=True)
+    p_integrity_plan.add_argument("--candidate-sha", required=True)
+    p_integrity_plan.add_argument("--window-id", required=True)
+    p_integrity_plan.add_argument("--beacon", required=True)
+    p_integrity_plan.add_argument("--evaluator-digest")
+    p_integrity_plan.add_argument("--trials", type=int, default=3)
+    p_integrity_plan.add_argument("--commitments", required=True)
+    p_integrity_plan.add_argument("--reveal", required=True)
+    p_integrity_plan.set_defaults(func=cmd_integrity_plan)
+
+    p_integrity_trial = integrity_sub.add_parser(
+        "trial", help="Verify and expose one committed trial to a runner"
+    )
+    p_integrity_trial.add_argument("--commitments", required=True)
+    p_integrity_trial.add_argument("--reveal", required=True)
+    p_integrity_trial.add_argument("--trial-index", type=int, required=True)
+    p_integrity_trial.add_argument("--github-output")
+    p_integrity_trial.set_defaults(func=cmd_integrity_trial)
+
+    p_integrity_gate = integrity_sub.add_parser(
+        "gate", help="Independently rescore paired evidence and emit a promotion decision"
+    )
+    p_integrity_gate.add_argument("--commitments", required=True)
+    p_integrity_gate.add_argument("--reveal", required=True)
+    p_integrity_gate.add_argument("--pairs-dir", required=True)
+    p_integrity_gate.add_argument("--output", required=True)
+    p_integrity_gate.add_argument("--summary")
+    p_integrity_gate.add_argument("--ledger")
+    p_integrity_gate.add_argument("--protected", action="store_true")
+    p_integrity_gate.add_argument("--evidence-attestations-verified", action="store_true")
+    p_integrity_gate.add_argument("--provider-receipts-verified", action="store_true")
+    p_integrity_gate.add_argument("--enforce", action="store_true")
+    p_integrity_gate.add_argument("--minimum-delta", type=float, default=3.0)
+    p_integrity_gate.add_argument("--max-world-regression", type=float, default=5.0)
+    p_integrity_gate.add_argument("--max-latency-regression-pct", type=float, default=10.0)
+    p_integrity_gate.add_argument("--max-prompt-growth-pct", type=float, default=10.0)
+    p_integrity_gate.set_defaults(func=cmd_integrity_gate)
+
+    p_integrity_verify = integrity_sub.add_parser(
+        "verify-ledger", help="Verify the append-only integrity ledger hash chain"
+    )
+    p_integrity_verify.add_argument("--ledger", required=True)
+    p_integrity_verify.set_defaults(func=cmd_integrity_verify_ledger)
 
     return parser
 

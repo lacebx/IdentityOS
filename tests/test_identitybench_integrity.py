@@ -4,6 +4,7 @@ import json
 
 import pytest
 
+from identitybench.cli import build_parser
 from identitybench.integrity import (
     IntegrityError,
     append_ledger_record,
@@ -294,3 +295,90 @@ def test_hash_chain_ledger_detects_mutation(tmp_path):
 
 def test_canonical_digest_is_order_independent_for_objects():
     assert canonical_digest({"b": 2, "a": 1}) == canonical_digest({"a": 1, "b": 2})
+
+
+def test_integrity_cli_round_trip_emits_promotable_decision_and_ledger(tmp_path, monkeypatch):
+    commitments, reveal = _plans()
+    commitments_path = tmp_path / "commitments.json"
+    reveal_path = tmp_path / "reveal.json"
+    commitments_path.write_text(json.dumps(commitments))
+    reveal_path.write_text(json.dumps(reveal))
+    pairs_dir = tmp_path / "pairs"
+    for index, revealed_trial in enumerate(reveal["trials"], 1):
+        trial_dir = pairs_dir / f"trial-{index}"
+        trial_dir.mkdir(parents=True)
+        trial = {
+            **revealed_trial,
+            "base_sha": BASE_SHA,
+            "candidate_sha": CANDIDATE_SHA,
+        }
+        base = _run(
+            side="base",
+            seed=trial["seed"],
+            commitment=trial["seed_commitment"],
+            trial_index=index,
+            response="blue",
+            request_id=f"base-{index}",
+        )
+        candidate = _run(
+            side="candidate",
+            seed=trial["seed"],
+            commitment=trial["seed_commitment"],
+            trial_index=index,
+            response="green",
+            request_id=f"candidate-{index}",
+        )
+        (trial_dir / "base.json").write_text(json.dumps(base))
+        (trial_dir / "candidate.json").write_text(json.dumps(candidate))
+
+    output = tmp_path / "decision.json"
+    summary = tmp_path / "decision.md"
+    ledger = tmp_path / "ledger.jsonl"
+    parser = build_parser()
+    args = parser.parse_args([
+        "integrity",
+        "gate",
+        "--commitments", str(commitments_path),
+        "--reveal", str(reveal_path),
+        "--pairs-dir", str(pairs_dir),
+        "--output", str(output),
+        "--summary", str(summary),
+        "--ledger", str(ledger),
+        "--protected",
+        "--evidence-attestations-verified",
+        "--provider-receipts-verified",
+        "--enforce",
+    ])
+    monkeypatch.setattr("identitybench.cli.suite_fingerprint", lambda: EVALUATOR_DIGEST)
+
+    args.func(args)
+
+    decision = json.loads(output.read_text())
+    assert decision["verdict"] == "PROMOTE"
+    assert decision["promotion_authorized"] is True
+    assert "Promotion authorized: **true**" in summary.read_text()
+    assert len(verify_ledger(ledger)) == 1
+
+
+def test_integrity_trial_cli_verifies_reveal_before_writing_runner_outputs(tmp_path):
+    commitments, reveal = _plans(1)
+    commitments_path = tmp_path / "commitments.json"
+    reveal_path = tmp_path / "reveal.json"
+    outputs_path = tmp_path / "github-output.txt"
+    commitments_path.write_text(json.dumps(commitments))
+    reveal_path.write_text(json.dumps(reveal))
+    parser = build_parser()
+    args = parser.parse_args([
+        "integrity",
+        "trial",
+        "--commitments", str(commitments_path),
+        "--reveal", str(reveal_path),
+        "--trial-index", "1",
+        "--github-output", str(outputs_path),
+    ])
+
+    args.func(args)
+
+    outputs = outputs_path.read_text()
+    assert f"seed={reveal['trials'][0]['seed']}" in outputs
+    assert f"seed_commitment={reveal['trials'][0]['seed_commitment']}" in outputs
