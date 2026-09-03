@@ -622,6 +622,13 @@ class TestBenchmarkProvenance:
         assert "if-no-files-found: error" in pr_workflow
         assert "hashFiles('identitybench/**', '.github/workflows/benchmark-pr.yml')" in pr_workflow
         assert "${{ github.run_id }}" in pr_workflow
+        for key_index in range(2, 5):
+            secret_binding = (
+                f"GROQ_API_KEY_{key_index}: "
+                f"${{{{ secrets.GROQ_API_KEY_{key_index} }}}}"
+            )
+            assert secret_binding in pr_workflow
+            assert scheduled.count(secret_binding) == 2
         assert scheduled.count("include-hidden-files: true") == 2
         assert scheduled.count("if-no-files-found: error") == 2
         assert scheduled.count(
@@ -645,6 +652,11 @@ class TestBenchmarkProvenance:
         assert 'IDENTITYBENCH_RESPONSE_TOKENS: "128"' in workflow
         assert 'IDENTITYBENCH_TOOLS_PER_REQUEST: "1"' in workflow
         assert 'IDENTITYBENCH_COOLDOWN_WAIT_SECONDS: "180"' in workflow
+        for key_index in range(2, 5):
+            assert (
+                f"GROQ_API_KEY_{key_index}: "
+                f"${{{{ secrets.GROQ_API_KEY_{key_index} }}}}"
+            ) in workflow
         assert "IDENTITYBENCH_IDENTITY_STATE_ORIGIN: fresh-paired-trial" in workflow
         assert "continue-on-error: true" in workflow
         assert "Preserve observed runtime result" in workflow

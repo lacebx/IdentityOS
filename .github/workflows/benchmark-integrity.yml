@@ -210,6 +210,9 @@ jobs:
           SEED: ${{ steps.trial.outputs.seed }}
           SEED_COMMITMENT: ${{ steps.trial.outputs.seed_commitment }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          GROQ_API_KEY_2: ${{ secrets.GROQ_API_KEY_2 }}
+          GROQ_API_KEY_3: ${{ secrets.GROQ_API_KEY_3 }}
+          GROQ_API_KEY_4: ${{ secrets.GROQ_API_KEY_4 }}
           IDENTITYBENCH_COMMIT_SHA: ${{ matrix.side == 'base' && needs.prepare.outputs.base_sha || needs.prepare.outputs.candidate_sha }}
           IDENTITYBENCH_BASE_SHA: ${{ needs.prepare.outputs.base_sha }}
           IDENTITYBENCH_CANDIDATE_SHA: ${{ needs.prepare.outputs.candidate_sha }}
