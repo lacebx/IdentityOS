@@ -210,6 +210,28 @@ class GroqAdapter(OpenAIAdapter):
                                 f"{last_error}"
                             ) from last_error
                     continue
+                if (
+                    "401" in msg_lower
+                    or "invalid api key" in msg_lower
+                    or "invalid_api_key" in msg_lower
+                    or "authentication_error" in msg_lower
+                ):
+                    # A stale key must not prevent configured fallbacks from
+                    # being tried. Quarantine it for this adapter instance;
+                    # unlike a rate limit, invalid credentials do not recover
+                    # after a short wait.
+                    rejected_index = self._key_index
+                    self._cooldowns[rejected_index] = float("inf")
+                    logger.warning(
+                        "Groq rejected API key index %d; disabling it for this process.",
+                        rejected_index,
+                    )
+                    if self._rotate_key() is None:
+                        raise RuntimeError(
+                            "All Groq API keys were rejected or are unavailable. "
+                            f"Last error: {last_error}"
+                        ) from last_error
+                    continue
                 raise  # Non-retryable error
 
         raise RuntimeError(
