@@ -98,6 +98,14 @@ class TestGroqKeyRotation:
             assert a._wait_shortest_cooldown(120) is True
         mock_sleep.assert_called_once_with(5)
 
+    def test_request_deadline_expands_only_for_explicit_long_cooldown(self):
+        a = self._groq()
+        assert a._request_deadline_seconds() == 45.0
+
+        a._MAX_COOLDOWN_WAIT = 180.0
+
+        assert a._request_deadline_seconds() == 195.0
+
     def test_generate_rotates_through_keys_on_429(self, mock_openai_client):
         """Rate limiting key 0 should rotate to key 1, not block."""
         client = mock_openai_client.return_value
@@ -116,6 +124,47 @@ class TestGroqKeyRotation:
         assert a._key_index == 1
         assert 0 in a._cooldowns
         assert 1 not in a._cooldowns
+
+    def test_generate_skips_invalid_key_after_rate_limited_key(
+        self, mock_openai_client
+    ):
+        """A stale fallback must not stop rotation to a later configured key."""
+        client = mock_openai_client.return_value
+        client.chat.completions.create.side_effect = [
+            RuntimeError("Error code: 429 - Please try again in 10m0s"),
+            RuntimeError(
+                "Error code: 401 - {'error': {'code': 'invalid_api_key', "
+                "'message': 'Invalid API Key'}}"
+            ),
+            MagicMock(
+                choices=[MagicMock(message=MagicMock(content="ok", tool_calls=None))]
+            ),
+        ]
+        a = self._groq(n_keys=3)
+
+        result = a.generate(
+            context="ctx", user_input="hi", identity=_MockIdentity(),
+        )
+
+        assert result == "ok"
+        assert a._key_index == 2
+        assert a._cooldowns[0] > time.time()
+        assert a._cooldowns[1] == float("inf")
+        assert 2 not in a._cooldowns
+
+    def test_generate_reports_when_every_key_is_invalid(self, mock_openai_client):
+        client = mock_openai_client.return_value
+        client.chat.completions.create.side_effect = RuntimeError(
+            "Error code: 401 - Invalid API Key"
+        )
+        a = self._groq(n_keys=2)
+
+        with pytest.raises(
+            RuntimeError, match="All Groq API keys were rejected or are unavailable"
+        ):
+            a.generate(context="ctx", user_input="hi", identity=_MockIdentity())
+
+        assert a._cooldowns == {0: float("inf"), 1: float("inf")}
 
     def test_generate_raises_when_all_keys_on_cooldown(self, mock_openai_client):
         """When every key is on a long cooldown, fall through fast (no long sleep)."""

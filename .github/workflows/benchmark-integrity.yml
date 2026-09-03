@@ -2,8 +2,8 @@ name: IdentityBench Paired Integrity
 
 on:
   schedule:
-    # Three daily windows, offset from the top of the hour to reduce scheduler congestion.
-    - cron: "17 2,10,18 * * *"
+    # Two quota-bounded observations, offset from the top of the hour.
+    - cron: "17 2,14 * * *"
   workflow_dispatch:
 
 concurrency:
@@ -12,7 +12,14 @@ concurrency:
 
 env:
   GROQ_MODEL: "openai/gpt-oss-20b"
-  INTEGRITY_TRIALS: "3"
+  # Scheduled observations cannot promote and use one pair. A manual audit
+  # exercises all three mandatory pairs without weakening the gate's floor.
+  INTEGRITY_TRIALS: ${{ github.event_name == 'schedule' && '1' || '3' }}
+  IDENTITYBENCH_CONTEXT_TOKENS: "256"
+  IDENTITYBENCH_RESPONSE_TOKENS: "128"
+  IDENTITYBENCH_TOOL_RESULT_CHARS: "256"
+  IDENTITYBENCH_TOOLS_PER_REQUEST: "1"
+  IDENTITYBENCH_COOLDOWN_WAIT_SECONDS: "180"
 
 jobs:
   prepare:
@@ -27,6 +34,8 @@ jobs:
       base_sha: ${{ steps.refs.outputs.base_sha }}
       candidate_sha: ${{ steps.refs.outputs.candidate_sha }}
       evaluator_digest: ${{ steps.evaluator.outputs.digest }}
+      trial_count: ${{ steps.refs.outputs.trial_count }}
+      trial_matrix: ${{ steps.refs.outputs.trial_matrix }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
@@ -51,6 +60,13 @@ jobs:
           fi
           echo "candidate_sha=${candidate_sha}" >> "${GITHUB_OUTPUT}"
           echo "base_sha=${base_sha}" >> "${GITHUB_OUTPUT}"
+          if [[ "${GITHUB_EVENT_NAME}" == "schedule" ]]; then
+            echo 'trial_count=1' >> "${GITHUB_OUTPUT}"
+            echo 'trial_matrix={"include":[{"trial":1,"side":"base"},{"trial":1,"side":"candidate"}]}' >> "${GITHUB_OUTPUT}"
+          else
+            echo "trial_count=${INTEGRITY_TRIALS}" >> "${GITHUB_OUTPUT}"
+            echo 'trial_matrix={"include":[{"trial":1,"side":"base"},{"trial":1,"side":"candidate"},{"trial":2,"side":"base"},{"trial":2,"side":"candidate"},{"trial":3,"side":"base"},{"trial":3,"side":"candidate"}]}' >> "${GITHUB_OUTPUT}"
+          fi
 
       - name: Fingerprint evaluator
         id: evaluator
@@ -64,6 +80,7 @@ jobs:
           BASE_SHA: ${{ steps.refs.outputs.base_sha }}
           CANDIDATE_SHA: ${{ steps.refs.outputs.candidate_sha }}
           EVALUATOR_DIGEST: ${{ steps.evaluator.outputs.digest }}
+          TRIAL_COUNT: ${{ steps.refs.outputs.trial_count }}
         shell: bash
         run: |
           mkdir -p integrity-plan
@@ -73,7 +90,7 @@ jobs:
             --window-id "${GITHUB_RUN_ID}:${GITHUB_RUN_ATTEMPT}" \
             --beacon "${GITHUB_RUN_ID}:${GITHUB_RUN_ATTEMPT}" \
             --evaluator-digest "${EVALUATOR_DIGEST}" \
-            --trials "${INTEGRITY_TRIALS}" \
+            --trials "${TRIAL_COUNT}" \
             --commitments integrity-plan/seed-commitments.json \
             --reveal integrity-plan/seed-reveal.json
           git diff --no-ext-diff "${BASE_SHA}" "${CANDIDATE_SHA}" > integrity-plan/candidate.diff
@@ -105,20 +122,7 @@ jobs:
     strategy:
       fail-fast: false
       max-parallel: 1
-      matrix:
-        include:
-          - trial: 1
-            side: base
-          - trial: 1
-            side: candidate
-          - trial: 2
-            side: base
-          - trial: 2
-            side: candidate
-          - trial: 3
-            side: base
-          - trial: 3
-            side: candidate
+      matrix: ${{ fromJSON(needs.prepare.outputs.trial_matrix) }}
     steps:
       - name: Download committed trial plan
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
@@ -194,6 +198,8 @@ jobs:
             --persona "paired benchmark"
 
       - name: Execute frozen runtime side
+        id: benchmark
+        continue-on-error: true
         env:
           BENCHMARK_IDENTITY: integrity-${{ github.run_id }}-${{ matrix.trial }}-${{ matrix.side }}
           RUN_SHA: ${{ matrix.side == 'base' && needs.prepare.outputs.base_sha || needs.prepare.outputs.candidate_sha }}
@@ -204,7 +210,9 @@ jobs:
           SEED: ${{ steps.trial.outputs.seed }}
           SEED_COMMITMENT: ${{ steps.trial.outputs.seed_commitment }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GROQ_API_KEY_2: ${{ secrets.GROQ_API_KEY_2 }}
+          GROQ_API_KEY_3: ${{ secrets.GROQ_API_KEY_3 }}
+          GROQ_API_KEY_4: ${{ secrets.GROQ_API_KEY_4 }}
           IDENTITYBENCH_COMMIT_SHA: ${{ matrix.side == 'base' && needs.prepare.outputs.base_sha || needs.prepare.outputs.candidate_sha }}
           IDENTITYBENCH_BASE_SHA: ${{ needs.prepare.outputs.base_sha }}
           IDENTITYBENCH_CANDIDATE_SHA: ${{ needs.prepare.outputs.candidate_sha }}
@@ -218,7 +226,18 @@ jobs:
           set -o pipefail
           cd source
           identitybench run "${BENCHMARK_IDENTITY}" --mode smoke --seed "${SEED}" 2>&1 | tee "../trial-output.txt"
-          mkdir -p ../paired-evidence
+
+      - name: Preserve observed runtime result
+        id: collect
+        if: ${{ always() && !cancelled() }}
+        env:
+          BENCHMARK_IDENTITY: integrity-${{ github.run_id }}-${{ matrix.trial }}-${{ matrix.side }}
+          BENCHMARK_OUTCOME: ${{ steps.benchmark.outcome }}
+          RUN_SHA: ${{ matrix.side == 'base' && needs.prepare.outputs.base_sha || needs.prepare.outputs.candidate_sha }}
+        shell: bash
+        run: |
+          mkdir -p paired-evidence
+          cd source
           run_file="$(find ".identitybench/runs/${BENCHMARK_IDENTITY}" -type f -name '*.json' -print -quit)"
           if [[ -z "${run_file}" ]]; then
             echo "::error::Benchmark did not produce raw evidence."
@@ -226,13 +245,28 @@ jobs:
           fi
           cp "${run_file}" ../paired-evidence/run.json
           cp ../trial-output.txt ../paired-evidence/runtime-output.txt
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          Path("../paired-evidence/execution-status.json").write_text(
+              json.dumps({
+                  "benchmark_outcome": os.environ["BENCHMARK_OUTCOME"],
+                  "run_sha": os.environ["RUN_SHA"],
+              }, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
 
       - name: Attest raw runtime evidence
+        if: ${{ always() && steps.collect.outcome == 'success' }}
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6
         with:
           subject-path: paired-evidence/run.json
 
       - name: Upload raw paired evidence
+        if: ${{ always() && steps.collect.outcome == 'success' }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: paired-run-${{ matrix.side }}-${{ matrix.trial }}
@@ -240,8 +274,15 @@ jobs:
           retention-days: 90
           path: paired-evidence/
 
+      - name: Report runtime failure after preserving evidence
+        if: ${{ always() && !cancelled() && (steps.benchmark.outcome != 'success' || steps.collect.outcome != 'success') }}
+        run: |
+          echo "::error::The benchmark trial failed; its observed evidence was preserved when available."
+          exit 1
+
   evaluate:
     needs: [prepare, paired-trials]
+    if: ${{ always() && !cancelled() && needs.prepare.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       actions: read
@@ -266,18 +307,27 @@ jobs:
           path: integrity-plan
 
       - name: Download every attempted trial
+        continue-on-error: true
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
           pattern: paired-run-*
           path: downloaded-pairs
 
       - name: Normalize complete pair set
+        env:
+          TRIAL_COUNT: ${{ needs.prepare.outputs.trial_count }}
         shell: bash
         run: |
-          for trial in 1 2 3; do
+          for trial in $(seq 1 "${TRIAL_COUNT}"); do
             mkdir -p "pairs/trial-${trial}"
-            cp "downloaded-pairs/paired-run-base-${trial}/run.json" "pairs/trial-${trial}/base.json"
-            cp "downloaded-pairs/paired-run-candidate-${trial}/run.json" "pairs/trial-${trial}/candidate.json"
+            for side in base candidate; do
+              source="downloaded-pairs/paired-run-${side}-${trial}/run.json"
+              if [[ -f "${source}" ]]; then
+                cp "${source}" "pairs/trial-${trial}/${side}.json"
+              else
+                echo "::warning::Missing ${side} evidence for trial ${trial}; the gate will record it as ineligible."
+              fi
+            done
           done
 
       - name: Restore append-only ledger

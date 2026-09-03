@@ -5,15 +5,18 @@
 The repository now implements the public paired-observation lane and the
 fail-closed promotion gate:
 
-- `.github/workflows/benchmark-integrity.yml` runs three paired windows daily;
+- `.github/workflows/benchmark-integrity.yml` runs two quota-bounded paired
+  observations daily and supports a three-pair manual audit;
 - base and candidate SHAs are frozen before post-SHA seeds are committed;
-- each side runs three times with fresh, equivalent identities;
+- every base/candidate side uses a fresh, equivalent identity;
 - the evaluator ignores claimed scores and recomputes from raw interactions;
 - missing trials, changed suites, altered evidence, or benchmark-aware
   production branches make a trial ineligible;
 - commitments, raw runs, decisions, and the hash-chain ledger receive GitHub
   artifact attestations backed by short-lived OIDC/Sigstore credentials;
 - one rolling GitHub issue receives the latest actionable observation.
+- failed model runs are copied, attested, and evaluated as ineligible evidence
+  before the trial job reports failure.
 
 The scheduled repository workflow is deliberately **advisory**. Protected
 promotion remains disabled until an evaluator outside the candidate repository
@@ -107,21 +110,33 @@ commit SHA.
 
 ## Schedule
 
-The paired canonical-model smoke workflow runs at 02:17, 10:17, and 18:17 UTC.
-The offset avoids the GitHub Actions congestion common at the top of an hour.
-Each window evaluates the first parent of the protected `main` commit and the
+The public canonical-model smoke workflow runs at 02:17 and 14:17 UTC. The
+offset avoids the GitHub Actions congestion common at the top of an hour. Each
+scheduled window performs one complete base/candidate pair with one committed
+seed and reduced, explicitly fingerprinted resource budgets. This keeps a
+frequent observational signal within the provider's documented organization
+quota while preserving equivalence between sides. It never authorizes
+promotion.
+
+A manually dispatched audit performs three complete pairs. The promotion gate
+enforces a hard minimum of three trials even if a caller supplies a plan that
+claims fewer are required. Thus a one-pair scheduled result stays visibly
+incomplete rather than turning scarce quota into weak statistical evidence.
+
+Every window evaluates the first parent of the protected `main` commit and the
 current `main` commit with the same freshly selected seeds and equivalent fresh
 identities. Full and endurance diagnostics retain their separate schedules and
-are attested, but are not promotion authorities.
+are attested, but are not promotion authorities. Never run only the candidate
+to save quota: model drift and provider variance would then look like product
+change.
 
-If provider quota is constrained, preserve paired evaluation and reduce the
-number of worlds or windows. Never run only the candidate to save quota: model
-drift and provider variance would then look like product change.
-
-Each score window should contain at least three paired trials. Promotion uses
-the median paired delta and a confidence interval, not the single best result.
-Nine paired observations across the three daily windows provide the first
-decision-quality daily signal.
+Groq applies limits at the organization level, and its documented free limit
+for `openai/gpt-oss-20b` is 200,000 tokens per day. The first hosted audit
+reached that boundary after a PR run and one frozen-side trial. The workflow
+therefore uses two reduced-budget observations, allows a longer bounded wait
+for short provider cooldowns, and preserves failed evidence. A higher-quota
+manual audit or the future quota proxy is still required for three-pair
+decision-quality evidence. See [Groq rate limits](https://console.groq.com/docs/rate-limits).
 
 ## Comparison eligibility
 

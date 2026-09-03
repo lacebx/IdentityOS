@@ -377,6 +377,95 @@ class TestOpenAIAdapter:
         assert "tools" not in second_call.kwargs
         assert "cannot verify" in second_call.kwargs["messages"][-1]["content"]
 
+    def test_recovers_once_when_model_calls_tool_after_tools_are_disabled(
+        self, mock_openai_client
+    ):
+        client = mock_openai_client.return_value
+        parse_error = (
+            "Error code: 400 - {'error': {'code': 'output_parse_failed', "
+            "'message': 'Parsing failed. See failed_generation', "
+            "'failed_generation': 'I need a tool.'}}"
+        )
+        disabled_tool_error = (
+            "Error code: 400 - {'error': {'code': 'tool_use_failed', "
+            "'message': 'Tool choice is none, but model called a tool', "
+            "'failed_generation': '{\"name\": \"github_get_release\", "
+            "\"arguments\": {\"owner\": \"lacebx\", \"repo\": \"IdentityOS\"}}'}}"
+        )
+        client.chat.completions.create.side_effect = [
+            RuntimeError(parse_error),
+            RuntimeError(disabled_tool_error),
+            MagicMock(
+                choices=[
+                    MagicMock(
+                        message=MagicMock(
+                            content="I cannot verify the release without runtime evidence.",
+                            tool_calls=None,
+                        )
+                    )
+                ]
+            ),
+        ]
+        executed = []
+        adapter = OpenAIAdapter(api_key="sk-test", max_tool_rounds=1)
+
+        result = adapter.generate(
+            context="Use only runtime evidence.",
+            user_input="What is the latest release?",
+            identity=_MockIdentity(),
+            retries=1,
+            tools=[{"type": "function", "function": {"name": "github__get_release"}}],
+            execute_tool=lambda name, args: executed.append((name, args)),
+        )
+
+        assert result == "I cannot verify the release without runtime evidence."
+        assert executed == []
+        calls = client.chat.completions.create.call_args_list
+        assert len(calls) == 3
+        assert "tools" not in calls[1].kwargs
+        assert "tools" not in calls[2].kwargs
+        assert "Do not claim an action occurred" in calls[2].kwargs["messages"][0]["content"]
+
+    def test_recovers_when_no_tools_were_offered_but_model_calls_one(
+        self, mock_openai_client
+    ):
+        client = mock_openai_client.return_value
+        disabled_tool_error = (
+            "Error code: 400 - {'error': {'message': "
+            "'Tool choice is none, but model called a tool', "
+            "'type': 'invalid_request_error', 'code': 'tool_use_failed', "
+            "'failed_generation': '{\"name\": \"repo_browser.print_tree\", "
+            "\"arguments\": {\"path\": \"\", \"depth\": 2}\\n}'}}"
+        )
+        client.chat.completions.create.side_effect = [
+            RuntimeError(disabled_tool_error),
+            MagicMock(
+                choices=[
+                    MagicMock(
+                        message=MagicMock(
+                            content="I cannot inspect a repository without runtime evidence.",
+                            tool_calls=None,
+                        )
+                    )
+                ]
+            ),
+        ]
+        adapter = OpenAIAdapter(api_key="sk-test", max_tool_rounds=4)
+
+        result = adapter.generate(
+            context="Use only runtime evidence.",
+            user_input="Inspect the repository.",
+            identity=_MockIdentity(),
+            retries=1,
+        )
+
+        assert result == "I cannot inspect a repository without runtime evidence."
+        calls = client.chat.completions.create.call_args_list
+        assert len(calls) == 2
+        assert "tools" not in calls[0].kwargs
+        assert "tools" not in calls[1].kwargs
+        assert "Do not claim an action occurred" in calls[1].kwargs["messages"][0]["content"]
+
     def test_returns_runtime_evidence_when_final_synthesis_is_rejected(
         self, mock_openai_client
     ):

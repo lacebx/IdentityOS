@@ -136,6 +136,10 @@ class GroqAdapter(OpenAIAdapter):
             return float(m.group(1))
         return 60  # Default fallback
 
+    def _request_deadline_seconds(self) -> float:
+        """Bound one call while honoring an explicitly enlarged cooldown wait."""
+        return max(45.0, self._MAX_COOLDOWN_WAIT + 15.0)
+
     def generate(
         self,
         context: str,
@@ -147,7 +151,11 @@ class GroqAdapter(OpenAIAdapter):
     ) -> str:
         last_error = None
         now = time.time()
-        deadline = now + 45  # Give up after 45s so chain can fall through
+        # Interactive callers keep the default 45-second bound.  A benchmark
+        # may explicitly raise _MAX_COOLDOWN_WAIT after moving work off the
+        # chat path; its overall deadline must then leave room for that wait to
+        # have an effect instead of timing out immediately after sleeping.
+        deadline = now + self._request_deadline_seconds()
 
         for attempt in range(len(self._keys) * 3):
             if time.time() > deadline:
@@ -201,6 +209,28 @@ class GroqAdapter(OpenAIAdapter):
                                 "All Groq API keys on cooldown. Last error: "
                                 f"{last_error}"
                             ) from last_error
+                    continue
+                if (
+                    "401" in msg_lower
+                    or "invalid api key" in msg_lower
+                    or "invalid_api_key" in msg_lower
+                    or "authentication_error" in msg_lower
+                ):
+                    # A stale key must not prevent configured fallbacks from
+                    # being tried. Quarantine it for this adapter instance;
+                    # unlike a rate limit, invalid credentials do not recover
+                    # after a short wait.
+                    rejected_index = self._key_index
+                    self._cooldowns[rejected_index] = float("inf")
+                    logger.warning(
+                        "Groq rejected API key index %d; disabling it for this process.",
+                        rejected_index,
+                    )
+                    if self._rotate_key() is None:
+                        raise RuntimeError(
+                            "All Groq API keys were rejected or are unavailable. "
+                            f"Last error: {last_error}"
+                        ) from last_error
                     continue
                 raise  # Non-retryable error
 

@@ -288,6 +288,64 @@ def test_gate_rejects_missing_trial_instead_of_cherry_picking_best_runs():
     assert attempts_gate["passed"] is False
 
 
+def test_protected_gate_cannot_lower_the_three_trial_floor():
+    _, reveal = _plans(1)
+    pairs = [_pair(reveal["trials"][0], 1)]
+
+    decision = evaluate_promotion(
+        pairs,
+        protected=True,
+        attestation_verified=True,
+        provider_receipts_verified=True,
+        anti_gaming_scan_passed=True,
+        required_trials=1,
+    )
+
+    assert decision["verdict"] == "REJECT"
+    assert decision["promotion_authorized"] is False
+    assert decision["required_trials"] == 3
+    assert decision["observed_trials"] == 1
+
+
+def test_integrity_cli_records_missing_pair_evidence_as_advisory(tmp_path, monkeypatch):
+    commitments, reveal = _plans(1)
+    commitments_path = tmp_path / "commitments.json"
+    reveal_path = tmp_path / "reveal.json"
+    pairs_dir = tmp_path / "pairs"
+    output = tmp_path / "decision.json"
+    summary = tmp_path / "decision.md"
+    ledger = tmp_path / "ledger.jsonl"
+    diff_scan = tmp_path / "diff-scan.json"
+    commitments_path.write_text(json.dumps(commitments))
+    reveal_path.write_text(json.dumps(reveal))
+    pairs_dir.mkdir()
+    diff_scan.write_text(json.dumps({"passed": True, "findings": []}))
+    parser = build_parser()
+    args = parser.parse_args([
+        "integrity",
+        "gate",
+        "--commitments", str(commitments_path),
+        "--reveal", str(reveal_path),
+        "--pairs-dir", str(pairs_dir),
+        "--output", str(output),
+        "--summary", str(summary),
+        "--ledger", str(ledger),
+        "--diff-scan", str(diff_scan),
+    ])
+    monkeypatch.setattr("identitybench.cli.suite_fingerprint", lambda: EVALUATOR_DIGEST)
+
+    args.func(args)
+
+    decision = json.loads(output.read_text())
+    assert decision["verdict"] == "ADVISORY"
+    assert decision["promotion_authorized"] is False
+    assert decision["required_trials"] == 3
+    assert decision["observed_trials"] == 0
+    assert decision["pairs"][0]["evidence_present"] is False
+    assert len(decision["pairs"][0]["ineligibility_reasons"]) == 2
+    assert len(verify_ledger(ledger)) == 1
+
+
 def test_hash_chain_ledger_detects_mutation(tmp_path):
     ledger = tmp_path / "integrity-ledger.jsonl"
     first = append_ledger_record(ledger, {"verdict": "ADVISORY", "run": 1})

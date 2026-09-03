@@ -42,6 +42,7 @@ from identitybench.atlas.capability_lifecycle import (
 from identitybench.endurance import EnduranceMonitor
 from identitybench.provenance import comparison_signature, suite_fingerprint
 from identitybench.integrity import (
+    INTEGRITY_SCHEMA_VERSION,
     IntegrityError,
     append_ledger_record,
     build_trial_plan,
@@ -191,16 +192,40 @@ def cmd_integrity_gate(args: argparse.Namespace) -> None:
     for revealed_trial in reveal["trials"]:
         index = revealed_trial["trial_index"]
         trial_dir = Path(args.pairs_dir) / f"trial-{index}"
-        base_run = _read_json(trial_dir / "base.json")
-        candidate_run = _read_json(trial_dir / "candidate.json")
         trial = {
             **revealed_trial,
             "base_sha": reveal["base_sha"],
             "candidate_sha": reveal["candidate_sha"],
         }
+        loaded: dict[str, dict[str, Any]] = {}
+        load_errors: list[str] = []
+        for side in ("base", "candidate"):
+            path = trial_dir / f"{side}.json"
+            try:
+                loaded[side] = _read_json(path)
+            except (OSError, UnicodeError, json.JSONDecodeError, IntegrityError) as exc:
+                load_errors.append(f"{side} evidence unavailable: {exc}")
+        if load_errors:
+            available = loaded.get("candidate") or loaded.get("base") or {}
+            config = available.get("config") if isinstance(available.get("config"), dict) else {}
+            pairs.append({
+                "schema_version": INTEGRITY_SCHEMA_VERSION,
+                "evidence_present": False,
+                "trial_index": index,
+                "seed": revealed_trial.get("seed"),
+                "seed_commitment": revealed_trial.get("seed_commitment"),
+                "base_sha": reveal["base_sha"],
+                "candidate_sha": reveal["candidate_sha"],
+                "evaluator_digest": evaluator,
+                "protected_suite_digest": config.get("protected_suite_digest"),
+                "lane": config.get("lane", "public"),
+                "eligible": False,
+                "ineligibility_reasons": load_errors,
+            })
+            continue
         pairs.append(score_pair(
-            base_run,
-            candidate_run,
+            loaded["base"],
+            loaded["candidate"],
             trial,
             expected_evaluator_digest=evaluator,
         ))
