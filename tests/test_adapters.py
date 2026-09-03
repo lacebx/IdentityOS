@@ -426,6 +426,46 @@ class TestOpenAIAdapter:
         assert "tools" not in calls[2].kwargs
         assert "Do not claim an action occurred" in calls[2].kwargs["messages"][0]["content"]
 
+    def test_recovers_when_no_tools_were_offered_but_model_calls_one(
+        self, mock_openai_client
+    ):
+        client = mock_openai_client.return_value
+        disabled_tool_error = (
+            "Error code: 400 - {'error': {'message': "
+            "'Tool choice is none, but model called a tool', "
+            "'type': 'invalid_request_error', 'code': 'tool_use_failed', "
+            "'failed_generation': '{\"name\": \"repo_browser.print_tree\", "
+            "\"arguments\": {\"path\": \"\", \"depth\": 2}\\n}'}}"
+        )
+        client.chat.completions.create.side_effect = [
+            RuntimeError(disabled_tool_error),
+            MagicMock(
+                choices=[
+                    MagicMock(
+                        message=MagicMock(
+                            content="I cannot inspect a repository without runtime evidence.",
+                            tool_calls=None,
+                        )
+                    )
+                ]
+            ),
+        ]
+        adapter = OpenAIAdapter(api_key="sk-test", max_tool_rounds=4)
+
+        result = adapter.generate(
+            context="Use only runtime evidence.",
+            user_input="Inspect the repository.",
+            identity=_MockIdentity(),
+            retries=1,
+        )
+
+        assert result == "I cannot inspect a repository without runtime evidence."
+        calls = client.chat.completions.create.call_args_list
+        assert len(calls) == 2
+        assert "tools" not in calls[0].kwargs
+        assert "tools" not in calls[1].kwargs
+        assert "Do not claim an action occurred" in calls[1].kwargs["messages"][0]["content"]
+
     def test_returns_runtime_evidence_when_final_synthesis_is_rejected(
         self, mock_openai_client
     ):

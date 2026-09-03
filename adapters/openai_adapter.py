@@ -351,6 +351,9 @@ class OpenAIAdapter(BaseAdapter):
                     if tool_rounds >= self.max_tool_rounds:
                         request_kwargs.pop("tools", None)
                         request_kwargs.pop("tool_choice", None)
+                    tools_enabled_for_request = bool(request_kwargs.get("tools")) and (
+                        request_kwargs.get("tool_choice") != "none"
+                    )
                     response = client.chat.completions.create(
                         model=model,
                         messages=messages,
@@ -399,15 +402,17 @@ class OpenAIAdapter(BaseAdapter):
                         )
                         return _runtime_evidence_fallback(tool_evidence)
                     if (
-                        tool_rounds >= self.max_tool_rounds
+                        not tools_enabled_for_request
                         and rejected_call is not None
                         and not tool_evidence
                         and not plain_text_recovery_used
+                        and (not execute_tool or tool_rounds >= self.max_tool_rounds)
                     ):
                         # Some OpenAI-compatible providers can reject a model's
-                        # attempted tool call even after tools were removed.
-                        # Retry once with a minimal schema-free context.  No
-                        # call is executed and no runtime fact is fabricated.
+                        # attempted tool call when tools were never offered or
+                        # were removed after the runtime budget was exhausted.
+                        # Retry once with a minimal schema-free context. No call
+                        # is executed and no runtime fact is fabricated.
                         messages = [
                             {
                                 "role": "system",
