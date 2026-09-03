@@ -1259,6 +1259,7 @@ class IdentityRuntime:
             metadata={
                 "timings_ms": timings,
                 "debug_request_id": request.id if debug_recorded else None,
+                "capability_results": [dict(item) for item in _evidence_results],
             },
         )
 

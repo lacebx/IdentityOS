@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 
-BENCHMARK_SCHEMA_VERSION = 2
+BENCHMARK_SCHEMA_VERSION = 3
 
 
 def suite_fingerprint(package_root: Optional[Path] = None) -> str:
@@ -34,6 +34,9 @@ def build_comparison_signature(config: dict[str, Any]) -> str:
     dimensions = {
         "schema_version": BENCHMARK_SCHEMA_VERSION,
         "suite_fingerprint": config.get("suite_fingerprint"),
+        "evaluator_digest": config.get("evaluator_digest"),
+        "protected_suite_digest": config.get("protected_suite_digest"),
+        "lane": config.get("lane"),
         "seed": config.get("seed"),
         "worlds": config.get("worlds"),
         "adapter": config.get("adapter"),
@@ -46,6 +49,35 @@ def build_comparison_signature(config: dict[str, Any]) -> str:
         "cooldown_wait_seconds": config.get("cooldown_wait_seconds"),
     }
     encoded = json.dumps(dimensions, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
+def capability_manifest_fingerprint(runtime: Any, identity_id: str) -> str:
+    """Hash the installed capability contracts without exposing configuration.
+
+    Capability configuration can contain credentials.  The digest covers it,
+    while the public manifest records only behaviorally relevant contracts.
+    """
+    registry = getattr(runtime, "capability_registry", None)
+    capabilities = registry.list(identity_id) if registry is not None else []
+    manifest = []
+    for capability in capabilities:
+        public = capability.to_dict()
+        public["config_digest"] = hashlib.sha256(
+            json.dumps(
+                getattr(capability, "_config", {}),
+                sort_keys=True,
+                separators=(",", ":"),
+                default=str,
+            ).encode("utf-8")
+        ).hexdigest()
+        manifest.append(public)
+    encoded = json.dumps(
+        sorted(manifest, key=lambda item: (item.get("id", ""), item.get("version", ""))),
+        sort_keys=True,
+        separators=(",", ":"),
+        default=str,
+    )
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
 

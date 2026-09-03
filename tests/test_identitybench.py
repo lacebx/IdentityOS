@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import tempfile
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -16,9 +17,11 @@ from identitybench.metrics.trust import TrustMetrics
 from identitybench.provenance import (
     BENCHMARK_SCHEMA_VERSION,
     build_comparison_signature,
+    capability_manifest_fingerprint,
     runs_are_comparable,
     suite_fingerprint,
 )
+from identitybench.integrity import evidence_digest, rescore_run
 from identitybench.metrics.adaptation import AdaptationMetrics
 from identitybench.metrics.coordination import CoordinationMetrics
 from identitybench.metrics.learning import LearningMetrics
@@ -319,6 +322,80 @@ class TestEngine:
             assert len(run["config"]["suite_fingerprint"]) == 64
             assert len(run["config"]["comparison_signature"]) == 64
 
+    def test_saved_run_contains_rescorable_runtime_evidence(self):
+        with tempfile.TemporaryDirectory() as td:
+            engine = IdentityBench(identity_id="test-bot", storage_path=td)
+            engine.runtime = MagicMock()
+            engine.runtime.capability_registry.list.return_value = []
+            engine._world_results = [
+                WorldResult(
+                    world_name="Memory",
+                    entries=[{
+                        "tick": 1,
+                        "type": "recall_check",
+                        "user_input": "What color?",
+                        "response": "green",
+                        "ground_truth": "green",
+                        "runtime_evidence": {
+                            "request_id": "observed-request",
+                            "latency_ms": 12.0,
+                            "prompt_tokens": 42,
+                            "policy_passed": True,
+                            "capability_results": [],
+                        },
+                    }],
+                    category_scores={"Memory": 100.0},
+                ),
+            ]
+
+            engine._save_results(0.1)
+            run = engine.storage.load_latest_run("test-bot")
+
+            assert run["schema_version"] == 3
+            assert run["evidence_schema_version"] == 1
+            assert run["worlds"][0]["entries"][0]["ground_truth"] == "green"
+            assert run["evidence_digest"] == evidence_digest(run)
+            assert rescore_run(run)["overall_score"] == 100.0
+
+    def test_world_records_runtime_observations_for_independent_scoring(self):
+        class OneTurnWorld(BenchmarkWorld):
+            name = "Memory"
+
+            def build_schedule(self):
+                self.entries = [InteractionEntry(
+                    user_input="What color?",
+                    check_type="recall_check",
+                    ground_truth="green",
+                )]
+                return self.entries
+
+        response = SimpleNamespace(
+            request_id="runtime-request",
+            output="green",
+            policy_passed=True,
+            context_used=SimpleNamespace(token_estimate=lambda: 37),
+            metadata={
+                "timings_ms": {"total": 8.5},
+                "debug_request_id": "runtime-request",
+                "capability_results": [{"success": True, "action": "lookup"}],
+            },
+        )
+        runtime = MagicMock()
+        runtime.process.return_value = response
+        runtime._benchmark_request_interval_seconds = 0.0
+
+        result = OneTurnWorld().run(runtime, "test-bot")
+
+        observed = result.entries[0]["runtime_evidence"]
+        assert observed == {
+            "request_id": "runtime-request",
+            "debug_request_id": "runtime-request",
+            "latency_ms": 8.5,
+            "prompt_tokens": 37,
+            "policy_passed": True,
+            "capability_results": [{"success": True, "action": "lookup"}],
+        }
+
     def test_failed_world_is_persisted_and_not_returned_as_a_score(self):
         class FailingWorld(BenchmarkWorld):
             name = "Failure Evidence"
@@ -511,6 +588,31 @@ class TestBenchmarkProvenance:
             {"config": {"comparison_signature": second}},
         )
 
+    def test_comparison_signature_covers_evaluator_lane_and_protected_suite(self):
+        config = {
+            "suite_fingerprint": "a" * 64,
+            "evaluator_digest": "a" * 64,
+            "protected_suite_digest": "b" * 64,
+            "lane": "public",
+        }
+        public_signature = build_comparison_signature(config)
+        config["lane"] = "protected"
+        protected_signature = build_comparison_signature(config)
+
+        assert public_signature != protected_signature
+
+    def test_capability_manifest_fingerprint_covers_secret_config_without_exposing_it(self):
+        capability = MagicMock()
+        capability.to_dict.return_value = {"id": "weather", "version": "1.0", "skills": ["current"]}
+        capability._config = {"api_key": "never-persist-this-secret"}
+        runtime = MagicMock()
+        runtime.capability_registry.list.return_value = [capability]
+
+        digest = capability_manifest_fingerprint(runtime, "test-bot")
+
+        assert len(digest) == 64
+        assert "never-persist-this-secret" not in digest
+
     def test_workflows_upload_raw_evidence_and_version_cache_by_suite(self):
         root = Path(__file__).resolve().parents[1]
         pr_workflow = (root / ".github/workflows/benchmark-pr.yml").read_text()
@@ -520,8 +622,38 @@ class TestBenchmarkProvenance:
         assert "if-no-files-found: error" in pr_workflow
         assert "hashFiles('identitybench/**', '.github/workflows/benchmark-pr.yml')" in pr_workflow
         assert "${{ github.run_id }}" in pr_workflow
-        assert scheduled.count("include-hidden-files: true") == 3
-        assert scheduled.count("if-no-files-found: error") == 3
+        assert scheduled.count("include-hidden-files: true") == 2
+        assert scheduled.count("if-no-files-found: error") == 2
         assert scheduled.count(
             "hashFiles('identitybench/**', '.github/workflows/benchmark-scheduled.yml')"
-        ) == 6
+        ) == 4
+
+    def test_paired_integrity_workflow_is_advisory_attested_and_complete(self):
+        root = Path(__file__).resolve().parents[1]
+        workflow = (root / ".github/workflows/benchmark-integrity.yml").read_text()
+
+        assert 'cron: "17 2,10,18 * * *"' in workflow
+        assert "pull_request_target" not in workflow
+        assert "github.ref == 'refs/heads/main'" in workflow
+        assert "max-parallel: 1" in workflow
+        assert workflow.count("side: base") == 3
+        assert workflow.count("side: candidate") == 3
+        assert "IDENTITYBENCH_IDENTITY_STATE_ORIGIN: fresh-paired-trial" in workflow
+        assert "identitybench integrity gate" in workflow
+        assert "identitybench integrity verify-ledger" in workflow
+        assert "--protected" not in workflow
+        assert "This issue is observational. It cannot authorize merge or promotion." in workflow
+        assert workflow.count("actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6") == 4
+        assert "uses: actions/checkout@v" not in workflow
+        assert "uses: actions/setup-python@v" not in workflow
+        assert "uses: actions/upload-artifact@v" not in workflow
+
+    def test_legacy_diagnostic_schedules_are_attested_but_not_promotion_gates(self):
+        root = Path(__file__).resolve().parents[1]
+        scheduled = (root / ".github/workflows/benchmark-scheduled.yml").read_text()
+
+        assert "0 2 * * *" not in scheduled
+        assert scheduled.count("uses: actions/attest@v4") == 2
+        assert "weekly-benchmark-evidence.tar.gz" in scheduled
+        assert "monthly-endurance-evidence.tar.gz" in scheduled
+        assert "identitybench integrity gate" not in scheduled

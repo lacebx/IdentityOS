@@ -2,7 +2,6 @@ name: Scheduled IdentityBench
 
 on:
   schedule:
-    - cron: '0 2 * * *'
     - cron: '0 3 * * 1'
     - cron: '0 4 1 * *'
 
@@ -13,54 +12,10 @@ env:
 
 permissions:
   contents: read
+  id-token: write
+  attestations: write
 
 jobs:
-  nightly-smoke:
-    if: github.event.schedule == '0 2 * * *'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-      - run: pip install -e ".[dev]"
-
-      - name: Restore identity state from cache
-        uses: actions/cache@v4
-        id: nightly-cache
-        with:
-          path: |
-            .identity_store/
-            .identitybench/
-          key: benchmark-nightly-${{ env.BENCHMARK_IDENTITY }}-${{ env.BENCHMARK_MODEL_KEY }}-${{ hashFiles('identitybench/**', '.github/workflows/benchmark-scheduled.yml') }}-${{ github.run_id }}
-          restore-keys: |
-            benchmark-nightly-${{ env.BENCHMARK_IDENTITY }}-${{ env.BENCHMARK_MODEL_KEY }}-${{ hashFiles('identitybench/**', '.github/workflows/benchmark-scheduled.yml') }}-
-
-      - name: Create benchmark identity (first run only)
-        run: |
-          if identity inspect ${{ env.BENCHMARK_IDENTITY }} >/dev/null 2>&1; then
-            echo "Reusing persisted identity ${{ env.BENCHMARK_IDENTITY }}."
-          else
-            identity create --name "BenchmarkBot" --id ${{ env.BENCHMARK_IDENTITY }} --persona "benchmark"
-          fi
-
-      - name: Run nightly smoke benchmark
-        env:
-          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        run: |
-          mkdir -p .identitybench/reports
-          identitybench run ${{ env.BENCHMARK_IDENTITY }} --mode smoke --seed 42 2>&1
-          identitybench report ${{ env.BENCHMARK_IDENTITY }} --markdown -o ".identitybench/reports/${{ env.BENCHMARK_IDENTITY }}-nightly.md"
-          identitybench endurance report ${{ env.BENCHMARK_IDENTITY }} -o ".identitybench/reports/${{ env.BENCHMARK_IDENTITY }}-endurance.md"
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: nightly-benchmark
-          include-hidden-files: true
-          if-no-files-found: error
-          path: .identitybench/
-
   weekly-full:
     if: github.event.schedule == '0 3 * * 1'
     runs-on: ubuntu-latest
@@ -101,12 +56,22 @@ jobs:
           identitybench history ${{ env.BENCHMARK_IDENTITY }}
           identitybench endurance report ${{ env.BENCHMARK_IDENTITY }} -o ".identitybench/reports/${{ env.BENCHMARK_IDENTITY }}-endurance.md"
 
+      - name: Package weekly evidence for attestation
+        run: tar -czf weekly-benchmark-evidence.tar.gz .identitybench/
+
+      - name: Attest weekly diagnostic evidence
+        uses: actions/attest@v4
+        with:
+          subject-path: weekly-benchmark-evidence.tar.gz
+
       - uses: actions/upload-artifact@v4
         with:
           name: weekly-benchmark
           include-hidden-files: true
           if-no-files-found: error
-          path: .identitybench/
+          path: |
+            .identitybench/
+            weekly-benchmark-evidence.tar.gz
 
   monthly-endurance:
     if: github.event.schedule == '0 4 1 * *'
@@ -150,9 +115,19 @@ jobs:
           identitybench compare --id ${{ env.BENCHMARK_IDENTITY }} --last 3 2>&1
           identitybench endurance report ${{ env.BENCHMARK_IDENTITY }} -o ".identitybench/reports/${{ env.BENCHMARK_IDENTITY }}-endurance.md"
 
+      - name: Package endurance evidence for attestation
+        run: tar -czf monthly-endurance-evidence.tar.gz .identitybench/
+
+      - name: Attest endurance diagnostic evidence
+        uses: actions/attest@v4
+        with:
+          subject-path: monthly-endurance-evidence.tar.gz
+
       - uses: actions/upload-artifact@v4
         with:
           name: monthly-endurance-benchmark
           include-hidden-files: true
           if-no-files-found: error
-          path: .identitybench/
+          path: |
+            .identitybench/
+            monthly-endurance-evidence.tar.gz
