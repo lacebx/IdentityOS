@@ -12,6 +12,7 @@ import hashlib
 import itertools
 import json
 import random
+import re
 import statistics
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Optional, Sequence
@@ -48,9 +49,59 @@ _GUARDRAIL_METRICS = (
     "responsibility_leakage",
 )
 
+_BASELINE_PATH_PREFIXES = (
+    "identitybench/",
+    ".github/workflows/benchmark-",
+)
+_SOURCE_SUFFIXES = (".py", ".js", ".ts", ".tsx")
+_SUSPICIOUS_PRODUCTION_PATTERNS = (
+    (re.compile(r"identitybench", re.IGNORECASE), "production code references IdentityBench"),
+    (re.compile(r"benchmark[-_ ]?(?:bot|identity|world|prompt)", re.IGNORECASE),
+     "production code references a benchmark-specific identity or concept"),
+    (re.compile(r"github_actions|github actions", re.IGNORECASE),
+     "production code detects the GitHub Actions evaluator"),
+    (re.compile(r"(?:getenv|environ(?:\.get)?|process\.env).{0,24}[\"'](?:CI|GITHUB_ACTIONS)[\"']", re.IGNORECASE),
+     "production code branches on a CI environment variable"),
+)
+
 
 class IntegrityError(ValueError):
     """Raised when benchmark evidence cannot support an integrity decision."""
+
+
+def scan_candidate_diff(diff_text: str) -> dict[str, Any]:
+    """Detect benchmark-aware production changes and baseline-reset edits."""
+    current_path = ""
+    baseline_paths: set[str] = set()
+    findings: list[dict[str, Any]] = []
+    for line_number, line in enumerate(diff_text.splitlines(), 1):
+        if line.startswith("diff --git a/"):
+            match = re.match(r"diff --git a/(.+?) b/(.+)$", line)
+            current_path = match.group(2) if match else ""
+            if current_path.startswith(_BASELINE_PATH_PREFIXES):
+                baseline_paths.add(current_path)
+            continue
+        if not line.startswith("+") or line.startswith("+++"):
+            continue
+        if not current_path.endswith(_SOURCE_SUFFIXES):
+            continue
+        if current_path.startswith(("tests/", "identitybench/")):
+            continue
+        for pattern, message in _SUSPICIOUS_PRODUCTION_PATTERNS:
+            if pattern.search(line[1:]):
+                findings.append({
+                    "path": current_path,
+                    "diff_line": line_number,
+                    "reason": message,
+                })
+                break
+    return {
+        "passed": not findings,
+        "baseline_reset_required": bool(baseline_paths),
+        "baseline_paths": sorted(baseline_paths),
+        "findings": findings,
+        "diff_digest": hashlib.sha256(diff_text.encode("utf-8")).hexdigest(),
+    }
 
 
 def canonical_json_bytes(value: Any) -> bytes:
@@ -407,6 +458,7 @@ def evaluate_promotion(
     protected: bool,
     attestation_verified: bool,
     provider_receipts_verified: bool,
+    anti_gaming_scan_passed: bool = False,
     required_trials: int = DEFAULT_REQUIRED_TRIALS,
     minimum_delta: float = DEFAULT_MINIMUM_DELTA,
     max_world_regression: float = DEFAULT_MAX_WORLD_REGRESSION,
@@ -458,6 +510,8 @@ def evaluate_promotion(
          "the final ledger artifact must have verified platform provenance")
     gate("provider_receipts", provider_receipts_verified,
          "a quota proxy must verify model-call receipts")
+    gate("anti_gaming_scan", anti_gaming_scan_passed,
+         "production changes must not branch on benchmark or CI signals")
 
     deltas = [float(pair["overall_delta"]) for pair in eligible if "overall_delta" in pair]
     if len(deltas) == required_trials:

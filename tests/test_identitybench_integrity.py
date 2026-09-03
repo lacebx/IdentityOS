@@ -13,6 +13,7 @@ from identitybench.integrity import (
     evaluate_promotion,
     evidence_digest,
     rescore_run,
+    scan_candidate_diff,
     score_pair,
     verify_ledger,
     verify_trial_reveal,
@@ -237,6 +238,7 @@ def test_protected_gate_promotes_only_complete_attested_paired_improvement():
         protected=True,
         attestation_verified=True,
         provider_receipts_verified=True,
+        anti_gaming_scan_passed=True,
     )
 
     assert decision["verdict"] == "PROMOTE"
@@ -334,6 +336,8 @@ def test_integrity_cli_round_trip_emits_promotable_decision_and_ledger(tmp_path,
     output = tmp_path / "decision.json"
     summary = tmp_path / "decision.md"
     ledger = tmp_path / "ledger.jsonl"
+    diff_scan = tmp_path / "diff-scan.json"
+    diff_scan.write_text(json.dumps({"passed": True, "findings": []}))
     parser = build_parser()
     args = parser.parse_args([
         "integrity",
@@ -344,6 +348,7 @@ def test_integrity_cli_round_trip_emits_promotable_decision_and_ledger(tmp_path,
         "--output", str(output),
         "--summary", str(summary),
         "--ledger", str(ledger),
+        "--diff-scan", str(diff_scan),
         "--protected",
         "--evidence-attestations-verified",
         "--provider-receipts-verified",
@@ -382,3 +387,47 @@ def test_integrity_trial_cli_verifies_reveal_before_writing_runner_outputs(tmp_p
     outputs = outputs_path.read_text()
     assert f"seed={reveal['trials'][0]['seed']}" in outputs
     assert f"seed_commitment={reveal['trials'][0]['seed_commitment']}" in outputs
+
+
+def test_diff_scan_rejects_benchmark_or_ci_specific_production_branches():
+    result = scan_candidate_diff("""diff --git a/runtime/router.py b/runtime/router.py
+--- a/runtime/router.py
++++ b/runtime/router.py
+@@ -1 +1,3 @@
++if identity_id == "benchmark-bot":
++    return perfect_answer
++if os.environ.get("GITHUB_ACTIONS"):
++    disable_failures()
+""")
+
+    assert result["passed"] is False
+    assert len(result["findings"]) == 2
+
+
+def test_diff_scan_allows_general_production_fix_and_marks_evaluator_reset():
+    result = scan_candidate_diff("""diff --git a/runtime/router.py b/runtime/router.py
+--- a/runtime/router.py
++++ b/runtime/router.py
+@@ -1 +1 @@
++return validate_runtime_evidence(result)
+diff --git a/identitybench/metrics/trust.py b/identitybench/metrics/trust.py
+--- a/identitybench/metrics/trust.py
++++ b/identitybench/metrics/trust.py
+@@ -1 +1 @@
++SCHEMA = 4
+""")
+
+    assert result["passed"] is True
+    assert result["baseline_reset_required"] is True
+    assert result["baseline_paths"] == ["identitybench/metrics/trust.py"]
+
+
+def test_diff_scan_ignores_benchmark_terms_in_tests():
+    result = scan_candidate_diff("""diff --git a/tests/test_router.py b/tests/test_router.py
+--- a/tests/test_router.py
++++ b/tests/test_router.py
+@@ -1 +1 @@
++assert identity_id != "benchmark-bot"
+""")
+
+    assert result["passed"] is True

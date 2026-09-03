@@ -46,6 +46,7 @@ from identitybench.integrity import (
     append_ledger_record,
     build_trial_plan,
     evaluate_promotion,
+    scan_candidate_diff,
     score_pair,
     verify_ledger,
     verify_trial_reveal,
@@ -204,11 +205,17 @@ def cmd_integrity_gate(args: argparse.Namespace) -> None:
             expected_evaluator_digest=evaluator,
         ))
 
+    diff_scan = _read_json(args.diff_scan) if args.diff_scan else {
+        "passed": False,
+        "baseline_reset_required": False,
+        "findings": [{"reason": "no independently generated diff scan was supplied"}],
+    }
     decision = evaluate_promotion(
         pairs,
         protected=args.protected,
         attestation_verified=args.evidence_attestations_verified,
         provider_receipts_verified=args.provider_receipts_verified,
+        anti_gaming_scan_passed=diff_scan.get("passed") is True,
         required_trials=commitments["trial_count"],
         minimum_delta=args.minimum_delta,
         max_world_regression=args.max_world_regression,
@@ -220,6 +227,7 @@ def cmd_integrity_gate(args: argparse.Namespace) -> None:
     decision["base_sha"] = commitments["base_sha"]
     decision["candidate_sha"] = commitments["candidate_sha"]
     decision["evaluator_digest"] = evaluator
+    decision["diff_scan"] = diff_scan
     _write_json(args.output, decision)
     if args.summary:
         destination = Path(args.summary)
@@ -238,6 +246,18 @@ def cmd_integrity_verify_ledger(args: argparse.Namespace) -> None:
     records = verify_ledger(args.ledger)
     head = records[-1]["record_hash"] if records else "0" * 64
     print(json.dumps({"records": len(records), "head": head}, sort_keys=True))
+
+
+def cmd_integrity_scan(args: argparse.Namespace) -> None:
+    if args.diff_file == "-":
+        diff_text = sys.stdin.read()
+    else:
+        diff_text = Path(args.diff_file).read_text(encoding="utf-8")
+    result = scan_candidate_diff(diff_text)
+    _write_json(args.output, result)
+    print(json.dumps(result, sort_keys=True))
+    if args.enforce and not result["passed"]:
+        raise SystemExit(1)
 
 
 def cmd_report(args: argparse.Namespace) -> None:
@@ -645,6 +665,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_integrity_gate.add_argument("--output", required=True)
     p_integrity_gate.add_argument("--summary")
     p_integrity_gate.add_argument("--ledger")
+    p_integrity_gate.add_argument("--diff-scan")
     p_integrity_gate.add_argument("--protected", action="store_true")
     p_integrity_gate.add_argument("--evidence-attestations-verified", action="store_true")
     p_integrity_gate.add_argument("--provider-receipts-verified", action="store_true")
@@ -660,6 +681,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_integrity_verify.add_argument("--ledger", required=True)
     p_integrity_verify.set_defaults(func=cmd_integrity_verify_ledger)
+
+    p_integrity_scan = integrity_sub.add_parser(
+        "scan", help="Reject benchmark-aware production branches in a candidate diff"
+    )
+    p_integrity_scan.add_argument("--diff-file", required=True)
+    p_integrity_scan.add_argument("--output", required=True)
+    p_integrity_scan.add_argument("--enforce", action="store_true")
+    p_integrity_scan.set_defaults(func=cmd_integrity_scan)
 
     return parser
 
