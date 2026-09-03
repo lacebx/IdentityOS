@@ -2,9 +2,24 @@
 
 ## Status
 
-Proposed architecture. The versioned provenance and raw-evidence foundations
-described below are implemented; the independent evaluator and autonomous
-improvement loop require separate rollout work.
+The repository now implements the public paired-observation lane and the
+fail-closed promotion gate:
+
+- `.github/workflows/benchmark-integrity.yml` runs three paired windows daily;
+- base and candidate SHAs are frozen before post-SHA seeds are committed;
+- each side runs three times with fresh, equivalent identities;
+- the evaluator ignores claimed scores and recomputes from raw interactions;
+- missing trials, changed suites, altered evidence, or benchmark-aware
+  production branches make a trial ineligible;
+- commitments, raw runs, decisions, and the hash-chain ledger receive GitHub
+  artifact attestations backed by short-lived OIDC/Sigstore credentials;
+- one rolling GitHub issue receives the latest actionable observation.
+
+The scheduled repository workflow is deliberately **advisory**. Protected
+promotion remains disabled until an evaluator outside the candidate repository
+provides rotating holdouts and cryptographically verified, quota-bound provider
+receipts. The CLI supports that protected decision, but fails closed if either
+external evidence source is absent.
 
 ## Objective
 
@@ -92,10 +107,12 @@ commit SHA.
 
 ## Schedule
 
-With a dedicated benchmark quota, run paired canonical-model smoke trials at
-02:00, 10:00, and 18:00 UTC. Each window evaluates the protected `main` baseline
-and candidate commit with the same freshly selected seeds and equivalent fresh
-identities. Run a full suite nightly and the cross-model lane weekly.
+The paired canonical-model smoke workflow runs at 02:17, 10:17, and 18:17 UTC.
+The offset avoids the GitHub Actions congestion common at the top of an hour.
+Each window evaluates the first parent of the protected `main` commit and the
+current `main` commit with the same freshly selected seeds and equivalent fresh
+identities. Full and endurance diagnostics retain their separate schedules and
+are attested, but are not promotion authorities.
 
 If provider quota is constrained, preserve paired evaluation and reduce the
 number of worlds or windows. Never run only the candidate to save quota: model
@@ -108,7 +125,7 @@ decision-quality daily signal.
 
 ## Comparison eligibility
 
-Every run records and signs:
+Every schema-v3 run records, and the workflow attests:
 
 - candidate and base commit SHA;
 - scoring schema version and evaluator digest;
@@ -119,7 +136,8 @@ Every run records and signs:
 - context, output, tool-result, tool-count, and tool-round budgets;
 - installed capability manifest digests;
 - identity-state origin and persistence/restart evidence;
-- raw runtime events, capability results, timings, and final outputs;
+- runtime request identifiers, capability results, timings, prompt sizes,
+  policy outcomes, and final outputs;
 - artifact SHA-256 digest and completion status.
 
 Runs with different comparison signatures are separate baselines. Failed,
@@ -147,6 +165,50 @@ An implementation is called an improvement only when all of these hold:
 
 The protected evaluator owns the final check. Candidate code may emit evidence
 but cannot assign itself a passing score.
+
+## Operational commands
+
+Create three trial commitments and a private reveal after the SHAs are frozen:
+
+```bash
+identitybench integrity plan \
+  --base-sha "$BASE_SHA" \
+  --candidate-sha "$CANDIDATE_SHA" \
+  --window-id "$WINDOW_ID" \
+  --beacon "$POST_SHA_BEACON" \
+  --trials 3 \
+  --commitments seed-commitments.json \
+  --reveal seed-reveal.json
+```
+
+The commitment file is attested before either runtime executes. A runner uses
+`identitybench integrity trial` to verify a reveal and obtain exactly one seed.
+After all base/head attempts exist, a trusted evaluator runs:
+
+```bash
+identitybench integrity gate \
+  --commitments seed-commitments.json \
+  --reveal seed-reveal.json \
+  --pairs-dir pairs/ \
+  --diff-scan diff-scan.json \
+  --output decision.json \
+  --summary summary.md \
+  --ledger ledger.jsonl
+```
+
+Omitting `--protected` always yields `ADVISORY`, even when scores improve. A
+protected evaluator additionally supplies `--evidence-attestations-verified`,
+`--provider-receipts-verified`, and `--enforce`; absent or invalid evidence
+produces a non-zero result and can never authorize promotion.
+
+Verify the local hash chain with:
+
+```bash
+identitybench integrity verify-ledger --ledger ledger.jsonl
+```
+
+The attestation is the external anchor for the ledger head. A hash chain alone
+detects mutation only relative to a previously trusted head.
 
 ## Automated improvement loop
 
@@ -185,14 +247,14 @@ reproduced invariant violation.
 - Quarterly audits seed known cheating implementations and verify that the
   protected lane rejects them.
 
-## Rollout
+## Remaining protected-infrastructure rollout
 
-1. Keep the current raw-artifact upload, truthfulness semantics, suite digest,
-   and comparison signature as the local provenance layer.
-2. Add paired base/head orchestration and three daily canonical-model windows.
-3. Move acceptance scoring and rotating holdouts to a protected evaluator with
-   a quota-bound model proxy and signed result ledger.
-4. Add the observer-to-engineering-agent loop in advisory mode.
-5. Allow autonomous PR creation only after several weeks of audited advisory
-   results; retain independent review and normal branch protection.
-
+1. Deploy the quota-bound model proxy and issue per-run credentials using OIDC.
+2. Store active holdouts and the immutable evaluator in a separate protected
+   repository or service; never publish active raw prompts as public artifacts.
+3. Have that evaluator verify provider receipts and input attestations before
+   invoking the existing protected CLI gate.
+4. Accumulate several weeks of audited advisory results and seed known cheating
+   implementations to validate rejection behavior.
+5. Only then permit an engineering agent to open candidate PRs. It still cannot
+   approve or merge them, and normal branch protection remains authoritative.

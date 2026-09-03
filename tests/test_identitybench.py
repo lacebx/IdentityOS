@@ -622,8 +622,38 @@ class TestBenchmarkProvenance:
         assert "if-no-files-found: error" in pr_workflow
         assert "hashFiles('identitybench/**', '.github/workflows/benchmark-pr.yml')" in pr_workflow
         assert "${{ github.run_id }}" in pr_workflow
-        assert scheduled.count("include-hidden-files: true") == 3
-        assert scheduled.count("if-no-files-found: error") == 3
+        assert scheduled.count("include-hidden-files: true") == 2
+        assert scheduled.count("if-no-files-found: error") == 2
         assert scheduled.count(
             "hashFiles('identitybench/**', '.github/workflows/benchmark-scheduled.yml')"
-        ) == 6
+        ) == 4
+
+    def test_paired_integrity_workflow_is_advisory_attested_and_complete(self):
+        root = Path(__file__).resolve().parents[1]
+        workflow = (root / ".github/workflows/benchmark-integrity.yml").read_text()
+
+        assert 'cron: "17 2,10,18 * * *"' in workflow
+        assert "pull_request_target" not in workflow
+        assert "github.ref == 'refs/heads/main'" in workflow
+        assert "max-parallel: 1" in workflow
+        assert workflow.count("side: base") == 3
+        assert workflow.count("side: candidate") == 3
+        assert "IDENTITYBENCH_IDENTITY_STATE_ORIGIN: fresh-paired-trial" in workflow
+        assert "identitybench integrity gate" in workflow
+        assert "identitybench integrity verify-ledger" in workflow
+        assert "--protected" not in workflow
+        assert "This issue is observational. It cannot authorize merge or promotion." in workflow
+        assert workflow.count("actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6") == 4
+        assert "uses: actions/checkout@v" not in workflow
+        assert "uses: actions/setup-python@v" not in workflow
+        assert "uses: actions/upload-artifact@v" not in workflow
+
+    def test_legacy_diagnostic_schedules_are_attested_but_not_promotion_gates(self):
+        root = Path(__file__).resolve().parents[1]
+        scheduled = (root / ".github/workflows/benchmark-scheduled.yml").read_text()
+
+        assert "0 2 * * *" not in scheduled
+        assert scheduled.count("uses: actions/attest@v4") == 2
+        assert "weekly-benchmark-evidence.tar.gz" in scheduled
+        assert "monthly-endurance-evidence.tar.gz" in scheduled
+        assert "identitybench integrity gate" not in scheduled

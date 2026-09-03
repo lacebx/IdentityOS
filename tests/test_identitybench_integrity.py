@@ -149,6 +149,14 @@ def test_trial_reveal_rejects_seed_substitution():
         verify_trial_reveal(commitments, reveal)
 
 
+def test_trial_reveal_rejects_modified_plan_digest():
+    commitments, reveal = _plans()
+    commitments["trial_count"] = 2
+
+    with pytest.raises(IntegrityError, match="plan digest"):
+        verify_trial_reveal(commitments, reveal)
+
+
 def test_rescore_ignores_candidate_claimed_score():
     _, reveal = _plans(1)
     trial = reveal["trials"][0]

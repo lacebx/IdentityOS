@@ -156,7 +156,9 @@ def build_trial_plan(
         raise IntegrityError("a post-SHA beacon is required")
     if trial_count < 1:
         raise IntegrityError("trial_count must be positive")
-    if len(evaluator_digest) != 64:
+    if len(evaluator_digest) != 64 or any(
+        char not in "0123456789abcdef" for char in evaluator_digest.lower()
+    ):
         raise IntegrityError("evaluator_digest must be a SHA-256 digest")
 
     common = {
@@ -199,6 +201,10 @@ def build_trial_plan(
 
 
 def verify_trial_reveal(commitments: Mapping[str, Any], reveal: Mapping[str, Any]) -> None:
+    committed_material = dict(commitments)
+    claimed_plan_digest = committed_material.pop("plan_digest", None)
+    if claimed_plan_digest != canonical_digest(committed_material):
+        raise IntegrityError("trial plan digest is invalid")
     for field in (
         "schema_version",
         "base_sha",
@@ -216,6 +222,13 @@ def verify_trial_reveal(commitments: Mapping[str, Any], reveal: Mapping[str, Any
         "beacon_commitment"
     ):
         raise IntegrityError("trial beacon does not match its commitment")
+    _validate_sha(str(commitments.get("base_sha", "")), "base_sha")
+    _validate_sha(str(commitments.get("candidate_sha", "")), "candidate_sha")
+    evaluator_digest = commitments.get("evaluator_digest")
+    if not isinstance(evaluator_digest, str) or len(evaluator_digest) != 64 or any(
+        char not in "0123456789abcdef" for char in evaluator_digest.lower()
+    ):
+        raise IntegrityError("trial plan evaluator digest is invalid")
     committed_trials = commitments.get("trials")
     revealed_trials = reveal.get("trials")
     if not isinstance(committed_trials, list) or not isinstance(revealed_trials, list):

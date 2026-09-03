@@ -361,6 +361,10 @@ python -m pytest -q -m network
 See the evidence-backed [project roadmap](docs/ROADMAP.md) for current North
 Star status and remaining runtime gaps.
 
+IdentityBench's paired evaluation, evidence-attestation, and fail-closed
+promotion design is documented in
+[docs/IDENTITYBENCH_INTEGRITY.md](docs/IDENTITYBENCH_INTEGRITY.md).
+
 ```bash
 pip install -e .
 pytest tests/ -v
