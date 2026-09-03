@@ -632,16 +632,28 @@ class TestBenchmarkProvenance:
         root = Path(__file__).resolve().parents[1]
         workflow = (root / ".github/workflows/benchmark-integrity.yml").read_text()
 
-        assert 'cron: "17 2,10,18 * * *"' in workflow
+        assert 'cron: "17 2,14 * * *"' in workflow
         assert "pull_request_target" not in workflow
         assert "github.ref == 'refs/heads/main'" in workflow
         assert "max-parallel: 1" in workflow
-        assert workflow.count("side: base") == 3
-        assert workflow.count("side: candidate") == 3
+        assert "matrix: ${{ fromJSON(needs.prepare.outputs.trial_matrix) }}" in workflow
+        assert "github.event_name == 'schedule' && '1' || '3'" in workflow
+        assert "required_trials = max(DEFAULT_REQUIRED_TRIALS, required_trials)" in (
+            root / "identitybench/integrity.py"
+        ).read_text()
+        assert 'IDENTITYBENCH_CONTEXT_TOKENS: "256"' in workflow
+        assert 'IDENTITYBENCH_RESPONSE_TOKENS: "128"' in workflow
+        assert 'IDENTITYBENCH_TOOLS_PER_REQUEST: "1"' in workflow
+        assert 'IDENTITYBENCH_COOLDOWN_WAIT_SECONDS: "180"' in workflow
         assert "IDENTITYBENCH_IDENTITY_STATE_ORIGIN: fresh-paired-trial" in workflow
+        assert "continue-on-error: true" in workflow
+        assert "Preserve observed runtime result" in workflow
+        assert "Report runtime failure after preserving evidence" in workflow
+        assert "needs.prepare.result == 'success'" in workflow
         assert "identitybench integrity gate" in workflow
         assert "identitybench integrity verify-ledger" in workflow
         assert "--protected" not in workflow
+        assert "OPENAI_API_KEY" not in workflow
         assert "This issue is observational. It cannot authorize merge or promotion." in workflow
         assert workflow.count("actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6") == 4
         assert "uses: actions/checkout@v" not in workflow

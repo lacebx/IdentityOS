@@ -136,6 +136,10 @@ class GroqAdapter(OpenAIAdapter):
             return float(m.group(1))
         return 60  # Default fallback
 
+    def _request_deadline_seconds(self) -> float:
+        """Bound one call while honoring an explicitly enlarged cooldown wait."""
+        return max(45.0, self._MAX_COOLDOWN_WAIT + 15.0)
+
     def generate(
         self,
         context: str,
@@ -147,7 +151,11 @@ class GroqAdapter(OpenAIAdapter):
     ) -> str:
         last_error = None
         now = time.time()
-        deadline = now + 45  # Give up after 45s so chain can fall through
+        # Interactive callers keep the default 45-second bound.  A benchmark
+        # may explicitly raise _MAX_COOLDOWN_WAIT after moving work off the
+        # chat path; its overall deadline must then leave room for that wait to
+        # have an effect instead of timing out immediately after sleeping.
+        deadline = now + self._request_deadline_seconds()
 
         for attempt in range(len(self._keys) * 3):
             if time.time() > deadline:

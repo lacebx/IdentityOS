@@ -98,6 +98,14 @@ class TestGroqKeyRotation:
             assert a._wait_shortest_cooldown(120) is True
         mock_sleep.assert_called_once_with(5)
 
+    def test_request_deadline_expands_only_for_explicit_long_cooldown(self):
+        a = self._groq()
+        assert a._request_deadline_seconds() == 45.0
+
+        a._MAX_COOLDOWN_WAIT = 180.0
+
+        assert a._request_deadline_seconds() == 195.0
+
     def test_generate_rotates_through_keys_on_429(self, mock_openai_client):
         """Rate limiting key 0 should rotate to key 1, not block."""
         client = mock_openai_client.return_value

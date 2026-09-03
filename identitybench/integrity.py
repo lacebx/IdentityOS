@@ -405,6 +405,7 @@ def score_pair(
 
     result: dict[str, Any] = {
         "schema_version": INTEGRITY_SCHEMA_VERSION,
+        "evidence_present": True,
         "trial_index": trial_index,
         "seed": expected_seed,
         "seed_commitment": expected_commitment,
@@ -479,18 +480,23 @@ def evaluate_promotion(
     max_prompt_growth_pct: float = DEFAULT_MAX_PROMPT_GROWTH_PCT,
 ) -> dict[str, Any]:
     """Return a fail-closed aggregate promotion decision for paired trials."""
+    # A caller-controlled plan must never be able to weaken the statistical
+    # floor used by the protected promotion path.  Smaller public plans are
+    # useful as quota-bounded observations, but remain explicitly incomplete.
+    required_trials = max(DEFAULT_REQUIRED_TRIALS, required_trials)
     gates: list[dict[str, Any]] = []
 
     def gate(name: str, passed: bool, detail: str) -> None:
         gates.append({"name": name, "passed": bool(passed), "detail": detail})
 
-    eligible = [pair for pair in pairs if pair.get("eligible")]
-    indexes = [pair.get("trial_index") for pair in pairs]
-    seeds = [pair.get("seed") for pair in pairs]
+    observed = [pair for pair in pairs if pair.get("evidence_present", True)]
+    eligible = [pair for pair in observed if pair.get("eligible")]
+    seeds = [pair.get("seed") for pair in observed]
     gate(
         "all_attempts_present",
-        len(pairs) == required_trials and len(set(indexes)) == required_trials,
-        f"observed {len(pairs)} of {required_trials} required trials",
+        len(observed) == required_trials
+        and len({pair.get("trial_index") for pair in observed}) == required_trials,
+        f"observed {len(observed)} of {required_trials} required trials",
     )
     gate(
         "all_trials_eligible",
@@ -510,14 +516,15 @@ def evaluate_promotion(
             pair.get("protected_suite_digest"),
             pair.get("lane"),
         )
-        for pair in pairs
+        for pair in observed
     }
     gate(
         "single_frozen_comparison",
         len(frozen_dimensions) == 1,
         "all trials must evaluate the same commits, evaluator, suite, and lane",
     )
-    gate("protected_lane", protected and all(pair.get("lane") == "protected" for pair in pairs),
+    gate("protected_lane", protected and len(observed) == required_trials
+         and all(pair.get("lane") == "protected" for pair in observed),
          "promotion authority requires the protected lane")
     gate("artifact_attestation", attestation_verified,
          "the final ledger artifact must have verified platform provenance")
@@ -582,7 +589,7 @@ def evaluate_promotion(
         "promotion_authorized": verdict == "PROMOTE",
         "protected": protected,
         "required_trials": required_trials,
-        "observed_trials": len(pairs),
+        "observed_trials": len(observed),
         "median_paired_delta": median_delta,
         "confidence_interval_95": confidence_interval,
         "gates": gates,
