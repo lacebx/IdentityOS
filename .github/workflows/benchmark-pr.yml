@@ -3,11 +3,14 @@ name: IdentityBench PR Check
 on:
   pull_request:
     branches: [main]
+  push:
+    branches: [main]
 
 env:
   BENCHMARK_IDENTITY: "benchmark-bot"
   GROQ_MODEL: "openai/gpt-oss-20b"
   BENCHMARK_MODEL_KEY: "gpt-oss-20b"
+  BENCHMARK_BASELINE_REF: ${{ github.event_name == 'pull_request' && github.base_ref || github.ref_name }}
 
 concurrency:
   group: identityos-provider
@@ -43,9 +46,9 @@ jobs:
           path: |
             .identity_store/
             .identitybench/
-          key: benchmark-pr-${{ env.BENCHMARK_IDENTITY }}-${{ env.BENCHMARK_MODEL_KEY }}-${{ github.base_ref }}-${{ hashFiles('identitybench/**', '.github/workflows/benchmark-pr.yml') }}-${{ github.run_id }}
+          key: benchmark-pr-${{ env.BENCHMARK_IDENTITY }}-${{ env.BENCHMARK_MODEL_KEY }}-${{ env.BENCHMARK_BASELINE_REF }}-${{ hashFiles('identitybench/**', '.github/workflows/benchmark-pr.yml') }}-${{ github.run_id }}
           restore-keys: |
-            benchmark-pr-${{ env.BENCHMARK_IDENTITY }}-${{ env.BENCHMARK_MODEL_KEY }}-${{ github.base_ref }}-${{ hashFiles('identitybench/**', '.github/workflows/benchmark-pr.yml') }}-
+            benchmark-pr-${{ env.BENCHMARK_IDENTITY }}-${{ env.BENCHMARK_MODEL_KEY }}-${{ env.BENCHMARK_BASELINE_REF }}-${{ hashFiles('identitybench/**', '.github/workflows/benchmark-pr.yml') }}-
 
       - name: Create benchmark identity (first run only)
         run: |
@@ -105,6 +108,7 @@ jobs:
             .identitybench/
 
       - name: Comment benchmark summary on PR
+        if: github.event_name == 'pull_request'
         uses: actions/github-script@v7
         with:
           script: |

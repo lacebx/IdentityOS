@@ -620,6 +620,13 @@ class TestBenchmarkProvenance:
 
         assert "include-hidden-files: true" in pr_workflow
         assert "if-no-files-found: error" in pr_workflow
+        assert "push:\n    branches: [main]" in pr_workflow
+        assert "BENCHMARK_BASELINE_REF:" in pr_workflow
+        assert pr_workflow.count("${{ env.BENCHMARK_BASELINE_REF }}") == 2
+        assert (
+            "- name: Comment benchmark summary on PR\n"
+            "        if: github.event_name == 'pull_request'"
+        ) in pr_workflow
         assert "hashFiles('identitybench/**', '.github/workflows/benchmark-pr.yml')" in pr_workflow
         assert "${{ github.run_id }}" in pr_workflow
         for key_index in range(2, 5):
@@ -650,7 +657,12 @@ class TestBenchmarkProvenance:
         assert "github.ref == 'refs/heads/main'" in workflow
         assert "max-parallel: 1" in workflow
         assert "matrix: ${{ fromJSON(needs.prepare.outputs.trial_matrix) }}" in workflow
-        assert "github.event_name == 'schedule' && '1' || '3'" in workflow
+        assert "github.event_name == 'schedule' && '1' || inputs.trial_count" in workflow
+        assert "trial_count:" in workflow
+        assert "One advisory pair or the full three-pair audit" in workflow
+        assert 'default: "3"' in workflow
+        assert 'if [[ "${INTEGRITY_TRIALS}" == "1" ]]' in workflow
+        assert 'elif [[ "${INTEGRITY_TRIALS}" == "3" ]]' in workflow
         assert "required_trials = max(DEFAULT_REQUIRED_TRIALS, required_trials)" in (
             root / "identitybench/integrity.py"
         ).read_text()
