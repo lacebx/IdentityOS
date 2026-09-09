@@ -9,12 +9,14 @@ env:
   GROQ_MODEL: "openai/gpt-oss-20b"
   BENCHMARK_MODEL_KEY: "gpt-oss-20b"
 
+concurrency:
+  group: identityos-provider
+  cancel-in-progress: false
+  queue: max
+
 jobs:
   benchmark:
     runs-on: ubuntu-latest
-    concurrency:
-      group: identityos-provider-pr-${{ github.event.pull_request.number }}
-      cancel-in-progress: false
     permissions:
       contents: read
       checks: write

@@ -8,12 +8,14 @@ on:
 env:
   REVIEW_IDENTITY: "daedalus"
 
+concurrency:
+  group: identityos-provider
+  cancel-in-progress: false
+  queue: max
+
 jobs:
   review:
     runs-on: ubuntu-latest
-    concurrency:
-      group: identityos-provider-pr-${{ github.event.pull_request.number }}
-      cancel-in-progress: false
     permissions:
       contents: read
       checks: write
