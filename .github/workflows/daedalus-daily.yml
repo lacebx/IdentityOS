@@ -5,6 +5,11 @@ on:
     - cron: "0 6 * * *"
   workflow_dispatch:
 
+concurrency:
+  group: identityos-provider
+  cancel-in-progress: false
+  queue: max
+
 jobs:
   journal:
     runs-on: ubuntu-latest
@@ -45,6 +50,9 @@ jobs:
       - name: Run recent IdentityBench smoke suite (if API keys available)
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          GROQ_API_KEY_2: ${{ secrets.GROQ_API_KEY_2 }}
+          GROQ_API_KEY_3: ${{ secrets.GROQ_API_KEY_3 }}
+          GROQ_API_KEY_4: ${{ secrets.GROQ_API_KEY_4 }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         continue-on-error: true
         run: |
@@ -58,6 +66,8 @@ jobs:
           DAEDALUS_GITHUB_USERNAME: daedalus-Idos
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           GROQ_API_KEY_2: ${{ secrets.GROQ_API_KEY_2 }}
+          GROQ_API_KEY_3: ${{ secrets.GROQ_API_KEY_3 }}
+          GROQ_API_KEY_4: ${{ secrets.GROQ_API_KEY_4 }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           CEREBRAS_API_KEY: ${{ secrets.CEREBRAS_API_KEY }}
           CEREBRAS_API_KEY_2: ${{ secrets.CEREBRAS_API_KEY_2 }}

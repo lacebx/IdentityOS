@@ -631,6 +631,12 @@ class TestBenchmarkProvenance:
             assert scheduled.count(secret_binding) == 2
         assert scheduled.count("include-hidden-files: true") == 2
         assert scheduled.count("if-no-files-found: error") == 2
+        assert scheduled.count("continue-on-error: true") == 2
+        assert scheduled.count("if: ${{ always() && !cancelled() }}") == 2
+        assert "Report weekly runtime failure after preserving evidence" in scheduled
+        assert "Report monthly runtime failure after preserving evidence" in scheduled
+        assert "weekly-runtime.txt" in scheduled
+        assert "monthly-runtime-run${i}.txt" in scheduled
         assert scheduled.count(
             "hashFiles('identitybench/**', '.github/workflows/benchmark-scheduled.yml')"
         ) == 4
@@ -671,6 +677,29 @@ class TestBenchmarkProvenance:
         assert "uses: actions/checkout@v" not in workflow
         assert "uses: actions/setup-python@v" not in workflow
         assert "uses: actions/upload-artifact@v" not in workflow
+
+    def test_provider_workflows_share_a_non_cancelling_queue(self):
+        root = Path(__file__).resolve().parents[1]
+        workflow_names = (
+            "benchmark-pr.yml",
+            "benchmark-scheduled.yml",
+            "benchmark-integrity.yml",
+            "daedalus-daily.yml",
+            "daedalus-review.yml",
+        )
+
+        for name in workflow_names:
+            workflow = (root / ".github/workflows" / name).read_text()
+            assert "group: identityos-provider" in workflow
+            assert "cancel-in-progress: false" in workflow
+            assert "queue: max" in workflow
+
+        daily = (root / ".github/workflows/daedalus-daily.yml").read_text()
+        for key_index in range(2, 5):
+            assert (
+                f"GROQ_API_KEY_{key_index}: "
+                f"${{{{ secrets.GROQ_API_KEY_{key_index} }}}}"
+            ) in daily
 
     def test_legacy_diagnostic_schedules_are_attested_but_not_promotion_gates(self):
         root = Path(__file__).resolve().parents[1]

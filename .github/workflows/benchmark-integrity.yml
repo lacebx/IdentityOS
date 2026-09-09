@@ -7,8 +7,9 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: identitybench-paired-integrity
+  group: identityos-provider
   cancel-in-progress: false
+  queue: max
 
 env:
   GROQ_MODEL: "openai/gpt-oss-20b"
