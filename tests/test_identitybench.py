@@ -620,6 +620,13 @@ class TestBenchmarkProvenance:
 
         assert "include-hidden-files: true" in pr_workflow
         assert "if-no-files-found: error" in pr_workflow
+        assert "push:\n    branches: [main]" in pr_workflow
+        assert "BENCHMARK_BASELINE_REF:" in pr_workflow
+        assert pr_workflow.count("${{ env.BENCHMARK_BASELINE_REF }}") == 2
+        assert (
+            "- name: Comment benchmark summary on PR\n"
+            "        if: github.event_name == 'pull_request'"
+        ) in pr_workflow
         assert "hashFiles('identitybench/**', '.github/workflows/benchmark-pr.yml')" in pr_workflow
         assert "${{ github.run_id }}" in pr_workflow
         for key_index in range(2, 5):

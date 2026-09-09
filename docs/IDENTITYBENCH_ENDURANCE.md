@@ -54,9 +54,12 @@ executable benchmark suite, and a comparison signature covering the suite,
 model, seed, worlds, and resource budgets. Regression analysis refuses to
 compare mismatched signatures. CI cache chains use the same suite and workflow
 hash plus a unique run ID, preserving new history without restoring results
-from changed scoring code. Uploaded artifacts explicitly include the hidden
-`.identitybench` directory; the raw world transcripts and configuration remain
-available alongside the human-readable report as execution evidence.
+from changed scoring code. Trusted pushes to `main` publish the reusable PR
+baseline because GitHub scopes caches created by a pull request to that PR's
+synthetic merge ref; later PRs restore the `main` history rather than accepting
+state written by a sibling PR. Uploaded artifacts explicitly include the
+hidden `.identitybench` directory; the raw world transcripts and configuration
+remain available alongside the human-readable report as execution evidence.
 
 The proposed protected evaluator, multiple-daily schedule, paired statistical
 gate, and autonomous improvement workflow are specified in
