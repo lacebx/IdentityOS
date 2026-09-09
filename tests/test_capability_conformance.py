@@ -14,7 +14,7 @@ from runtime.persistence import JSONFileBackend
 
 ROOT = Path(__file__).resolve().parents[1]
 MARKETPLACE_INDEX = ROOT / "registry" / "capabilities" / "index.json"
-NETWORK_CAPABILITIES = {"github", "weather", "web"}
+NETWORK_CAPABILITIES = {"github", "weather", "web", "browser"}
 
 
 def _marketplace_entries() -> list[dict]:
@@ -53,7 +53,7 @@ def _install_marketplace(
 
 def test_marketplace_only_advertises_registered_conformant_capabilities():
     entries = _marketplace_entries()
-    assert len(entries) == 18
+    assert len(entries) == 19
     assert len({entry["id"] for entry in entries}) == len(entries)
 
     for entry in entries:
