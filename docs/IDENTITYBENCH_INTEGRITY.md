@@ -17,6 +17,11 @@ fail-closed promotion gate:
 - one rolling GitHub issue receives the latest actionable observation.
 - failed model runs are copied, attested, and evaluated as ineligible evidence
   before the trial job reports failure.
+- weekly and monthly diagnostics likewise package raw run JSON and console
+  output before reporting an execution failure.
+- provider-backed workflows share one non-cancelling repository queue so
+  delayed schedules and pull-request checks cannot consume the same quota
+  concurrently.
 
 The scheduled repository workflow is deliberately **advisory**. Protected
 promotion remains disabled until an evaluator outside the candidate repository
@@ -137,6 +142,20 @@ therefore uses two reduced-budget observations, allows a longer bounded wait
 for short provider cooldowns, and preserves failed evidence. A higher-quota
 manual audit or the future quota proxy is still required for three-pair
 decision-quality evidence. See [Groq rate limits](https://console.groq.com/docs/rate-limits).
+
+Hosted observations also exposed a model/provider formatting failure in which
+the model emitted a tool call when none was available, then repeated a malformed
+tool call after a schema-free retry. The adapter now makes one bounded recovery
+attempt and, if valid text still cannot be produced, returns an explicit runtime
+statement that no tool ran and no external claim was verified. It never executes
+malformed arguments. This keeps the interaction observable and scorable without
+turning missing execution into a plausible model-generated answer.
+
+All workflows that consume provider capacity use the `identityos-provider`
+concurrency group with a retained queue. The queue serializes paired, pull-request,
+weekly/monthly, journal, and AI-review workloads. It reduces avoidable overlap;
+it does not raise the organization quota, suppress a 429, or make a failed run
+eligible.
 
 ## Comparison eligibility
 
