@@ -518,9 +518,16 @@ class TestOpenAIAdapter:
             "'code': 'tool_use_failed', 'failed_generation': "
             "'{\"name\": \"browser.run\", \"arguments\": {}}'}}"
         )
+        malformed_retry_error = (
+            "Error code: 400 - {'error': {'message': "
+            "'Failed to parse tool call arguments as JSON', "
+            "'code': 'tool_use_failed', 'failed_generation': "
+            "'{\"name\": \"github__summarize_release\", "
+            "\"arguments\": {\"owner\":\"lacebx\",\"repo\":\"\"}'}}"
+        )
         client.chat.completions.create.side_effect = [
             RuntimeError(disabled_tool_error),
-            RuntimeError(disabled_tool_error),
+            RuntimeError(malformed_retry_error),
         ]
         adapter = OpenAIAdapter(api_key="sk-test", max_tool_rounds=4)
 
