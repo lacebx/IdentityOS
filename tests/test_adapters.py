@@ -466,6 +466,71 @@ class TestOpenAIAdapter:
         assert "tools" not in calls[1].kwargs
         assert "Do not claim an action occurred" in calls[1].kwargs["messages"][0]["content"]
 
+    def test_recovers_truncated_tool_call_when_tools_were_not_offered(
+        self, mock_openai_client
+    ):
+        client = mock_openai_client.return_value
+        truncated_disabled_tool_error = (
+            "Error code: 400 - {'error': {'message': "
+            "'Tool choice is none, but model called a tool', "
+            "'type': 'invalid_request_error', 'code': 'tool_use_failed', "
+            "'failed_generation': '{\"name\": \"browser.run\", "
+            "\"arguments\": {\"id\":\"1\",\"params\":{\"command\":[\"bash\"}'}}"
+        )
+        client.chat.completions.create.side_effect = [
+            RuntimeError(truncated_disabled_tool_error),
+            MagicMock(
+                choices=[MagicMock(message=MagicMock(
+                    content="I cannot inspect that without runtime evidence.",
+                    tool_calls=None,
+                ))]
+            ),
+        ]
+        adapter = OpenAIAdapter(api_key="sk-test", max_tool_rounds=1)
+
+        result = adapter.generate(
+            context="Use only runtime evidence.",
+            user_input="Inspect the repository.",
+            identity=_MockIdentity(),
+            retries=1,
+        )
+
+        assert result == "I cannot inspect that without runtime evidence."
+        calls = client.chat.completions.create.call_args_list
+        assert len(calls) == 2
+        assert "tools" not in calls[0].kwargs
+        assert "tools" not in calls[1].kwargs
+        assert "Do not claim an action occurred" in calls[1].kwargs["messages"][0]["content"]
+
+    def test_repeated_truncated_disabled_tool_call_returns_non_execution_evidence(
+        self, mock_openai_client
+    ):
+        client = mock_openai_client.return_value
+        truncated_disabled_tool_error = (
+            "Error code: 400 - {'error': {'message': "
+            "'Tool choice is none, but model called a tool', "
+            "'code': 'tool_use_failed', 'failed_generation': "
+            "'{\"name\": \"curl\", \"arguments\": {\"url\":\"}'}}"
+        )
+        client.chat.completions.create.side_effect = [
+            RuntimeError(truncated_disabled_tool_error),
+            RuntimeError(truncated_disabled_tool_error),
+        ]
+        adapter = OpenAIAdapter(api_key="sk-test", max_tool_rounds=1)
+
+        result = adapter.generate(
+            context="Use only runtime evidence.",
+            user_input="Inspect an external page.",
+            identity=_MockIdentity(),
+            retries=1,
+        )
+
+        assert result == (
+            "The model could not produce a valid plain-text response. "
+            "No tool was executed and no external claim was verified."
+        )
+        assert client.chat.completions.create.call_count == 2
+
     def test_malformed_tool_arguments_retry_without_executing(
         self, mock_openai_client
     ):
