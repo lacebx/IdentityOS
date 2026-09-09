@@ -631,6 +631,12 @@ class TestBenchmarkProvenance:
             assert scheduled.count(secret_binding) == 2
         assert scheduled.count("include-hidden-files: true") == 2
         assert scheduled.count("if-no-files-found: error") == 2
+        assert scheduled.count("continue-on-error: true") == 2
+        assert scheduled.count("if: ${{ always() && !cancelled() }}") == 2
+        assert "Report weekly runtime failure after preserving evidence" in scheduled
+        assert "Report monthly runtime failure after preserving evidence" in scheduled
+        assert "weekly-runtime.txt" in scheduled
+        assert "monthly-runtime-run${i}.txt" in scheduled
         assert scheduled.count(
             "hashFiles('identitybench/**', '.github/workflows/benchmark-scheduled.yml')"
         ) == 4
