@@ -650,7 +650,12 @@ class TestBenchmarkProvenance:
         assert "github.ref == 'refs/heads/main'" in workflow
         assert "max-parallel: 1" in workflow
         assert "matrix: ${{ fromJSON(needs.prepare.outputs.trial_matrix) }}" in workflow
-        assert "github.event_name == 'schedule' && '1' || '3'" in workflow
+        assert "github.event_name == 'schedule' && '1' || inputs.trial_count" in workflow
+        assert "trial_count:" in workflow
+        assert "One advisory pair or the full three-pair audit" in workflow
+        assert 'default: "3"' in workflow
+        assert 'if [[ "${INTEGRITY_TRIALS}" == "1" ]]' in workflow
+        assert 'elif [[ "${INTEGRITY_TRIALS}" == "3" ]]' in workflow
         assert "required_trials = max(DEFAULT_REQUIRED_TRIALS, required_trials)" in (
             root / "identitybench/integrity.py"
         ).read_text()

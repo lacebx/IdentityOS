@@ -123,10 +123,11 @@ frequent observational signal within the provider's documented organization
 quota while preserving equivalence between sides. It never authorizes
 promotion.
 
-A manually dispatched audit performs three complete pairs. The promotion gate
-enforces a hard minimum of three trials even if a caller supplies a plan that
-claims fewer are required. Thus a one-pair scheduled result stays visibly
-incomplete rather than turning scarce quota into weak statistical evidence.
+A manually dispatched audit defaults to three complete pairs and may explicitly
+select one pair for advisory operational validation. The promotion gate enforces
+a hard minimum of three trials even if a caller supplies a plan that claims fewer
+are required. Thus every one-pair result stays visibly incomplete rather than
+turning scarce quota into weak statistical evidence.
 
 Every window evaluates the first parent of the protected `main` commit and the
 current `main` commit with the same freshly selected seeds and equivalent fresh
