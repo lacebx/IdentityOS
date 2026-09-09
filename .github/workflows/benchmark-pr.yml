@@ -87,11 +87,10 @@ jobs:
           set -o pipefail
           identitybench compare --id ${{ env.BENCHMARK_IDENTITY }} --last 2 2>&1 | tee regression-check.txt
 
-      - name: Check for regressions
+      - name: Report advisory regression observations
         run: |
           if [ -f regression-check.txt ] && grep -q "REGRESSION" regression-check.txt; then
-            echo "::error::Critical metric regression detected. Review benchmark report."
-            exit 1
+            echo "::warning::Single-run score regression observed. Review the benchmark evidence; only the protected paired gate has promotion authority."
           fi
 
       - name: Upload benchmark artifacts
