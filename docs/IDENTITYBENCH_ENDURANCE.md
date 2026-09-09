@@ -60,6 +60,9 @@ synthetic merge ref; later PRs restore the `main` history rather than accepting
 state written by a sibling PR. Uploaded artifacts explicitly include the
 hidden `.identitybench` directory; the raw world transcripts and configuration
 remain available alongside the human-readable report as execution evidence.
+After a cache restore, workflows inspect the persisted identity by its explicit
+ID and only create it when it is genuinely absent. This preserves the stable
+creation fingerprint used by the identity-consistency metric.
 
 The PR comparison reports a single-run score regression as an annotation, not
 as promotion evidence. Model-backed smoke scores are noisy enough that one

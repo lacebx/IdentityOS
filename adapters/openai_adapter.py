@@ -126,6 +126,21 @@ def _is_output_parse_error(text: str) -> bool:
     )
 
 
+def _is_disabled_tool_call_error(text: str) -> bool:
+    """Recognize provider rejection even when ``failed_generation`` is corrupt.
+
+    Groq can report that a model called a tool while tool choice was ``none``
+    and attach an incomplete JSON fragment.  Parsing that fragment is useful
+    when possible, but the provider's structured error message is sufficient
+    to establish that no callable tool was offered and no call was executed.
+    """
+    lowered = text.lower().replace("tool_choice", "tool choice")
+    return (
+        "tool choice is none" in lowered
+        and ("called a tool" in lowered or "tool call" in lowered)
+    )
+
+
 def _runtime_evidence_fallback(evidence: list[tuple[str, str]]) -> str:
     lines = [
         "Model synthesis was unavailable. Verified runtime evidence:",
@@ -358,7 +373,7 @@ class OpenAIAdapter(BaseAdapter):
                 attempt += 1
                 try:
                     request_kwargs = dict(kwargs)
-                    if tool_rounds >= self.max_tool_rounds:
+                    if tool_rounds >= self.max_tool_rounds or plain_text_recovery_used:
                         request_kwargs.pop("tools", None)
                         request_kwargs.pop("tool_choice", None)
                     tools_enabled_for_request = bool(request_kwargs.get("tools")) and (
@@ -402,7 +417,9 @@ class OpenAIAdapter(BaseAdapter):
                         or _parse_failed_generation_tool_call(msg)
                     )
                     model_tool_rejection = (
-                        rejected_call is not None or _is_output_parse_error(msg)
+                        rejected_call is not None
+                        or _is_output_parse_error(msg)
+                        or _is_disabled_tool_call_error(msg)
                     )
                     if (
                         tool_rounds >= self.max_tool_rounds
@@ -418,7 +435,11 @@ class OpenAIAdapter(BaseAdapter):
                         not tools_enabled_for_request
                         and model_tool_rejection
                         and not tool_evidence
-                        and (not execute_tool or tool_rounds >= self.max_tool_rounds)
+                        and (
+                            rejected_call is None
+                            or not execute_tool
+                            or tool_rounds >= self.max_tool_rounds
+                        )
                     ):
                         if plain_text_recovery_used:
                             logger.warning(

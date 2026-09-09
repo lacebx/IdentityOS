@@ -52,7 +52,7 @@ jobs:
 
       - name: Create benchmark identity (first run only)
         run: |
-          if identity inspect ${{ env.BENCHMARK_IDENTITY }} >/dev/null 2>&1; then
+          if identity inspect --id ${{ env.BENCHMARK_IDENTITY }} >/dev/null 2>&1; then
             echo "Reusing persisted identity ${{ env.BENCHMARK_IDENTITY }}."
           else
             identity create --name "BenchmarkBot" --id ${{ env.BENCHMARK_IDENTITY }} --persona "benchmark"
