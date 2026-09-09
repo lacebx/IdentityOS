@@ -119,8 +119,10 @@ def _parse_failed_generation_tool_call(text: str) -> Optional[tuple[str, dict]]:
 
 def _is_output_parse_error(text: str) -> bool:
     lowered = text.lower()
-    return "output_parse_failed" in lowered or (
-        "parsing failed" in lowered and "failed_generation" in lowered
+    return (
+        "output_parse_failed" in lowered
+        or "failed to parse tool call arguments" in lowered
+        or ("parsing failed" in lowered and "failed_generation" in lowered)
     )
 
 
@@ -130,6 +132,14 @@ def _runtime_evidence_fallback(evidence: list[tuple[str, str]]) -> str:
     ]
     lines.extend(f"- {name}: {result}" for name, result in evidence)
     return "\n".join(lines)
+
+
+def _no_runtime_evidence_fallback() -> str:
+    """Return a truthful terminal response when tool-free synthesis fails."""
+    return (
+        "The model could not produce a valid plain-text response. "
+        "No tool was executed and no external claim was verified."
+    )
 
 
 def _legacy_tool_context(
@@ -391,10 +401,13 @@ class OpenAIAdapter(BaseAdapter):
                         _parse_legacy_function_call(msg)
                         or _parse_failed_generation_tool_call(msg)
                     )
+                    model_tool_rejection = (
+                        rejected_call is not None or _is_output_parse_error(msg)
+                    )
                     if (
                         tool_rounds >= self.max_tool_rounds
                         and tool_evidence
-                        and (rejected_call is not None or _is_output_parse_error(msg))
+                        and model_tool_rejection
                     ):
                         logger.warning(
                             "Model synthesis failed after verified tool execution; "
@@ -403,11 +416,16 @@ class OpenAIAdapter(BaseAdapter):
                         return _runtime_evidence_fallback(tool_evidence)
                     if (
                         not tools_enabled_for_request
-                        and rejected_call is not None
+                        and model_tool_rejection
                         and not tool_evidence
-                        and not plain_text_recovery_used
                         and (not execute_tool or tool_rounds >= self.max_tool_rounds)
                     ):
+                        if plain_text_recovery_used:
+                            logger.warning(
+                                "Provider repeated an invalid tool response in "
+                                "schema-free mode; returning explicit non-execution evidence."
+                            )
+                            return _no_runtime_evidence_fallback()
                         # Some OpenAI-compatible providers can reject a model's
                         # attempted tool call when tools were never offered or
                         # were removed after the runtime budget was exhausted.

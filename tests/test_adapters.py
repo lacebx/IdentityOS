@@ -466,6 +466,77 @@ class TestOpenAIAdapter:
         assert "tools" not in calls[1].kwargs
         assert "Do not claim an action occurred" in calls[1].kwargs["messages"][0]["content"]
 
+    def test_malformed_tool_arguments_retry_without_executing(
+        self, mock_openai_client
+    ):
+        client = mock_openai_client.return_value
+        malformed_error = (
+            "Error code: 400 - {'error': {'message': "
+            "'Failed to parse tool call arguments as JSON', "
+            "'type': 'invalid_request_error', 'code': 'tool_use_failed', "
+            "'failed_generation': '{\"name\": \"github__search_repositories\", "
+            "\"arguments\": {\"query\":\"efficient LLM inference\"}'}}"
+        )
+        client.chat.completions.create.side_effect = [
+            RuntimeError(malformed_error),
+            MagicMock(
+                choices=[MagicMock(message=MagicMock(
+                    content="I cannot verify that without runtime evidence.",
+                    tool_calls=None,
+                ))]
+            ),
+        ]
+        executed = []
+        adapter = OpenAIAdapter(api_key="sk-test", max_tool_rounds=1)
+
+        result = adapter.generate(
+            context="Use tools only through the runtime.",
+            user_input="Research efficient LLM inference.",
+            identity=_MockIdentity(),
+            retries=1,
+            tools=[{
+                "type": "function",
+                "function": {"name": "github__search_repositories"},
+            }],
+            execute_tool=lambda name, args: executed.append((name, args)),
+        )
+
+        assert result == "I cannot verify that without runtime evidence."
+        assert executed == []
+        calls = client.chat.completions.create.call_args_list
+        assert len(calls) == 2
+        assert "tools" not in calls[1].kwargs
+        assert "cannot verify" in calls[1].kwargs["messages"][-1]["content"]
+
+    def test_repeated_tool_response_returns_non_execution_evidence(
+        self, mock_openai_client
+    ):
+        client = mock_openai_client.return_value
+        disabled_tool_error = (
+            "Error code: 400 - {'error': {'message': "
+            "'Tool choice is none, but model called a tool', "
+            "'code': 'tool_use_failed', 'failed_generation': "
+            "'{\"name\": \"browser.run\", \"arguments\": {}}'}}"
+        )
+        client.chat.completions.create.side_effect = [
+            RuntimeError(disabled_tool_error),
+            RuntimeError(disabled_tool_error),
+        ]
+        adapter = OpenAIAdapter(api_key="sk-test", max_tool_rounds=4)
+
+        result = adapter.generate(
+            context="Use only runtime evidence.",
+            user_input="Find the latest release.",
+            identity=_MockIdentity(),
+            retries=1,
+        )
+
+        assert result == (
+            "The model could not produce a valid plain-text response. "
+            "No tool was executed and no external claim was verified."
+        )
+        assert client.chat.completions.create.call_count == 2
+
     def test_returns_runtime_evidence_when_final_synthesis_is_rejected(
         self, mock_openai_client
     ):
