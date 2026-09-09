@@ -623,6 +623,11 @@ class TestBenchmarkProvenance:
         assert "push:\n    branches: [main]" in pr_workflow
         assert "BENCHMARK_BASELINE_REF:" in pr_workflow
         assert pr_workflow.count("${{ env.BENCHMARK_BASELINE_REF }}") == 2
+        inspect_command = "identity inspect --id ${{ env.BENCHMARK_IDENTITY }}"
+        assert pr_workflow.count(inspect_command) == 1
+        assert scheduled.count(inspect_command) == 2
+        assert "identity inspect ${{ env.BENCHMARK_IDENTITY }}" not in pr_workflow
+        assert "identity inspect ${{ env.BENCHMARK_IDENTITY }}" not in scheduled
         assert (
             "- name: Comment benchmark summary on PR\n"
             "        if: github.event_name == 'pull_request'"
