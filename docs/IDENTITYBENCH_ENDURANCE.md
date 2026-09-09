@@ -61,6 +61,13 @@ state written by a sibling PR. Uploaded artifacts explicitly include the
 hidden `.identitybench` directory; the raw world transcripts and configuration
 remain available alongside the human-readable report as execution evidence.
 
+The PR comparison reports a single-run score regression as an annotation, not
+as promotion evidence. Model-backed smoke scores are noisy enough that one
+unpaired observation cannot distinguish a code regression from provider/model
+variance. Unit, integration, runtime-execution, evidence-upload, and security
+failures remain hard PR failures. Statistical acceptance belongs to the
+independently rescored multi-pair protected gate described below.
+
 The proposed protected evaluator, multiple-daily schedule, paired statistical
 gate, and autonomous improvement workflow are specified in
 [`IDENTITYBENCH_INTEGRITY.md`](IDENTITYBENCH_INTEGRITY.md).
