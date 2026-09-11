@@ -80,6 +80,20 @@ provider credentials, holdout files, or the scoring implementation. Model
 access is exposed through a request-limited proxy so candidate code cannot read
 or exfiltrate a reusable provider secret.
 
+The public paired workflow enforces the same evaluator/runtime split within the
+repository. Its prepare job archives and attests one frozen `identitybench`
+package and commits its suite digest before any model call. Each base/candidate
+worker checks out the frozen product side, places the same evaluator bundle
+first on the module path, verifies the committed digest, and only then executes.
+Benchmark changes therefore cannot make a pair incomparable by
+accidentally scoring the two sides with different evaluators; they still require
+explicit baseline-reset approval in a protected promotion lane.
+
+Workers invoke the identity and benchmark CLIs from the isolated job root, not
+from either product checkout. This prevents Python's current-directory import
+precedence from silently selecting the side's bundled evaluator ahead of the
+attested evaluator path.
+
 Do not use `pull_request_target` to check out and execute an untrusted pull
 request with secrets. A trusted `workflow_run` consumer, isolated evaluator
 service, or locked-down self-hosted runner should evaluate the already-frozen

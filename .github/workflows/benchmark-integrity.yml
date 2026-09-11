@@ -89,6 +89,18 @@ jobs:
           digest="$(python -c 'from identitybench.provenance import suite_fingerprint; print(suite_fingerprint())')"
           echo "digest=${digest}" >> "${GITHUB_OUTPUT}"
 
+      - name: Freeze trusted evaluator bundle
+        env:
+          CANDIDATE_SHA: ${{ steps.refs.outputs.candidate_sha }}
+        shell: bash
+        run: |
+          mkdir -p integrity-plan
+          git archive \
+            --format=tar.gz \
+            --output=integrity-plan/trusted-evaluator.tar.gz \
+            "${CANDIDATE_SHA}" \
+            identitybench
+
       - name: Commit randomized trials and scan candidate diff
         env:
           BASE_SHA: ${{ steps.refs.outputs.base_sha }}
@@ -116,6 +128,11 @@ jobs:
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6
         with:
           subject-path: integrity-plan/seed-commitments.json
+
+      - name: Attest frozen evaluator before execution
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6
+        with:
+          subject-path: integrity-plan/trusted-evaluator.tar.gz
 
       - name: Upload committed trial plan
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -197,6 +214,20 @@ jobs:
           ref: ${{ matrix.side == 'base' && needs.prepare.outputs.base_sha || needs.prepare.outputs.candidate_sha }}
           path: source
 
+      - name: Extract and verify trusted evaluator
+        env:
+          EXPECTED_EVALUATOR_DIGEST: ${{ needs.prepare.outputs.evaluator_digest }}
+          PYTHONPATH: ${{ github.workspace }}/trusted-evaluator
+        shell: bash
+        run: |
+          mkdir -p trusted-evaluator
+          tar -xzf integrity-plan/trusted-evaluator.tar.gz -C trusted-evaluator
+          observed_digest="$(python -c 'from identitybench.provenance import suite_fingerprint; print(suite_fingerprint())')"
+          if [[ "${observed_digest}" != "${EXPECTED_EVALUATOR_DIGEST}" ]]; then
+            echo "::error::Frozen evaluator bundle does not match the committed digest."
+            exit 1
+          fi
+
       - name: Install frozen runtime side
         run: python -m pip install -e "./source[dev]"
 
@@ -205,7 +236,6 @@ jobs:
           BENCHMARK_IDENTITY: integrity-${{ github.run_id }}-${{ matrix.trial }}-${{ matrix.side }}
         shell: bash
         run: |
-          cd source
           identity create \
             --name "Integrity Benchmark" \
             --id "${BENCHMARK_IDENTITY}" \
@@ -235,11 +265,11 @@ jobs:
           IDENTITYBENCH_TRIAL_INDEX: ${{ matrix.trial }}
           IDENTITYBENCH_SEED_COMMITMENT: ${{ steps.trial.outputs.seed_commitment }}
           IDENTITYBENCH_IDENTITY_STATE_ORIGIN: fresh-paired-trial
+          PYTHONPATH: ${{ github.workspace }}/trusted-evaluator
         shell: bash
         run: |
           set -o pipefail
-          cd source
-          identitybench run "${BENCHMARK_IDENTITY}" --mode smoke --seed "${SEED}" 2>&1 | tee "../trial-output.txt"
+          identitybench run "${BENCHMARK_IDENTITY}" --mode smoke --seed "${SEED}" 2>&1 | tee "trial-output.txt"
 
       - name: Preserve observed runtime result
         id: collect
@@ -251,20 +281,19 @@ jobs:
         shell: bash
         run: |
           mkdir -p paired-evidence
-          cd source
           run_file="$(find ".identitybench/runs/${BENCHMARK_IDENTITY}" -type f -name '*.json' -print -quit)"
           if [[ -z "${run_file}" ]]; then
             echo "::error::Benchmark did not produce raw evidence."
             exit 1
           fi
-          cp "${run_file}" ../paired-evidence/run.json
-          cp ../trial-output.txt ../paired-evidence/runtime-output.txt
+          cp "${run_file}" paired-evidence/run.json
+          cp trial-output.txt paired-evidence/runtime-output.txt
           python - <<'PY'
           import json
           import os
           from pathlib import Path
 
-          Path("../paired-evidence/execution-status.json").write_text(
+          Path("paired-evidence/execution-status.json").write_text(
               json.dumps({
                   "benchmark_outcome": os.environ["BENCHMARK_OUTCOME"],
                   "run_sha": os.environ["RUN_SHA"],

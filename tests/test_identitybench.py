@@ -693,10 +693,18 @@ class TestBenchmarkProvenance:
         assert "needs.prepare.result == 'success'" in workflow
         assert "identitybench integrity gate" in workflow
         assert "identitybench integrity verify-ledger" in workflow
+        assert "Freeze trusted evaluator bundle" in workflow
+        assert "git archive" in workflow
+        assert "integrity-plan/trusted-evaluator.tar.gz" in workflow
+        assert "Extract and verify trusted evaluator" in workflow
+        assert "PYTHONPATH: ${{ github.workspace }}/trusted-evaluator" in workflow
+        assert 'cd source\n          identitybench run' not in workflow
+        assert 'cd source\n          identity create' not in workflow
+        assert "EXPECTED_EVALUATOR_DIGEST" in workflow
         assert "--protected" not in workflow
         assert "OPENAI_API_KEY" not in workflow
         assert "This issue is observational. It cannot authorize merge or promotion." in workflow
-        assert workflow.count("actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6") == 4
+        assert workflow.count("actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6") == 5
         assert "uses: actions/checkout@v" not in workflow
         assert "uses: actions/setup-python@v" not in workflow
         assert "uses: actions/upload-artifact@v" not in workflow
