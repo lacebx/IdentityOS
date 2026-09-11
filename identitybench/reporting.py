@@ -75,6 +75,15 @@ def generate_report_text(
     lines.append(f"  {BOLD}Overall Score:{RESET} {overall_str} {_bar(overall)}")
     lines.append(f"")
 
+    champion = run_data.get("champion_baseline", {})
+    if champion:
+        lines.append(
+            f"  {BOLD}Verified Observed Champion:{RESET} "
+            f"{champion.get('champion_score')} ({champion.get('status', 'UNKNOWN')})"
+        )
+        lines.append("  Authority: advisory only; protected paired evidence controls promotion.")
+        lines.append("")
+
     cat_scores = run_data.get("category_scores", {})
     prev_cats = prev_run_data.get("category_scores", {}) if prev_run_data else {}
     explanations = run_data.get("explanations", {})
@@ -307,6 +316,16 @@ def generate_markdown_report(run_data: dict, trend_data: Optional[List[dict]] = 
     lines.append(f"**Identity:** `{identity}`  ")
     lines.append(f"**Timestamp:** {ts}  ")
     lines.append(f"**Overall Score:** {overall_str}/100  \n")
+
+    champion = run_data.get("champion_baseline", {})
+    if champion:
+        lines.append("## Verified Observed Champion Baseline\n")
+        lines.append(f"- Status: **{champion.get('status', 'UNKNOWN')}**")
+        lines.append(f"- Verified observed champion: **{champion.get('champion_score')}**")
+        lines.append(
+            "- Authority: advisory only; accepted promotion requires the protected paired gate."
+        )
+        lines.append("")
 
     cat_scores = run_data.get("category_scores", {})
     explanations = run_data.get("explanations", {})

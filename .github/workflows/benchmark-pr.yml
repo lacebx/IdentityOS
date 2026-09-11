@@ -85,12 +85,12 @@ jobs:
         id: compare
         run: |
           set -o pipefail
-          identitybench compare --id ${{ env.BENCHMARK_IDENTITY }} --last 2 2>&1 | tee regression-check.txt
+          identitybench compare --id ${{ env.BENCHMARK_IDENTITY }} --last 2 --baseline champion 2>&1 | tee regression-check.txt
 
       - name: Report advisory regression observations
         run: |
           if [ -f regression-check.txt ] && grep -q "REGRESSION" regression-check.txt; then
-            echo "::warning::Single-run score regression observed. Review the benchmark evidence; only the protected paired gate has promotion authority."
+            echo "::warning::Single-run score regression against the verified observed champion. The champion was retained; only the protected paired gate has promotion authority."
           fi
 
       - name: Upload benchmark artifacts
@@ -128,6 +128,10 @@ jobs:
               const endurance = fs.readFileSync('endurance-report.md', 'utf8');
               const lines = endurance.split('\n').slice(0, 28).join('\n');
               summary += '\n### Endurance Health\n' + lines;
+            } catch(e) {}
+            try {
+              const comparison = fs.readFileSync('regression-check.txt', 'utf8');
+              summary += '\n### Verified Observed Champion Comparison\n```\n' + comparison.slice(-2000) + '\n```\n';
             } catch(e) {}
             github.rest.issues.createComment({
               issue_number: context.issue.number,

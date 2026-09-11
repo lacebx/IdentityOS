@@ -44,13 +44,20 @@ from identitybench.provenance import comparison_signature, suite_fingerprint
 from identitybench.integrity import (
     INTEGRITY_SCHEMA_VERSION,
     IntegrityError,
+    accepted_champion_from_ledger,
     append_ledger_record,
     build_trial_plan,
     evaluate_promotion,
+    evaluation_profile_digest,
     scan_candidate_diff,
     score_pair,
     verify_ledger,
     verify_trial_reveal,
+)
+from identitybench.champion import (
+    assess_observed_champion,
+    rescored_run,
+    select_observed_champion,
 )
 
 
@@ -167,6 +174,8 @@ def _integrity_summary(decision: Mapping[str, Any]) -> str:
         f"Promotion authorized: **{str(decision['promotion_authorized']).lower()}**",
         f"Trials: {decision['observed_trials']}/{decision['required_trials']}",
         f"Median paired delta: {decision.get('median_paired_delta')}",
+        f"Accepted champion before: {decision.get('accepted_champion_before')}",
+        f"Candidate median score: {decision.get('candidate_median_score')}",
         f"95% interval: {decision.get('confidence_interval_95')}",
         "",
         "## Gates",
@@ -218,6 +227,7 @@ def cmd_integrity_gate(args: argparse.Namespace) -> None:
                 "candidate_sha": reveal["candidate_sha"],
                 "evaluator_digest": evaluator,
                 "protected_suite_digest": config.get("protected_suite_digest"),
+                "evaluation_profile_digest": evaluation_profile_digest(config),
                 "lane": config.get("lane", "public"),
                 "eligible": False,
                 "ineligibility_reasons": load_errors,
@@ -235,12 +245,25 @@ def cmd_integrity_gate(args: argparse.Namespace) -> None:
         "baseline_reset_required": False,
         "findings": [{"reason": "no independently generated diff scan was supplied"}],
     }
+    ledger_records = verify_ledger(args.ledger) if args.ledger else []
+    observed_profiles = {
+        pair.get("evaluation_profile_digest")
+        for pair in pairs
+        if pair.get("evaluation_profile_digest")
+    }
+    evaluation_profile = next(iter(observed_profiles)) if len(observed_profiles) == 1 else None
+    accepted_champion = accepted_champion_from_ledger(
+        ledger_records, evaluation_profile=evaluation_profile
+    )
     decision = evaluate_promotion(
         pairs,
         protected=args.protected,
         attestation_verified=args.evidence_attestations_verified,
         provider_receipts_verified=args.provider_receipts_verified,
         anti_gaming_scan_passed=diff_scan.get("passed") is True,
+        baseline_reset_required=diff_scan.get("baseline_reset_required") is True,
+        baseline_reset_approved=args.baseline_reset_approved,
+        accepted_champion=accepted_champion,
         required_trials=commitments["trial_count"],
         minimum_delta=args.minimum_delta,
         max_world_regression=args.max_world_regression,
@@ -252,7 +275,19 @@ def cmd_integrity_gate(args: argparse.Namespace) -> None:
     decision["base_sha"] = commitments["base_sha"]
     decision["candidate_sha"] = commitments["candidate_sha"]
     decision["evaluator_digest"] = evaluator
+    decision["evaluation_profile_digest"] = evaluation_profile
     decision["diff_scan"] = diff_scan
+    if decision["promotion_authorized"]:
+        decision["accepted_champion_after"] = {
+            "overall_score": decision["candidate_median_score"],
+            "commit_sha": commitments["candidate_sha"],
+            "decision_digest": decision["decision_digest"],
+            "evaluator_digest": evaluator,
+            "evaluation_profile_digest": evaluation_profile,
+            "window_id": commitments["window_id"],
+        }
+    else:
+        decision["accepted_champion_after"] = accepted_champion
     _write_json(args.output, decision)
     if args.summary:
         destination = Path(args.summary)
@@ -353,14 +388,47 @@ def cmd_compare(args: argparse.Namespace) -> None:
             if comparison_signature(run) == latest_signature
         ]
         recent = loaded_runs[:args.last]
-        if len(recent) < 2:
-            print(f"Need at least 2 comparable runs to compare. Found {len(recent)}.")
+        if not recent:
+            print("Need at least 1 completed run to establish a baseline. Found 0.")
             return
         curr_run_data = recent[0]
-        prev_run_data = recent[1]
+        if args.baseline == "champion":
+            champion = select_observed_champion(
+                loaded_runs[1:], signature=latest_signature
+            )
+            assessment, _ = assess_observed_champion(
+                curr_run_data, loaded_runs[1:]
+            )
+            if assessment["status"] == "INELIGIBLE":
+                raise IntegrityError(
+                    "latest run cannot be compared to the verified champion: "
+                    + assessment["reason"]
+                )
+            if champion is None:
+                print(f"Comparison for {identity_id} (verified observed champion baseline):\n")
+                print(
+                    "  Baseline initialized at "
+                    f"{assessment['champion_score']:g}; the next comparable run must beat it."
+                )
+                print("  Authority: advisory observation; protected paired evidence is required for promotion.")
+                return
+            prev_run_data = rescored_run(champion)
+            current = select_observed_champion(
+                [curr_run_data], signature=latest_signature
+            )
+            if current is None:  # Defensive: assessment above already verifies it.
+                raise IntegrityError("latest run unexpectedly lost champion eligibility")
+            curr_run_data = rescored_run(current)
+            comparison_label = "verified observed champion baseline"
+        else:
+            if len(recent) < 2:
+                print(f"Need at least 2 comparable runs to compare. Found {len(recent)}.")
+                return
+            prev_run_data = recent[1]
+            comparison_label = f"last {args.last} runs"
         if curr_run_data and prev_run_data:
             summary = generate_regression_summary(prev_run_data, curr_run_data)
-            print(f"Comparison for {identity_id} (last {args.last} runs):\n")
+            print(f"Comparison for {identity_id} ({comparison_label}):\n")
             ov = summary["overall"]
             arrow = "▲" if ov["change"] > 0 else ("▼" if ov["change"] < 0 else "─")
             print(f"  Overall: {ov['previous']} → {ov['current']} ({arrow}{ov['change']:+g}) [{ov['verdict']}]")
@@ -374,6 +442,17 @@ def cmd_compare(args: argparse.Namespace) -> None:
                     print(f"    ▲ {r['category']:20s} {r['previous']} → {r['current']} ({r['change']:+g})")
             if not summary["regressions"] and not summary["improvements"]:
                 print(f"\n  No significant changes (threshold: {summary['threshold']} pts).")
+            if args.baseline == "champion":
+                if assessment["status"] == "ADVANCED":
+                    print(
+                        "\n  Observed champion advanced; this remains advisory until "
+                        "the protected paired gate authorizes promotion."
+                    )
+                else:
+                    print(
+                        f"\n  Champion retained at {assessment['champion_score']:g}; "
+                        "the lower or unsafe result was not adopted as the next baseline."
+                    )
     else:
         print("Specify --identities for cross-identity comparison or --id with --last for historical comparison.")
 
@@ -611,6 +690,12 @@ def build_parser() -> argparse.ArgumentParser:
     p_compare.add_argument("--identities", nargs="+", default=[], help="Identity IDs to compare across identities")
     p_compare.add_argument("--id", dest="identity_id", default=None, help="Identity ID (for --last)")
     p_compare.add_argument("--last", type=int, default=0, help="Compare last N runs of identity")
+    p_compare.add_argument(
+        "--baseline",
+        choices=["champion", "previous"],
+        default="champion",
+        help="Use the verified high-water champion (default) or immediately previous run",
+    )
     p_compare.set_defaults(func=cmd_compare)
 
     p_weekly = sub.add_parser("weekly", help="Generate weekly engineering report")
@@ -694,6 +779,11 @@ def build_parser() -> argparse.ArgumentParser:
     p_integrity_gate.add_argument("--protected", action="store_true")
     p_integrity_gate.add_argument("--evidence-attestations-verified", action="store_true")
     p_integrity_gate.add_argument("--provider-receipts-verified", action="store_true")
+    p_integrity_gate.add_argument(
+        "--baseline-reset-approved",
+        action="store_true",
+        help="Allow a reviewed evaluator/schema change to establish a new champion chain",
+    )
     p_integrity_gate.add_argument("--enforce", action="store_true")
     p_integrity_gate.add_argument("--minimum-delta", type=float, default=3.0)
     p_integrity_gate.add_argument("--max-world-regression", type=float, default=5.0)
