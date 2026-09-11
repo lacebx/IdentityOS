@@ -633,7 +633,10 @@ class TestBenchmarkProvenance:
             "        if: github.event_name == 'pull_request'"
         ) in pr_workflow
         assert "Report advisory regression observations" in pr_workflow
-        assert "Single-run score regression observed" in pr_workflow
+        assert "Single-run score regression against the verified observed champion" in pr_workflow
+        assert "--baseline champion" in pr_workflow
+        assert "--baseline champion" in scheduled
+        assert "regression-check.txt" in pr_workflow
         assert "Critical metric regression detected" not in pr_workflow
         assert "hashFiles('identitybench/**', '.github/workflows/benchmark-pr.yml')" in pr_workflow
         assert "${{ github.run_id }}" in pr_workflow

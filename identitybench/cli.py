@@ -52,6 +52,11 @@ from identitybench.integrity import (
     verify_ledger,
     verify_trial_reveal,
 )
+from identitybench.champion import (
+    assess_observed_champion,
+    rescored_run,
+    select_observed_champion,
+)
 
 
 def cmd_run(args: argparse.Namespace) -> None:
@@ -353,14 +358,47 @@ def cmd_compare(args: argparse.Namespace) -> None:
             if comparison_signature(run) == latest_signature
         ]
         recent = loaded_runs[:args.last]
-        if len(recent) < 2:
-            print(f"Need at least 2 comparable runs to compare. Found {len(recent)}.")
+        if not recent:
+            print("Need at least 1 completed run to establish a baseline. Found 0.")
             return
         curr_run_data = recent[0]
-        prev_run_data = recent[1]
+        if args.baseline == "champion":
+            champion = select_observed_champion(
+                loaded_runs[1:], signature=latest_signature
+            )
+            assessment, _ = assess_observed_champion(
+                curr_run_data, loaded_runs[1:]
+            )
+            if assessment["status"] == "INELIGIBLE":
+                raise IntegrityError(
+                    "latest run cannot be compared to the verified champion: "
+                    + assessment["reason"]
+                )
+            if champion is None:
+                print(f"Comparison for {identity_id} (verified observed champion baseline):\n")
+                print(
+                    "  Baseline initialized at "
+                    f"{assessment['champion_score']:g}; the next comparable run must beat it."
+                )
+                print("  Authority: advisory observation; protected paired evidence is required for promotion.")
+                return
+            prev_run_data = rescored_run(champion)
+            current = select_observed_champion(
+                [curr_run_data], signature=latest_signature
+            )
+            if current is None:  # Defensive: assessment above already verifies it.
+                raise IntegrityError("latest run unexpectedly lost champion eligibility")
+            curr_run_data = rescored_run(current)
+            comparison_label = "verified observed champion baseline"
+        else:
+            if len(recent) < 2:
+                print(f"Need at least 2 comparable runs to compare. Found {len(recent)}.")
+                return
+            prev_run_data = recent[1]
+            comparison_label = f"last {args.last} runs"
         if curr_run_data and prev_run_data:
             summary = generate_regression_summary(prev_run_data, curr_run_data)
-            print(f"Comparison for {identity_id} (last {args.last} runs):\n")
+            print(f"Comparison for {identity_id} ({comparison_label}):\n")
             ov = summary["overall"]
             arrow = "▲" if ov["change"] > 0 else ("▼" if ov["change"] < 0 else "─")
             print(f"  Overall: {ov['previous']} → {ov['current']} ({arrow}{ov['change']:+g}) [{ov['verdict']}]")
@@ -374,6 +412,17 @@ def cmd_compare(args: argparse.Namespace) -> None:
                     print(f"    ▲ {r['category']:20s} {r['previous']} → {r['current']} ({r['change']:+g})")
             if not summary["regressions"] and not summary["improvements"]:
                 print(f"\n  No significant changes (threshold: {summary['threshold']} pts).")
+            if args.baseline == "champion":
+                if assessment["status"] == "ADVANCED":
+                    print(
+                        "\n  Observed champion advanced; this remains advisory until "
+                        "the protected paired gate authorizes promotion."
+                    )
+                else:
+                    print(
+                        f"\n  Champion retained at {assessment['champion_score']:g}; "
+                        "the lower or unsafe result was not adopted as the next baseline."
+                    )
     else:
         print("Specify --identities for cross-identity comparison or --id with --last for historical comparison.")
 
@@ -611,6 +660,12 @@ def build_parser() -> argparse.ArgumentParser:
     p_compare.add_argument("--identities", nargs="+", default=[], help="Identity IDs to compare across identities")
     p_compare.add_argument("--id", dest="identity_id", default=None, help="Identity ID (for --last)")
     p_compare.add_argument("--last", type=int, default=0, help="Compare last N runs of identity")
+    p_compare.add_argument(
+        "--baseline",
+        choices=["champion", "previous"],
+        default="champion",
+        help="Use the verified high-water champion (default) or immediately previous run",
+    )
     p_compare.set_defaults(func=cmd_compare)
 
     p_weekly = sub.add_parser("weekly", help="Generate weekly engineering report")

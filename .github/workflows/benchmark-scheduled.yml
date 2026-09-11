@@ -139,7 +139,7 @@ jobs:
             identitybench run ${{ env.BENCHMARK_IDENTITY }} --mode full --seed $((41 + i)) 2>&1 | tee ".identitybench/reports/monthly-runtime-run${i}.txt"
             identitybench report ${{ env.BENCHMARK_IDENTITY }} --markdown -o ".identitybench/reports/${{ env.BENCHMARK_IDENTITY }}-endurance-run$i.md"
           done
-          identitybench compare --id ${{ env.BENCHMARK_IDENTITY }} --last 3 2>&1
+          identitybench compare --id ${{ env.BENCHMARK_IDENTITY }} --last 3 --baseline champion 2>&1
           identitybench endurance report ${{ env.BENCHMARK_IDENTITY }} -o ".identitybench/reports/${{ env.BENCHMARK_IDENTITY }}-endurance.md"
 
       - name: Package endurance evidence for attestation

@@ -42,6 +42,7 @@ from identitybench.provenance import (
     suite_fingerprint,
 )
 from identitybench.integrity import evidence_digest
+from identitybench.champion import assess_observed_champion, rescored_run
 
 
 DEFAULT_WORLDS: List[Type[BenchmarkWorld]] = [
@@ -242,8 +243,9 @@ class IdentityBench:
             all_categories[cat] = round(all_categories[cat] / category_counts[cat], 1)
         overall = round(sum(all_categories.values()) / len(all_categories), 1) if all_categories else 0.0
         
-        # Load previous run for diff
-        prev_run = self.storage.load_latest_run(self.identity_id)
+        # Load history before saving this run.  The latest run is useful for
+        # short-term diagnostics; the verified champion is the stable baseline.
+        prior_runs = self.storage.load_all_runs(self.identity_id)
         capability_history = self.capability_journal.list_capabilities(self.identity_id)
         cap_entries = []
         for cap_id in capability_history:
@@ -303,11 +305,23 @@ class IdentityBench:
             "status": "failed" if any(wr.raw_data.get("error") for wr in self._world_results) else "completed",
         }
         run_data["evidence_digest"] = evidence_digest(run_data)
+        champion_assessment, champion = assess_observed_champion(run_data, prior_runs)
+        run_data["champion_baseline"] = champion_assessment
+
+        comparable_prior_runs = [
+            prior for prior in prior_runs
+            if prior.get("status") == "completed" and runs_are_comparable(prior, run_data)
+        ]
+        prev_run = comparable_prior_runs[0] if comparable_prior_runs else None
 
         # Analytics
         if prev_run and runs_are_comparable(prev_run, run_data):
             diff = compute_benchmark_diff(prev_run, run_data)
             run_data["diff_vs_previous"] = diff
+            if champion is not None:
+                run_data["diff_vs_champion"] = compute_benchmark_diff(
+                    rescored_run(champion), run_data
+                )
             signature = run_config["comparison_signature"]
             trends = [
                 trend for trend in self.storage.load_trends(self.identity_id)
@@ -315,7 +329,11 @@ class IdentityBench:
             ]
             regressions = detect_regressions(trends) if trends else []
             run_data["regressions"] = regressions
-            root_causes = analyze_root_causes(diff, prev_run, run_data, cap_entries)
+            baseline_run = rescored_run(champion) if champion is not None else prev_run
+            baseline_diff = run_data.get("diff_vs_champion", diff)
+            root_causes = analyze_root_causes(
+                baseline_diff, baseline_run, run_data, cap_entries
+            )
             run_data["root_causes"] = root_causes
             run_data["recommendations"] = generate_recommendations(
                 cat_scores=all_categories,
@@ -323,7 +341,7 @@ class IdentityBench:
                 regressions=regressions,
                 capability_history=cap_entries,
             )
-        elif prev_run:
+        elif prior_runs:
             run_data["comparison_status"] = {
                 "comparable": False,
                 "reason": "benchmark schema, suite, model, or resource profile changed",

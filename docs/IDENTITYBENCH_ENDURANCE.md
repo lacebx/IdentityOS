@@ -64,12 +64,21 @@ After a cache restore, workflows inspect the persisted identity by its explicit
 ID and only create it when it is genuinely absent. This preserves the stable
 creation fingerprint used by the identity-consistency metric.
 
-The PR comparison reports a single-run score regression as an annotation, not
-as promotion evidence. Model-backed smoke scores are noisy enough that one
-unpaired observation cannot distinguish a code regression from provider/model
-variance. Unit, integration, runtime-execution, evidence-upload, and security
-failures remain hard PR failures. Statistical acceptance belongs to the
-independently rescored multi-pair protected gate described below.
+Every completed run now carries a `champion_baseline` assessment. The champion
+is replayed from all independently rescorable runs with the exact same suite,
+model, seed, worlds, and resource profile. It is monotonic: a challenger must
+increase the overall score without a truth/isolation guardrail regression, a
+policy failure, or a world regression beyond the configured budget. A lower,
+invalid, or unsafe run is recorded but never becomes the next baseline. The
+champion comparison is included in every PR benchmark comment.
+
+This high-water mark remains an advisory observation, not promotion evidence.
+Model-backed smoke scores are noisy enough that one unpaired observation cannot
+distinguish a code regression from provider/model variance, and the luckiest
+single run must not gain merge authority. Unit, integration,
+runtime-execution, evidence-upload, and security failures remain hard PR
+failures. Statistical acceptance belongs to the independently rescored
+multi-pair protected gate described below.
 
 The proposed protected evaluator, multiple-daily schedule, paired statistical
 gate, and autonomous improvement workflow are specified in
