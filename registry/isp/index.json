@@ -67,6 +67,17 @@
       "total_skills": 15,
       "tags": ["scout", "monitoring", "intelligence", "discovery"],
       "url": "packs/scout/manifest.json"
+    },
+    {
+      "id": "surfer",
+      "name": "Surfer Pack",
+      "version": "1.0.0",
+      "description": "Comet-style web agency — browser control, search usefulness scoring, login, in-page actions",
+      "author": "IdentityOS",
+      "capabilities": ["browser", "web", "task_planner", "datetime"],
+      "total_skills": 20,
+      "tags": ["browser", "web", "search", "comet", "automation", "login"],
+      "url": "packs/surfer/manifest.json"
     }
   ]
 }

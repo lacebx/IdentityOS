@@ -12,6 +12,7 @@ from . import weather  # noqa: F401
 from . import calc  # noqa: F401
 from . import datetime  # noqa: F401
 from . import web  # noqa: F401
+from . import browser  # noqa: F401
 from . import filesystem  # noqa: F401
 from . import text  # noqa: F401
 from . import system_info  # noqa: F401

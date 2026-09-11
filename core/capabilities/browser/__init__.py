@@ -393,11 +393,19 @@ class BrowserCapability(Capability):
         return state
 
     def _goto(self, url: str, wait_until: str = "domcontentloaded") -> dict[str, Any]:
+        allowed = {"load", "domcontentloaded", "networkidle", "commit"}
+        wu = (wait_until or "domcontentloaded").strip().lower()
+        # Models sometimes emit Puppeteer names (networkidle0/2).
+        if wu in {"networkidle0", "networkidle2"}:
+            wu = "networkidle"
+        if wu not in allowed:
+            wu = "domcontentloaded"
+
         def _do() -> dict[str, Any]:
             state = self._page()
             with state.lock:
                 page = state.page
-                page.goto(url, wait_until=wait_until, timeout=45000)
+                page.goto(url, wait_until=wu, timeout=45000)
                 state.last_url = page.url
                 state.history.append(page.url)
                 snap = page_snapshot(page, max_chars=4000)

@@ -1,0 +1,95 @@
+{
+  "id": "browser",
+  "name": "Browser",
+  "version": "1.0.0",
+  "author": "IdentityOS",
+  "license": "MIT",
+  "homepage": "https://github.com/lacebx/IdentityOS",
+  "description": "Person-like web surfing: search the web, score result usefulness against a task, open pages, click/type/login, and act inside authenticated browser sessions (Comet-style).",
+  "provider": "core.capabilities.browser.BrowserCapability",
+  "config_schema": {
+    "type": "object",
+    "properties": {
+      "headless": {
+        "type": "boolean",
+        "description": "Run Chromium headless (default true)"
+      },
+      "storage_root": {
+        "type": "string",
+        "description": "Root directory for persistent browser profiles"
+      }
+    }
+  },
+  "permissions": {
+    "network": true,
+    "filesystem": true,
+    "browser": true
+  },
+  "skills": [
+    {
+      "name": "browser.open",
+      "description": "Open a URL in a persistent browser session",
+      "permission": "public"
+    },
+    {
+      "name": "browser.navigate",
+      "description": "Navigate the current tab to a URL",
+      "permission": "public"
+    },
+    {
+      "name": "browser.search",
+      "description": "Search the web and score results against a task",
+      "permission": "public"
+    },
+    {
+      "name": "browser.evaluate_results",
+      "description": "Score search results against a task and recommend URLs",
+      "permission": "public"
+    },
+    {
+      "name": "browser.snapshot",
+      "description": "Read current page text and interactive elements",
+      "permission": "public"
+    },
+    {
+      "name": "browser.click",
+      "description": "Click an element by selector, text, or role",
+      "permission": "public"
+    },
+    {
+      "name": "browser.type",
+      "description": "Type into an input or the focused element",
+      "permission": "public"
+    },
+    {
+      "name": "browser.fill",
+      "description": "Fill a form field by selector",
+      "permission": "public"
+    },
+    {
+      "name": "browser.login",
+      "description": "Log into a site with user-provided credentials",
+      "permission": "public"
+    },
+    {
+      "name": "browser.press",
+      "description": "Press a keyboard key",
+      "permission": "public"
+    },
+    {
+      "name": "browser.wait",
+      "description": "Wait for selector, URL, or milliseconds",
+      "permission": "public"
+    },
+    {
+      "name": "browser.status",
+      "description": "Report browser session status",
+      "permission": "public"
+    },
+    {
+      "name": "browser.close",
+      "description": "Close the browser session",
+      "permission": "public"
+    }
+  ]
+}
