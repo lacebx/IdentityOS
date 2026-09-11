@@ -44,9 +44,11 @@ from identitybench.provenance import comparison_signature, suite_fingerprint
 from identitybench.integrity import (
     INTEGRITY_SCHEMA_VERSION,
     IntegrityError,
+    accepted_champion_from_ledger,
     append_ledger_record,
     build_trial_plan,
     evaluate_promotion,
+    evaluation_profile_digest,
     scan_candidate_diff,
     score_pair,
     verify_ledger,
@@ -172,6 +174,8 @@ def _integrity_summary(decision: Mapping[str, Any]) -> str:
         f"Promotion authorized: **{str(decision['promotion_authorized']).lower()}**",
         f"Trials: {decision['observed_trials']}/{decision['required_trials']}",
         f"Median paired delta: {decision.get('median_paired_delta')}",
+        f"Accepted champion before: {decision.get('accepted_champion_before')}",
+        f"Candidate median score: {decision.get('candidate_median_score')}",
         f"95% interval: {decision.get('confidence_interval_95')}",
         "",
         "## Gates",
@@ -223,6 +227,7 @@ def cmd_integrity_gate(args: argparse.Namespace) -> None:
                 "candidate_sha": reveal["candidate_sha"],
                 "evaluator_digest": evaluator,
                 "protected_suite_digest": config.get("protected_suite_digest"),
+                "evaluation_profile_digest": evaluation_profile_digest(config),
                 "lane": config.get("lane", "public"),
                 "eligible": False,
                 "ineligibility_reasons": load_errors,
@@ -240,12 +245,25 @@ def cmd_integrity_gate(args: argparse.Namespace) -> None:
         "baseline_reset_required": False,
         "findings": [{"reason": "no independently generated diff scan was supplied"}],
     }
+    ledger_records = verify_ledger(args.ledger) if args.ledger else []
+    observed_profiles = {
+        pair.get("evaluation_profile_digest")
+        for pair in pairs
+        if pair.get("evaluation_profile_digest")
+    }
+    evaluation_profile = next(iter(observed_profiles)) if len(observed_profiles) == 1 else None
+    accepted_champion = accepted_champion_from_ledger(
+        ledger_records, evaluation_profile=evaluation_profile
+    )
     decision = evaluate_promotion(
         pairs,
         protected=args.protected,
         attestation_verified=args.evidence_attestations_verified,
         provider_receipts_verified=args.provider_receipts_verified,
         anti_gaming_scan_passed=diff_scan.get("passed") is True,
+        baseline_reset_required=diff_scan.get("baseline_reset_required") is True,
+        baseline_reset_approved=args.baseline_reset_approved,
+        accepted_champion=accepted_champion,
         required_trials=commitments["trial_count"],
         minimum_delta=args.minimum_delta,
         max_world_regression=args.max_world_regression,
@@ -257,7 +275,19 @@ def cmd_integrity_gate(args: argparse.Namespace) -> None:
     decision["base_sha"] = commitments["base_sha"]
     decision["candidate_sha"] = commitments["candidate_sha"]
     decision["evaluator_digest"] = evaluator
+    decision["evaluation_profile_digest"] = evaluation_profile
     decision["diff_scan"] = diff_scan
+    if decision["promotion_authorized"]:
+        decision["accepted_champion_after"] = {
+            "overall_score": decision["candidate_median_score"],
+            "commit_sha": commitments["candidate_sha"],
+            "decision_digest": decision["decision_digest"],
+            "evaluator_digest": evaluator,
+            "evaluation_profile_digest": evaluation_profile,
+            "window_id": commitments["window_id"],
+        }
+    else:
+        decision["accepted_champion_after"] = accepted_champion
     _write_json(args.output, decision)
     if args.summary:
         destination = Path(args.summary)
@@ -749,6 +779,11 @@ def build_parser() -> argparse.ArgumentParser:
     p_integrity_gate.add_argument("--protected", action="store_true")
     p_integrity_gate.add_argument("--evidence-attestations-verified", action="store_true")
     p_integrity_gate.add_argument("--provider-receipts-verified", action="store_true")
+    p_integrity_gate.add_argument(
+        "--baseline-reset-approved",
+        action="store_true",
+        help="Allow a reviewed evaluator/schema change to establish a new champion chain",
+    )
     p_integrity_gate.add_argument("--enforce", action="store_true")
     p_integrity_gate.add_argument("--minimum-delta", type=float, default=3.0)
     p_integrity_gate.add_argument("--max-world-regression", type=float, default=5.0)

@@ -118,6 +118,12 @@ def canonical_digest(value: Any) -> str:
     return hashlib.sha256(canonical_json_bytes(value)).hexdigest()
 
 
+def evaluation_profile_digest(config: Mapping[str, Any]) -> str:
+    """Hash promotion dimensions while intentionally excluding the trial seed."""
+
+    return canonical_digest({field: config.get(field) for field in _EQUIVALENT_CONFIG_FIELDS})
+
+
 def file_digest(path: str | Path) -> str:
     digest = hashlib.sha256()
     with Path(path).open("rb") as handle:
@@ -413,6 +419,7 @@ def score_pair(
         "candidate_sha": trial.get("candidate_sha"),
         "evaluator_digest": expected_evaluator_digest,
         "protected_suite_digest": candidate_config.get("protected_suite_digest"),
+        "evaluation_profile_digest": evaluation_profile_digest(candidate_config),
         "lane": candidate_config.get("lane", "public"),
         "eligible": not reasons,
         "ineligibility_reasons": reasons,
@@ -473,6 +480,9 @@ def evaluate_promotion(
     attestation_verified: bool,
     provider_receipts_verified: bool,
     anti_gaming_scan_passed: bool = False,
+    baseline_reset_required: bool = False,
+    baseline_reset_approved: bool = False,
+    accepted_champion: Optional[Mapping[str, Any]] = None,
     required_trials: int = DEFAULT_REQUIRED_TRIALS,
     minimum_delta: float = DEFAULT_MINIMUM_DELTA,
     max_world_regression: float = DEFAULT_MAX_WORLD_REGRESSION,
@@ -514,10 +524,19 @@ def evaluate_promotion(
             pair.get("candidate_sha"),
             pair.get("evaluator_digest"),
             pair.get("protected_suite_digest"),
+            pair.get("evaluation_profile_digest"),
             pair.get("lane"),
         )
         for pair in observed
     }
+    evaluation_profiles = {
+        pair.get("evaluation_profile_digest")
+        for pair in observed
+        if pair.get("evaluation_profile_digest")
+    }
+    evaluation_profile = (
+        next(iter(evaluation_profiles)) if len(evaluation_profiles) == 1 else None
+    )
     gate(
         "single_frozen_comparison",
         len(frozen_dimensions) == 1,
@@ -532,6 +551,15 @@ def evaluate_promotion(
          "a quota proxy must verify model-call receipts")
     gate("anti_gaming_scan", anti_gaming_scan_passed,
          "production changes must not branch on benchmark or CI signals")
+    gate(
+        "evaluator_baseline_reset",
+        not baseline_reset_required or baseline_reset_approved,
+        (
+            "benchmark/evaluator changes require explicit protected approval"
+            if baseline_reset_required
+            else "the candidate does not reset benchmark/evaluator baselines"
+        ),
+    )
 
     deltas = [float(pair["overall_delta"]) for pair in eligible if "overall_delta" in pair]
     if len(deltas) == required_trials:
@@ -546,6 +574,60 @@ def evaluate_promotion(
         confidence_interval = None
         gate("minimum_improvement", False, "insufficient eligible paired deltas")
         gate("confidence_excludes_zero", False, "insufficient eligible paired deltas")
+
+    base_scores = [
+        float(pair["base"]["overall_score"])
+        for pair in eligible
+        if isinstance(pair.get("base"), Mapping)
+        and "overall_score" in pair["base"]
+    ]
+    candidate_scores = [
+        float(pair["candidate"]["overall_score"])
+        for pair in eligible
+        if isinstance(pair.get("candidate"), Mapping)
+        and "overall_score" in pair["candidate"]
+    ]
+    base_median_score = (
+        round(float(statistics.median(base_scores)), 3)
+        if len(base_scores) == required_trials else None
+    )
+    candidate_median_score = (
+        round(float(statistics.median(candidate_scores)), 3)
+        if len(candidate_scores) == required_trials else None
+    )
+    if accepted_champion is None:
+        gate(
+            "accepted_champion_current",
+            True,
+            "no prior accepted champion exists; this is the protected bootstrap",
+        )
+        gate(
+            "accepted_champion_improved",
+            candidate_median_score is not None,
+            "a complete candidate median is required to establish the first champion",
+        )
+    else:
+        accepted_sha = accepted_champion.get("commit_sha")
+        accepted_score = accepted_champion.get("overall_score")
+        observed_base_shas = {pair.get("base_sha") for pair in observed}
+        gate(
+            "accepted_champion_current",
+            len(observed_base_shas) == 1 and accepted_sha in observed_base_shas,
+            f"paired base must equal accepted champion commit {accepted_sha}",
+        )
+        try:
+            champion_improved = (
+                candidate_median_score is not None
+                and accepted_score is not None
+                and candidate_median_score > float(accepted_score)
+            )
+        except (TypeError, ValueError):
+            champion_improved = False
+        gate(
+            "accepted_champion_improved",
+            champion_improved,
+            f"candidate median {candidate_median_score} must exceed accepted champion {accepted_score}",
+        )
 
     world_regressions = [
         (world, float(delta))
@@ -592,14 +674,61 @@ def evaluate_promotion(
         "observed_trials": len(observed),
         "median_paired_delta": median_delta,
         "confidence_interval_95": confidence_interval,
+        "base_median_score": base_median_score,
+        "candidate_median_score": candidate_median_score,
+        "evaluation_profile_digest": evaluation_profile,
+        "accepted_champion_before": dict(accepted_champion) if accepted_champion else None,
         "gates": gates,
         "pairs": list(pairs),
         "decision_digest": canonical_digest({
             "pairs": list(pairs),
             "gates": gates,
             "verdict": verdict,
+            "accepted_champion_before": (
+                dict(accepted_champion) if accepted_champion else None
+            ),
         }),
     }
+
+
+def accepted_champion_from_ledger(
+    records: Sequence[Mapping[str, Any]],
+    *,
+    evaluation_profile: Optional[str] = None,
+) -> Optional[dict[str, Any]]:
+    """Return the non-decreasing champion established by protected decisions."""
+
+    champion: Optional[dict[str, Any]] = None
+    for record in records:
+        payload = record.get("payload")
+        if not isinstance(payload, Mapping):
+            continue
+        if (
+            payload.get("promotion_authorized") is not True
+            or payload.get("verdict") != "PROMOTE"
+            or payload.get("protected") is not True
+        ):
+            continue
+        if (
+            evaluation_profile is not None
+            and payload.get("evaluation_profile_digest") != evaluation_profile
+        ):
+            continue
+        score = payload.get("candidate_median_score")
+        commit_sha = payload.get("candidate_sha")
+        if not isinstance(score, (int, float)) or not isinstance(commit_sha, str):
+            continue
+        candidate = {
+            "overall_score": float(score),
+            "commit_sha": commit_sha,
+            "decision_digest": payload.get("decision_digest"),
+            "evaluator_digest": payload.get("evaluator_digest"),
+            "evaluation_profile_digest": payload.get("evaluation_profile_digest"),
+            "window_id": payload.get("window_id"),
+        }
+        if champion is None or candidate["overall_score"] > champion["overall_score"]:
+            champion = candidate
+    return champion
 
 
 def verify_ledger(path: str | Path) -> list[dict[str, Any]]:

@@ -245,6 +245,16 @@ identitybench integrity verify-ledger --ledger ledger.jsonl
 The attestation is the external anchor for the ledger head. A hash chain alone
 detects mutation only relative to a previously trusted head.
 
+Protected promotion also ratchets against the accepted champion reconstructed
+from that verified ledger. Every trial's base commit must be the accepted
+champion commit, and the candidate's independently rescored median must exceed
+the champion's score. A result against a stale or weaker base cannot promote,
+even when its paired delta is positive. Public advisory decisions never enter
+the accepted-champion chain. A benchmark, evaluator, or workflow change starts
+a new comparison profile only when the protected caller supplies explicit
+baseline-reset approval; changing the measuring system cannot silently erase a
+harder champion.
+
 ## Automated improvement loop
 
 After each daily window, an observer creates or updates one evidence-backed

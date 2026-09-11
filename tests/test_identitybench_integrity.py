@@ -7,6 +7,7 @@ import pytest
 from identitybench.cli import build_parser
 from identitybench.integrity import (
     IntegrityError,
+    accepted_champion_from_ledger,
     append_ledger_record,
     build_trial_plan,
     canonical_digest,
@@ -252,8 +253,96 @@ def test_protected_gate_promotes_only_complete_attested_paired_improvement():
     assert decision["verdict"] == "PROMOTE"
     assert decision["promotion_authorized"] is True
     assert decision["median_paired_delta"] == 100.0
+    assert decision["candidate_median_score"] == 100.0
     assert decision["confidence_interval_95"][0] > 0
     assert all(gate["passed"] for gate in decision["gates"])
+
+
+def test_protected_gate_rejects_stale_or_unbeaten_accepted_champion():
+    _, reveal = _plans()
+    pairs = [_pair(trial, index) for index, trial in enumerate(reveal["trials"], 1)]
+
+    stale = evaluate_promotion(
+        pairs,
+        protected=True,
+        attestation_verified=True,
+        provider_receipts_verified=True,
+        anti_gaming_scan_passed=True,
+        accepted_champion={"commit_sha": "9" * 40, "overall_score": 50.0},
+    )
+    unbeaten = evaluate_promotion(
+        pairs,
+        protected=True,
+        attestation_verified=True,
+        provider_receipts_verified=True,
+        anti_gaming_scan_passed=True,
+        accepted_champion={"commit_sha": BASE_SHA, "overall_score": 100.0},
+    )
+
+    assert stale["promotion_authorized"] is False
+    assert unbeaten["promotion_authorized"] is False
+    assert next(
+        gate for gate in stale["gates"] if gate["name"] == "accepted_champion_current"
+    )["passed"] is False
+    assert next(
+        gate for gate in unbeaten["gates"] if gate["name"] == "accepted_champion_improved"
+    )["passed"] is False
+
+
+def test_protected_gate_rejects_unapproved_evaluator_baseline_reset():
+    _, reveal = _plans()
+    pairs = [_pair(trial, index) for index, trial in enumerate(reveal["trials"], 1)]
+
+    decision = evaluate_promotion(
+        pairs,
+        protected=True,
+        attestation_verified=True,
+        provider_receipts_verified=True,
+        anti_gaming_scan_passed=True,
+        baseline_reset_required=True,
+    )
+
+    assert decision["promotion_authorized"] is False
+    gate = next(
+        item for item in decision["gates"]
+        if item["name"] == "evaluator_baseline_reset"
+    )
+    assert gate["passed"] is False
+
+    approved = evaluate_promotion(
+        pairs,
+        protected=True,
+        attestation_verified=True,
+        provider_receipts_verified=True,
+        anti_gaming_scan_passed=True,
+        baseline_reset_required=True,
+        baseline_reset_approved=True,
+    )
+    assert approved["promotion_authorized"] is True
+
+
+def test_accepted_champion_ledger_is_monotonic(tmp_path):
+    ledger = tmp_path / "integrity-ledger.jsonl"
+    for score, commit in ((80.0, "1" * 40), (70.0, "2" * 40), (90.0, "3" * 40)):
+        append_ledger_record(ledger, {
+            "verdict": "PROMOTE",
+            "promotion_authorized": True,
+            "protected": True,
+            "candidate_median_score": score,
+            "candidate_sha": commit,
+            "decision_digest": commit,
+            "evaluation_profile_digest": "a" * 64,
+        })
+
+    champion = accepted_champion_from_ledger(verify_ledger(ledger))
+
+    assert champion is not None
+    assert champion["overall_score"] == 90.0
+    assert champion["commit_sha"] == "3" * 40
+
+    assert accepted_champion_from_ledger(
+        verify_ledger(ledger), evaluation_profile="b" * 64
+    ) is None
 
 
 @pytest.mark.parametrize("attested,receipts", [(False, True), (True, False), (False, False)])
