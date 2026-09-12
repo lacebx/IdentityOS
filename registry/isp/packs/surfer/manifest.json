@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "author": "IdentityOS",
   "license": "MIT",
-  "description": "Comet-style web agency pack. Gives an identity real browser control: search, judge whether hits help the task, open pages, click/type/login, and continue working inside authenticated sessions.",
+  "description": "Autonomous browsing pack with isolated sessions, evidence-backed interaction, and separately authorized credential use.",
   "capabilities": [
     {
       "id": "browser",
@@ -26,7 +26,7 @@
   "tags": ["browser", "web", "search", "comet", "automation", "login", "agi"],
   "example_uses": [
     "Search for official docs on X and open only useful results",
-    "Log into a site with credentials I provide, then check my dashboard",
+    "After I grant browser:credentials, log into an authorized site using password=<value> and verify my dashboard",
     "Find the best GitHub repo for Y, open it, and summarize the README",
     "Browse a logged-in account and complete a multi-step settings change"
   ]

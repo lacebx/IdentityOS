@@ -655,6 +655,43 @@ class TestOpenAIAdapter:
 
         assert _parse_legacy_function_call("no function here") is None
 
+    def test_parse_ordered_dotted_text_tool_calls_with_nested_arguments(self):
+        from adapters.openai_adapter import (
+            _parse_all_known_text_tool_calls,
+            _parse_known_text_tool_call,
+        )
+
+        tools = [
+            {"type": "function", "function": {"name": "browser__open"}},
+            {"type": "function", "function": {"name": "browser__fill"}},
+        ]
+        text = (
+            '<action>browser.fill({"selector":"#q","value":"a {brace}"})</action>\n'
+            '<action>browser.open({"url":"https://example.com",'
+            '"meta":{"source":"test"}})</action>'
+        )
+
+        assert _parse_known_text_tool_call(text, tools) == (
+            "browser__fill",
+            {"selector": "#q", "value": "a {brace}"},
+        )
+        assert _parse_all_known_text_tool_calls(text, tools) == [
+            ("browser__fill", {"selector": "#q", "value": "a {brace}"}),
+            (
+                "browser__open",
+                {"url": "https://example.com", "meta": {"source": "test"}},
+            ),
+        ]
+
+    def test_text_tool_parser_ignores_unoffered_calls(self):
+        from adapters.openai_adapter import _parse_all_known_text_tool_calls
+
+        tools = [{"type": "function", "function": {"name": "browser__open"}}]
+        assert _parse_all_known_text_tool_calls(
+            'command_exec.run({"command":"whoami"})',
+            tools,
+        ) == []
+
     def test_parse_failed_generation_tool_call(self):
         from adapters.openai_adapter import _parse_failed_generation_tool_call
 
@@ -969,7 +1006,7 @@ class TestOllamaAdapter:
         mock_openai_client.return_value.chat.completions.create.return_value.choices[
             0
         ].message.tool_calls = None
-        adapter = OllamaAdapter(model="qwen3:4b")
+        adapter = OllamaAdapter(model="qwen3:4b", prefer_legacy_tools=False)
         adapter._supports_native_tools = True
         tools = [
             {
@@ -1033,7 +1070,7 @@ class TestOllamaAdapter:
             }
         ]
         executed = []
-        adapter = OllamaAdapter(model="phi4-mini:latest")
+        adapter = OllamaAdapter(model="phi4-mini:latest", prefer_legacy_tools=False)
         adapter._supports_native_tools = True
 
         output = adapter.generate(
