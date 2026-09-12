@@ -204,6 +204,10 @@ Now chat with Gabriel again. Ask "what time is it?" or "read my notes.txt". It w
 
 > Capabilities are installed at runtime. No code changes. No retraining.
 
+For autonomous web research and interaction, see the
+[browser capability guide](docs/BROWSER-CAPABILITY.md). Browser support is
+opt-in and is not installed on existing identities automatically.
+
 <!-- GIF: identity grows by installing capabilities -->
 
 ---
