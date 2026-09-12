@@ -707,6 +707,12 @@ class TestBenchmarkProvenance:
         assert "git archive" in workflow
         assert "integrity-plan/trusted-evaluator.tar.gz" in workflow
         assert "Extract and verify trusted evaluator" in workflow
+        extraction = workflow.split(
+            "- name: Extract and verify trusted evaluator", 1
+        )[1].split("- name: Install frozen runtime side", 1)[0]
+        assert "runpy.run_path(" in extraction
+        assert "trusted-evaluator/identitybench/provenance.py" in extraction
+        assert "from identitybench" not in extraction
         assert "PYTHONPATH: ${{ github.workspace }}/trusted-evaluator" in workflow
         assert 'cd source\n          identitybench run' not in workflow
         assert 'cd source\n          identity create' not in workflow
