@@ -47,6 +47,7 @@ class SessionState:
 
 _SESSIONS: dict[str, SessionState] = {}
 _GLOBAL_LOCK = threading.RLock()
+_PLAYWRIGHT: Any = None
 
 # Dedicated worker so sync Playwright never touches a foreign asyncio loop.
 _JOBS: queue.Queue = queue.Queue()
@@ -90,6 +91,30 @@ def _import_playwright():
             'pip install "playwright>=1.40" && playwright install chromium'
         ) from exc
     return sync_playwright
+
+
+def _shared_playwright() -> Any:
+    """Return the worker thread's single Playwright driver instance.
+
+    The synchronous Playwright API owns an asyncio loop internally and cannot
+    be started a second time on the same thread while another driver is live.
+    Browser contexts remain independent; only the process-level driver is
+    shared.
+    """
+    global _PLAYWRIGHT
+    if _PLAYWRIGHT is None:
+        _PLAYWRIGHT = _import_playwright()().start()
+    return _PLAYWRIGHT
+
+
+def _stop_shared_playwright() -> None:
+    global _PLAYWRIGHT
+    driver, _PLAYWRIGHT = _PLAYWRIGHT, None
+    if driver is not None:
+        try:
+            driver.stop()
+        except Exception:
+            pass
 
 
 def _safe_component(value: str) -> str:
@@ -165,7 +190,6 @@ def ensure_session(
                 _SESSIONS.pop(key, None)
                 _safe_close(existing)
 
-            sync_playwright = _import_playwright()
             state = SessionState(
                 session_key=key,
                 identity_id=identity_id,
@@ -174,7 +198,7 @@ def ensure_session(
                 allow_private_network=allow_private_network,
                 user_data_dir=session_dir(storage_root, identity_id, execution_scope),
             )
-            state.playwright = sync_playwright().start()
+            state.playwright = _shared_playwright()
             try:
                 state.context = state.playwright.chromium.launch_persistent_context(
                     user_data_dir=str(state.user_data_dir / "profile"),
@@ -210,7 +234,7 @@ def ensure_session(
 
 def _safe_close(state: SessionState) -> None:
     with state.lock:
-        for attr in ("context", "browser", "playwright"):
+        for attr in ("context", "browser"):
             obj = getattr(state, attr, None)
             if obj is None:
                 continue
@@ -222,6 +246,7 @@ def _safe_close(state: SessionState) -> None:
             except Exception:
                 pass
             setattr(state, attr, None)
+        state.playwright = None
         state.page = None
         state.started = False
 
@@ -276,6 +301,7 @@ def close_all() -> None:
         _SESSIONS.clear()
     for state in states:
         run_in_browser_thread(lambda state=state: _safe_close(state))
+    run_in_browser_thread(_stop_shared_playwright)
 
 
 atexit.register(close_all)

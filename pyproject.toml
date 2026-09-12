@@ -57,6 +57,7 @@ python_files = ["test_*.py"]
 norecursedirs = ["legacy"]
 markers = [
     "network: exercises a real external service and is opt-in via --run-network",
+    "browser: launches local Chromium against a hermetic fixture and is opt-in via --run-browser",
 ]
 
 [tool.ruff]
