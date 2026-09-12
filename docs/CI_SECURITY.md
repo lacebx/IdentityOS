@@ -22,6 +22,8 @@ fingerprint and run ID, while its restore prefix deliberately spans those
 versions. Run comparison signatures filter incompatible evidence inside the
 restored history. This preserves the best comparable observed champion across
 CI-only workflow edits instead of silently initializing a weaker baseline.
+Manual `target_ref` runs always restore the default branch baseline namespace;
+the candidate ref selects code to execute, never a fresh baseline namespace.
 
 ## Daedalus reviews
 
