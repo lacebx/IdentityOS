@@ -17,6 +17,12 @@ repository, the maintainer can dispatch `IdentityBench PR Check` with
 can produce score evidence. The protected paired-integrity workflow remains the
 only authority allowed to promote a champion.
 
+The pull request cache key versions each saved snapshot by evaluator/workflow
+fingerprint and run ID, while its restore prefix deliberately spans those
+versions. Run comparison signatures filter incompatible evidence inside the
+restored history. This preserves the best comparable observed champion across
+CI-only workflow edits instead of silently initializing a weaker baseline.
+
 ## Daedalus reviews
 
 Daedalus uses `pull_request_target` for forks, but checks out only the pull

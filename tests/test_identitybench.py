@@ -638,7 +638,13 @@ class TestBenchmarkProvenance:
         assert "--baseline champion" in scheduled
         assert "regression-check.txt" in pr_workflow
         assert "Critical metric regression detected" not in pr_workflow
-        assert "hashFiles('identitybench/**', '.github/workflows/benchmark-pr.yml')" in pr_workflow
+        assert pr_workflow.count(
+            "hashFiles('identitybench/**', '.github/workflows/benchmark-pr.yml')"
+        ) == 1
+        assert (
+            "benchmark-pr-${{ env.BENCHMARK_IDENTITY }}-"
+            "${{ env.BENCHMARK_MODEL_KEY }}-${{ env.BENCHMARK_BASELINE_REF }}-\n"
+        ) in pr_workflow
         assert "${{ github.run_id }}" in pr_workflow
         assert "workflow_dispatch:" in pr_workflow
         assert "CAN_RUN_PROVIDER_BENCHMARK:" in pr_workflow

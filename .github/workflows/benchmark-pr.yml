@@ -61,7 +61,7 @@ jobs:
             .identitybench/
           key: benchmark-pr-${{ env.BENCHMARK_IDENTITY }}-${{ env.BENCHMARK_MODEL_KEY }}-${{ env.BENCHMARK_BASELINE_REF }}-${{ hashFiles('identitybench/**', '.github/workflows/benchmark-pr.yml') }}-${{ github.run_id }}
           restore-keys: |
-            benchmark-pr-${{ env.BENCHMARK_IDENTITY }}-${{ env.BENCHMARK_MODEL_KEY }}-${{ env.BENCHMARK_BASELINE_REF }}-${{ hashFiles('identitybench/**', '.github/workflows/benchmark-pr.yml') }}-
+            benchmark-pr-${{ env.BENCHMARK_IDENTITY }}-${{ env.BENCHMARK_MODEL_KEY }}-${{ env.BENCHMARK_BASELINE_REF }}-
 
       - name: Create benchmark identity (first run only)
         if: env.CAN_RUN_PROVIDER_BENCHMARK == 'true'
