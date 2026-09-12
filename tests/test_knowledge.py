@@ -164,12 +164,12 @@ class TestKnowledgeRegistry:
         core_pack = KnowledgePack(name="Core Pack", tier=KnowledgeTier.CORE)
         domain_pack = KnowledgePack(name="Domain Pack", tier=KnowledgeTier.DOMAIN, depends_on=[core_pack.id])
         context_pack = KnowledgePack(name="Context Pack", tier=KnowledgeTier.CONTEXT)
-        temp_pack = KnowledgePack(name="Temp Pack", tier=KnowledgeTier.TEMP)
+        ephemeral_pack = KnowledgePack(name="Ephemeral Pack", tier=KnowledgeTier.TEMP)
         registry.register(core_pack)
         registry.register(domain_pack)
         registry.register(context_pack)
-        registry.register(temp_pack)
-        loaded = registry.load_for_identity([domain_pack.id, temp_pack.id])
+        registry.register(ephemeral_pack)
+        loaded = registry.load_for_identity([domain_pack.id, ephemeral_pack.id])
         # Should include transitive dependencies and sort by tier
         assert len(loaded) >= 2
         # The first should be CORE (from dependency of domain_pack)

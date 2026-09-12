@@ -32,6 +32,36 @@ def test_local_openai_endpoint_selects_ollama_semantics():
     })
     assert isinstance(adapter, OllamaAdapter)
     assert adapter.model == "qwen3:4b"
+    assert adapter.timeout == 120.0
+
+
+@pytest.mark.parametrize(
+    ("base_url", "expected_type"),
+    [
+        ("https://api.openai.com/v1", OpenAIAdapter),
+        ("http://localhost:11434/v1", OllamaAdapter),
+    ],
+)
+def test_openai_timeout_propagates_to_openai_compatible_adapters(
+    base_url, expected_type
+):
+    adapter = build_adapter_from_env({
+        "OPENAI_API_KEY": "test-key",
+        "OPENAI_BASE_URL": base_url,
+        "OPENAI_TIMEOUT": "17.5",
+    })
+
+    assert isinstance(adapter, expected_type)
+    assert adapter.timeout == 17.5
+
+
+@pytest.mark.parametrize("value", ["invalid", "0", "-1", "nan", "inf"])
+def test_invalid_openai_timeout_is_rejected(value):
+    with pytest.raises(ValueError, match="OPENAI_TIMEOUT must be a positive number"):
+        build_adapter_from_env({
+            "OPENAI_API_KEY": "test-key",
+            "OPENAI_TIMEOUT": value,
+        })
 
 
 def test_explicit_adapter_precedes_automatic_fallbacks():

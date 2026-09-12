@@ -3,6 +3,7 @@ from __future__ import annotations
 import ast
 import json
 import logging
+import math
 import os
 import re
 import time as _time
@@ -357,6 +358,19 @@ def _parse_all_known_text_tool_calls(
     """Extract bounded text-form tool calls in model-emitted order."""
     return [(name, arguments) for _, name, arguments in _known_text_tool_calls(text, tools)]
 
+def _resolve_openai_timeout(value: Any) -> float:
+    """Return a finite, positive request timeout in seconds."""
+    if value is None or value == "":
+        return 120.0
+    try:
+        timeout = float(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("OPENAI_TIMEOUT must be a positive number of seconds") from exc
+    if not math.isfinite(timeout) or timeout <= 0:
+        raise ValueError("OPENAI_TIMEOUT must be a positive number of seconds")
+    return timeout
+
+
 class OpenAIAdapter(BaseAdapter):
     def __init__(
         self,
@@ -383,8 +397,8 @@ class OpenAIAdapter(BaseAdapter):
         self.max_tool_rounds = max(1, int(max_tool_rounds))
 
         if timeout is None:
-            timeout = float(os.environ.get("OPENAI_TIMEOUT", "") or 0) or 120.0
-        self.timeout = timeout
+            timeout = os.environ.get("OPENAI_TIMEOUT")
+        self.timeout = _resolve_openai_timeout(timeout)
         self._client = None
 
     def _get_client(self):
@@ -881,7 +895,7 @@ class OllamaAdapter(OpenAIAdapter):
             model=model,
             api_key="ollama",
             base_url=base_url,
-            timeout=timeout or 120.0,
+            timeout=timeout,
             temperature=temperature,
             max_tokens=max_tokens,
             **kwargs,

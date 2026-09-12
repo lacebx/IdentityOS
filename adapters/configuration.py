@@ -12,7 +12,12 @@ from .base import BaseAdapter
 from .cerebras_adapter import CerebrasAdapter
 from .chain import ChainAdapter
 from .groq_adapter import GroqAdapter
-from .openai_adapter import AnthropicAdapter, OllamaAdapter, OpenAIAdapter
+from .openai_adapter import (
+    AnthropicAdapter,
+    OllamaAdapter,
+    OpenAIAdapter,
+    _resolve_openai_timeout,
+)
 from .openrouter_adapter import OpenRouterAdapter
 from .sambanova_adapter import SambaNovaAdapter
 
@@ -93,7 +98,7 @@ def build_adapter_from_env(env: Optional[Mapping[str, str]] = None) -> Optional[
     openai_key = values.get("OPENAI_API_KEY")
     openai_base = values.get("OPENAI_BASE_URL", "")
     is_local = any(host in openai_base for host in ("localhost", "127.0.0.1"))
-    timeout = float(values.get("OPENAI_TIMEOUT", "") or 0) or 120.0
+    timeout = _resolve_openai_timeout(values.get("OPENAI_TIMEOUT"))
     if _valid(openai_key) and "openai" not in configured and "ollama" not in configured:
         if is_local:
             candidates.append(OllamaAdapter(

@@ -120,6 +120,19 @@ class TestOpenAIAdapter:
         adapter._get_client()
         kwargs = mock_openai_client.call_args.kwargs
         assert kwargs["max_retries"] == 0
+        assert adapter.timeout == 7.0
+
+    def test_timeout_defaults_from_environment(self, monkeypatch):
+        monkeypatch.setenv("OPENAI_TIMEOUT", "19.25")
+
+        adapter = OpenAIAdapter(api_key="sk-test")
+
+        assert adapter.timeout == 19.25
+
+    @pytest.mark.parametrize("value", [0, -1, float("nan"), float("inf")])
+    def test_explicit_invalid_timeout_is_rejected(self, value):
+        with pytest.raises(ValueError, match="OPENAI_TIMEOUT must be a positive number"):
+            OpenAIAdapter(api_key="sk-test", timeout=value)
 
     def test_generate(self, mock_openai_client):
         adapter = OpenAIAdapter(api_key="sk-test")
@@ -812,6 +825,10 @@ class TestAnthropicAdapter:
 # ---------------------------------------------------------------------------
 
 class TestOllamaAdapter:
+    def test_timeout_validation_matches_openai_adapter(self):
+        with pytest.raises(ValueError, match="OPENAI_TIMEOUT must be a positive number"):
+            OllamaAdapter(timeout=0)
+
     def test_generate(self, mock_openai_client):
         adapter = OllamaAdapter(model="llama3.2")
         result = adapter.generate(
