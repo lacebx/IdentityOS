@@ -3,6 +3,7 @@ from __future__ import annotations
 import ast
 import json
 import os
+import re
 import subprocess
 import time
 from pathlib import Path
@@ -17,6 +18,19 @@ from .thinking_engine import ThinkingEngine, Thought, load_memory, save_memory, 
 
 DAEDALUS_VERSION = "1.0.0"
 DAEDALUS_AUTHOR = "Daedalus"
+
+
+def _technical_debt_marker(line: str) -> Optional[str]:
+    """Find an explicit debt annotation without matching ordinary substrings."""
+    marker = re.search(r"\b(TODO|FIXME|HACK|XXX|WORKAROUND)\b", line, re.IGNORECASE)
+    if marker:
+        return marker.group(1).upper()
+    temporary_comment = re.search(
+        r"(?:#|//|/\*|--)\s*(TEMP|TEMPORARY)\b",
+        line,
+        re.IGNORECASE,
+    )
+    return temporary_comment.group(1).upper() if temporary_comment else None
 
 
 # =========================================================================
@@ -371,16 +385,14 @@ class CodeReviewCapability(Capability):
     def _detect_technical_debt(self, diff_path: str = "", **kwargs: Any) -> Dict[str, Any]:
         findings = []
         diff_text = Path(diff_path).read_text() if diff_path and Path(diff_path).exists() else ""
-        debt_markers = ["TODO", "FIXME", "HACK", "XXX", "TEMP", "workaround", "hack"]
         for line in diff_text.splitlines():
             if line.startswith("+"):
-                for marker in debt_markers:
-                    if marker in line.upper():
-                        findings.append({
-                            "type": marker.upper(),
-                            "line": line.strip(),
-                        })
-                        break
+                marker = _technical_debt_marker(line.lstrip("+").strip())
+                if marker:
+                    findings.append({
+                        "type": marker,
+                        "line": line.strip(),
+                    })
         return {
             "technical_debt_introduced": len(findings),
             "items": findings[:10],
