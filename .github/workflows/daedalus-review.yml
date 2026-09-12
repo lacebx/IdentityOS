@@ -4,6 +4,9 @@ name: Daedalus PR Review
 # pull request is consumed only as inert diff text, so fork authors cannot run
 # code with repository secrets or a write-capable token.
 on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]
   pull_request_target:
     types: [opened, synchronize, reopened, ready_for_review]
     branches: [main]
@@ -18,7 +21,12 @@ concurrency:
 
 jobs:
   review:
-    if: github.event.pull_request.draft == false
+    if: >-
+      github.event.pull_request.draft == false &&
+      ((github.event_name == 'pull_request_target' &&
+      github.event.pull_request.head.repo.full_name != github.repository) ||
+      (github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository))
     runs-on: ubuntu-latest
     permissions:
       contents: read
