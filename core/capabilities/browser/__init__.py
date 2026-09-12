@@ -8,7 +8,9 @@ logged-in work continues across skill calls.
 from __future__ import annotations
 
 import re
+import shutil
 import time
+from contextvars import ContextVar
 from typing import Any, Optional
 from urllib.parse import parse_qs, quote_plus, unquote, urlparse
 
@@ -20,14 +22,21 @@ from core.capabilities.result import CapabilityResult
 
 from .session import (
     BrowserUnavailable,
+    close_identity_sessions,
     close_session,
     ensure_session,
     get_session,
+    identity_browser_dir,
     page_snapshot,
     run_in_browser_thread,
 )
+from .url_policy import validate_navigation_url
 
 _SECRET_KEYS = {"password", "passwd", "pass", "secret", "token", "api_key"}
+_EXECUTION_SCOPE: ContextVar[str] = ContextVar(
+    "identityos_browser_execution_scope",
+    default="sdk",
+)
 
 
 def _redact(params: dict[str, Any]) -> dict[str, Any]:
@@ -95,12 +104,16 @@ class BrowserCapability(Capability):
         "Person-like web surfing: search, judge result usefulness, open pages, "
         "click/type/login, and act inside authenticated sessions (Comet-style)."
     )
-    permissions = ["public", "network", "browser"]
+    permissions = ["browser:read", "browser:write", "browser:credentials"]
+    default_grants = ["browser:read", "browser:write"]
 
     def __init__(self, config: Optional[dict] = None) -> None:
         super().__init__(config)
         self._storage_root = (config or {}).get("storage_root", ".identity_store")
         self._headless = bool((config or {}).get("headless", True))
+        self._allow_private_network = bool(
+            (config or {}).get("allow_private_network", False)
+        )
         self._identity_id = ""
         self._http = httpx.Client(
             timeout=20,
@@ -122,7 +135,10 @@ class BrowserCapability(Capability):
         )
 
     def uninstall(self, identity_id: str, storage: Any) -> None:
-        close_session(identity_id)
+        close_identity_sessions(identity_id, storage_root=self._storage_root)
+        profile_root = identity_browser_dir(self._storage_root, identity_id)
+        if profile_root.is_dir():
+            shutil.rmtree(profile_root)
         storage.delete(identity_id, "capability.browser")
 
     def on_identity_loaded(self, identity_id: str) -> None:
@@ -138,11 +154,12 @@ class BrowserCapability(Capability):
             "3) browser.open or browser.navigate to visit a promising URL",
             "4) browser.snapshot to read the page and see clickable elements",
             "5) browser.click / browser.type / browser.fill / browser.press to interact",
-            "6) browser.login when the user supplies credentials for a site they authorize",
+            "6) browser.login only after browser:credentials is explicitly granted",
             "7) Keep using browser.snapshot after each action to verify what changed",
             "Do NOT claim you cannot browse, search, or log in. You CAN — use these skills.",
             "Never invent page content. Only report what browser.snapshot / search returned.",
-            "Never store or echo passwords back to the user; treat credentials as ephemeral.",
+            "Chat credentials must use password=<value>; the runtime replaces the value with an ephemeral reference.",
+            "Never invent or echo passwords. Preserve secret-ref:// values exactly in tool arguments.",
             "Only log into sites the user explicitly authorized with credentials they provided.",
         ]
 
@@ -150,7 +167,7 @@ class BrowserCapability(Capability):
         Skill(
             name="browser.open",
             description="Open a URL in a persistent browser session (starts browser if needed)",
-            permission="public",
+            permission="browser:read",
             effect="write",
             input_schema=object_schema(
                 {
@@ -164,7 +181,7 @@ class BrowserCapability(Capability):
         Skill(
             name="browser.navigate",
             description="Navigate the current tab to a URL",
-            permission="public",
+            permission="browser:write",
             effect="write",
             input_schema=object_schema(
                 {
@@ -180,7 +197,7 @@ class BrowserCapability(Capability):
                 "Search the web and return ranked results. Pass task= so each result "
                 "includes a usefulness score relative to the user's goal."
             ),
-            permission="public",
+            permission="browser:read",
             effect="read",
             input_schema=object_schema(
                 {
@@ -198,7 +215,7 @@ class BrowserCapability(Capability):
                 "Score previously obtained search results against a task and recommend "
                 "which URLs are worth opening."
             ),
-            permission="public",
+            permission="browser:read",
             effect="read",
             input_schema=object_schema(
                 {
@@ -212,7 +229,7 @@ class BrowserCapability(Capability):
         Skill(
             name="browser.snapshot",
             description="Read the current page: URL, title, visible text, and interactive elements",
-            permission="public",
+            permission="browser:read",
             effect="read",
             input_schema=object_schema(
                 {"max_chars": {"type": "integer"}},
@@ -221,7 +238,7 @@ class BrowserCapability(Capability):
         Skill(
             name="browser.click",
             description="Click an element by CSS selector, visible text, or role+name",
-            permission="public",
+            permission="browser:write",
             effect="write",
             input_schema=object_schema(
                 {
@@ -236,7 +253,7 @@ class BrowserCapability(Capability):
         Skill(
             name="browser.type",
             description="Type text into a focused or selected input (optionally clear first)",
-            permission="public",
+            permission="browser:write",
             effect="write",
             input_schema=object_schema(
                 {
@@ -251,7 +268,7 @@ class BrowserCapability(Capability):
         Skill(
             name="browser.fill",
             description="Fill a form field by selector (clears existing value)",
-            permission="public",
+            permission="browser:write",
             effect="write",
             input_schema=object_schema(
                 {
@@ -267,17 +284,22 @@ class BrowserCapability(Capability):
                 "Log into a site with user-provided credentials. Optionally pass "
                 "username_selector/password_selector/submit_selector; otherwise auto-detect."
             ),
-            permission="public",
+            permission="browser:credentials",
             effect="write",
             input_schema=object_schema(
                 {
                     "url": {"type": "string", "minLength": 1},
                     "username": {"type": "string", "minLength": 1},
-                    "password": {"type": "string", "minLength": 1},
+                    "password": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "Opaque secret-ref:// value supplied by the runtime",
+                    },
                     "username_selector": {"type": "string"},
                     "password_selector": {"type": "string"},
                     "submit_selector": {"type": "string"},
                     "success_url_contains": {"type": "string"},
+                    "success_selector": {"type": "string"},
                     "wait_ms": {"type": "integer"},
                 },
                 required=("url", "username", "password"),
@@ -286,7 +308,7 @@ class BrowserCapability(Capability):
         Skill(
             name="browser.press",
             description="Press a keyboard key (Enter, Tab, Escape, etc.)",
-            permission="public",
+            permission="browser:write",
             effect="write",
             input_schema=object_schema(
                 {"key": {"type": "string", "minLength": 1}},
@@ -296,7 +318,7 @@ class BrowserCapability(Capability):
         Skill(
             name="browser.wait",
             description="Wait for a selector, URL substring, or fixed milliseconds",
-            permission="public",
+            permission="browser:read",
             effect="read",
             input_schema=object_schema(
                 {
@@ -310,14 +332,14 @@ class BrowserCapability(Capability):
         Skill(
             name="browser.status",
             description="Report whether a browser session is open and the current URL/title",
-            permission="public",
+            permission="browser:read",
             effect="read",
             input_schema=object_schema({}),
         ),
         Skill(
             name="browser.close",
             description="Close the browser session (cookies in profile may persist on disk)",
-            permission="public",
+            permission="browser:write",
             effect="write",
             input_schema=object_schema({}),
         ),
@@ -327,6 +349,22 @@ class BrowserCapability(Capability):
         return list(self._SKILLS)
 
     def call(self, skill_name: str, **params: Any) -> CapabilityResult:
+        return self._call(skill_name, **params)
+
+    def call_scoped(
+        self,
+        skill_name: str,
+        *,
+        execution_scope: Optional[str] = None,
+        **params: Any,
+    ) -> CapabilityResult:
+        token = _EXECUTION_SCOPE.set(execution_scope or "sdk")
+        try:
+            return self._call(skill_name, **params)
+        finally:
+            _EXECUTION_SCOPE.reset(token)
+
+    def _call(self, skill_name: str, **params: Any) -> CapabilityResult:
         t0 = time.monotonic()
         safe = _redact(params)
         try:
@@ -389,10 +427,23 @@ class BrowserCapability(Capability):
             identity_id,
             storage_root=self._storage_root,
             headless=self._headless if headless is None else headless,
+            execution_scope=_EXECUTION_SCOPE.get(),
+            allow_private_network=self._allow_private_network,
         )
         return state
 
+    def _session(self):
+        return get_session(
+            self._require_identity(),
+            storage_root=self._storage_root,
+            execution_scope=_EXECUTION_SCOPE.get(),
+        )
+
     def _goto(self, url: str, wait_until: str = "domcontentloaded") -> dict[str, Any]:
+        url = validate_navigation_url(
+            url,
+            allow_private_network=self._allow_private_network,
+        )
         allowed = {"load", "domcontentloaded", "networkidle", "commit"}
         wu = (wait_until or "domcontentloaded").strip().lower()
         # Models sometimes emit Puppeteer names (networkidle0/2).
@@ -431,7 +482,7 @@ class BrowserCapability(Capability):
     def _navigate(self, url: str = "", wait_until: str = "domcontentloaded", **_: Any) -> dict[str, Any]:
         if not url:
             return {"error": "url is required"}
-        state = get_session(self._require_identity())
+        state = self._session()
         if state is None or not state.started:
             return self._goto(url, wait_until=wait_until)
         return self._goto(url, wait_until=wait_until)
@@ -595,7 +646,7 @@ class BrowserCapability(Capability):
 
     def _snapshot(self, max_chars: int = 12000, **_: Any) -> dict[str, Any]:
         def _do() -> dict[str, Any]:
-            state = get_session(self._require_identity())
+            state = self._session()
             if state is None or not state.started or state.page is None:
                 return {"error": "no open browser session — call browser.open first"}
             with state.lock:
@@ -626,7 +677,7 @@ class BrowserCapability(Capability):
         **_: Any,
     ) -> dict[str, Any]:
         def _do() -> dict[str, Any]:
-            state = get_session(self._require_identity())
+            state = self._session()
             if state is None or state.page is None:
                 return {"error": "no open browser session — call browser.open first"}
             with state.lock:
@@ -661,7 +712,7 @@ class BrowserCapability(Capability):
             return {"error": "text is required"}
 
         def _do() -> dict[str, Any]:
-            state = get_session(self._require_identity())
+            state = self._session()
             if state is None or state.page is None:
                 return {"error": "no open browser session — call browser.open first"}
             with state.lock:
@@ -692,7 +743,7 @@ class BrowserCapability(Capability):
             return {"error": "selector is required"}
 
         def _do() -> dict[str, Any]:
-            state = get_session(self._require_identity())
+            state = self._session()
             if state is None or state.page is None:
                 return {"error": "no open browser session — call browser.open first"}
             with state.lock:
@@ -711,11 +762,19 @@ class BrowserCapability(Capability):
         password_selector: str = "",
         submit_selector: str = "",
         success_url_contains: str = "",
+        success_selector: str = "",
         wait_ms: int = 2500,
         **_: Any,
     ) -> dict[str, Any]:
         if not url or not username or not password:
             return {"error": "url, username, and password are required"}
+        if not success_url_contains and not success_selector:
+            return {
+                "error": (
+                    "login requires success_url_contains or success_selector so the "
+                    "runtime can verify authentication"
+                )
+            }
 
         # Navigate first (already worker-threaded)
         nav = self._goto(url)
@@ -775,7 +834,15 @@ class BrowserCapability(Capability):
                 snap = page_snapshot(page, max_chars=4000)
                 success = True
                 if success_url_contains:
-                    success = success_url_contains in page.url
+                    success = success and success_url_contains in page.url
+                if success_selector:
+                    try:
+                        success = success and (
+                            page.locator(success_selector).count() > 0
+                            and page.locator(success_selector).first.is_visible()
+                        )
+                    except Exception:
+                        success = False
 
                 body = (snap.get("text") or "").lower()
                 failure_hints = [
@@ -783,11 +850,23 @@ class BrowserCapability(Capability):
                     "invalid credentials",
                     "login failed",
                     "sign in failed",
-                    "wrong password",
+                    "wrong password",  # ggignore: authentication failure text, not a credential
                     "authentication failed",
                 ]
                 if any(h in body for h in failure_hints):
                     success = False
+
+                safe_text = (snap.get("text") or "").replace(password, "***")
+
+                if not success:
+                    return {
+                        "ok": False,
+                        "error": "login post-condition was not satisfied",
+                        "submitted": submitted,
+                        "url": page.url,
+                        "title": snap.get("title"),
+                        "text_preview": safe_text[:1500],
+                    }
 
                 return {
                     "ok": success,
@@ -796,7 +875,7 @@ class BrowserCapability(Capability):
                     "password_selector": pass_sel,  # ggignore: selector name, never a credential
                     "url": page.url,
                     "title": snap.get("title"),
-                    "text_preview": (snap.get("text") or "")[:1500],
+                    "text_preview": safe_text[:1500],
                     "note": (
                         "Login attempt finished. Verify with browser.snapshot before continuing "
                         "authenticated tasks. Password was not stored in the result."
@@ -844,7 +923,7 @@ class BrowserCapability(Capability):
             return {"error": "key is required"}
 
         def _do() -> dict[str, Any]:
-            state = get_session(self._require_identity())
+            state = self._session()
             if state is None or state.page is None:
                 return {"error": "no open browser session — call browser.open first"}
             with state.lock:
@@ -862,7 +941,7 @@ class BrowserCapability(Capability):
         **_: Any,
     ) -> dict[str, Any]:
         def _do() -> dict[str, Any]:
-            state = get_session(self._require_identity())
+            state = self._session()
             if state is None or state.page is None:
                 return {"error": "no open browser session — call browser.open first"}
             with state.lock:
@@ -882,7 +961,7 @@ class BrowserCapability(Capability):
 
     def _status(self, **_: Any) -> dict[str, Any]:
         def _do() -> dict[str, Any]:
-            state = get_session(self._require_identity())
+            state = self._session()
             if state is None or not state.started or state.page is None:
                 return {"open": False, "identity_id": self._require_identity()}
             with state.lock:
@@ -903,5 +982,9 @@ class BrowserCapability(Capability):
         return run_in_browser_thread(_do)
 
     def _close(self, **_: Any) -> dict[str, Any]:
-        closed = close_session(self._require_identity())
+        closed = close_session(
+            self._require_identity(),
+            storage_root=self._storage_root,
+            execution_scope=_EXECUTION_SCOPE.get(),
+        )
         return {"closed": closed, "identity_id": self._require_identity()}

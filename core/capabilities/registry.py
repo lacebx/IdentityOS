@@ -70,6 +70,8 @@ class CapabilityRegistry:
                     cls = lookup(cap_id)
                     inst = cls(config=config)
                     inst.install(identity_id, self._storage)
+                    for permission in inst.default_grants:
+                        self.grant(identity_id, cap_id, permission)
                     instances[cap_id] = inst
                 except ValueError:
                     pass  # skip capabilities whose class isn't loaded
@@ -95,6 +97,8 @@ class CapabilityRegistry:
         caps = self._load_identity_caps(identity_id)
         caps[cap_id] = cap
         self._save(identity_id)
+        for permission in cap.default_grants:
+            self.grant(identity_id, cap_id, permission)
         return cap
 
     def uninstall(self, identity_id: str, cap_id: str) -> None:
@@ -103,6 +107,7 @@ class CapabilityRegistry:
             caps[cap_id].uninstall(identity_id, self._storage)
             del caps[cap_id]
             self._save(identity_id)
+            self._revoke_capability_grants(identity_id, cap_id)
 
     def get(self, identity_id: str, cap_id: str) -> Optional[Capability]:
         return self._load_identity_caps(identity_id).get(cap_id)
@@ -185,7 +190,14 @@ class CapabilityRegistry:
                 return self._authorized(identity_id, cap.id, skill.permission)
         return (False, f"No installed capability provides skill: {skill_name}")
 
-    def call(self, identity_id: str, skill_name: str, **params: Any) -> Any:
+    def call(
+        self,
+        identity_id: str,
+        skill_name: str,
+        *,
+        execution_scope: Optional[str] = None,
+        **params: Any,
+    ) -> Any:
         cap = self._find_capability_for_skill(identity_id, skill_name)
         if cap is None:
             raise ValueError(
@@ -216,7 +228,11 @@ class CapabilityRegistry:
                 params=params,
             )
 
-        result = cap.call(skill_name, **normalized_params)
+        result = cap.call_scoped(
+            skill_name,
+            execution_scope=execution_scope,
+            **normalized_params,
+        )
         if isinstance(result, CapabilityResult):
             if not result.params:
                 result.params = dict(normalized_params)
@@ -273,6 +289,19 @@ class CapabilityRegistry:
             {"grants": retained},
         )
         return changed
+
+    def _revoke_capability_grants(self, identity_id: str, capability_id: str) -> None:
+        grants = self.permissions(identity_id)
+        retained = [
+            grant for grant in grants
+            if grant.get("capability") != capability_id
+        ]
+        if len(retained) != len(grants):
+            self._storage.save(
+                identity_id,
+                "capability.permissions",
+                {"grants": retained},
+            )
 
     def _authorized(
         self,

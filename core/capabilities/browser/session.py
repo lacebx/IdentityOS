@@ -8,12 +8,17 @@ daemon thread with its own event loop semantics.
 from __future__ import annotations
 
 import atexit
+import hashlib
 import queue
+import re
 import threading
+from contextvars import copy_context
 from concurrent.futures import Future
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Optional, TypeVar
+
+from .url_policy import allow_browser_request
 
 T = TypeVar("T")
 
@@ -24,8 +29,11 @@ class BrowserUnavailable(RuntimeError):
 
 @dataclass
 class SessionState:
+    session_key: str
     identity_id: str
+    execution_scope: str = "sdk"
     headless: bool = True
+    allow_private_network: bool = False
     user_data_dir: Optional[Path] = None
     playwright: Any = None
     browser: Any = None
@@ -68,7 +76,8 @@ def run_in_browser_thread(fn: Callable[[], T]) -> T:
     if threading.current_thread() is _WORKER:
         return fn()
     fut: Future = Future()
-    _JOBS.put((fn, fut))
+    context = copy_context()
+    _JOBS.put((lambda: context.run(fn), fut))
     return fut.result(timeout=120)
 
 
@@ -83,15 +92,53 @@ def _import_playwright():
     return sync_playwright
 
 
-def session_dir(storage_root: str | Path, identity_id: str) -> Path:
-    root = Path(storage_root) / identity_id / "browser"
+def _safe_component(value: str) -> str:
+    cleaned = re.sub(r"[^A-Za-z0-9_.-]+", "-", value).strip(".-")
+    if cleaned and cleaned == value and value not in {".", ".."}:
+        return cleaned
+    digest = hashlib.sha256(value.encode()).hexdigest()[:16]
+    return f"identity-{digest}"
+
+
+def session_dir(
+    storage_root: str | Path,
+    identity_id: str,
+    execution_scope: str = "sdk",
+) -> Path:
+    root = identity_browser_dir(storage_root, identity_id)
+    if execution_scope and execution_scope != "sdk":
+        scope_hash = hashlib.sha256(execution_scope.encode()).hexdigest()
+        root = root / "scopes" / scope_hash
     root.mkdir(parents=True, exist_ok=True)
+    try:
+        root.chmod(0o700)
+    except OSError:
+        pass
     return root
 
 
-def get_session(identity_id: str) -> Optional[SessionState]:
+def identity_browser_dir(storage_root: str | Path, identity_id: str) -> Path:
+    """Return the bounded browser-state directory without creating it."""
+    return Path(storage_root).resolve() / _safe_component(identity_id) / "browser"
+
+
+def _session_key(
+    storage_root: str | Path,
+    identity_id: str,
+    execution_scope: str,
+) -> str:
+    return str(session_dir(storage_root, identity_id, execution_scope).resolve())
+
+
+def get_session(
+    identity_id: str,
+    *,
+    storage_root: str | Path = ".identity_store",
+    execution_scope: str = "sdk",
+) -> Optional[SessionState]:
+    key = _session_key(storage_root, identity_id, execution_scope)
     with _GLOBAL_LOCK:
-        return _SESSIONS.get(identity_id)
+        return _SESSIONS.get(key)
 
 
 def ensure_session(
@@ -100,20 +147,32 @@ def ensure_session(
     storage_root: str | Path = ".identity_store",
     headless: bool = True,
     user_agent: Optional[str] = None,
+    execution_scope: str = "sdk",
+    allow_private_network: bool = False,
 ) -> SessionState:
     """Start or reuse a browser session for this identity."""
 
     def _ensure() -> SessionState:
         with _GLOBAL_LOCK:
-            existing = _SESSIONS.get(identity_id)
+            key = _session_key(storage_root, identity_id, execution_scope)
+            existing = _SESSIONS.get(key)
             if existing and existing.started and existing.page is not None:
-                return existing
+                if (
+                    existing.headless == headless
+                    and existing.allow_private_network == allow_private_network
+                ):
+                    return existing
+                _SESSIONS.pop(key, None)
+                _safe_close(existing)
 
             sync_playwright = _import_playwright()
             state = SessionState(
+                session_key=key,
                 identity_id=identity_id,
+                execution_scope=execution_scope,
                 headless=headless,
-                user_data_dir=session_dir(storage_root, identity_id),
+                allow_private_network=allow_private_network,
+                user_data_dir=session_dir(storage_root, identity_id, execution_scope),
             )
             state.playwright = sync_playwright().start()
             try:
@@ -129,9 +188,18 @@ def ensure_session(
                     ),
                     args=["--disable-blink-features=AutomationControlled"],
                 )
+                state.context.route(
+                    "**/*",
+                    lambda route: route.continue_()
+                    if allow_browser_request(
+                        route.request.url,
+                        allow_private_network=allow_private_network,
+                    )
+                    else route.abort("blockedbyclient"),
+                )
                 state.page = state.context.pages[0] if state.context.pages else state.context.new_page()
                 state.started = True
-                _SESSIONS[identity_id] = state
+                _SESSIONS[key] = state
                 return state
             except Exception:
                 _safe_close(state)
@@ -158,10 +226,16 @@ def _safe_close(state: SessionState) -> None:
         state.started = False
 
 
-def close_session(identity_id: str) -> bool:
+def close_session(
+    identity_id: str,
+    *,
+    storage_root: str | Path = ".identity_store",
+    execution_scope: str = "sdk",
+) -> bool:
     def _close() -> bool:
+        key = _session_key(storage_root, identity_id, execution_scope)
         with _GLOBAL_LOCK:
-            state = _SESSIONS.pop(identity_id, None)
+            state = _SESSIONS.pop(key, None)
         if state is None:
             return False
         _safe_close(state)
@@ -170,11 +244,38 @@ def close_session(identity_id: str) -> bool:
     return run_in_browser_thread(_close)
 
 
+def close_identity_sessions(
+    identity_id: str,
+    *,
+    storage_root: str | Path = ".identity_store",
+) -> int:
+    """Close every in-process session for an identity in one storage root."""
+    root = Path(storage_root).resolve()
+
+    def _close_all_matching() -> int:
+        with _GLOBAL_LOCK:
+            matches = [
+                (key, state)
+                for key, state in _SESSIONS.items()
+                if state.identity_id == identity_id
+                and state.user_data_dir is not None
+                and root in state.user_data_dir.resolve().parents
+            ]
+            for key, _ in matches:
+                _SESSIONS.pop(key, None)
+        for _, state in matches:
+            _safe_close(state)
+        return len(matches)
+
+    return run_in_browser_thread(_close_all_matching)
+
+
 def close_all() -> None:
     with _GLOBAL_LOCK:
-        ids = list(_SESSIONS.keys())
-    for identity_id in ids:
-        close_session(identity_id)
+        states = list(_SESSIONS.values())
+        _SESSIONS.clear()
+    for state in states:
+        run_in_browser_thread(lambda state=state: _safe_close(state))
 
 
 atexit.register(close_all)
