@@ -5,12 +5,19 @@ on:
     branches: [main]
   push:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      target_ref:
+        description: "Trusted branch, tag, or SHA to benchmark"
+        required: true
+        type: string
 
 env:
   BENCHMARK_IDENTITY: "benchmark-bot"
   GROQ_MODEL: "openai/gpt-oss-20b"
   BENCHMARK_MODEL_KEY: "gpt-oss-20b"
-  BENCHMARK_BASELINE_REF: ${{ github.event_name == 'pull_request' && github.base_ref || github.ref_name }}
+  BENCHMARK_BASELINE_REF: ${{ github.event_name == 'pull_request' && github.base_ref || github.event_name == 'workflow_dispatch' && inputs.target_ref || github.ref_name }}
+  CAN_RUN_PROVIDER_BENCHMARK: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
 
 concurrency:
   group: identityos-provider
@@ -29,6 +36,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 2
+          ref: ${{ inputs.target_ref || github.sha }}
 
       - uses: actions/setup-python@v5
         with:
@@ -40,6 +48,7 @@ jobs:
           pip install -e ".[dev]"
 
       - name: Restore identity state from cache
+        if: env.CAN_RUN_PROVIDER_BENCHMARK == 'true'
         uses: actions/cache@v4
         id: identity-cache
         with:
@@ -51,6 +60,7 @@ jobs:
             benchmark-pr-${{ env.BENCHMARK_IDENTITY }}-${{ env.BENCHMARK_MODEL_KEY }}-${{ env.BENCHMARK_BASELINE_REF }}-${{ hashFiles('identitybench/**', '.github/workflows/benchmark-pr.yml') }}-
 
       - name: Create benchmark identity (first run only)
+        if: env.CAN_RUN_PROVIDER_BENCHMARK == 'true'
         run: |
           if identity inspect --id ${{ env.BENCHMARK_IDENTITY }} >/dev/null 2>&1; then
             echo "Reusing persisted identity ${{ env.BENCHMARK_IDENTITY }}."
@@ -69,6 +79,7 @@ jobs:
           python -m pytest tests/test_runtime_pipeline.py -v --tb=short 2>&1 | tee integration-results.txt
 
       - name: Run IdentityBench smoke suite
+        if: env.CAN_RUN_PROVIDER_BENCHMARK == 'true'
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           GROQ_API_KEY_2: ${{ secrets.GROQ_API_KEY_2 }}
@@ -82,18 +93,21 @@ jobs:
           identitybench endurance report ${{ env.BENCHMARK_IDENTITY }} -o endurance-report.md
 
       - name: Compare against restored benchmark history
+        if: env.CAN_RUN_PROVIDER_BENCHMARK == 'true'
         id: compare
         run: |
           set -o pipefail
           identitybench compare --id ${{ env.BENCHMARK_IDENTITY }} --last 2 --baseline champion 2>&1 | tee regression-check.txt
 
       - name: Report advisory regression observations
+        if: env.CAN_RUN_PROVIDER_BENCHMARK == 'true'
         run: |
           if [ -f regression-check.txt ] && grep -q "REGRESSION" regression-check.txt; then
             echo "::warning::Single-run score regression against the verified observed champion. The champion was retained; only the protected paired gate has promotion authority."
           fi
 
       - name: Upload benchmark artifacts
+        if: env.CAN_RUN_PROVIDER_BENCHMARK == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: benchmark-results
@@ -107,7 +121,7 @@ jobs:
             .identitybench/
 
       - name: Comment benchmark summary on PR
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && env.CAN_RUN_PROVIDER_BENCHMARK == 'true'
         uses: actions/github-script@v7
         with:
           script: |
@@ -139,3 +153,14 @@ jobs:
               repo: context.repo.repo,
               body: summary
             });
+
+      - name: Explain fork benchmark boundary
+        if: github.event_name == 'pull_request' && env.CAN_RUN_PROVIDER_BENCHMARK != 'true'
+        run: |
+          {
+            echo "## Provider benchmark intentionally not executed"
+            echo
+            echo "This pull request originates from a fork. GitHub correctly withholds provider credentials from untrusted code."
+            echo "Unit and integration tests above are authoritative for this job; no benchmark score or champion promotion is claimed."
+            echo "A maintainer can push the reviewed commit to a trusted repository branch and run this workflow manually with target_ref."
+          } >> "$GITHUB_STEP_SUMMARY"
