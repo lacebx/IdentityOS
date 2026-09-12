@@ -266,10 +266,36 @@ class TestTechnicalDebt:
         result = analyze_technical_debt_introduced([{"path": "a.py", "lines": [line]}])
         assert any("No new technical debt" in item for item in result)
 
-    @pytest.mark.parametrize("line", ["+# TEMP: remove", "+# workaround for upstream"])
+    @pytest.mark.parametrize(
+        "line",
+        [
+            "+# TODO: remove",
+            "+# FIXME: remove",
+            "+# HACK: remove",
+            "+# XXX: remove",
+            "+# TEMP: remove",
+            "+# TEMPORARY: remove",
+            "+# workaround for upstream",
+            "+// TODO: remove",
+            "+/* FIXME: remove */",
+            "+-- HACK: remove",
+        ],
+    )
     def test_explicit_temporary_annotations_are_debt(self, line):
         result = analyze_technical_debt_introduced([{"path": "a.py", "lines": [line]}])
         assert any("technical debt marker" in item for item in result)
+
+    @pytest.mark.parametrize(
+        "line",
+        [
+            "+pattern = r'# TODO: marker syntax'",
+            "+message = '// FIXME: example only'",
+            "+url = 'https://example.com/TODO'",
+        ],
+    )
+    def test_marker_text_inside_strings_is_not_debt(self, line):
+        result = analyze_technical_debt_introduced([{"path": "a.py", "lines": [line]}])
+        assert any("No new technical debt" in item for item in result)
 
     def test_capability_uses_the_same_token_aware_rule(self):
         assert capability_debt_marker("temperature = 0.1") is None

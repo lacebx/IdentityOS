@@ -354,16 +354,37 @@ def analyze_technical_debt_introduced(files: List[Dict[str, Any]]) -> List[str]:
 
 
 def _technical_debt_marker(line: str) -> Optional[str]:
-    """Find an explicit debt annotation without matching ordinary substrings."""
-    marker = re.search(r"\b(TODO|FIXME|HACK|XXX|WORKAROUND)\b", line, re.IGNORECASE)
-    if marker:
-        return marker.group(1).upper()
-    temporary_comment = re.search(
-        r"(?:#|//|/\*|--)\s*(TEMP|TEMPORARY)\b",
-        line,
+    """Find a standalone debt marker in comment text outside quoted strings."""
+    comment = _comment_text(line)
+    if comment is None:
+        return None
+    marker = re.search(
+        r"\b(TODO|FIXME|HACK|XXX|TEMP|TEMPORARY|WORKAROUND)\b",
+        comment,
         re.IGNORECASE,
     )
-    return temporary_comment.group(1).upper() if temporary_comment else None
+    return marker.group(1).upper() if marker else None
+
+
+def _comment_text(line: str) -> Optional[str]:
+    quote = ""
+    escaped = False
+    for index, char in enumerate(line):
+        if quote:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == quote:
+                quote = ""
+            continue
+        if char in {"'", '"', "`"}:
+            quote = char
+            continue
+        for delimiter in ("#", "//", "/*", "--"):
+            if line.startswith(delimiter, index):
+                return line[index + len(delimiter):]
+    return None
 
 
 def assess_readiness(findings: Dict[str, List[str]]) -> Tuple[str, List[str]]:
