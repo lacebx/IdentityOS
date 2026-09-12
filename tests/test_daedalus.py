@@ -7,6 +7,9 @@ from pathlib import Path
 
 import pytest
 
+from core.capabilities.daedalus import (
+    _technical_debt_marker as capability_debt_marker,
+)
 from scripts.daedalus_review import (
     parse_diff_files,
     analyze_separation,
@@ -131,6 +134,36 @@ class TestTestCoverage:
         result = analyze_test_coverage(files)
         assert all("source files changed" not in r for r in result)
 
+    def test_module_import_is_direct_test_evidence(self):
+        files = [
+            {"path": "runtime/sensitive.py", "lines": ["+def protect(): pass"]},
+            {
+                "path": "tests/test_browser_security.py",
+                "lines": ["+from runtime.sensitive import protect"],
+            },
+        ]
+
+        result = analyze_test_coverage(files)
+
+        assert all("no direct test evidence" not in item for item in result)
+
+    def test_related_singularized_test_name_is_evidence(self):
+        files = [
+            {"path": "adapters/openai_adapter.py", "lines": ["+class OpenAIAdapter: pass"]},
+            {"path": "tests/test_adapters.py", "lines": ["+def test_timeout(): pass"]},
+        ]
+
+        result = analyze_test_coverage(files)
+
+        assert all("no direct test evidence" not in item for item in result)
+
+    def test_examples_do_not_require_one_to_one_unit_test_files(self):
+        files = [{"path": "examples/browser_demo.py", "lines": ["+print('demo')"]}]
+
+        result = analyze_test_coverage(files)
+
+        assert result == []
+
 
 # ── Diff Quality ─────────────────────────────────────────────────────
 
@@ -219,6 +252,54 @@ class TestTechnicalDebt:
         files = [{"path": "a.py", "lines": ["+    # FIXME: hack"]}]
         result = analyze_technical_debt_introduced(files)
         assert any("marker" in r for r in result)
+
+    @pytest.mark.parametrize(
+        "line",
+        [
+            "+temperature = 0.1",
+            "+rename_attempt = detect_identity_rename_attempt(text)",
+            "+tier = KnowledgeTier.TEMP",
+            "+message = 'attempt finished before continuing'",
+        ],
+    )
+    def test_temp_substrings_are_not_debt_markers(self, line):
+        result = analyze_technical_debt_introduced([{"path": "a.py", "lines": [line]}])
+        assert any("No new technical debt" in item for item in result)
+
+    @pytest.mark.parametrize(
+        "line",
+        [
+            "+# TODO: remove",
+            "+# FIXME: remove",
+            "+# HACK: remove",
+            "+# XXX: remove",
+            "+# TEMP: remove",
+            "+# TEMPORARY: remove",
+            "+# workaround for upstream",
+            "+// TODO: remove",
+            "+/* FIXME: remove */",
+            "+-- HACK: remove",
+        ],
+    )
+    def test_explicit_temporary_annotations_are_debt(self, line):
+        result = analyze_technical_debt_introduced([{"path": "a.py", "lines": [line]}])
+        assert any("technical debt marker" in item for item in result)
+
+    @pytest.mark.parametrize(
+        "line",
+        [
+            "+pattern = r'# TODO: marker syntax'",
+            "+message = '// FIXME: example only'",
+            "+url = 'https://example.com/TODO'",
+        ],
+    )
+    def test_marker_text_inside_strings_is_not_debt(self, line):
+        result = analyze_technical_debt_introduced([{"path": "a.py", "lines": [line]}])
+        assert any("No new technical debt" in item for item in result)
+
+    def test_capability_uses_the_same_token_aware_rule(self):
+        assert capability_debt_marker("temperature = 0.1") is None
+        assert capability_debt_marker("# TODO: remove fallback") == "TODO"
 
 
 # ── Goal Alignment ───────────────────────────────────────────────────
