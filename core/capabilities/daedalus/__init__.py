@@ -3,6 +3,7 @@ from __future__ import annotations
 import ast
 import json
 import os
+import re
 import subprocess
 import time
 from pathlib import Path
@@ -17,6 +18,40 @@ from .thinking_engine import ThinkingEngine, Thought, load_memory, save_memory, 
 
 DAEDALUS_VERSION = "1.0.0"
 DAEDALUS_AUTHOR = "Daedalus"
+
+
+def _technical_debt_marker(line: str) -> Optional[str]:
+    """Find a standalone debt marker in comment text outside quoted strings."""
+    comment = _comment_text(line)
+    if comment is None:
+        return None
+    marker = re.search(
+        r"\b(TODO|FIXME|HACK|XXX|TEMP|TEMPORARY|WORKAROUND)\b",
+        comment,
+        re.IGNORECASE,
+    )
+    return marker.group(1).upper() if marker else None
+
+
+def _comment_text(line: str) -> Optional[str]:
+    quote = ""
+    escaped = False
+    for index, char in enumerate(line):
+        if quote:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == quote:
+                quote = ""
+            continue
+        if char in {"'", '"', "`"}:
+            quote = char
+            continue
+        for delimiter in ("#", "//", "/*", "--"):
+            if line.startswith(delimiter, index):
+                return line[index + len(delimiter):]
+    return None
 
 
 # =========================================================================
@@ -371,16 +406,14 @@ class CodeReviewCapability(Capability):
     def _detect_technical_debt(self, diff_path: str = "", **kwargs: Any) -> Dict[str, Any]:
         findings = []
         diff_text = Path(diff_path).read_text() if diff_path and Path(diff_path).exists() else ""
-        debt_markers = ["TODO", "FIXME", "HACK", "XXX", "TEMP", "workaround", "hack"]
         for line in diff_text.splitlines():
             if line.startswith("+"):
-                for marker in debt_markers:
-                    if marker in line.upper():
-                        findings.append({
-                            "type": marker.upper(),
-                            "line": line.strip(),
-                        })
-                        break
+                marker = _technical_debt_marker(line.lstrip("+").strip())
+                if marker:
+                    findings.append({
+                        "type": marker,
+                        "line": line.strip(),
+                    })
         return {
             "technical_debt_introduced": len(findings),
             "items": findings[:10],

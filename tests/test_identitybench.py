@@ -622,6 +622,11 @@ class TestBenchmarkProvenance:
         assert "if-no-files-found: error" in pr_workflow
         assert "push:\n    branches: [main]" in pr_workflow
         assert "BENCHMARK_BASELINE_REF:" in pr_workflow
+        assert (
+            "github.event_name == 'workflow_dispatch' && "
+            "github.event.repository.default_branch"
+        ) in pr_workflow
+        assert "github.event_name == 'workflow_dispatch' && inputs.target_ref" not in pr_workflow
         assert pr_workflow.count("${{ env.BENCHMARK_BASELINE_REF }}") == 2
         inspect_command = "identity inspect --id ${{ env.BENCHMARK_IDENTITY }}"
         assert pr_workflow.count(inspect_command) == 1
@@ -707,6 +712,12 @@ class TestBenchmarkProvenance:
         assert "git archive" in workflow
         assert "integrity-plan/trusted-evaluator.tar.gz" in workflow
         assert "Extract and verify trusted evaluator" in workflow
+        extraction = workflow.split(
+            "- name: Extract and verify trusted evaluator", 1
+        )[1].split("- name: Install frozen runtime side", 1)[0]
+        assert "runpy.run_path(" in extraction
+        assert "trusted-evaluator/identitybench/provenance.py" in extraction
+        assert "from identitybench" not in extraction
         assert "PYTHONPATH: ${{ github.workspace }}/trusted-evaluator" in workflow
         assert 'cd source\n          identitybench run' not in workflow
         assert 'cd source\n          identity create' not in workflow

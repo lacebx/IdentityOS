@@ -222,7 +222,16 @@ jobs:
         run: |
           mkdir -p trusted-evaluator
           tar -xzf integrity-plan/trusted-evaluator.tar.gz -C trusted-evaluator
-          observed_digest="$(python -c 'from identitybench.provenance import suite_fingerprint; print(suite_fingerprint())')"
+          observed_digest="$(
+            python - <<'PY'
+          import runpy
+
+          provenance = runpy.run_path(
+              "trusted-evaluator/identitybench/provenance.py"
+          )
+          print(provenance["suite_fingerprint"]())
+          PY
+          )"
           if [[ "${observed_digest}" != "${EXPECTED_EVALUATOR_DIGEST}" ]]; then
             echo "::error::Frozen evaluator bundle does not match the committed digest."
             exit 1

@@ -188,7 +188,11 @@ def analyze_separation(files: List[Dict[str, Any]], diff: str) -> List[str]:
 
 def analyze_test_coverage(files: List[Dict[str, Any]]) -> List[str]:
     findings: List[str] = []
-    source_files = [f for f in files if not f["path"].startswith("tests/") and f["path"].endswith(".py")]
+    source_files = [
+        f for f in files
+        if not f["path"].startswith(("tests/", "examples/", "demo/"))
+        and f["path"].endswith(".py")
+    ]
     test_files = [f for f in files if f["path"].startswith("tests/")]
     if source_files and not test_files:
         findings.append(
@@ -200,17 +204,43 @@ def analyze_test_coverage(files: List[Dict[str, Any]]) -> List[str]:
             f"- \u2705 **{len(test_files)} test file(s)** included for **{len(source_files)} source file(s)** changed"
         )
     for sf in source_files:
-        base = os.path.basename(sf["path"]).replace(".py", "")
-        corresponding = [
-            tf for tf in test_files
-            if base in tf["path"] or os.path.basename(tf["path"]).replace(".py", "").replace("test_", "") in base
-        ]
-        if not corresponding:
+        if not _source_has_test_evidence(sf["path"], test_files):
+            base = os.path.basename(sf["path"]).replace(".py", "")
             findings.append(
-                f"  - `{sf['path']}` \u2014 no corresponding test file found "
-                f"(expected `tests/test_{base}.py`)"
+                f"  - `{sf['path']}` \u2014 no direct test evidence found "
+                f"(for example `tests/test_{base}.py` or a test importing the module)"
             )
     return findings
+
+
+def _normalized_path_tokens(path: str) -> set[str]:
+    """Return useful singularized tokens for relating source and test paths."""
+    tokens = set(re.findall(r"[a-z0-9]+", path.lower().removesuffix(".py")))
+    normalized = set(tokens)
+    for token in tokens:
+        if token.endswith("ies") and len(token) > 4:
+            normalized.add(token[:-3] + "y")
+        elif token.endswith("s") and len(token) > 3:
+            normalized.add(token[:-1])
+    return normalized - {"py", "test", "tests", "core", "init"}
+
+
+def _source_has_test_evidence(
+    source_path: str,
+    test_files: List[Dict[str, Any]],
+) -> bool:
+    module = source_path.removesuffix(".py").replace("/", ".").removesuffix(".__init__")
+    source_tokens = _normalized_path_tokens(source_path)
+    for test_file in test_files:
+        added_test_text = "\n".join(test_file.get("lines", [])).lower()
+        imports_module = bool(re.search(
+            rf"\b(?:from|import)\s+{re.escape(module.lower())}(?:\b|\.)",
+            added_test_text,
+        ))
+        shared_path_tokens = source_tokens & _normalized_path_tokens(test_file["path"])
+        if imports_module or shared_path_tokens:
+            return True
+    return False
 
 
 def analyze_diff_quality(files: List[Dict[str, Any]], title: str) -> List[str]:
@@ -307,14 +337,12 @@ def analyze_goals_alignment(
 
 def analyze_technical_debt_introduced(files: List[Dict[str, Any]]) -> List[str]:
     findings: List[str] = []
-    debt_markers = ["TODO", "FIXME", "HACK", "XXX", "TEMP", "workaround"]
     marker_count = 0
     for f in files:
         for line in f["lines"]:
             stripped = line.lstrip("+").strip()
-            for marker in debt_markers:
-                if marker in stripped.upper():
-                    marker_count += 1
+            if _technical_debt_marker(stripped):
+                marker_count += 1
     if marker_count > 0:
         findings.append(
             f"- \U0001f4a1 **{marker_count} technical debt marker(s) introduced** \u2014 "
@@ -323,6 +351,40 @@ def analyze_technical_debt_introduced(files: List[Dict[str, Any]]) -> List[str]:
     else:
         findings.append("- \u2705 No new technical debt introduced")
     return findings
+
+
+def _technical_debt_marker(line: str) -> Optional[str]:
+    """Find a standalone debt marker in comment text outside quoted strings."""
+    comment = _comment_text(line)
+    if comment is None:
+        return None
+    marker = re.search(
+        r"\b(TODO|FIXME|HACK|XXX|TEMP|TEMPORARY|WORKAROUND)\b",
+        comment,
+        re.IGNORECASE,
+    )
+    return marker.group(1).upper() if marker else None
+
+
+def _comment_text(line: str) -> Optional[str]:
+    quote = ""
+    escaped = False
+    for index, char in enumerate(line):
+        if quote:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == quote:
+                quote = ""
+            continue
+        if char in {"'", '"', "`"}:
+            quote = char
+            continue
+        for delimiter in ("#", "//", "/*", "--"):
+            if line.startswith(delimiter, index):
+                return line[index + len(delimiter):]
+    return None
 
 
 def assess_readiness(findings: Dict[str, List[str]]) -> Tuple[str, List[str]]:
