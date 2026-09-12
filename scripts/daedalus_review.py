@@ -342,6 +342,23 @@ def assess_readiness(findings: Dict[str, List[str]]) -> Tuple[str, List[str]]:
         return "READY", []
 
 
+def reconcile_readiness(
+    static_readiness: Tuple[str, List[str]],
+    ai_verdict: Optional[str],
+) -> Tuple[str, List[str]]:
+    """Use the stricter valid verdict so the label and review cannot disagree."""
+    severity = {"READY": 0, "NEEDS_WORK": 1, "NOT_READY": 2}
+    if ai_verdict not in severity:
+        return static_readiness
+    static_status, reasons = static_readiness
+    if severity[ai_verdict] <= severity.get(static_status, 0):
+        return static_readiness
+    return ai_verdict, reasons + [
+        f"- Daedalus AI verdict is **{ai_verdict.replace('_', ' ')}**; "
+        "see the evidence-backed recommendations in the AI analysis below."
+    ]
+
+
 def generate_markdown_review(
     title: str,
     pr_number: int,
@@ -479,11 +496,11 @@ def generate_llm_review_section(
     args: argparse.Namespace,
     findings: Dict[str, List[str]],
     readiness: Tuple[str, List[str]],
-) -> str:
+) -> Tuple[str, Optional[str]]:
     try:
         from core.capabilities.daedalus.thinking_engine import ThinkingEngine, load_memory, record_pr_review, record_recommendation, summarize_recommendation_follow_through
     except ImportError:
-        return ""
+        return "", None
 
     memory_context = summarize_recommendation_follow_through()
     diff_text = read_diff(args.diff)
@@ -545,11 +562,14 @@ Analyze this PR and respond in the specified JSON format."""
         temperature=0.3,
     )
 
-    record_pr_review(args.pr_number, readiness[0], thought.content[:200] if thought.content else "No LLM analysis")
+    ai_verdict: Optional[str] = None
 
     if thought.content and thought.finish_reason != "error":
         try:
             parsed = json.loads(thought.content)
+            candidate = parsed.get("verdict")
+            if candidate in {"READY", "NEEDS_WORK", "NOT_READY"}:
+                ai_verdict = candidate
             recs = parsed.get("recommendations", [])
             for r in recs[:3]:
                 record_recommendation(
@@ -561,6 +581,12 @@ Analyze this PR and respond in the specified JSON format."""
         except (json.JSONDecodeError, Exception):
             pass
 
+        record_pr_review(
+            args.pr_number,
+            ai_verdict or readiness[0],
+            thought.content[:200],
+        )
+
         lines = [
             "",
             "## Daedalus AI Analysis",
@@ -570,10 +596,16 @@ Analyze this PR and respond in the specified JSON format."""
         ]
         lines.append(thought.content)
         lines.append("")
-        return "\n".join(lines)
+        return "\n".join(lines), ai_verdict
     elif thought.content:
-        return f"\n\n## Daedalus AI Analysis\n\nAnalysis unavailable: {thought.content[:200]}\n"
-    return ""
+        record_pr_review(args.pr_number, readiness[0], thought.content[:200])
+        return (
+            f"\n\n## Daedalus AI Analysis\n\n"
+            f"Analysis unavailable: {thought.content[:200]}\n",
+            None,
+        )
+    record_pr_review(args.pr_number, readiness[0], "No LLM analysis")
+    return "", None
 
 
 def main() -> None:
@@ -598,7 +630,12 @@ def main() -> None:
     findings["goals"] = analyze_goals_alignment(files, args.title, daedalus_config)
     findings["tech_debt"] = analyze_technical_debt_introduced(files)
     readiness = assess_readiness(findings)
-    llm_section = generate_llm_review_section(args, findings, readiness)
+    llm_section, ai_verdict = generate_llm_review_section(
+        args,
+        findings,
+        readiness,
+    )
+    readiness = reconcile_readiness(readiness, ai_verdict)
     markdown = generate_markdown_review(
         args.title, args.pr_number, args.head_ref, args.base_ref,
         findings, readiness, daedalus_config,

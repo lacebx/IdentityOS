@@ -1,5 +1,9 @@
 name: IdentityBench PR Check
 
+# Fork code is always tested without provider credentials. A real model score
+# is produced only for trusted repository refs and is never synthesized when a
+# provider run is unavailable.
+
 on:
   pull_request:
     branches: [main]
