@@ -555,7 +555,24 @@ def test_extract_capability_name_variants():
     assert extract_capability_name("build a browser skill") == "browser"
     assert extract_capability_name("make an ocr capability") == "ocr"
     assert extract_capability_name("install docker capability") == "docker"
+    assert extract_capability_name("build me a weather skill") == "weather"
+    assert extract_capability_name(
+        "create a capability to speak and install it"
+    ) == "speak"
+    assert extract_capability_name("create a capability called help") == "help"
     assert extract_capability_name("what is the weather") is None
+
+
+def test_extract_capability_name_rejects_conversational_filler():
+    fillers = (
+        "why", "well", "so", "ok", "no", "yes", "can", "give", "we",
+        "ive", "now", "what", "great", "nice", "hey", "sure", "to",
+        "please", "come", "help",
+    )
+    for filler in fillers:
+        assert extract_capability_name(
+            f"create a capability to {filler} and install it"
+        ) is None, f"{filler!r} should not become a capability name"
 
 
 def test_is_acquisition_goal():
