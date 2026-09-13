@@ -88,6 +88,26 @@ opt in with capability configuration:
 Do not enable private-network access for an identity that should browse only
 the public internet.
 
+## Security threat model
+
+The protected assets are provider credentials, user login secrets, local files
+and services, per-user browser state, and the integrity of execution evidence.
+The capability assumes that page content and model output are untrusted.
+
+| Threat | Runtime mitigation | Residual responsibility |
+|---|---|---|
+| Model invents or echoes a credential | Only ephemeral references created from explicit user input resolve; recorded parameters are redacted | Users should provide credentials only for an authorized login |
+| Page or prompt claims an action succeeded | Skill results and postconditions establish success independently of model prose | Callers should inspect returned evidence for sensitive actions |
+| Navigation reaches local files or services | File, loopback, link-local, and private-network destinations are denied by default | Operators must not enable private access for public browsing identities |
+| One user receives another user browser state | Profile and context keys include storage root, identity, and execution scope | Applications must pass stable, distinct user IDs |
+| Uninstall deletes unrelated data | Cleanup is bounded to the installed identity browser directory | Operators should configure `storage_root` to an IdentityOS-owned location |
+| Browser dependency is unavailable or a page action fails | The capability returns structured failure evidence and does not synthesize success | Callers should retry only when the failure is recoverable |
+
+Chromium is not a general operating-system sandbox. The URL policy and
+capability permission boundary reduce exposure, but operators should still run
+untrusted autonomous workloads with ordinary host/container isolation and
+least-privilege credentials.
+
 ## Compatibility and removal
 
 The capability is opt-in. Existing identities and deployments are unchanged

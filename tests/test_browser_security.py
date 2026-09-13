@@ -259,6 +259,43 @@ def test_runtime_rejects_model_invented_plaintext_credential(tmp_path):
     assert "ephemeral secret reference" in response.output
 
 
+def test_non_browser_capability_path_remains_compatible(tmp_path):
+    class DatetimeAdapter:
+        model = "datetime-compatibility-test"
+
+        def __init__(self):
+            self.seen_input = ""
+
+        def generate(self, context, user_input, identity, **kwargs):
+            self.seen_input = user_input
+            return kwargs["execute_tool"]("datetime__now", {})
+
+    adapter = DatetimeAdapter()
+    runtime = IdentityRuntime(
+        storage=JSONFileBackend(root_dir=str(tmp_path / "store")),
+        adapter=adapter,
+    )
+    identity = create_identity("Compatibility", identity_id="compatibility")
+    runtime.register(identity)
+    runtime.capability_registry.install(identity.id, "datetime")
+
+    response = runtime.process(InteractionRequest(
+        identity_id=identity.id,
+        user_id="alice",
+        session_id="compatibility-session",
+        user_input="What time is it?",
+    ))
+
+    assert adapter.seen_input == "What time is it?"
+    assert len(response.metadata["capability_results"]) == 1
+    evidence = response.metadata["capability_results"][0]
+    assert evidence["capability"] == "datetime"
+    assert evidence["action"] == "datetime.now"
+    assert evidence["success"] is True
+    assert evidence["error"] is None
+    assert "secret-ref://" not in response.output
+
+
 @pytest.fixture
 def browser_fixture():
     credential = "fixture-" + "credential"
