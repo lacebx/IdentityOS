@@ -106,9 +106,15 @@ class UserProfile:
         self.user_id = user_id
         self._facts: Dict[str, UserFact] = {}
 
-    def _compute_confidence(self, evidence: List[EvidenceRecord]) -> float:
+    def _compute_confidence(
+        self,
+        evidence: List[EvidenceRecord],
+        current_value: Any = None,
+    ) -> float:
         return ConfidenceScorer.compute_from_evidence_records(
-            evidence, value_attr="value",
+            evidence,
+            value_attr="value",
+            current_value=current_value,
         )
 
     def add_or_update(self, field: str, value: Any,
@@ -129,7 +135,14 @@ class UserProfile:
             if len(unique_values) > 1:
                 existing.contradictions += 1
                 existing.uncertain = True
-                existing.confidence = self._compute_confidence(existing.evidence)
+                # The latest explicit user disclosure is the current value.
+                # Keep the full contradictory evidence chain and lower
+                # confidence, but never answer with a superseded disclosure.
+                existing.value = value
+                existing.confidence = self._compute_confidence(
+                    existing.evidence,
+                    current_value=value,
+                )
                 if source:
                     existing.source_conversation = source
                 return existing
