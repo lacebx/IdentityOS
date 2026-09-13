@@ -560,6 +560,23 @@ class TestLearner:
         record_acquisition("test-bot", record, tmp_storage)
         assert has_previously_searched("test-bot", "weather", tmp_storage)
 
+    def test_storage_without_a_real_path_never_writes_to_working_directory(
+        self,
+        tmp_path,
+        monkeypatch,
+    ):
+        monkeypatch.chdir(tmp_path)
+        storage = MagicMock()
+        storage.load.return_value = None
+
+        assert _load_learning_data("tester", storage) == {
+            "acquisitions": [],
+            "capability_success": {},
+            "task_capability_map": {},
+        }
+        assert list(tmp_path.iterdir()) == []
+        storage.load.assert_called_once_with("tester", "prometheus_learning")
+
 
 # ─── Evidence Recorder Tests ────────────────────────────────────────────
 
@@ -588,3 +605,28 @@ class TestEvidenceRecorder:
         assert len(history) == 1
         assert history[0]["chosen_capability"] == "github"
         assert history[0]["installation_success"] is True
+
+    def test_in_memory_backend_round_trip_uses_storage_contract(self):
+        from runtime.persistence import InMemoryBackend
+
+        storage = InMemoryBackend()
+        record = AcquisitionRecord(
+            need=CapabilityNeed(skill_keywords=["weather"]),
+            chosen_candidate=RegistryCandidate(
+                cap_id="weather", name="Weather", version="1.0.0",
+                author="IdentityOS", description="", skills=[],
+                permissions={}, manifest_url="",
+            ),
+            installation_success=True,
+            validation_success=True,
+            retry_success=True,
+        )
+
+        record_evidence("memory-backed", record, storage)
+
+        assert get_evidence_history("memory-backed", storage)[0][
+            "chosen_capability"
+        ] == "weather"
+        assert storage.load("memory-backed", "prometheus_evidence") == {
+            "entries": get_evidence_history("memory-backed", storage),
+        }
