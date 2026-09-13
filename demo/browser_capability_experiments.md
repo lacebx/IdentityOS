@@ -1,340 +1,114 @@
-# Browser Capability Experiments
+# Browser capability experiments
 
-This document records the successful autonomous web agency experiments using the **browser capability** (Playwright-based) with the **Comet identity** and **Surfer ISP pack**.
+This document separates historical experiment notes from behavior established
+by the current runtime and its executable tests. A public page can establish
+that content exists, but it cannot by itself prove which identity or execution
+path created it. See [`docs/BROWSER-CAPABILITY.md`](../docs/BROWSER-CAPABILITY.md)
+for the supported interface and security model.
 
-## Successful Experiments
+## Recorded experiments
 
-### 1. Autonomous Post Creation on write.as
+These observations were supplied after manual sessions with the Comet identity
+and Surfer ISP pack on 2026-09-12. The repository does not contain the original
+event streams, so they are useful exploratory notes rather than regression-test
+evidence.
 
-**Date:** 2026-09-12  
-**Identity:** Comet (comet-lite)  
-**Capability:** browser (Playwright)  
-**Platform:** write.as (anonymous publishing, no account required)
+### Write.as publishing
 
-#### Experiment 1 (Blocked)
-- **URL:** https://write.as/105b6gon0ehkd.md (expired after 1 hour)
-- **Content:** Included GitHub link - flagged as potential spam
-- **Result:** Blocked by write.as anti-spam
+- An initial post containing a GitHub link was reportedly rejected by the
+  service's anti-spam controls.
+- A second post was published at
+  <https://write.as/6n4r8zu44tac1.md>. Its title and body were independently
+  reachable over HTTP on 2026-09-12.
+- The page is evidence of the output, not proof that the following automation
+  sequence created it.
 
-#### Experiment 2 (Successful - Current)
-- **URL:** https://write.as/6n4r8zu44tac1.md
-- **Title:** "This is a test post created by Comet, an AI identity with browser capabilities."
-- **Content:** "This is a test post created by Comet, an AI identity with browser capabilities. The browser capability autonomously navigated to write.as, clicked Start Writing, typed this content, and published it. No human account was used – just browser automation via Playwright."
-- **Status:** Live and publicly accessible
-- **Proof:** [https://write.as/6n4r8zu44tac1.md](https://write.as/6n4r8zu44tac1.md)
+The recorded sequence was:
 
-#### Autonomous Workflow Executed
-```
-1. browser.search(query="anonymous publishing platform", task="find platform for anonymous posting")
-2. browser.open(url="https://write.as")
-3. browser.click(selector="a:has-text('Start writing')")
-4. browser.type(selector="textarea#writer", text="[content]")
-5. browser.type(selector="input[placeholder*='Title']", text="[title]")
-6. browser.click(selector="button:has-text('Publish')")
-7. browser.snapshot() → captured final URL
-```
-
-### 2. Hastebin (toptal.com/developers/hastebin)
-- **Status:** Content typing works, but Save doesn't redirect to new paste URL
-- **Issue:** Toptal's hastebin wrapper doesn't create a new URL after save
-- **Workaround:** Use raw hastebin or alternative
-
-### 3. YouTube Video Interaction
-- **Video:** "How to break the fabric of spacetime" (Sciencephile the AI)
-- **URL:** https://www.youtube.com/watch?v=3Hjwvm5H3ts
-- **Successful:** Navigation, transcript button click, scrolling, page snapshots
-- **Limited:** Transcript extraction (shadow DOM, bot protection on APIs)
-
-#### Video Summary (Minute 6:00-6:50)
-**Chapter:** "The problem" (at 6:32)
-
-The video discusses the **fundamental energy problem** with breaking spacetime:
-- Need **negative energy density** / **exotic matter** with negative mass-energy
-- Energy requirements are astronomical (~mass-energy of Jupiter)
-- **Quantum inequalities** (Ford-Roman constraints) limit negative energy magnitude/duration
-- **Quantum Interest Conjecture**: must "pay back" negative energy with positive energy
-- Vacuum decay via bubble nucleation possible but requires tunneling
-- Bubble expands at near-light speed, destroying everything
-- **Conclusion:** Mathematically possible in GR, physically unrealizable with known physics
-
----
-
-## Current Limitations
-
-### 1. Transcript/Content Extraction
-| Platform | Issue |
-|----------|-------|
-| YouTube | Transcript in shadow DOM; invidious instances have bot protection; ytInitialData not in initial HTML |
-| Hastebin (Toptal) | Save doesn't redirect to new paste URL |
-| write.as | Auto-unpublishes after 1 hour (free tier); spam detection blocks links |
-| Generic | Shadow DOM / dynamic content not accessible via snapshot |
-
-### 2. Session Management
-| Limitation | Impact |
-|------------|--------|
-| No persistent profile support | Cannot use existing Firefox/Chrome profiles with logged-in sessions |
-| Session dies when browser closes | Cookies/localStorage lost between runs |
-| No multi-tab support | Can't maintain multiple simultaneous sessions |
-| No session serialization | Can't save/restore browser state |
-
-### 3. Authentication & Accounts
-| Limitation | Impact |
-|------------|--------|
-| No credential management | Can't securely store/use credentials |
-| No 2FA support | Can't handle TOTP, SMS, email verification |
-| No OAuth flow handling | Can't complete OAuth authorization flows |
-| No password manager integration | Can't auto-fill from Bitwarden/1Password/etc |
-
-### 4. Browser Engine
-| Limitation | Impact |
-|------------|--------|
-| Playwright-only | Can't use Firefox/Chrome with existing profiles |
-| Headless by default | Some sites block headless Chrome |
-| No extension support | Can't use uBlock, password managers, etc. |
-| Fixed viewport | Can't test responsive designs |
-
-### 5. Reliability
-| Limitation | Impact |
-|------------|--------|
-| No auto-retry on navigation failure | Flaky on slow networks |
-| No CAPTCHA solving | Blocked by Cloudflare, reCAPTCHA, etc. |
-| No rate limit handling | Gets blocked on aggressive scraping |
-| Selector brittleness | UI changes break automation |
-
----
-
-## Potential Expansions
-
-### High Priority: Existing Browser Profile Support
-
-#### Firefox Profile Integration
-```python
-# Desired API
-cap = BrowserCapability(config={
-    'browser_type': 'firefox',
-    'profile_path': '/home/user/.mozilla/firefox/abc123.default-release',
-    'headless': False,
-    'persist_profile': True
-})
-```
-**Benefits:** Use existing logged-in sessions (Gmail, GitHub, AWS, etc.), extensions (uBlock, password manager), cookies, history.
-
-#### Chrome Profile Integration
-```python
-# Desired API
-cap = BrowserCapability(config={
-    'browser_type': 'chrome',
-    'profile_path': '/home/user/.config/google-chrome/Default',
-    'headless': False,
-    'persist_profile': True
-})
+```text
+browser.search(query="anonymous publishing platform", task="find a platform")
+browser.open(url="https://write.as")
+browser.click(selector="a:has-text('Start writing')")
+browser.type(selector="textarea#writer", text="[content]")
+browser.type(selector="input[placeholder*='Title']", text="[title]")
+browser.click(selector="button:has-text('Publish')")
+browser.snapshot()
 ```
 
-#### Profile Discovery
-```python
-def discover_profiles():
-    """Auto-detect available browser profiles"""
-    return {
-        'firefox': ['/path/to/profile1', '/path/to/profile2'],
-        'chrome': ['/path/to/Default', '/path/to/Profile 1']
-    }
-```
+### Hastebin
 
-### Session Persistence & Serialization
+The manual session reportedly typed content successfully, but the Toptal
+Hastebin wrapper did not return a new paste URL after Save. That makes this a
+partial/failed workflow, not a demonstrated publish operation.
 
-```python
-# Save session state
-session_data = cap.serialize_session()  # cookies, localStorage, sessionStorage, tabs
-# Later...
-cap.restore_session(session_data)
-```
+### YouTube
 
-**Use cases:**
-- Long-running tasks across restarts
-- Multi-step workflows (login → navigate → act → logout)
-- Checkpoint/resume for long tasks
+The manual session reportedly navigated, clicked, scrolled, and captured page
+snapshots. Transcript extraction was not established. Any summary produced in
+that session must therefore be treated as a model interpretation rather than a
+transcript-grounded capability result.
 
-### Multi-Tab / Multi-Context Support
+## Runtime-established behavior
 
-```python
-tab1 = cap.new_tab()
-tab1.open("https://github.com")
-tab2 = cap.new_tab()
-tab2.open("https://github.com/user/repo")
-# Switch between tabs, share cookies
-```
+The hermetic real-Chromium test in `tests/test_browser_security.py` establishes
+the following behavior independently of model prose:
 
-### Credential Management
+- install and permission activation;
+- navigation, form filling, clicking, key presses, waits, and snapshots;
+- login failure and success based on observed postconditions;
+- credential redaction before persistence or model exposure;
+- persistent cookies across a fresh Python process;
+- profile isolation across storage roots, identities, and user scopes;
+- bounded profile removal on uninstall; and
+- compatibility with an existing non-browser capability path.
 
-```python
-# Secure credential store
-cap.credentials.set("github.com", {"username": "user", "password": "****"})
-cap.credentials.set("aws.amazon.com", {"role_arn": "arn:aws:iam::..."})
+CI runs that lifecycle against a local fixture rather than a third-party site,
+so service changes, bot protection, or network instability cannot create false
+positives.
 
-# Auto-fill
-cap.login("github.com")  # Uses stored credentials + 2FA if configured
-```
+## Current limitations
 
-### OAuth Flow Automation
+| Area | Current behavior | Remaining limitation |
+|---|---|---|
+| Browser engine | Playwright Chromium; headless is configurable | No Firefox/WebKit selection or extension API |
+| Profile state | IdentityOS-owned Chromium profiles persist cookies and local storage across process restarts | Importing or sharing a user's existing browser profile is intentionally unsupported |
+| Tabs | The persistent context can contain pages, but the capability exposes one active page | No explicit tab create/list/switch API |
+| Checkpointing | Browser profile data persists on disk | No portable/exportable session checkpoint format |
+| Credentials | Explicit chat credentials are replaced with ephemeral references and require a separate permission | No durable password store, 2FA, or OAuth coordinator |
+| Content extraction | DOM text and interactive elements are captured | Closed shadow roots, canvases, media, and bot-protected content may be inaccessible |
+| Navigation safety | `file:`, loopback, link-local, and private-network targets are denied by default | Public sites can still be malicious; Chromium is not an OS sandbox |
+| Reliability | Failures return structured evidence | No generic retry/backoff policy; selectors can become stale |
+| Visual interaction | DOM-driven actions and snapshots | No screenshot/vision-based element grounding |
 
-```python
-# Handle OAuth flows
-result = cap.oauth_flow(
-    provider="github",
-    scopes=["repo", "user"],
-    callback_url="http://localhost:8080/callback"
-)
-# Opens browser, handles consent, returns token
-```
+## Safe expansion priorities
 
-### Anti-Detection / Stealth Mode
+1. Add explicit multi-tab APIs with per-action evidence and tests.
+2. Add portable, encrypted session export/import with expiry, origin allowlists,
+   and user confirmation. Do not silently attach an identity to a person's
+   everyday browser profile.
+3. Add recoverable retry/backoff for idempotent reads while leaving writes
+   explicit and non-retrying by default.
+4. Add screenshot evidence and visual element grounding without treating model
+   interpretation as action success.
+5. Add controlled OAuth/2FA handoff flows in which the user completes sensitive
+   approval steps and tokens never enter model context.
+6. Add configurable viewport and supported browser-engine selection.
+7. Add domain allowlists, rate limits, `robots.txt` policy options, and
+   container guidance for untrusted workloads.
 
-```python
-cap = BrowserCapability(config={
-    'stealth': True,
-    'user_agent_rotation': True,
-    'canvas_fingerprint_noise': True,
-    'webgl_fingerprint_noise': True,
-    'headless': False  # Headed mode harder to detect
-})
-```
+CAPTCHA bypass, fingerprint evasion, and automatic reuse of a user's logged-in
+browser profile are deliberately not roadmap items. Those mechanisms weaken
+consent and isolation boundaries and can violate service policies.
 
-### CAPTCHA Integration
+## Definition of evidence for future experiments
 
-```python
-# Integration with 2Captcha, Anti-Captcha, etc.
-cap.captcha_solver = TwoCaptchaSolver(api_key="...")
-# Auto-solves reCAPTCHA, hCaptcha, Cloudflare challenges
-```
+For a future external-site claim to become verified behavior, preserve:
 
-### Rate Limiting & Politeness
+1. the exact code revision and identity/capability configuration;
+2. redacted runtime capability events and returned results;
+3. an observable postcondition, such as a read-back of the created resource;
+4. failure and recovery evidence;
+5. a reproducible hermetic regression test where practical; and
+6. confirmation after a fresh process when persistence is part of the claim.
 
-```python
-cap.rate_limiter = RateLimiter(
-    requests_per_minute=30,
-    burst=5,
-    respect_robots_txt=True
-)
-```
-
-### Visual Verification / AI-Assisted Interaction
-
-```python
-# Use vision model to find elements
-element = cap.find_by_screenshot("Find the 'Login' button")
-cap.click(element)
-
-# Read page content via vision
-text = cap.read_screen_region(x=0, y=0, width=800, height=600)
-```
-
-### Distributed / Cloud Browser
-
-```python
-# Connect to remote browser (Browserbase, Browserless, etc.)
-cap = BrowserCapability(config={
-    'remote_url': 'wss://browserless.example.com',
-    'api_key': '...'
-})
-```
-
-### Workflow Recording / Replay
-
-```python
-# Record actions
-recorder = cap.start_recording()
-# ... user performs actions ...
-workflow = recorder.stop()  # Returns serializable workflow
-
-# Replay
-cap.replay_workflow(workflow)
-```
-
-### Natural Language → Browser Actions
-
-```python
-# High-level commands
-cap.do("Go to GitHub, search for 'IdentityOS', open the first result, and star the repo")
-cap.do("Log into my AWS console and check EC2 instance status")
-cap.do("Find the cheapest flight from SFO to NYC next Friday")
-```
-
----
-
-## Implementation Roadmap
-
-### Phase 1: Profile Support (Weeks 1-2)
-- [ ] Firefox profile detection and loading
-- [ ] Chrome profile detection and loading
-- [ ] Profile persistence (cookies, localStorage)
-- [ ] Headed mode support
-
-### Phase 2: Session Management (Weeks 2-3)
-- [ ] Session serialization/deserialization
-- [ ] Multi-tab support
-- [ ] Checkpoint/restore
-
-### Phase 3: Authentication (Weeks 3-4)
-- [ ] Secure credential store
-- [ ] Auto-fill integration
-- [ ] 2FA/TOTP support
-- [ ] OAuth flow handler
-
-### Phase 4: Advanced Features (Weeks 4-6)
-- [ ] Stealth mode / anti-detection
-- [ ] CAPTCHA solver integration
-- [ ] Rate limiter
-- [ ] Visual AI interaction
-
-### Phase 5: Natural Language Interface (Weeks 6-8)
-- [ ] LLM-driven browser actions
-- [ ] Workflow recording/replay
-- [ ] High-level command interpretation
-
----
-
-## Security Considerations
-
-1. **Credential Encryption**: All stored credentials must be encrypted at rest
-2. **Profile Isolation**: Each identity gets isolated profile directory
-3. **Permission Model**: Explicit user consent for each domain/action
-4. **Audit Trail**: Full logging of all browser actions
-5. **Sandboxing**: Browser runs in isolated container/VM
-6. **Data Retention**: Auto-delete cookies/session data after configurable TTL
-
----
-
-## Example: Full Autonomous Workflow with Profile
-
-```python
-# User has Firefox profile logged into GitHub, AWS, Gmail
-cap = BrowserCapability(config={
-    'browser_type': 'firefox',
-    'profile_path': '~/.mozilla/firefox/abc123.default-release',
-    'headless': False,
-    'persist_profile': True
-})
-
-# Identity can now:
-cap.open("https://github.com")           # Already logged in
-cap.open("https://console.aws.amazon.com")  # Already logged in
-cap.open("https://mail.google.com")      # Already logged in
-
-# Do anything the user can do:
-cap.do("Create a new GitHub issue in lacebx/IdentityOS")
-cap.do("Start an EC2 instance in AWS")
-cap.do("Send an email to team@company.com")
-
-# Session persists across restarts
-cap.close()
-# ... later ...
-cap.restore_session()  # Still logged in everywhere
-```
-
----
-
-## Conclusion
-
-The browser capability **works today** for autonomous web agency on anonymous platforms. The key blocker for "do anything on my behalf" is **existing browser profile support** — once the agent can use the user's actual logged-in browser, it gains access to everything the user has access to, with all their extensions, cookies, and sessions intact.
-
-This is the single highest-impact feature to pursue.
+External artifacts may supplement that evidence, but never replace it.
