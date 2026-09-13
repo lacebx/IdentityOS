@@ -99,6 +99,7 @@ class RegistryManagerCapability(Capability):
         idx_path = os.path.join(self._registry_path(), "index.json")
         with open(idx_path, "w") as f:
             json.dump(index, f, indent=2)
+            f.write("\n")
 
     def _list_capabilities(self, **kwargs: Any) -> dict[str, Any]:
         index = self._load_capability_index()
@@ -181,6 +182,7 @@ class RegistryManagerCapability(Capability):
             }
             with open(os.path.join(mk_dir, "manifest.json"), "x") as f:
                 json.dump(manifest, f, indent=2)
+                f.write("\n")
 
             mk_index = os.path.join(self._registry_path(), "capabilities", "index.json")
             if os.path.isfile(mk_index):
@@ -194,6 +196,7 @@ class RegistryManagerCapability(Capability):
             mk_data["capabilities"] = mk_caps
             with open(mk_index, "w") as f:
                 json.dump(mk_data, f, indent=2)
+                f.write("\n")
             return {"manifest": f"registry/capabilities/{cap_id}/manifest.json", "index": len(mk_caps)}
         except Exception as e:
             return {"error": str(e)}

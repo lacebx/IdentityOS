@@ -96,6 +96,7 @@ def _cleanup_generated(cap_id):
         data["capabilities"] = [c for c in caps if c.get("id") != cap_id]
         with open(root_index, "w") as f:
             json.dump(data, f, indent=2)
+            f.write("\n")
 
 
 @pytest.fixture()
