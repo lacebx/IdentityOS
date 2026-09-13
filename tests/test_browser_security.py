@@ -395,6 +395,11 @@ def test_real_browser_lifecycle_isolation_and_restart(
     browser = bot.use("browser")
 
     assert browser.open(url=base_url + "/").success is True
+    typed = browser.type(selector="#query", text="typed-value", clear=True)
+    assert typed.success is True
+    assert typed.data["typed_len"] == len("typed-value")
+    assert browser.click(selector="#copy").success is True
+    assert "typed-value" in browser.snapshot().data["text"]
     assert browser.fill(selector="#query", value="observed-value").success is True
     assert browser.click(selector="#copy").success is True
     assert "observed-value" in browser.snapshot().data["text"]
