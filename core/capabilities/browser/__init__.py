@@ -11,6 +11,7 @@ import re
 import shutil
 import time
 from contextvars import ContextVar
+from pathlib import Path
 from typing import Any, Optional
 from urllib.parse import parse_qs, quote_plus, unquote, urlparse
 
@@ -114,6 +115,10 @@ class BrowserCapability(Capability):
         self._allow_private_network = bool(
             (config or {}).get("allow_private_network", False)
         )
+        self._browser_type = (config or {}).get("browser_type", "chromium")
+        self._user_profile_dir = (config or {}).get("user_profile_dir")
+        if self._user_profile_dir:
+            self._user_profile_dir = Path(self._user_profile_dir).expanduser().resolve()
         self._identity_id = ""
         self._http = httpx.Client(
             timeout=20,
@@ -429,6 +434,8 @@ class BrowserCapability(Capability):
             headless=self._headless if headless is None else headless,
             execution_scope=_EXECUTION_SCOPE.get(),
             allow_private_network=self._allow_private_network,
+            browser_type=self._browser_type,
+            user_profile_dir=self._user_profile_dir,
         )
         return state
 
@@ -437,6 +444,8 @@ class BrowserCapability(Capability):
             self._require_identity(),
             storage_root=self._storage_root,
             execution_scope=_EXECUTION_SCOPE.get(),
+            browser_type=self._browser_type,
+            user_profile_dir=self._user_profile_dir,
         )
 
     def _goto(self, url: str, wait_until: str = "domcontentloaded") -> dict[str, Any]:

@@ -43,6 +43,9 @@ class SessionState:
     last_url: str = ""
     history: list[str] = field(default_factory=list)
     lock: threading.RLock = field(default_factory=threading.RLock)
+    # Profile support
+    browser_type: str = "chromium"  # chromium, firefox, webkit
+    user_profile_dir: Optional[Path] = None  # Path to existing browser profile
 
 
 _SESSIONS: dict[str, SessionState] = {}
@@ -151,8 +154,16 @@ def _session_key(
     storage_root: str | Path,
     identity_id: str,
     execution_scope: str,
+    browser_type: str = "chromium",
+    user_profile_dir: Optional[Path] = None,
 ) -> str:
-    return str(session_dir(storage_root, identity_id, execution_scope).resolve())
+    base = str(session_dir(storage_root, identity_id, execution_scope).resolve())
+    if browser_type != "chromium":
+        base = f"{base}-{browser_type}"
+    if user_profile_dir:
+        profile_hash = hashlib.sha256(str(user_profile_dir).encode()).hexdigest()[:8]
+        base = f"{base}-profile-{profile_hash}"
+    return base
 
 
 def get_session(
@@ -160,10 +171,15 @@ def get_session(
     *,
     storage_root: str | Path = ".identity_store",
     execution_scope: str = "sdk",
+    browser_type: str = "chromium",
+    user_profile_dir: Optional[Path] = None,
 ) -> Optional[SessionState]:
-    key = _session_key(storage_root, identity_id, execution_scope)
+    key = _session_key(storage_root, identity_id, execution_scope, browser_type, user_profile_dir)
     with _GLOBAL_LOCK:
-        return _SESSIONS.get(key)
+        state = _SESSIONS.get(key)
+        if state and state.browser_type == browser_type and state.user_profile_dir == user_profile_dir:
+            return state
+        return None
 
 
 def ensure_session(
@@ -174,17 +190,21 @@ def ensure_session(
     user_agent: Optional[str] = None,
     execution_scope: str = "sdk",
     allow_private_network: bool = False,
+    browser_type: str = "chromium",
+    user_profile_dir: Optional[Path] = None,
 ) -> SessionState:
     """Start or reuse a browser session for this identity."""
 
     def _ensure() -> SessionState:
         with _GLOBAL_LOCK:
-            key = _session_key(storage_root, identity_id, execution_scope)
+            key = _session_key(storage_root, identity_id, execution_scope, browser_type, user_profile_dir)
             existing = _SESSIONS.get(key)
             if existing and existing.started and existing.page is not None:
                 if (
                     existing.headless == headless
                     and existing.allow_private_network == allow_private_network
+                    and existing.browser_type == browser_type
+                    and existing.user_profile_dir == user_profile_dir
                 ):
                     return existing
                 _SESSIONS.pop(key, None)
@@ -197,11 +217,41 @@ def ensure_session(
                 headless=headless,
                 allow_private_network=allow_private_network,
                 user_data_dir=session_dir(storage_root, identity_id, execution_scope),
+                browser_type=browser_type,
+                user_profile_dir=user_profile_dir,
             )
             state.playwright = _shared_playwright()
             try:
-                state.context = state.playwright.chromium.launch_persistent_context(
-                    user_data_dir=str(state.user_data_dir / "profile"),
+                # Determine user data directory
+                if state.user_profile_dir and state.user_profile_dir.exists():
+                    # Use existing browser profile
+                    profile_dir = state.user_profile_dir
+                    state.user_profile_dir.mkdir(parents=True, exist_ok=True)
+                else:
+                    # Use internal profile directory
+                    profile_dir = state.user_data_dir / "profile"
+                    profile_dir.mkdir(parents=True, exist_ok=True)
+
+                # Select browser type
+                browser_launcher = getattr(state.playwright, state.browser_type)
+                if browser_launcher is None:
+                    raise BrowserUnavailable(f"Browser type '{state.browser_type}' not available")
+
+                # Prepare launch arguments
+                launch_args = ["--disable-blink-features=AutomationControlled"]
+                if state.browser_type == "chromium":
+                    # Additional Chromium args
+                    pass
+                elif state.browser_type == "firefox":
+                    # Firefox specific args
+                    launch_args = ["-headless"] if headless else []
+                elif state.browser_type == "webkit":
+                    # WebKit specific args
+                    pass
+
+                # Launch persistent context
+                state.context = browser_launcher.launch_persistent_context(
+                    user_data_dir=str(profile_dir),
                     headless=headless,
                     viewport={"width": 1280, "height": 800},
                     locale="en-US",
@@ -210,7 +260,7 @@ def ensure_session(
                         "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
                         "(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
                     ),
-                    args=["--disable-blink-features=AutomationControlled"],
+                    args=launch_args,
                 )
                 state.context.route(
                     "**/*",
@@ -256,9 +306,11 @@ def close_session(
     *,
     storage_root: str | Path = ".identity_store",
     execution_scope: str = "sdk",
+    browser_type: str = "chromium",
+    user_profile_dir: Optional[Path] = None,
 ) -> bool:
     def _close() -> bool:
-        key = _session_key(storage_root, identity_id, execution_scope)
+        key = _session_key(storage_root, identity_id, execution_scope, browser_type, user_profile_dir)
         with _GLOBAL_LOCK:
             state = _SESSIONS.pop(key, None)
         if state is None:
