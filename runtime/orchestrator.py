@@ -46,6 +46,7 @@ from runtime.event_bus import EventBus, EventType
 from runtime.debugger import build_debug_record, persist_debug_record
 from runtime.observability import InteractionTrace
 from runtime.persistence import InMemoryBackend
+from runtime.sensitive import protect_explicit_secrets, resolve_sensitive_parameters
 
 # Prometheus is optional
 try:
@@ -781,6 +782,13 @@ class IdentityRuntime:
                 metadata={"timings_ms": trace.finish()},
             )
 
+        # Credentials explicitly supplied for a tool are opaque to the model,
+        # event stream, memory, timeline, and debugger. The plaintext mapping is
+        # held only by this stack frame for the duration of this interaction.
+        protected_input, interaction_secrets = protect_explicit_secrets(
+            request.user_input
+        )
+
         stage_started = trace.start_stage()
         explicit_user = (request.user_id or "").strip()
         default_user = self._resolved_user_id(identity.id, explicit_user)
@@ -821,17 +829,17 @@ class IdentityRuntime:
         trace.end_stage("session_resolution", stage_started)
 
         self._emit(EventType.MESSAGE_RECEIVED, identity_id=identity.id,
-                   session_id=session_id, user_id=user_id, content=request.user_input)
+                   session_id=session_id, user_id=user_id, content=protected_input)
 
         if session_id not in self._session_modes:
-            mode = detect_session_mode(request.user_input)
+            mode = detect_session_mode(protected_input)
             self._session_modes[session_id] = mode
             if mode != SessionMode.NORMAL:
                 canonical = self._fact_stores.get(identity.id)
                 self._session_fact_stores[session_id] = canonical.fork() if canonical else FactStore()
         session_mode = self._session_modes.get(session_id, SessionMode.NORMAL)
 
-        rename_attempt = detect_identity_rename_attempt(request.user_input)
+        rename_attempt = detect_identity_rename_attempt(protected_input)
         if rename_attempt and identity.is_field_locked("name"):
             return InteractionResponse(
                 request_id=request.id, identity_id=identity.id,
@@ -840,10 +848,10 @@ class IdentityRuntime:
                 metadata={"timings_ms": trace.finish()},
             )
 
-        emotion_state = extract_emotion(request.user_input)
+        emotion_state = extract_emotion(protected_input)
 
         stage_started = trace.start_stage()
-        input_policy = self.policy_engine.evaluate(request.user_input, scope=PolicyScope.INPUT)
+        input_policy = self.policy_engine.evaluate(protected_input, scope=PolicyScope.INPUT)
         self._emit(EventType.POLICY_TRIGGERED, identity_id=identity.id, session_id=session_id,
                    scope="input", allowed=input_policy.allowed, policies_applied=input_policy.applied_policies)
         if not input_policy.allowed:
@@ -854,7 +862,7 @@ class IdentityRuntime:
                 output="[Blocked] Input did not pass policy check.", policy_passed=False,
                 metadata={"timings_ms": trace.finish()},
             )
-        sanitized_input = input_policy.transformed_data or request.user_input
+        sanitized_input = input_policy.transformed_data or protected_input
         trace.end_stage("input_policy", stage_started)
 
         _executive_state_block = ""
@@ -938,9 +946,11 @@ class IdentityRuntime:
                 params.update(args["params"])
 
             try:
+                params = resolve_sensitive_parameters(params, interaction_secrets)
                 result = self.capability_registry.call(
                     identity.id,
                     skill_name,
+                    execution_scope=f"user:{user_id}",
                     **params,
                 )
                 duration_ms = (_time_mod.monotonic() - t0) * 1000

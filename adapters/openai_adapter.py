@@ -3,6 +3,7 @@ from __future__ import annotations
 import ast
 import json
 import logging
+import math
 import os
 import re
 import time as _time
@@ -250,28 +251,125 @@ def _legacy_call_template(name: str, schema: dict[str, Any]) -> str:
     return f"<function={name}>{json.dumps(arguments, separators=(',', ':'))}</function>"
 
 
-def _parse_known_text_tool_call(
+def _parse_json_object(raw: str) -> Optional[dict[str, Any]]:
+    """Parse a JSON or Python-literal object; return None on failure."""
+    raw = (raw or "").strip()
+    if not raw:
+        return {}
+    try:
+        value = json.loads(raw)
+    except (json.JSONDecodeError, TypeError):
+        try:
+            value = ast.literal_eval(raw)
+        except Exception:
+            return None
+    return value if isinstance(value, dict) else None
+
+
+def _tool_name_aliases(name: str) -> list[str]:
+    aliases = [name]
+    if "__" in name:
+        aliases.append(name.replace("__", "."))
+    elif "." in name:
+        aliases.append(name.replace(".", "__"))
+    return list(dict.fromkeys(alias for alias in aliases if alias))
+
+
+def _balanced_object(text: str, start: int) -> Optional[tuple[str, int]]:
+    """Return a balanced object literal and its exclusive end offset."""
+    position = start
+    while position < len(text) and text[position].isspace():
+        position += 1
+    if position >= len(text) or text[position] != "{":
+        return None
+    depth = 0
+    quote = ""
+    escaped = False
+    for index in range(position, len(text)):
+        char = text[index]
+        if quote:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == quote:
+                quote = ""
+            continue
+        if char in {"'", '"'}:
+            quote = char
+        elif char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0:
+                return text[position:index + 1], index + 1
+    return None
+
+
+def _known_text_tool_calls(
     text: str,
     tools: list[dict[str, Any]],
-) -> Optional[tuple[str, dict[str, Any]]]:
-    """Parse Ollama's ``safe_name({...})`` fallback for an offered tool only."""
-    names = [
+) -> list[tuple[int, str, dict[str, Any]]]:
+    offered = [
         str(tool.get("function", {}).get("name", ""))
         for tool in tools
         if tool.get("function", {}).get("name")
     ]
-    for name in names:
-        pattern = rf"(?<![A-Za-z0-9_]){re.escape(name)}\s*\(\s*(\{{.*?\}})\s*\)"
-        match = re.search(pattern, text, flags=re.DOTALL)
-        if not match:
-            continue
-        try:
-            arguments = json.loads(match.group(1))
-        except json.JSONDecodeError:
-            continue
-        if isinstance(arguments, dict):
-            return name, arguments
-    return None
+    candidates: list[tuple[int, str, dict[str, Any]]] = []
+    for match in _LEGACY_FUNCTION_RE.finditer(text or ""):
+        raw_name = match.group(1).strip()
+        name = next((item for item in offered if raw_name in _tool_name_aliases(item)), "")
+        arguments = _parse_json_object(match.group(2))
+        if name and arguments is not None:
+            candidates.append((match.start(), name, arguments))
+
+    for name in offered:
+        for alias in _tool_name_aliases(name):
+            pattern = re.compile(
+                rf"(?<![A-Za-z0-9_]){re.escape(alias)}\s*\(",
+                re.IGNORECASE,
+            )
+            for match in pattern.finditer(text or ""):
+                balanced = _balanced_object(text, match.end())
+                if balanced is None:
+                    continue
+                raw, _ = balanced
+                arguments = _parse_json_object(raw)
+                if arguments is not None:
+                    candidates.append((match.start(), name, arguments))
+
+    candidates.sort(key=lambda item: item[0])
+    return candidates[:8]
+
+
+def _parse_known_text_tool_call(
+    text: str,
+    tools: list[dict[str, Any]],
+) -> Optional[tuple[str, dict[str, Any]]]:
+    """Parse the first text-form call for an explicitly offered tool."""
+    calls = _known_text_tool_calls(text, tools)
+    return (calls[0][1], calls[0][2]) if calls else None
+
+
+def _parse_all_known_text_tool_calls(
+    text: str,
+    tools: list[dict[str, Any]],
+) -> list[tuple[str, dict[str, Any]]]:
+    """Extract bounded text-form tool calls in model-emitted order."""
+    return [(name, arguments) for _, name, arguments in _known_text_tool_calls(text, tools)]
+
+def _resolve_openai_timeout(value: Any) -> float:
+    """Return a finite, positive request timeout in seconds."""
+    if value is None or value == "":
+        return 120.0
+    try:
+        timeout = float(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("OPENAI_TIMEOUT must be a positive number of seconds") from exc
+    if not math.isfinite(timeout) or timeout <= 0:
+        raise ValueError("OPENAI_TIMEOUT must be a positive number of seconds")
+    return timeout
+
 
 class OpenAIAdapter(BaseAdapter):
     def __init__(
@@ -299,8 +397,8 @@ class OpenAIAdapter(BaseAdapter):
         self.max_tool_rounds = max(1, int(max_tool_rounds))
 
         if timeout is None:
-            timeout = float(os.environ.get("OPENAI_TIMEOUT", "") or 0) or 120.0
-        self.timeout = timeout
+            timeout = os.environ.get("OPENAI_TIMEOUT")
+        self.timeout = _resolve_openai_timeout(timeout)
         self._client = None
 
     def _get_client(self):
@@ -747,10 +845,11 @@ class OllamaAdapter(OpenAIAdapter):
         if execute_tool is None:
             return messages
         reminder = (
-            "You have access to a tool that can perform calculations, file operations, "
-            "and retrieve current date/time. When a task requires such operations, "
-            "use the tool and report its result exactly as returned. Do not guess or "
-            "invent results."
+            "You have access to the runtime tools described below. When current or "
+            "external evidence is required, call an offered tool and report only its "
+            "result. Prefer native tool calls. If native calls are unavailable, emit "
+            "exactly <function=OFFERED_TOOL_NAME>{JSON_ARGUMENTS}</function>. Never "
+            "invent tool results or use an unoffered tool name."
         )
         new_messages = []
         for msg in messages:
@@ -789,21 +888,30 @@ class OllamaAdapter(OpenAIAdapter):
         timeout: Optional[float] = None,
         temperature: float = 0.7,
         max_tokens: int = 1024,
+        prefer_legacy_tools: Optional[bool] = None,
         **kwargs
     ):
         super().__init__(
             model=model,
             api_key="ollama",
             base_url=base_url,
-            timeout=timeout or 120.0,
+            timeout=timeout,
             temperature=temperature,
             max_tokens=max_tokens,
             **kwargs,
         )
         self.think = think
         self._supports_native_tools: Optional[bool] = None
+        if prefer_legacy_tools is None:
+            configured = os.environ.get("OLLAMA_PREFER_LEGACY_TOOLS", "1")
+            prefer_legacy_tools = configured.strip().lower() not in {
+                "0", "false", "no", "off",
+            }
+        self.prefer_legacy_tools = bool(prefer_legacy_tools)
 
     def _native_tools_supported(self) -> bool:
+        if self.prefer_legacy_tools:
+            return False
         if self._supports_native_tools is None:
             capabilities = ollama_model_capabilities(
                 self.model,
@@ -841,36 +949,40 @@ class OllamaAdapter(OpenAIAdapter):
                 extra_body=extra,
                 **kwargs,
             )
-            text_call = _parse_known_text_tool_call(output, tools)
-            if text_call is None:
+            text_calls = _parse_all_known_text_tool_calls(output, tools)
+            if not text_calls:
                 return output
-            name, arguments = text_call
             self._supports_native_tools = False
-            try:
-                result = execute_tool(name, arguments)
-            except Exception as exc:
-                result = json.dumps({"error": f"{type(exc).__name__}: {exc}"})
-            logger.warning(
-                "Recovered Ollama text-form call for offered tool %s; "
-                "re-prompting with runtime result.",
-                name,
-            )
+            evidence_blocks: list[str] = []
+            for name, arguments in text_calls:
+                try:
+                    result = execute_tool(name, arguments)
+                except Exception as exc:
+                    result = json.dumps({"error": f"{type(exc).__name__}: {exc}"})
+                evidence_blocks.append(f"[Tool `{name}` returned]\n{result}")
+                logger.warning(
+                    "Recovered Ollama text-form call for offered tool %s; "
+                    "continuing with runtime evidence.",
+                    name,
+                )
             return super().generate(
                 context,
-                f"{user_input}\n\n[Tool `{name}` returned]\n{result}\n\n"
-                "Use that verified result in your answer to the user.",
+                f"{user_input}\n\n" + "\n\n".join(evidence_blocks) + "\n\n"
+                "Use only those verified tool results in your answer. Do not "
+                "invent content or emit another text-form action.",
                 identity,
                 extra_body=extra,
                 **kwargs,
             )
 
-        if execute_tool:
+        if execute_tool and tools:
             context = _legacy_tool_context(context, user_input, tools)
             return self._legacy_tool_loop(
                 context,
                 user_input,
                 identity,
                 execute_tool,
+                tools=tools,
                 extra_body=extra,
                 **kwargs,
             )
@@ -890,6 +1002,7 @@ class OllamaAdapter(OpenAIAdapter):
         identity: Any,
         execute_tool: Any,
         *,
+        tools: list[dict[str, Any]],
         extra_body: dict[str, Any],
         **kwargs: Any,
     ) -> str:
@@ -902,8 +1015,8 @@ class OllamaAdapter(OpenAIAdapter):
                 extra_body=extra_body,
                 **kwargs,
             )
-            legacy = _parse_legacy_function_call(text)
-            if legacy is None:
+            calls = _parse_all_known_text_tool_calls(text, tools)
+            if not calls:
                 return text
             if tool_round >= self.max_tool_rounds:
                 raise RuntimeError(
@@ -911,20 +1024,24 @@ class OllamaAdapter(OpenAIAdapter):
                     "refusing to execute an unbounded model tool loop."
                 )
 
-            name, args = legacy
-            try:
-                result = execute_tool(name, args)
-            except Exception as exc:
-                result = json.dumps({"error": f"{type(exc).__name__}: {exc}"})
+            evidence_blocks: list[str] = []
+            for name, args in calls:
+                try:
+                    result = execute_tool(name, args)
+                except Exception as exc:
+                    result = json.dumps({"error": f"{type(exc).__name__}: {exc}"})
+                evidence_blocks.append(f"[Tool `{name}` returned]\n{result}")
+                logger.warning(
+                    "Ollama legacy tool loop executed %s; re-prompting model with result.",
+                    name,
+                )
 
             follow_up = (
                 f"{user_input}\n\n"
-                f"[Tool `{name}` returned]\n{result}\n\n"
-                "Use that verified result in your answer to the user."
-            )
-            logger.warning(
-                "Ollama legacy tool loop executed %s; re-prompting model with result.",
-                name,
+                + "\n\n".join(evidence_blocks)
+                + "\n\nUse only those verified tool results in your answer. "
+                "If another offered tool is required, emit one exact function call; "
+                "otherwise answer now."
             )
 
         raise RuntimeError(

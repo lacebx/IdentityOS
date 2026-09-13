@@ -1,0 +1,99 @@
+{
+  "id": "browser",
+  "name": "Browser",
+  "version": "1.0.0",
+  "author": "IdentityOS",
+  "license": "MIT",
+  "homepage": "https://github.com/lacebx/IdentityOS",
+  "description": "Person-like web surfing: search the web, score result usefulness against a task, open pages, click/type/login, and act inside authenticated browser sessions (Comet-style).",
+  "provider": "core.capabilities.browser.BrowserCapability",
+  "config_schema": {
+    "type": "object",
+    "properties": {
+      "headless": {
+        "type": "boolean",
+        "description": "Run Chromium headless (default true)"
+      },
+      "storage_root": {
+        "type": "string",
+        "description": "Root directory for persistent browser profiles"
+      },
+      "allow_private_network": {
+        "type": "boolean",
+        "description": "Explicitly allow localhost/private-network navigation for controlled environments (default false)"
+      }
+    }
+  },
+  "permissions": {
+    "network": true,
+    "filesystem": true,
+    "browser": true
+  },
+  "skills": [
+    {
+      "name": "browser.open",
+      "description": "Open a URL in a persistent browser session",
+      "permission": "browser:read"
+    },
+    {
+      "name": "browser.navigate",
+      "description": "Navigate the current tab to a URL",
+      "permission": "browser:write"
+    },
+    {
+      "name": "browser.search",
+      "description": "Search the web and score results against a task",
+      "permission": "browser:read"
+    },
+    {
+      "name": "browser.evaluate_results",
+      "description": "Score search results against a task and recommend URLs",
+      "permission": "browser:read"
+    },
+    {
+      "name": "browser.snapshot",
+      "description": "Read current page text and interactive elements",
+      "permission": "browser:read"
+    },
+    {
+      "name": "browser.click",
+      "description": "Click an element by selector, text, or role",
+      "permission": "browser:write"
+    },
+    {
+      "name": "browser.type",
+      "description": "Type into an input or the focused element",
+      "permission": "browser:write"
+    },
+    {
+      "name": "browser.fill",
+      "description": "Fill a form field by selector",
+      "permission": "browser:write"
+    },
+    {
+      "name": "browser.login",
+      "description": "Log into a site with user-provided credentials",
+      "permission": "browser:credentials"
+    },
+    {
+      "name": "browser.press",
+      "description": "Press a keyboard key",
+      "permission": "browser:write"
+    },
+    {
+      "name": "browser.wait",
+      "description": "Wait for selector, URL, or milliseconds",
+      "permission": "browser:read"
+    },
+    {
+      "name": "browser.status",
+      "description": "Report browser session status",
+      "permission": "browser:read"
+    },
+    {
+      "name": "browser.close",
+      "description": "Close the browser session",
+      "permission": "browser:write"
+    }
+  ]
+}

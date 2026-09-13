@@ -60,6 +60,9 @@ class Capability(ABC):
     homepage: str = ""
     description: str = ""
     permissions: list[str] = field(default_factory=lambda: ["public"])
+    # Permissions granted by an explicit install operation. Sensitive scopes
+    # such as credential use should never be listed here.
+    default_grants: list[str] = []
 
     def __init__(self, config: Optional[dict] = None) -> None:
         self._config = config or {}
@@ -101,6 +104,21 @@ class Capability(ABC):
     def call(self, skill_name: str, **params: Any) -> Any:
         """Execute a skill and return the result."""
 
+    def call_scoped(
+        self,
+        skill_name: str,
+        *,
+        execution_scope: Optional[str] = None,
+        **params: Any,
+    ) -> Any:
+        """Execute with an optional runtime/user isolation scope.
+
+        Most capabilities are stateless and can ignore the scope. Stateful
+        capabilities may override this without leaking transport metadata into
+        their public model-facing parameter schema.
+        """
+        return self.call(skill_name, **params)
+
     # ── Event hooks (reserved — no-op by default) ─────────────────────
 
     def on_message(self, message: Any) -> None:
@@ -127,6 +145,7 @@ class Capability(ABC):
             "homepage": self.homepage,
             "description": self.description,
             "permissions": self.permissions,
+            "default_grants": self.default_grants,
             "skills": [s.name for s in self.skills()],
             "skill_contracts": [
                 {

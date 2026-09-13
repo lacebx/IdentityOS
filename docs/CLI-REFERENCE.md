@@ -534,6 +534,7 @@ IdentityOS is configured through environment variables (loaded from `.env`).
 | `OPENROUTER_API_KEY` | OpenRouter |
 | `SAMBANOVA_API_KEY` | SambaNova Cloud |
 | `OPENAI_BASE_URL` | Custom base URL for any OpenAI-compatible endpoint |
+| `OPENAI_TIMEOUT` | Positive request timeout in seconds for OpenAI and compatible local endpoints (default: `120`) |
 
 ### Key Rotation
 
@@ -551,6 +552,7 @@ Groq and SambaNova support multiple keys for rate-limit rotation:
 | `IDENTITY_ADAPTER` | auto-detect | Force a specific adapter: `openai`, `groq`, `anthropic`, `openrouter`, `sambanova`, `ollama` |
 | `IDENTITY_MODEL` | (per adapter) | Override the model name |
 | `IDENTITY_ADAPTER_CONFIG` | `{}` | JSON string with additional adapter config |
+| `OPENAI_TIMEOUT` | `120` | Positive request timeout in seconds for OpenAI-compatible adapters, including Ollama |
 
 ### Local Model Examples
 

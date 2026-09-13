@@ -124,6 +124,51 @@
         "network": true,
         "filesystem": false
       }
+    },
+    {
+      "id": "ddmanzinn/comet",
+      "name": "Comet",
+      "version": "1.0.0",
+      "description": "Autonomous web-surfing identity with isolated sessions and evidence-backed actions.",
+      "author": "ddmanzinn",
+      "tags": [
+        "browser",
+        "web",
+        "search",
+        "comet",
+        "automation"
+      ],
+      "published": "2026-09-09",
+      "url": "identities/ddmanzinn/comet/manifest.json",
+      "runtime": {
+        "identityos": ">=0.4"
+      },
+      "model": {
+        "provider": "openai",
+        "model": "gpt-4o"
+      },
+      "personality": {
+        "role": "web surfing agent",
+        "codename": "Comet",
+        "profile": "A web-surfing identity that searches, evaluates results, and performs verified browser actions within explicit permission boundaries."
+      },
+      "memory": {
+        "backend": "sqlite",
+        "retention": "persistent"
+      },
+      "capabilities": [
+        "browser",
+        "web",
+        "task_planner",
+        "datetime",
+        "github",
+        "text"
+      ],
+      "permissions": {
+        "network": true,
+        "filesystem": true,
+        "browser": true
+      }
     }
   ],
   "capabilities": [
@@ -189,6 +234,28 @@
         "weather.forecast"
       ],
       "published": "2026-07-27"
+    },
+    {
+      "id": "browser",
+      "name": "Browser",
+      "version": "1.0.0",
+      "description": "Isolated browser automation with search, navigation, interaction, and verified login",
+      "skills": [
+        "browser.open",
+        "browser.navigate",
+        "browser.search",
+        "browser.evaluate_results",
+        "browser.snapshot",
+        "browser.click",
+        "browser.type",
+        "browser.fill",
+        "browser.login",
+        "browser.press",
+        "browser.wait",
+        "browser.status",
+        "browser.close"
+      ],
+      "published": "2026-09-09"
     },
     {
       "id": "calc",

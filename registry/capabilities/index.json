@@ -63,6 +63,20 @@
       "url": "web/manifest.json"
     },
     {
+      "id": "browser",
+      "name": "Browser",
+      "version": "1.0.0",
+      "description": "Person-like web surfing: search, score usefulness, open pages, click/type/login, authenticated sessions",
+      "author": "IdentityOS",
+      "skills": 13,
+      "permissions": [
+        "public",
+        "network",
+        "browser"
+      ],
+      "url": "browser/manifest.json"
+    },
+    {
       "id": "filesystem",
       "name": "FileSystem",
       "version": "1.0.0",

@@ -1,0 +1,18 @@
+{
+  "model": "phi4-mini:latest",
+  "identity": "comet-lite",
+  "tools_called": [
+    "browser.close"
+  ],
+  "open_ok": false,
+  "content_grounded": false,
+  "elapsed_s": 0.0,
+  "reply": "[Error] Identity not found.",
+  "tool_log": [
+    {
+      "skill": "browser.close",
+      "success": true,
+      "preview": {}
+    }
+  ]
+}

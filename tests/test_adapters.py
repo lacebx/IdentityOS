@@ -120,6 +120,19 @@ class TestOpenAIAdapter:
         adapter._get_client()
         kwargs = mock_openai_client.call_args.kwargs
         assert kwargs["max_retries"] == 0
+        assert adapter.timeout == 7.0
+
+    def test_timeout_defaults_from_environment(self, monkeypatch):
+        monkeypatch.setenv("OPENAI_TIMEOUT", "19.25")
+
+        adapter = OpenAIAdapter(api_key="sk-test")
+
+        assert adapter.timeout == 19.25
+
+    @pytest.mark.parametrize("value", [0, -1, float("nan"), float("inf")])
+    def test_explicit_invalid_timeout_is_rejected(self, value):
+        with pytest.raises(ValueError, match="OPENAI_TIMEOUT must be a positive number"):
+            OpenAIAdapter(api_key="sk-test", timeout=value)
 
     def test_generate(self, mock_openai_client):
         adapter = OpenAIAdapter(api_key="sk-test")
@@ -655,6 +668,43 @@ class TestOpenAIAdapter:
 
         assert _parse_legacy_function_call("no function here") is None
 
+    def test_parse_ordered_dotted_text_tool_calls_with_nested_arguments(self):
+        from adapters.openai_adapter import (
+            _parse_all_known_text_tool_calls,
+            _parse_known_text_tool_call,
+        )
+
+        tools = [
+            {"type": "function", "function": {"name": "browser__open"}},
+            {"type": "function", "function": {"name": "browser__fill"}},
+        ]
+        text = (
+            '<action>browser.fill({"selector":"#q","value":"a {brace}"})</action>\n'
+            '<action>browser.open({"url":"https://example.com",'
+            '"meta":{"source":"test"}})</action>'
+        )
+
+        assert _parse_known_text_tool_call(text, tools) == (
+            "browser__fill",
+            {"selector": "#q", "value": "a {brace}"},
+        )
+        assert _parse_all_known_text_tool_calls(text, tools) == [
+            ("browser__fill", {"selector": "#q", "value": "a {brace}"}),
+            (
+                "browser__open",
+                {"url": "https://example.com", "meta": {"source": "test"}},
+            ),
+        ]
+
+    def test_text_tool_parser_ignores_unoffered_calls(self):
+        from adapters.openai_adapter import _parse_all_known_text_tool_calls
+
+        tools = [{"type": "function", "function": {"name": "browser__open"}}]
+        assert _parse_all_known_text_tool_calls(
+            'command_exec.run({"command":"whoami"})',
+            tools,
+        ) == []
+
     def test_parse_failed_generation_tool_call(self):
         from adapters.openai_adapter import _parse_failed_generation_tool_call
 
@@ -775,6 +825,10 @@ class TestAnthropicAdapter:
 # ---------------------------------------------------------------------------
 
 class TestOllamaAdapter:
+    def test_timeout_validation_matches_openai_adapter(self):
+        with pytest.raises(ValueError, match="OPENAI_TIMEOUT must be a positive number"):
+            OllamaAdapter(timeout=0)
+
     def test_generate(self, mock_openai_client):
         adapter = OllamaAdapter(model="llama3.2")
         result = adapter.generate(
@@ -969,7 +1023,7 @@ class TestOllamaAdapter:
         mock_openai_client.return_value.chat.completions.create.return_value.choices[
             0
         ].message.tool_calls = None
-        adapter = OllamaAdapter(model="qwen3:4b")
+        adapter = OllamaAdapter(model="qwen3:4b", prefer_legacy_tools=False)
         adapter._supports_native_tools = True
         tools = [
             {
@@ -1033,7 +1087,7 @@ class TestOllamaAdapter:
             }
         ]
         executed = []
-        adapter = OllamaAdapter(model="phi4-mini:latest")
+        adapter = OllamaAdapter(model="phi4-mini:latest", prefer_legacy_tools=False)
         adapter._supports_native_tools = True
 
         output = adapter.generate(

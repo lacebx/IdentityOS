@@ -1,0 +1,33 @@
+{
+  "id": "surfer",
+  "name": "Surfer Pack",
+  "version": "1.0.0",
+  "author": "IdentityOS",
+  "license": "MIT",
+  "description": "Autonomous browsing pack with isolated sessions, evidence-backed interaction, and separately authorized credential use.",
+  "capabilities": [
+    {
+      "id": "browser",
+      "reason": "Persistent Chromium session for person-like surfing, login, and in-page actions"
+    },
+    {
+      "id": "web",
+      "reason": "Fast HTTP fetch/extract when a full browser is unnecessary"
+    },
+    {
+      "id": "task_planner",
+      "reason": "Break multi-step web missions into durable planned steps"
+    },
+    {
+      "id": "datetime",
+      "reason": "Time-aware browsing and scheduling context"
+    }
+  ],
+  "tags": ["browser", "web", "search", "comet", "automation", "login", "agi"],
+  "example_uses": [
+    "Search for official docs on X and open only useful results",
+    "After I grant browser:credentials, log into an authorized site using password=<value> and verify my dashboard",
+    "Find the best GitHub repo for Y, open it, and summarize the README",
+    "Browse a logged-in account and complete a multi-step settings change"
+  ]
+}
