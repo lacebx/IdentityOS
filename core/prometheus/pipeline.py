@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import re
 import time
 from typing import Any, Dict, List, Optional, Set
@@ -27,6 +28,9 @@ from core.prometheus.stages.retry_handler import retry_original_task
 from core.prometheus.stages.performance_evaluator import evaluate_performance
 from core.prometheus.stages.learner import record_acquisition, has_previously_searched
 from core.prometheus.stages.evidence_recorder import record_evidence
+
+
+logger = logging.getLogger(__name__)
 
 
 _QUESTION_PATTERNS = [
@@ -213,12 +217,22 @@ class EvolutionPipeline:
         if storage and self.config.enable_learning:
             try:
                 record_acquisition(identity_id, record, storage)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning(
+                    "Failed to persist Prometheus learning for identity %s: %s",
+                    identity_id,
+                    exc,
+                    exc_info=True,
+                )
             try:
                 record_evidence(identity_id, record, storage)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning(
+                    "Failed to persist Prometheus evidence for identity %s: %s",
+                    identity_id,
+                    exc,
+                    exc_info=True,
+                )
 
         self._interaction_acquisitions += 1
 

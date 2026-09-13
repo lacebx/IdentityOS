@@ -199,6 +199,21 @@ guard (`_evolving` flag) prevents the recursive evolution that would otherwise o
 
 ## Failure modes
 
+### Learning and evidence persistence
+
+Prometheus persists learning under the `prometheus_learning` namespace and
+acquisition evidence under `prometheus_evidence`. Both are read and written
+through the configured storage backend's `load(identity_id, namespace)` and
+`save(identity_id, namespace, data)` contract. Prometheus does not construct
+filesystem paths from identity IDs. This keeps JSON, in-memory, SQLite, and
+remote backends behaviorally consistent and leaves path validation to the
+storage owner.
+
+Legacy evidence stored as a top-level JSON list remains readable. New writes
+use an `entries` object and retain the latest 200 records. Persistence failures
+are logged with their exception instead of being silently discarded; they do
+not turn a failed persistence operation into successful evidence.
+
 ### Registry unavailable
 
 The registry searcher loads a local JSON file (`registry/capabilities/index.json`).

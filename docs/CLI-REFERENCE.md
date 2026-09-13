@@ -365,7 +365,7 @@ List all available capabilities:
 
 ```bash
 identity cap list
-#   12 capabilities available
+#   19 capabilities available
 #
 #   datetime             v1.0.0  Current date/time awareness
 #   filesystem           v1.0.0  Read/write files on local system
@@ -373,6 +373,12 @@ identity cap list
 #   weather              v1.0.0  Current conditions and forecasts
 #   ...
 ```
+
+Capability discovery uses `registry/capabilities/index.json` as the
+authoritative marketplace index. Isolated legacy registries that do not have a
+capability index continue to fall back to `registry/index.json`. The latter is
+otherwise a curated combined identity catalog and may contain fewer capability
+entries.
 
 ### cap show
 

@@ -142,6 +142,59 @@ def test_registry_publish_refuses_to_replace_existing_manifest(tmp_path):
     assert index["capabilities"][0]["version"] == "1.0.0"
 
 
+def test_registry_manager_lists_and_resolves_authoritative_marketplace(tmp_path):
+    registry = CapabilityRegistry(
+        JSONFileBackend(root_dir=str(tmp_path / "store"))
+    )
+    identity_id = "marketplace-registry-manager"
+    registry.install(identity_id, "registry_manager")
+
+    listed = registry.call(identity_id, "registry_manager.list_capabilities")
+    assert listed.success is True
+    expected_ids = [entry["id"] for entry in _marketplace_entries()]
+    assert [entry["id"] for entry in listed.data["capabilities"]] == expected_ids
+    assert listed.data["count"] == len(expected_ids)
+
+    registry.grant(identity_id, "registry_manager", "capability:manage")
+    resolved = registry.call(
+        identity_id,
+        "registry_manager.install_capability",
+        cap_id="architecture_analysis",
+    )
+    assert resolved.success is True
+    assert resolved.data["cap_id"] == "architecture_analysis"
+    assert resolved.data["status"] == "ready_to_install"
+
+
+def test_registry_manager_falls_back_to_legacy_root_index(tmp_path):
+    registry_root = tmp_path / "legacy-registry"
+    registry_root.mkdir()
+    (registry_root / "index.json").write_text(
+        json.dumps(
+            {
+                "capabilities": [
+                    {
+                        "id": "legacy_demo",
+                        "name": "Legacy Demo",
+                        "version": "1.0.0",
+                        "description": "Root-index compatibility fixture",
+                        "skills": [],
+                    }
+                ]
+            }
+        )
+    )
+
+    manager = lookup("registry_manager")()
+    manager._registry_path = lambda: str(registry_root)  # type: ignore[method-assign]
+
+    listed = manager.call("registry_manager.list_capabilities")
+
+    assert listed.success is True
+    assert listed.data["count"] == 1
+    assert listed.data["capabilities"][0]["id"] == "legacy_demo"
+
+
 def test_every_local_marketplace_skill_executes_through_gateway(tmp_path):
     store_path = tmp_path / "store"
     workspace = tmp_path / "workspace"

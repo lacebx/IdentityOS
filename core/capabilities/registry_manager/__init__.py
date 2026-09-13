@@ -78,13 +78,31 @@ class RegistryManagerCapability(Capability):
         with open(idx_path) as f:
             return json.load(f)
 
+    def _load_capability_index(self) -> dict[str, Any]:
+        """Load the authoritative capability marketplace when available.
+
+        ``registry/index.json`` is the combined public identity catalog and can
+        legitimately contain only a curated subset of capabilities. Runtime
+        discovery, however, is defined by ``registry/capabilities/index.json``.
+        Keep the root-index fallback for isolated/legacy registries used by
+        generated capability workflows.
+        """
+        idx_path = os.path.join(
+            self._registry_path(), "capabilities", "index.json"
+        )
+        if not os.path.isfile(idx_path):
+            return self._load_index()
+        with open(idx_path) as f:
+            return json.load(f)
+
     def _save_index(self, index: dict[str, Any]) -> None:
         idx_path = os.path.join(self._registry_path(), "index.json")
         with open(idx_path, "w") as f:
             json.dump(index, f, indent=2)
+            f.write("\n")
 
     def _list_capabilities(self, **kwargs: Any) -> dict[str, Any]:
-        index = self._load_index()
+        index = self._load_capability_index()
         caps = index.get("capabilities", [])
         return {
             "capabilities": [
@@ -164,6 +182,7 @@ class RegistryManagerCapability(Capability):
             }
             with open(os.path.join(mk_dir, "manifest.json"), "x") as f:
                 json.dump(manifest, f, indent=2)
+                f.write("\n")
 
             mk_index = os.path.join(self._registry_path(), "capabilities", "index.json")
             if os.path.isfile(mk_index):
@@ -177,6 +196,7 @@ class RegistryManagerCapability(Capability):
             mk_data["capabilities"] = mk_caps
             with open(mk_index, "w") as f:
                 json.dump(mk_data, f, indent=2)
+                f.write("\n")
             return {"manifest": f"registry/capabilities/{cap_id}/manifest.json", "index": len(mk_caps)}
         except Exception as e:
             return {"error": str(e)}
@@ -184,7 +204,7 @@ class RegistryManagerCapability(Capability):
     def _install_capability(self, cap_id: str = "", **kwargs: Any) -> dict[str, Any]:
         if not cap_id:
             return {"error": "cap_id is required"}
-        index = self._load_index()
+        index = self._load_capability_index()
         caps = index.get("capabilities", [])
         match = next((c for c in caps if c.get("id") == cap_id), None)
         if not match:

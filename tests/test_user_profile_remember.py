@@ -164,6 +164,30 @@ def test_broad_recall_returns_stored_facts_without_topic_branch() -> None:
     assert answer and "eu-west-2" in answer
 
 
+def test_latest_user_correction_wins_without_erasing_contradiction() -> None:
+    profile = UserProfile("corrected-user")
+    profile.add_or_update(
+        "preferences.favorite_color",
+        "blue",
+        source="My favorite color is blue",
+        confidence=0.9,
+    )
+
+    corrected = profile.add_or_update(
+        "preferences.favorite_color",
+        "black",
+        source="Actually, my favorite color is black",
+        confidence=0.9,
+    )
+
+    assert corrected.value == "black"
+    assert corrected.uncertain is True
+    assert corrected.contradictions == 1
+    assert corrected.confidence < 0.85
+    assert profile.get_value("preferences.favorite_color") == "black"
+    assert "uncertain — contradictory reports" in profile.to_prompt_block()
+
+
 @pytest.mark.parametrize(
     ("statement", "question", "expected"),
     [
