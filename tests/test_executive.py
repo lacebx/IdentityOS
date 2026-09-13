@@ -561,6 +561,12 @@ def test_extract_capability_name_variants():
         "create a capability to speak and install it"
     ) == "speak"
     assert extract_capability_name("create a capability called help") == "help"
+    assert extract_capability_name(
+        "Please BUILD A 'DATA_SYNC' SKILL"
+    ) == "data_sync"
+    assert extract_capability_name(
+        'create a capability named "Mixed_Case"'
+    ) == "mixed_case"
     assert extract_capability_name("what is the weather") is None
 
 
