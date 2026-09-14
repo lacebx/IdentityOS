@@ -53,7 +53,7 @@ def _install_marketplace(
 
 def test_marketplace_only_advertises_registered_conformant_capabilities():
     entries = _marketplace_entries()
-    assert len(entries) == 19
+    assert len(entries) == 20
     assert len({entry["id"] for entry in entries}) == len(entries)
 
     for entry in entries:
@@ -245,6 +245,58 @@ def test_every_local_marketplace_skill_executes_through_gateway(tmp_path):
     assert registry_manager is not None
     registry_manager._registry_path = lambda: str(registry_root)  # type: ignore[method-assign]
 
+    from core.executive.engine import ExecutiveRuntime, register_executive
+    from core.executive.models import Evidence, Task, TaskStatus, TaskStep, TaskStepStatus
+    from core.procedures import HeldOutExample, ProcedureLearner
+
+    executive = ExecutiveRuntime(storage=registry._storage, capability_registry=registry)
+    register_executive(executive)
+    procedure_task = Task(
+        task_id="conformance-procedure-task",
+        goal="write and validate",
+        identity_id=identity_id,
+        status=TaskStatus.COMPLETED,
+        steps=[
+            TaskStep(
+                action="write_file",
+                description="Write",
+                params={"path": str(workspace / "training.py"), "content": "answer = 1"},
+                status=TaskStepStatus.COMPLETED,
+                evidence=[Evidence("write_file", "written", "observed", True)],
+            ),
+            TaskStep(
+                action="validate_syntax",
+                description="Validate",
+                params={"path": str(workspace / "training.py")},
+                status=TaskStepStatus.COMPLETED,
+                evidence=[Evidence("validate_syntax", "valid", "observed", True)],
+            ),
+        ],
+    )
+    executive.store.save(procedure_task)
+    ProcedureLearner(registry._storage).register_held_out_suite(
+        identity_id,
+        "conformance-suite",
+        [
+            HeldOutExample(
+                "case-one",
+                {"path": str(workspace / "one.py"), "content": "answer = 2"},
+                (
+                    {"action": "write_file", "params": {"path": str(workspace / "one.py"), "content": "answer = 2"}},
+                    {"action": "validate_syntax", "params": {"path": str(workspace / "one.py")}},
+                ),
+            ),
+            HeldOutExample(
+                "case-two",
+                {"path": str(workspace / "two.py"), "content": "answer = 3"},
+                (
+                    {"action": "write_file", "params": {"path": str(workspace / "two.py"), "content": "answer = 3"}},
+                    {"action": "validate_syntax", "params": {"path": str(workspace / "two.py")}},
+                ),
+            ),
+        ],
+    )
+
     generated_interface = """
 class DemoCapability(Capability):
     id = "demo"
@@ -308,6 +360,16 @@ class DemoCapability(Capability):
         "registry_manager.install_capability": {"cap_id": "verified_demo"},
         "task_planner.plan_and_execute": {"goal": "list capabilities", "steps": [{"action": "list_capabilities", "params": {}, "description": "List capabilities"}]},
         "command_exec.run": {"command": "true", "timeout": 5},
+        "procedure_learning.list": {},
+        "procedure_learning.learn": {
+            "task_id": procedure_task.task_id,
+            "procedure_id": "conformance_writer",
+            "bindings": {
+                "path": str(workspace / "training.py"),
+                "content": "answer = 1",
+            },
+            "held_out_suite_id": "conformance-suite",
+        },
     }
     expected_skills = {
         skill.name
@@ -326,6 +388,7 @@ class DemoCapability(Capability):
     assert failures == {}
     assert write_target.read_text() == "first second"
     assert directory_target.is_dir()
+    executive.shutdown()
 
 
 @pytest.mark.network

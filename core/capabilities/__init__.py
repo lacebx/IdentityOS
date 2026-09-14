@@ -23,6 +23,7 @@ from . import skill_validator  # noqa: F401
 from . import task_planner  # noqa: F401
 from . import command_exec  # noqa: F401
 from . import executive  # noqa: F401
+from . import procedure_learning  # noqa: F401
 
 __all__ = [
     "Capability",
