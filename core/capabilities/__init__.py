@@ -25,6 +25,7 @@ from . import command_exec  # noqa: F401
 from . import executive  # noqa: F401
 from . import procedure_learning  # noqa: F401
 from . import reflex  # noqa: F401
+from . import embodiment  # noqa: F401
 
 __all__ = [
     "Capability",

@@ -275,6 +275,7 @@ class IdentityRuntime:
         self.skill_forge = None
         self.executive = None
         self.reflex_engine = None
+        self.embodiment_hub = None
         if self._storage is not None:
             try:
                 from core.executive import ExecutiveRuntime
@@ -300,12 +301,33 @@ class IdentityRuntime:
                 self.reflex_engine = ReflexEngine(
                     self._storage, self.executive, self.capability_registry,
                 )
+                from core.embodiment import CapabilityDeviceAdapter, EmbodimentHub
+                self.embodiment_hub = EmbodimentHub(
+                    self._storage, self.executive,
+                )
+                self.executive.embodiment_hub = self.embodiment_hub
+                self.embodiment_hub.attach(CapabilityDeviceAdapter(
+                    self.capability_registry,
+                    "browser",
+                    device_id="browser_runtime",
+                    kind="browser",
+                    name="IdentityOS Browser",
+                ))
+                self.embodiment_hub.attach(CapabilityDeviceAdapter(
+                    self.capability_registry,
+                    "command_exec",
+                    device_id="desktop_runtime",
+                    kind="desktop",
+                    actions=["run"],
+                    name="IdentityOS Desktop Executor",
+                ))
                 if self.prometheus is not None:
                     self.prometheus.attach_executive(self.executive)
             except Exception:
                 self.skill_forge = None
                 self.executive = None
                 self.reflex_engine = None
+                self.embodiment_hub = None
 
     def _emit(self, event_type: EventType, identity_id=None, session_id=None, **payload):
         self.event_bus.emit(

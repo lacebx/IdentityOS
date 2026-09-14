@@ -35,6 +35,7 @@ class ExecutionContext:
     storage: Any
     runtime: Any = None
     skill_forge: Any = None
+    embodiment_hub: Any = None
 
 
 class StepError(Exception):
@@ -433,6 +434,7 @@ def _activate(task: Task, step: TaskStep, ctx: ExecutionContext) -> tuple[bool, 
     if not allowed:
         return (False, {
             "blocked": True,
+            "resumable": True,
             "block_type": "authorization_required",
             "activated": False,
             "capability": cap_id,
@@ -641,6 +643,75 @@ def _verify_goal(task: Task, step: TaskStep, ctx: ExecutionContext) -> tuple[boo
         return (True, {"retried": False, "error": str(e)}, [Evidence(step=step.action, label="goal_retry", detail=f"retry unavailable: {e}", success=False, data={"error": str(e)})])
 
 
+def _device_action(task: Task, step: TaskStep, ctx: ExecutionContext) -> tuple[bool, dict, list]:
+    """Route an authorized device action through the runtime's embodiment hub."""
+    hub = ctx.embodiment_hub or getattr(ctx.runtime, "embodiment_hub", None)
+    if hub is None:
+        return (False, {
+            "blocked": True,
+            "resumable": True,
+            "block_type": "device_unavailable",
+            "reason": "embodiment hub is unavailable",
+        }, [Evidence(
+            step=step.action,
+            label="device_unavailable",
+            detail="embodiment hub is unavailable",
+            success=False,
+        )])
+    device_id = str(step.params.get("device_id", ""))
+    action = str(step.params.get("device_action", ""))
+    params = step.params.get("device_params", {})
+    try:
+        observation = hub.invoke(
+            ctx.identity_id, task.task_id, device_id, action, params,
+        )
+        ok = bool(observation.get("success"))
+        return (ok, observation, [Evidence(
+            step=step.action,
+            label="device_observation",
+            detail=(
+                f"observed {device_id}.{action} via {observation.get('source') or 'device adapter'}"
+                if ok else f"{device_id}.{action} reported failure: {observation.get('error') or 'unknown'}"
+            ),
+            success=ok,
+            data=observation,
+        )])
+    except Exception as exc:
+        from core.embodiment import DeviceAuthorizationError, DeviceUnavailable
+
+        if isinstance(exc, (DeviceAuthorizationError, DeviceUnavailable)):
+            block_type = (
+                "authorization_required"
+                if isinstance(exc, DeviceAuthorizationError)
+                else "device_unavailable"
+            )
+            return (False, {
+                "blocked": True,
+                "resumable": True,
+                "block_type": block_type,
+                "reason": str(exc),
+                "device_id": device_id,
+                "device_action": action,
+            }, [Evidence(
+                step=step.action,
+                label=block_type,
+                detail=str(exc),
+                success=False,
+                data={"device_id": device_id, "device_action": action},
+            )])
+        return (False, {
+            "device_id": device_id,
+            "device_action": action,
+            "error": str(exc),
+        }, [Evidence(
+            step=step.action,
+            label="device_execution_failed",
+            detail=f"{device_id}.{action} failed: {exc}",
+            success=False,
+            data={"device_id": device_id, "device_action": action},
+        )])
+
+
 # ── Planner capability-action handlers ────────────────────────────
 
 _ACTION_SKILLS = {
@@ -707,6 +778,7 @@ def _gateway_action(action: str):
             if error_type == "permission_denied":
                 return (False, {
                     "blocked": True,
+                    "resumable": True,
                     "block_type": "authorization_required",
                     "reason": error_message,
                     "skill": skill,
@@ -738,6 +810,7 @@ _HANDLERS: dict[str, Any] = {
     "reuse": _reuse,
     "verify": _verify,
     "verify_goal": _verify_goal,
+    "device_action": _device_action,
     # Planner actions execute through the same install/permission/schema
     # gateway as model-originated capability calls.
     "create_directory": _gateway_action("create_directory"),
