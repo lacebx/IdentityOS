@@ -24,8 +24,11 @@ from .models import (
 from .store import EmbodimentStore
 
 _ID = re.compile(r"^[a-z][a-z0-9_.-]{1,63}$")
-_SENSITIVE = ("api_key", "credential", "password", "secret", "token")
+_SENSITIVE = (
+    "api_key", "authorization", "cookie", "credential", "password", "secret", "token",
+)
 _MAX_OBSERVATION_BYTES = 64 * 1024
+_REDACTED = "[REDACTED]"
 
 
 class EmbodimentError(RuntimeError):
@@ -64,6 +67,21 @@ def _contains_sensitive_key(value: Any) -> bool:
     if isinstance(value, list):
         return any(_contains_sensitive_key(item) for item in value)
     return False
+
+
+def _redact_sensitive_values(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {
+            key: (
+                _REDACTED
+                if any(part in str(key).lower() for part in _SENSITIVE)
+                else _redact_sensitive_values(item)
+            )
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [_redact_sensitive_values(item) for item in value]
+    return value
 
 
 class EmbodimentHub:
@@ -271,8 +289,9 @@ class EmbodimentHub:
             )
         if not isinstance(observation.data, dict):
             raise EmbodimentError("device observation data must be an object")
+        safe_data = _redact_sensitive_values(observation.data)
         encoded = json.dumps(
-            observation.data, sort_keys=True, separators=(",", ":"),
+            safe_data, sort_keys=True, separators=(",", ":"),
         ).encode()
         if len(encoded) > _MAX_OBSERVATION_BYTES:
             raise EmbodimentError("device observation exceeds the 64 KiB evidence limit")
@@ -287,7 +306,7 @@ class EmbodimentHub:
             "source": observation.source,
             "evidence_class": observation.evidence_class,
             "hardware_observed": observation.hardware_observed,
-            "data": observation.data,
+            "data": safe_data,
             "data_sha256": hashlib.sha256(encoded).hexdigest(),
             "error": observation.error,
             "observed_at": _now(),

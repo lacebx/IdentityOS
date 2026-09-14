@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import time
 
 import pytest
@@ -310,3 +311,43 @@ def test_optional_embodiment_failure_does_not_disable_durable_executive(
         "error": "adapter discovery failed",
     }
     runtime.shutdown()
+
+
+def test_sensitive_device_outputs_are_redacted_before_task_persistence(tmp_path):
+    class SecretReturningDevice(RecordingDevice):
+        def invoke(self, action, params, context):
+            return DeviceObservation(
+                success=True,
+                data={
+                    "access_token": "do-not-persist",
+                    "nested": {"password": "also-secret", "safe": "visible"},
+                },
+                source="test-secret-device",
+                evidence_class="simulated",
+            )
+
+    storage, _, executive, hub = _runtime(tmp_path)
+    identity_id = "redacted-observer"
+    device = SecretReturningDevice(
+        "browser_secret", "browser", "inspect", replay_safe=True,
+    )
+    hub.attach(device)
+    hub.authorize(identity_id, "browser_secret", ["inspect"])
+
+    task = hub.start_task(
+        identity_id,
+        "observe without persisting credentials",
+        [{"device_id": "browser_secret", "action": "inspect", "params": {}}],
+        autostart=False,
+    )
+    final = _finish(executive, identity_id, task.task_id)
+    observed = final.steps[0].result["data"]
+    persisted = storage.load(identity_id, "embodiment.observations")
+
+    assert observed == {
+        "access_token": "[REDACTED]",
+        "nested": {"password": "[REDACTED]", "safe": "visible"},
+    }
+    assert "do-not-persist" not in json.dumps(persisted)
+    assert "also-secret" not in json.dumps(persisted)
+    executive.shutdown()
