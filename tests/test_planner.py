@@ -13,7 +13,6 @@ Guards against the evidence-footprint regressions:
 import os
 import re
 import tempfile
-import ast
 from pathlib import Path
 
 import pytest
@@ -93,11 +92,24 @@ def test_task_planner_generates_command_exec_plan():
     assert run_step["params"]["command"] == "hostname"
 
 
-def test_command_exec_template_is_valid_python():
+def test_unknown_capability_delegates_to_durable_acquisition():
     from core.capabilities.task_planner import TaskPlannerCapability
-    tmpl = TaskPlannerCapability._command_exec_template()
-    ast.parse(tmpl)  # raises SyntaxError if invalid
-    assert "subprocess" in tmpl
+
+    plan = TaskPlannerCapability._generate_plan(
+        "create a novel_echo capability, validate it, publish it, and install it"
+    )
+
+    assert [step["action"] for step in plan] == ["request_acquisition"]
+    assert plan[0]["params"]["cap_id"] == "novel_echo"
+
+
+def test_legacy_direct_scaffolds_are_disabled():
+    from core.capabilities.task_planner import TaskPlannerCapability
+
+    with pytest.raises(RuntimeError, match="Skill Forge"):
+        TaskPlannerCapability._capability_template("unverified")
+    with pytest.raises(RuntimeError, match="verified command_exec"):
+        TaskPlannerCapability._command_exec_template()
 
 
 def test_task_planner_runs_real_command_honest_failure(tmp_path):

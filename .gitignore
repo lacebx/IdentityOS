@@ -21,6 +21,7 @@ benchmarks/results/*
 !benchmarks/results/.gitkeep
 .test_canonical_facts/
 .identitybench/
+.identity_forge/
 MagicMock/
 VISION.md
 
