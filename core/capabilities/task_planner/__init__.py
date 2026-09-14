@@ -62,8 +62,12 @@ class TaskPlannerCapability(Capability):
 
     def __init__(self, config: Optional[dict] = None) -> None:
         super().__init__(config)
+        self._identity_id: Optional[str] = None
+        self._storage: Any = None
 
     def install(self, identity_id: str, storage: Any) -> None:
+        self._identity_id = identity_id
+        self._storage = storage
         storage.save(identity_id, "capability.task_planner", {"installed_at": None})
 
     def uninstall(self, identity_id: str, storage: Any) -> None:
@@ -121,6 +125,8 @@ class TaskPlannerCapability(Capability):
 
             progress_line = f"[{i}/{total}] {description}"
             handler = _STEP_HANDLERS.get(action)
+            if action == "request_acquisition":
+                handler = self._request_acquisition
 
             if handler is None:
                 step_results.append({
@@ -160,6 +166,44 @@ class TaskPlannerCapability(Capability):
             "all_succeeded": total_success == total,
             "results": step_results,
         }
+
+    def _request_acquisition(self, params: dict) -> CapabilityResult:
+        """Delegate generation to the durable Executive/Skill Forge path."""
+        cap_id = str(params.get("cap_id", ""))
+        goal = str(params.get("goal", ""))
+        if not cap_id or not goal:
+            return CapabilityResult.fail(
+                self.id, "request_acquisition", "invalid_request", "cap_id and goal are required",
+            )
+        if self._storage is None or self._identity_id is None:
+            return CapabilityResult.fail(
+                self.id,
+                "request_acquisition",
+                "executive_unavailable",
+                "task planner is not installed into a durable identity runtime",
+            )
+        from core.acquisition import get_acquisition_provider
+
+        provider = get_acquisition_provider(self._storage)
+        if provider is None:
+            return CapabilityResult.fail(
+                self.id,
+                "request_acquisition",
+                "executive_unavailable",
+                "no durable acquisition provider is registered",
+            )
+        task, created = provider.request_acquisition(
+            identity_id=self._identity_id,
+            capability_id=cap_id,
+            goal=goal,
+            original_request=goal,
+        )
+        return CapabilityResult.ok(self.id, "request_acquisition", {
+            "task_id": task.task_id,
+            "status": task.status.value,
+            "created": created,
+            "capability_id": cap_id,
+        }, source="durable executive")
 
     @staticmethod
     def _generate_plan(goal: str) -> list[dict]:
@@ -218,43 +262,13 @@ class TaskPlannerCapability(Capability):
             # replacing their source and marketplace metadata with a generated
             # scaffold merely because the goal also says "create" or "publish".
             if not capability_exists:
-                cap_dir = f"core/capabilities/{cap_name}"
-                cap_path = f"{cap_dir}/__init__.py"
-                template = TaskPlannerCapability._capability_template(cap_name)
                 steps.append({
-                    "action": "create_directory",
-                    "params": {"path": cap_dir},
-                    "description": f"Creating {cap_name} capability directory",
-                })
-                steps.append({
-                    "action": "write_file",
-                    "params": {
-                        "path": cap_path,
-                        "content": template,
-                    },
-                    "description": f"Writing {cap_name} capability code",
+                    "action": "request_acquisition",
+                    "params": {"cap_id": cap_name, "goal": goal},
+                    "description": f"Queuing truthful acquisition of {cap_name}",
                 })
 
-                if "valid" in gl or "check" in gl or "syntax" in gl or "test" in gl:
-                    steps.append({
-                        "action": "validate_syntax",
-                        "params": {"path": cap_path},
-                        "description": f"Validating {cap_name} syntax",
-                    })
-                    steps.append({
-                        "action": "check_interface",
-                        "params": {"path": cap_path},
-                        "description": f"Checking {cap_name} Capability interface",
-                    })
-
-                if "publish" in gl or "register" in gl:
-                    steps.append({
-                        "action": "publish_capability",
-                        "params": {"cap_id": cap_name, "name": cap_name.replace("_", " ").title(), "version": "1.0.0", "description": f"Auto-generated: {goal[:80]}"},
-                        "description": f"Publishing {cap_name} to registry",
-                    })
-
-            if "install" in gl or "add" in gl or "load" in gl:
+            if capability_exists and ("install" in gl or "add" in gl or "load" in gl):
                 steps.append({
                     "action": "install_capability",
                     "params": {"cap_id": cap_name},
@@ -282,6 +296,9 @@ class TaskPlannerCapability(Capability):
     @staticmethod
     def _capability_template(name: str) -> str:
         """Generate a minimal but valid capability Python file."""
+        raise RuntimeError(
+            "direct capability scaffolding is disabled; use the durable Skill Forge acquisition path"
+        )
         cap_id = name
         class_name = "".join(p.title() for p in name.split("_")) + "Capability"
         skill_name = f"{cap_id}.greet"
@@ -344,6 +361,9 @@ class {class_name}(Capability):
     @staticmethod
     def _command_exec_template() -> str:
         """Generate a real command-execution capability backed by subprocess."""
+        raise RuntimeError(
+            "direct capability scaffolding is disabled; install the verified command_exec package"
+        )
         return r'''from __future__ import annotations
 
 import shlex

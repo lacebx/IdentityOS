@@ -10,6 +10,7 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from core.cognitive_engine import ComposedContext, ContextComposer
@@ -274,19 +275,33 @@ class IdentityRuntime:
             except Exception:
                 self.prometheus = None
 
+        self.skill_forge = None
         self.executive = None
         if self._storage is not None:
             try:
                 from core.executive import ExecutiveRuntime
                 from core.executive.engine import register_executive
+                from core.skill_forge import (
+                    ModelCapabilityAuthor,
+                    ModelCapabilityTestDesigner,
+                    SkillForge,
+                )
+                if self.adapter is not None:
+                    self.skill_forge = SkillForge(
+                        Path(__file__).resolve().parent.parent,
+                        author=ModelCapabilityAuthor(self.adapter),
+                        test_designer=ModelCapabilityTestDesigner(self.adapter),
+                    )
                 self.executive = ExecutiveRuntime(
                     storage=self._storage,
                     capability_registry=self.capability_registry,
+                    skill_forge=self.skill_forge,
                 )
                 register_executive(self.executive)
                 if self.prometheus is not None:
                     self.prometheus.attach_executive(self.executive)
             except Exception:
+                self.skill_forge = None
                 self.executive = None
 
     def _emit(self, event_type: EventType, identity_id=None, session_id=None, **payload):

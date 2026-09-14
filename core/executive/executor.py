@@ -13,12 +13,12 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional
 
 from core.executive.models import Evidence, ReplayPolicy, Task, TaskStep
-from core.executive.templates import capability_module
 from core.executive.verification import (
     capability_module_path,
     verification_probe,
@@ -34,6 +34,7 @@ class ExecutionContext:
     capability_registry: Any
     storage: Any
     runtime: Any = None
+    skill_forge: Any = None
 
 
 class StepError(Exception):
@@ -156,6 +157,8 @@ def _trust(task: Task, step: TaskStep, ctx: ExecutionContext) -> tuple[bool, dic
             permissions=manifest.get("permissions", {}),
             dependencies=manifest.get("dependencies", []),
             manifest_url=f"registry/capabilities/{cap}/manifest.json",
+            behaviorally_verified=bool(manifest.get("behaviorally_verified")),
+            artifact_sha256=manifest.get("artifact_sha256"),
         )
         score = verify_trust(candidate, mode=AcquisitionMode.AUTOMATIC)
         trusted = is_trusted(candidate, mode=AcquisitionMode.AUTOMATIC)
@@ -205,27 +208,73 @@ def _dependencies(task: Task, step: TaskStep, ctx: ExecutionContext) -> tuple[bo
 def _generate(task: Task, step: TaskStep, ctx: ExecutionContext) -> tuple[bool, dict, list]:
     cap = step.params.get("capability", "")
     path = capability_module_path(cap)
+    if path.exists():
+        return (False, {"path": str(path), "conflict": True}, [Evidence(
+            step=step.action,
+            label="generation_blocked_existing_source",
+            detail=f"refusing to overwrite existing capability source: {path}",
+            success=False,
+            data={"path": str(path), "conflict": True},
+        )])
+    forge = ctx.skill_forge or getattr(ctx.runtime, "skill_forge", None)
+    if forge is None:
+        return (False, {"forge_unavailable": True}, [Evidence(
+            step=step.action,
+            label="skill_forge_unavailable",
+            detail="no Skill Forge author and independent test designer are configured",
+            success=False,
+            data={"capability": cap},
+        )])
     try:
-        if path.exists():
-            return (False, {"path": str(path), "conflict": True}, [Evidence(
+        from core.skill_forge import ForgeRequest
+
+        identity = ctx.runtime.load(ctx.identity_id) if ctx.runtime is not None else None
+        result = forge.forge(ForgeRequest(
+            capability_id=cap,
+            goal=task.original_request or task.goal,
+            identity_id=ctx.identity_id,
+            allowed_permissions=tuple(step.params.get("allowed_permissions", [])),
+            allowed_dependencies=tuple(step.params.get("allowed_dependencies", [])),
+        ), identity=identity)
+        report = result.isolation_report
+        evidence = [
+            Evidence(
                 step=step.action,
-                label="generation_blocked_existing_source",
-                detail=f"refusing to overwrite existing capability source: {path}",
-                success=False,
-                data={"path": str(path), "conflict": True},
-            )])
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(capability_module(cap), encoding="utf-8")
-        evidence = [Evidence(
-            step=step.action, label="file_generated",
-            detail=f"wrote {path} ({path.stat().st_size} bytes)", success=True,
-            data={"path": str(path), "bytes": path.stat().st_size},
-        )]
-        return (True, {"path": str(path)}, evidence)
-    except Exception as e:
+                label="behavioral_tests_isolated",
+                detail=f"{report.get('case_count', 0)} independent cases passed in a clean subprocess",
+                success=bool(report.get("passed")),
+                data={
+                    "case_count": report.get("case_count", 0),
+                    "duration_ms": report.get("duration_ms"),
+                    "exit_code": report.get("exit_code"),
+                },
+            ),
+            Evidence(
+                step=step.action,
+                label="artifact_packaged",
+                detail=f"packaged tested bytes as {result.artifact_path}",
+                success=True,
+                data={
+                    "artifact_path": result.artifact_path,
+                    "artifact_sha256": result.artifact_sha256,
+                },
+            ),
+            Evidence(
+                step=step.action,
+                label="file_generated",
+                detail=f"wrote tested source {result.source_path} ({path.stat().st_size} bytes)",
+                success=True,
+                data={"path": result.source_path, "bytes": path.stat().st_size},
+            ),
+        ]
+        return (True, result.to_dict(), evidence)
+    except Exception as exc:
         return (False, {}, [Evidence(
-            step=step.action, label="file_generated",
-            detail=f"failed to generate: {e}", success=False, data={"error": str(e)},
+            step=step.action,
+            label="skill_forge_failed",
+            detail=f"forge failed: {type(exc).__name__}: {exc}",
+            success=False,
+            data={"capability": cap, "error": str(exc)},
         )])
 
 
@@ -257,19 +306,40 @@ def _publish(task: Task, step: TaskStep, ctx: ExecutionContext) -> tuple[bool, d
     cap = step.params.get("capability", "")
     try:
         from core.capabilities.registry import lookup
+        generated = task.step_by_id("generate")
+        generated_result = generated.result if generated is not None else {}
+        generated_manifest = generated_result.get("manifest", {})
         rmgmt = lookup("registry_manager")()
         res = rmgmt.call(
             "registry_manager.publish_capability",
             cap_id=cap,
-            name=cap.replace("_", " ").title(),
-            version="1.0.0",
-            description=f"Generic capability: {cap}",
+            name=generated_manifest.get("name", cap.replace("_", " ").title()),
+            version=generated_manifest.get("version", "1.0.0"),
+            description=generated_manifest.get("description", f"Forged capability: {cap}"),
+            skills=generated_manifest.get("skills", []),
         )
         success = bool(getattr(res, "success", False)) or "published" in str(getattr(res, "data", {}))
+        artifact_destination = None
+        artifact_source = generated_result.get("artifact_path")
+        if success and artifact_source:
+            artifact_destination = _REPO_ROOT / "registry" / "capabilities" / cap / "capability.idcap"
+            shutil.copyfile(artifact_source, artifact_destination)
+            manifest_path = artifact_destination.parent / "manifest.json"
+            published_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            published_manifest["dependencies"] = generated_manifest.get("dependencies", [])
+            published_manifest["forge_permissions"] = generated_manifest.get("permissions", [])
+            published_manifest["artifact"] = "capability.idcap"
+            published_manifest["artifact_sha256"] = generated_result.get("artifact_sha256")
+            published_manifest["behaviorally_verified"] = True
+            manifest_path.write_text(json.dumps(published_manifest, indent=2) + "\n", encoding="utf-8")
         evidence = [Evidence(
             step=step.action, label="registry_published",
             detail=f"{cap} published ({getattr(res, 'data', {})})", success=success,
-            data=getattr(res, "data", {}) if isinstance(getattr(res, "data", {}), dict) else {"result": str(getattr(res, "data", ""))},
+            data={
+                **(getattr(res, "data", {}) if isinstance(getattr(res, "data", {}), dict) else {"result": str(getattr(res, "data", ""))}),
+                "artifact": str(artifact_destination) if artifact_destination else None,
+                "artifact_sha256": generated_result.get("artifact_sha256"),
+            },
         )]
         return (success, {"published": success}, evidence)
     except Exception as e:

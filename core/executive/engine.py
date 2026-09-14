@@ -61,9 +61,11 @@ class ExecutiveRuntime:
         capability_registry: Any = None,
         *,
         autostart: bool = False,
+        skill_forge: Any = None,
     ) -> None:
         self.storage = storage
         self.capability_registry = capability_registry
+        self.skill_forge = skill_forge
         self.store = TaskStore(storage)
         self._ctx_cache: dict[str, ExecutionContext] = {}
         self.scheduler = TaskScheduler(self)
@@ -83,6 +85,7 @@ class ExecutiveRuntime:
                 capability_registry=self.capability_registry,
                 storage=self.storage,
                 runtime=runtime,
+                skill_forge=self.skill_forge,
             )
         else:
             if runtime is not None:

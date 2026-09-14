@@ -67,7 +67,7 @@ class CapabilityRegistry:
                 cap_id = entry["id"]
                 config = entry.get("config", {})
                 try:
-                    cls = lookup(cap_id)
+                    cls = self._resolve_class(identity_id, cap_id)
                     inst = cls(config=config)
                     inst.install(identity_id, self._storage)
                     for permission in inst.default_grants:
@@ -91,7 +91,7 @@ class CapabilityRegistry:
     def install(
         self, identity_id: str, cap_id: str, config: Optional[dict] = None
     ) -> Capability:
-        cls = lookup(cap_id)
+        cls = self._resolve_class(identity_id, cap_id)
         cap = cls(config=config or {})
         cap.install(identity_id, self._storage)
         caps = self._load_identity_caps(identity_id)
@@ -100,6 +100,18 @@ class CapabilityRegistry:
         for permission in cap.default_grants:
             self.grant(identity_id, cap_id, permission)
         return cap
+
+    def _resolve_class(self, identity_id: str, cap_id: str) -> type[Capability]:
+        """Prefer an identity's content-verified portable package when present."""
+        try:
+            from core.skill_forge.loader import persisted_capability_class
+
+            forged = persisted_capability_class(self._storage, identity_id, cap_id)
+            if forged is not None:
+                return forged
+        except ImportError:
+            pass
+        return lookup(cap_id)
 
     def uninstall(self, identity_id: str, cap_id: str) -> None:
         caps = self._load_identity_caps(identity_id)
