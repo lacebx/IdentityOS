@@ -244,6 +244,20 @@
         "procedure:learn"
       ],
       "url": "procedure_learning/manifest.json"
+    },
+    {
+      "id": "reflex",
+      "name": "Reflex Execution",
+      "version": "1.0.0",
+      "description": "Dispatch promoted procedures from exact triggers without model replanning",
+      "author": "IdentityOS",
+      "skills": 4,
+      "permissions": [
+        "public",
+        "reflex:manage",
+        "task:execute"
+      ],
+      "url": "reflex/manifest.json"
     }
   ]
 }

@@ -53,7 +53,7 @@ def _install_marketplace(
 
 def test_marketplace_only_advertises_registered_conformant_capabilities():
     entries = _marketplace_entries()
-    assert len(entries) == 20
+    assert len(entries) == 21
     assert len({entry["id"] for entry in entries}) == len(entries)
 
     for entry in entries:
@@ -370,6 +370,16 @@ class DemoCapability(Capability):
             },
             "held_out_suite_id": "conformance-suite",
         },
+        "reflex.list": {},
+        "reflex.register": {
+            "reflex_id": "conformance_reflex",
+            "procedure_id": "conformance_writer",
+            "trigger_template": "write {content} to {path}",
+        },
+        "reflex.execute": {
+            "utterance": f"write answer = 4 to {workspace / 'reflex.py'}",
+        },
+        "reflex.reconcile": {"run_id": "filled-after-dispatch"},
     }
     expected_skills = {
         skill.name
@@ -380,8 +390,14 @@ class DemoCapability(Capability):
     assert set(invocations) == expected_skills
 
     failures = {}
+    reflex_run_id = None
     for skill_name, params in invocations.items():
+        if skill_name == "reflex.reconcile":
+            assert reflex_run_id is not None
+            params = {"run_id": reflex_run_id}
         result = registry.call(identity_id, skill_name, **params)
+        if skill_name == "reflex.execute" and result.success:
+            reflex_run_id = result.data["run_id"]
         if not result.success:
             failures[skill_name] = result.error
         assert result.data is not None

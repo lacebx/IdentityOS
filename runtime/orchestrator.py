@@ -274,6 +274,7 @@ class IdentityRuntime:
 
         self.skill_forge = None
         self.executive = None
+        self.reflex_engine = None
         if self._storage is not None:
             try:
                 from core.executive import ExecutiveRuntime
@@ -295,11 +296,16 @@ class IdentityRuntime:
                     skill_forge=self.skill_forge,
                 )
                 register_executive(self.executive)
+                from core.reflexes import ReflexEngine
+                self.reflex_engine = ReflexEngine(
+                    self._storage, self.executive, self.capability_registry,
+                )
                 if self.prometheus is not None:
                     self.prometheus.attach_executive(self.executive)
             except Exception:
                 self.skill_forge = None
                 self.executive = None
+                self.reflex_engine = None
 
     def _emit(self, event_type: EventType, identity_id=None, session_id=None, **payload):
         self.event_bus.emit(
@@ -906,9 +912,30 @@ class IdentityRuntime:
                 _executive_state_block = ""
         trace.end_stage("executive", stage_started)
 
+        # Promoted exact-match procedures can skip model planning, but they
+        # still enter the durable Executive and the normal post-processing,
+        # evaluation, memory, timeline, and persistence path below.
+        _reflex_dispatch = None
+        stage_started = trace.start_stage()
+        if self.reflex_engine is not None and not interaction_secrets:
+            allowed, _ = self.capability_registry.can(identity.id, "reflex.execute")
+            if allowed:
+                try:
+                    _reflex_dispatch = self.reflex_engine.dispatch(
+                        identity.id, sanitized_input, autostart=True,
+                    )
+                except Exception as exc:
+                    self._emit_subsystem_failure(
+                        "reflex_dispatch",
+                        exc,
+                        identity_id=identity.id,
+                        session_id=session_id,
+                    )
+        trace.end_stage("reflex", stage_started)
+
         _prometheus_evolved = False
         stage_started = trace.start_stage()
-        if self.prometheus:
+        if self.prometheus and _reflex_dispatch is None:
             try:
                 self.prometheus.reconcile_executive(identity.id)
                 self.prometheus.begin_interaction(request.id)
@@ -938,6 +965,15 @@ class IdentityRuntime:
             limit=self.max_tools_per_request,
         )
         _evidence_results: List[Dict[str, Any]] = []
+        if _reflex_dispatch is not None:
+            _evidence_results.append({
+                "capability": "reflex",
+                "action": "reflex.execute",
+                "success": True,
+                "confidence": 1.0,
+                "duration_ms": _reflex_dispatch["timings_ms"]["total"],
+                "error": None,
+            })
 
         def _execute_tool_call(func_name: str, args: Any) -> str:
             t0 = _time_mod.monotonic()
@@ -1036,7 +1072,14 @@ class IdentityRuntime:
             profile_recall = try_explicit_abstain(sanitized_input, user_profile)
 
         stage_started = trace.start_stage()
-        if profile_recall is not None:
+        if _reflex_dispatch is not None:
+            raw_output = (
+                f"Started reflex `{_reflex_dispatch['reflex_id']}` as durable task "
+                f"`{_reflex_dispatch['task_id']}` using promoted procedure "
+                f"`{_reflex_dispatch['procedure_id']}` version "
+                f"{_reflex_dispatch['procedure_version']}. No model planning call was made."
+            )
+        elif profile_recall is not None:
             raw_output = profile_recall
         elif self.adapter:
             self._emit(EventType.MODEL_REQUESTED, identity_id=identity.id,
@@ -1082,7 +1125,12 @@ class IdentityRuntime:
         _has_evidence = bool(_evidence_results)
 
         stage_started = trace.start_stage()
-        if not _prometheus_evolved and self.prometheus and self.adapter:
+        if (
+            _reflex_dispatch is None
+            and not _prometheus_evolved
+            and self.prometheus
+            and self.adapter
+        ):
             try:
                 _post = self.prometheus.post_check_and_evolve(
                     response=raw_output, user_input=sanitized_input,
@@ -1293,6 +1341,7 @@ class IdentityRuntime:
                 "timings_ms": timings,
                 "debug_request_id": request.id if debug_recorded else None,
                 "capability_results": [dict(item) for item in _evidence_results],
+                "reflex": dict(_reflex_dispatch) if _reflex_dispatch else None,
             },
         )
 
