@@ -62,10 +62,12 @@ class ExecutiveRuntime:
         *,
         autostart: bool = False,
         skill_forge: Any = None,
+        embodiment_hub: Any = None,
     ) -> None:
         self.storage = storage
         self.capability_registry = capability_registry
         self.skill_forge = skill_forge
+        self.embodiment_hub = embodiment_hub
         self.store = TaskStore(storage)
         self._ctx_cache: dict[str, ExecutionContext] = {}
         self.scheduler = TaskScheduler(self)
@@ -86,10 +88,12 @@ class ExecutiveRuntime:
                 storage=self.storage,
                 runtime=runtime,
                 skill_forge=self.skill_forge,
+                embodiment_hub=self.embodiment_hub,
             )
         else:
             if runtime is not None:
                 self._ctx_cache[identity_id].runtime = runtime
+            self._ctx_cache[identity_id].embodiment_hub = self.embodiment_hub
         return self._ctx_cache[identity_id]
 
     # ── Task lifecycle API ────────────────────────────────────────────
@@ -277,11 +281,14 @@ class ExecutiveRuntime:
                 if step.status == TaskStepStatus.BLOCKED
             ]
             if any(
-                step.result.get("block_type") != "authorization_required"
+                not (
+                    step.result.get("resumable")
+                    or step.result.get("block_type") == "authorization_required"
+                )
                 for step in blocked_steps
             ):
                 raise IllegalTransition(
-                    "Task has an interrupted step with an unknown outcome; use "
+                    "Task has a non-resumable or outcome-unknown step; use "
                     "resolve_interrupted_step before resuming"
                 )
             for step in blocked_steps:

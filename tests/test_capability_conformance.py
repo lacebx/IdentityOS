@@ -53,7 +53,7 @@ def _install_marketplace(
 
 def test_marketplace_only_advertises_registered_conformant_capabilities():
     entries = _marketplace_entries()
-    assert len(entries) == 21
+    assert len(entries) == 22
     assert len({entry["id"] for entry in entries}) == len(entries)
 
     for entry in entries:
@@ -245,12 +245,23 @@ def test_every_local_marketplace_skill_executes_through_gateway(tmp_path):
     assert registry_manager is not None
     registry_manager._registry_path = lambda: str(registry_root)  # type: ignore[method-assign]
 
+    from core.embodiment import CapabilityDeviceAdapter, EmbodimentHub
     from core.executive.engine import ExecutiveRuntime, register_executive
     from core.executive.models import Evidence, Task, TaskStatus, TaskStep, TaskStepStatus
     from core.procedures import HeldOutExample, ProcedureLearner
 
     executive = ExecutiveRuntime(storage=registry._storage, capability_registry=registry)
     register_executive(executive)
+    embodiment_hub = EmbodimentHub(registry._storage, executive)
+    executive.embodiment_hub = embodiment_hub
+    embodiment_hub.attach(CapabilityDeviceAdapter(
+        registry,
+        "command_exec",
+        device_id="conformance_desktop",
+        kind="desktop",
+        actions=["run"],
+    ))
+    embodiment_hub.authorize(identity_id, "conformance_desktop", ["run"])
     procedure_task = Task(
         task_id="conformance-procedure-task",
         goal="write and validate",
@@ -380,6 +391,16 @@ class DemoCapability(Capability):
             "utterance": f"write answer = 4 to {workspace / 'reflex.py'}",
         },
         "reflex.reconcile": {"run_id": "filled-after-dispatch"},
+        "embodiment.list_devices": {},
+        "embodiment.start_task": {
+            "goal": "execute a conformance command on the authorized desktop",
+            "steps": [{
+                "device_id": "conformance_desktop",
+                "action": "run",
+                "params": {"command": "/bin/true", "timeout": 5},
+            }],
+        },
+        "embodiment.task_status": {"task_id": "filled-after-start"},
     }
     expected_skills = {
         skill.name
@@ -391,19 +412,30 @@ class DemoCapability(Capability):
 
     failures = {}
     reflex_run_id = None
+    embodiment_task_id = None
     for skill_name, params in invocations.items():
         if skill_name == "reflex.reconcile":
             assert reflex_run_id is not None
             params = {"run_id": reflex_run_id}
+        if skill_name == "embodiment.task_status":
+            assert embodiment_task_id is not None
+            for _ in range(20):
+                executive.process_ready(identity_id, max_steps=10)
+                if executive.get_task(identity_id, embodiment_task_id).status.value == "completed":
+                    break
+            params = {"task_id": embodiment_task_id}
         result = registry.call(identity_id, skill_name, **params)
         if skill_name == "reflex.execute" and result.success:
             reflex_run_id = result.data["run_id"]
+        if skill_name == "embodiment.start_task" and result.success:
+            embodiment_task_id = result.data["task_id"]
         if not result.success:
             failures[skill_name] = result.error
         assert result.data is not None
     assert failures == {}
     assert write_target.read_text() == "first second"
     assert directory_target.is_dir()
+    assert executive.get_task(identity_id, embodiment_task_id).status.value == "completed"
     executive.shutdown()
 
 

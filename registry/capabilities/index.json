@@ -258,6 +258,19 @@
         "task:execute"
       ],
       "url": "reflex/manifest.json"
+    },
+    {
+      "id": "embodiment",
+      "name": "Cross-Device Embodiment",
+      "version": "1.0.0",
+      "description": "Use host-authorized cameras, voice, browsers, and desktops in one durable task",
+      "author": "IdentityOS",
+      "skills": 3,
+      "permissions": [
+        "public",
+        "embodiment:execute"
+      ],
+      "url": "embodiment/manifest.json"
     }
   ]
 }
