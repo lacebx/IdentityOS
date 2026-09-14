@@ -231,6 +231,19 @@
         "process:execute"
       ],
       "url": "command_exec/manifest.json"
+    },
+    {
+      "id": "procedure_learning",
+      "name": "Procedure Learning",
+      "version": "1.0.0",
+      "description": "Generalize verified multi-step tasks and promote them against protected held-out examples",
+      "author": "IdentityOS",
+      "skills": 2,
+      "permissions": [
+        "public",
+        "procedure:learn"
+      ],
+      "url": "procedure_learning/manifest.json"
     }
   ]
 }
