@@ -34,11 +34,20 @@ def run_payload(payload: dict[str, Any]) -> dict[str, Any]:
     source = str(payload["source"])
     cap_id = str(payload["capability_id"])
     digest = str(payload["artifact_sha256"])
+    manifest = payload["manifest"]
+    if not isinstance(manifest, dict) or manifest.get("id") != cap_id:
+        raise ValueError("runner manifest does not match capability id")
     cases = [AcceptanceCase.from_dict(item) for item in payload["acceptance"]]
     capture = io.StringIO()
     started = time.monotonic()
     with contextlib.redirect_stdout(capture), contextlib.redirect_stderr(capture):
-        cap_cls = capability_class_from_source(source, cap_id, digest)
+        cap_cls = capability_class_from_source(
+            source,
+            cap_id,
+            digest,
+            allowed_permissions=set(manifest.get("permissions", [])),
+            allowed_dependencies=set(manifest.get("dependencies", [])),
+        )
         storage = InMemoryBackend()
         registry = CapabilityRegistry(storage)
         cap = cap_cls(config={})

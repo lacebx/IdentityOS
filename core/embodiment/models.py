@@ -5,7 +5,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
-
 DEVICE_KINDS = {"camera", "voice", "browser", "desktop"}
 EVIDENCE_CLASSES = {"hardware", "runtime", "simulated"}
 

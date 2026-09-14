@@ -4,7 +4,7 @@ import re
 from typing import Any, Optional
 
 from core.capabilities.base import Capability, Skill, object_schema
-from core.capabilities.registry import register, lookup
+from core.capabilities.registry import lookup, register
 from core.capabilities.result import CapabilityResult
 
 # Keywords that indicate the goal asks for command execution capability
@@ -45,11 +45,29 @@ class TaskPlannerCapability(Capability):
             "  1. Call task_planner.plan_and_execute with your goal as the 'goal' parameter",
             "  2. The planner will commit the steps to the durable Executive and return a task ID",
             "  3. Use Executive task status for observed progress and completion",
-            "Example: task_planner.plan_and_execute(goal='create a greeting skill, validate it, publish it, and install it')",
+            (
+                "Example: task_planner.plan_and_execute(goal='create a greeting skill, "
+                "validate it, publish it, and install it')"
+            ),
         ]
 
     _SKILLS = [
-        Skill(name="task_planner.plan_and_execute", description="Plan a multi-step goal and queue it in the durable Executive. Returns a persistent task ID for progress tracking.", permission="task:execute", effect="execute", input_schema=object_schema({"goal": {"type": "string", "minLength": 1}, "steps": {"type": "array"}}, required=("goal",))),
+        Skill(
+            name="task_planner.plan_and_execute",
+            description=(
+                "Plan a multi-step goal and queue it in the durable Executive. "
+                "Returns a persistent task ID for progress tracking."
+            ),
+            permission="task:execute",
+            effect="execute",
+            input_schema=object_schema(
+                {
+                    "goal": {"type": "string", "minLength": 1},
+                    "steps": {"type": "array"},
+                },
+                required=("goal",),
+            ),
+        ),
     ]
 
     def skills(self) -> list[Skill]:
@@ -64,11 +82,25 @@ class TaskPlannerCapability(Capability):
             }
             handler = dispatch.get(skill_name)
             if handler is None:
-                return CapabilityResult.fail("task_planner", skill_name, "unknown_skill", f"Unknown skill: {skill_name}")
+                return CapabilityResult.fail(
+                    "task_planner", skill_name, "unknown_skill", f"Unknown skill: {skill_name}"
+                )
             data = handler(**params)
-            return CapabilityResult.from_data("task_planner", skill_name, data, source="task planner", duration_ms=(_time.monotonic() - _t0) * 1000)
+            return CapabilityResult.from_data(
+                "task_planner",
+                skill_name,
+                data,
+                source="task planner",
+                duration_ms=(_time.monotonic() - _t0) * 1000,
+            )
         except Exception as e:
-            return CapabilityResult.fail("task_planner", skill_name, type(e).__name__, str(e), duration_ms=(_time.monotonic() - _t0) * 1000)
+            return CapabilityResult.fail(
+                "task_planner",
+                skill_name,
+                type(e).__name__,
+                str(e),
+                duration_ms=(_time.monotonic() - _t0) * 1000,
+            )
 
     def _plan_and_execute(self, goal: str = "", steps: Optional[list] = None, **kwargs: Any) -> dict[str, Any]:
         """Plan a goal and commit it to the authoritative durable Executive."""
@@ -165,7 +197,10 @@ class TaskPlannerCapability(Capability):
             if m:
                 command = m.group(1)
             else:
-                for kw in ("neofetch", "screenfetch", "pwd", "ls", "uname", "whoami", "date", "uptime", "hostname", "echo"):
+                for kw in (
+                    "neofetch", "screenfetch", "pwd", "ls", "uname", "whoami",
+                    "date", "uptime", "hostname", "echo",
+                ):
                     if re.search(rf'\b{kw}\b', gl):
                         command = kw
                         break
@@ -184,7 +219,11 @@ class TaskPlannerCapability(Capability):
             if m:
                 candidate = m.group(1)
                 # Skip action verbs that aren't capability names
-                if candidate not in ("create", "build", "make", "write", "publish", "install", "validate", "check", "test", "list", "show", "add", "load", "register", "update", "delete", "remove"):
+                if candidate not in (
+                    "create", "build", "make", "write", "publish", "install",
+                    "validate", "check", "test", "list", "show", "add", "load",
+                    "register", "update", "delete", "remove",
+                ):
                     cap_name = candidate
                     break
 

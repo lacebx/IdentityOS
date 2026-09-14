@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-import ast
 import json
 import os
 import re
-import subprocess
+import subprocess  # nosec B404
 import sys
 import tempfile
 import time
@@ -14,8 +13,12 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from .artifacts import package_record, payload_digest, write_artifact
+from .audit import audit_source
 from .loader import PACKAGE_NAMESPACE, capability_class_from_source
 from .models import AcceptanceCase, ForgeProposal, ForgeRequest, ForgeResult
+
+# The subprocess import is intentional: only the fixed isolated-runner command
+# in ``run_isolated`` is launched.
 
 
 class SkillForgeError(RuntimeError):
@@ -30,75 +33,6 @@ class CapabilityAuthor(Protocol):
 class CapabilityTestDesigner(Protocol):
     def design(self, request: ForgeRequest, identity: Any = None) -> list[AcceptanceCase]:
         """Derive black-box behavioral cases independently of candidate source."""
-
-
-_RISK_IMPORTS = {
-    "os": "environment",
-    "subprocess": "process:execute",
-    "socket": "network",
-    "httpx": "network",
-    "requests": "network",
-    "urllib": "network",
-    "pathlib": "filesystem",
-    "shutil": "filesystem",
-}
-_FORBIDDEN_IMPORTS = {"ctypes", "importlib", "marshal", "multiprocessing", "pickle"}
-_FORBIDDEN_CALLS = {"eval", "exec", "compile", "__import__"}
-_SAFE_IMPORTS = {
-    "__future__", "collections", "dataclasses", "datetime", "decimal", "enum", "fractions",
-    "functools", "hashlib", "itertools", "json", "math", "re", "statistics",
-    "string", "time", "typing", "uuid",
-}
-
-
-def audit_source(
-    source: str,
-    allowed_permissions: set[str],
-    allowed_dependencies: set[str] | None = None,
-) -> list[str]:
-    """Return policy violations found before any generated code executes."""
-    try:
-        tree = ast.parse(source)
-    except SyntaxError as exc:
-        return [f"syntax error at line {exc.lineno}: {exc.msg}"]
-    issues: list[str] = []
-    dependencies = allowed_dependencies or set()
-    for node in ast.walk(tree):
-        if isinstance(node, (ast.Import, ast.ImportFrom)):
-            names = (
-                [alias.name for alias in node.names]
-                if isinstance(node, ast.Import)
-                else [node.module or ""]
-            )
-            for name in names:
-                root = name.split(".", 1)[0]
-                if root in _FORBIDDEN_IMPORTS:
-                    issues.append(f"forbidden import '{root}'")
-                required = _RISK_IMPORTS.get(root)
-                if required and required not in allowed_permissions:
-                    issues.append(f"import '{root}' requires forge permission '{required}'")
-                if (
-                    root not in _SAFE_IMPORTS
-                    and root not in _RISK_IMPORTS
-                    and root not in dependencies
-                    and root != "core"
-                ):
-                    issues.append(f"import '{root}' is not an allowed dependency")
-        elif isinstance(node, ast.Call):
-            if isinstance(node.func, ast.Name):
-                if node.func.id in _FORBIDDEN_CALLS:
-                    issues.append(f"forbidden dynamic call '{node.func.id}'")
-                if node.func.id == "open" and "filesystem" not in allowed_permissions:
-                    issues.append("open() requires forge permission 'filesystem'")
-            if (
-                isinstance(node.func, ast.Attribute)
-                and isinstance(node.func.value, ast.Name)
-                and node.func.value.id == "os"
-                and node.func.attr in {"system", "popen", "spawnl", "spawnlp"}
-                and "process:execute" not in allowed_permissions
-            ):
-                issues.append(f"os.{node.func.attr} requires forge permission 'process:execute'")
-    return sorted(set(issues))
 
 
 def _extract_json(raw: str) -> dict[str, Any]:
@@ -223,6 +157,7 @@ class SkillForge:
             source=source,
             cases=cases,
             artifact_sha256=digest,
+            manifest=manifest,
         )
         if not report.get("passed"):
             raise SkillForgeError(
@@ -266,12 +201,14 @@ class SkillForge:
         source: str,
         cases: list[AcceptanceCase],
         artifact_sha256: str,
+        manifest: dict[str, Any],
     ) -> dict[str, Any]:
         payload = {
             "capability_id": capability_id,
             "source": source,
             "acceptance": [case.to_dict() for case in cases],
             "artifact_sha256": artifact_sha256,
+            "manifest": manifest,
         }
         started = time.monotonic()
         with tempfile.TemporaryDirectory(prefix="identityos-forge-") as isolated:
@@ -284,7 +221,8 @@ class SkillForge:
                 "TMPDIR": isolated,
             }
             try:
-                completed = subprocess.run(
+                # argv is fixed; there is no shell or model-supplied executable.
+                completed = subprocess.run(  # nosec B603
                     [sys.executable, "-m", "core.skill_forge.runner", str(payload_path)],
                     cwd=isolated,
                     env=env,
@@ -340,10 +278,17 @@ class SkillForge:
             source=str(record["source"]),
             cases=cases,
             artifact_sha256=str(record["artifact_sha256"]),
+            manifest=manifest,
         )
         if not report.get("passed"):
             raise SkillForgeError("artifact failed installation-time behavioral verification")
-        capability_class_from_source(str(record["source"]), cap_id, str(record["artifact_sha256"]))
+        capability_class_from_source(
+            str(record["source"]),
+            cap_id,
+            str(record["artifact_sha256"]),
+            allowed_permissions=set(manifest.get("permissions", [])),
+            allowed_dependencies=set(manifest.get("dependencies", [])),
+        )
         raw = storage.load(identity_id, PACKAGE_NAMESPACE) or {}
         packages = dict(raw.get("packages") or {})
         packages[cap_id] = record

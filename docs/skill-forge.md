@@ -30,6 +30,12 @@ secrets are not inherited. Static analysis rejects dynamic evaluation,
 dangerous reflection/import mechanisms, undeclared risk scopes, and undeclared
 third-party dependencies before the subprocess starts.
 
+The same audit runs again at every source-loading boundary, using permissions
+and dependencies from the content-digested manifest. Generated code may import
+only the public capability API beneath `core`; imports of other runtime internals
+are rejected. The dynamic loader and fixed-argv subprocess invocation are narrow,
+reviewed code-execution boundaries and are annotated as such for static analysis.
+
 ## Portable artifact
 
 An `.idcap` file contains exactly:
