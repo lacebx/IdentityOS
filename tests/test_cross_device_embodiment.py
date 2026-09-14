@@ -19,6 +19,7 @@ from core.embodiment import (
 from core.executive.engine import ExecutiveRuntime, register_executive
 from core.executive.models import TaskStatus, TaskStepStatus
 from core.identity import create_identity
+from runtime.event_bus import EventType
 from runtime.orchestrator import IdentityRuntime
 from runtime.persistence import JSONFileBackend
 
@@ -286,3 +287,26 @@ def test_secret_bearing_device_parameters_are_not_persisted(tmp_path):
             autostart=False,
         )
     executive.shutdown()
+
+
+def test_optional_embodiment_failure_does_not_disable_durable_executive(
+    tmp_path, monkeypatch,
+):
+    def broken_adapter(*args, **kwargs):
+        raise RuntimeError("adapter discovery failed")
+
+    monkeypatch.setattr("core.embodiment.CapabilityDeviceAdapter", broken_adapter)
+    runtime = IdentityRuntime(
+        storage=JSONFileBackend(root_dir=str(tmp_path / "store")),
+    )
+
+    assert runtime.executive is not None
+    assert runtime.reflex_engine is not None
+    assert runtime.embodiment_hub is None
+    failures = runtime.event_bus.history(EventType.SUBSYSTEM_FAILED)
+    assert failures[-1].payload == {
+        "subsystem": "embodiment_initialization",
+        "error_type": "RuntimeError",
+        "error": "adapter discovery failed",
+    }
+    runtime.shutdown()

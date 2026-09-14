@@ -300,37 +300,54 @@ class IdentityRuntime:
                     skill_forge=self.skill_forge,
                 )
                 register_executive(self.executive)
-                from core.reflexes import ReflexEngine
-                self.reflex_engine = ReflexEngine(
-                    self._storage, self.executive, self.capability_registry,
-                )
-                from core.embodiment import CapabilityDeviceAdapter, EmbodimentHub
-                self.embodiment_hub = EmbodimentHub(
-                    self._storage, self.executive,
-                )
-                self.executive.embodiment_hub = self.embodiment_hub
-                self.embodiment_hub.attach(CapabilityDeviceAdapter(
-                    self.capability_registry,
-                    "browser",
-                    device_id="browser_runtime",
-                    kind="browser",
-                    name="IdentityOS Browser",
-                ))
-                self.embodiment_hub.attach(CapabilityDeviceAdapter(
-                    self.capability_registry,
-                    "command_exec",
-                    device_id="desktop_runtime",
-                    kind="desktop",
-                    actions=["run"],
-                    name="IdentityOS Desktop Executor",
-                ))
-                if self.prometheus is not None:
-                    self.prometheus.attach_executive(self.executive)
-            except Exception:
+            except Exception as exc:
                 self.skill_forge = None
                 self.executive = None
-                self.reflex_engine = None
-                self.embodiment_hub = None
+                self._emit_subsystem_failure("executive_initialization", exc)
+
+            if self.executive is not None:
+                try:
+                    from core.reflexes import ReflexEngine
+
+                    self.reflex_engine = ReflexEngine(
+                        self._storage, self.executive, self.capability_registry,
+                    )
+                except Exception as exc:
+                    self.reflex_engine = None
+                    self._emit_subsystem_failure("reflex_initialization", exc)
+
+                try:
+                    from core.embodiment import CapabilityDeviceAdapter, EmbodimentHub
+
+                    self.embodiment_hub = EmbodimentHub(
+                        self._storage, self.executive,
+                    )
+                    self.executive.embodiment_hub = self.embodiment_hub
+                    self.embodiment_hub.attach(CapabilityDeviceAdapter(
+                        self.capability_registry,
+                        "browser",
+                        device_id="browser_runtime",
+                        kind="browser",
+                        name="IdentityOS Browser",
+                    ))
+                    self.embodiment_hub.attach(CapabilityDeviceAdapter(
+                        self.capability_registry,
+                        "command_exec",
+                        device_id="desktop_runtime",
+                        kind="desktop",
+                        actions=["run"],
+                        name="IdentityOS Desktop Executor",
+                    ))
+                except Exception as exc:
+                    self.embodiment_hub = None
+                    self.executive.embodiment_hub = None
+                    self._emit_subsystem_failure("embodiment_initialization", exc)
+
+                if self.prometheus is not None:
+                    try:
+                        self.prometheus.attach_executive(self.executive)
+                    except Exception as exc:
+                        self._emit_subsystem_failure("prometheus_executive_attachment", exc)
 
     def _emit(self, event_type: EventType, identity_id=None, session_id=None, **payload):
         self.event_bus.emit(
