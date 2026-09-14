@@ -641,70 +641,86 @@ def _verify_goal(task: Task, step: TaskStep, ctx: ExecutionContext) -> tuple[boo
         return (True, {"retried": False, "error": str(e)}, [Evidence(step=step.action, label="goal_retry", detail=f"retry unavailable: {e}", success=False, data={"error": str(e)})])
 
 
-# ── Planner file-action passthrough handlers ─────────────────────────────
+# ── Planner capability-action handlers ────────────────────────────
 
-def _passthrough_file_tools(action: str):
+_ACTION_SKILLS = {
+    "create_directory": "file_tools.create_directory",
+    "write_file": "file_tools.write_file",
+    "append_file": "file_tools.append_file",
+    "validate_syntax": "skill_validator.validate_syntax",
+    "check_interface": "skill_validator.check_capability_interface",
+    "list_capabilities": "registry_manager.list_capabilities",
+    "publish_capability": "registry_manager.publish_capability",
+    "install_capability": "registry_manager.install_capability",
+}
+
+
+def capability_skill_for_action(action: str, params: Optional[dict] = None) -> Optional[str]:
+    """Resolve a planner action to its gateway-enforced skill contract."""
+    if action == "run_command":
+        cap_id = str((params or {}).get("cap_id", "command_exec"))
+        return f"{cap_id}.run"
+    return _ACTION_SKILLS.get(action)
+
+
+def _gateway_action(action: str):
     def handler(task: Task, step: TaskStep, ctx: ExecutionContext) -> tuple[bool, dict, list]:
+        skill = capability_skill_for_action(action, step.params)
+        if skill is None or ctx.capability_registry is None:
+            reason = (
+                f"no capability mapping for {action}"
+                if skill is None else "capability registry unavailable"
+            )
+            return (False, {}, [Evidence(
+                step=step.action, label=action, detail=reason, success=False,
+            )])
+
+        params = dict(step.params)
+        params.pop("cap_id", None)
         try:
-            from core.capabilities.registry import lookup
-            res = lookup("file_tools")().call(f"file_tools.{action}", **step.params)
+            res = ctx.capability_registry.call(
+                ctx.identity_id,
+                skill,
+                execution_scope=f"task:{task.task_id}",
+                **params,
+            )
             ok = bool(getattr(res, "success", False))
-            data = getattr(res, "data", {})
-            ev = [Evidence(step=step.action, label=action, detail=f"{action} ok" if ok else f"{action} failed", success=ok, data=data if isinstance(data, dict) else {})]
-            return (ok, data if isinstance(data, dict) else {"result": str(data)}, ev)
-        except Exception as e:
-            return (False, {}, [Evidence(step=step.action, label=action, detail=f"{action} failed: {e}", success=False, data={"error": str(e)})])
+            raw_data = getattr(res, "data", {})
+            data = raw_data if isinstance(raw_data, dict) else {"result": str(raw_data)}
+            error = getattr(res, "error", None) or {}
+            error_type = error.get("type", "") if isinstance(error, dict) else ""
+            error_message = error.get("message", str(error)) if error else ""
+            evidence = [Evidence(
+                step=step.action,
+                label=action,
+                detail=(
+                    f"{skill} succeeded"
+                    if ok else f"{skill} failed: {error_message or 'unknown error'}"
+                ),
+                success=ok,
+                data={
+                    **data,
+                    "skill": skill,
+                    **({"error_type": error_type} if error_type else {}),
+                },
+            )]
+            if error_type == "permission_denied":
+                return (False, {
+                    "blocked": True,
+                    "block_type": "authorization_required",
+                    "reason": error_message,
+                    "skill": skill,
+                }, evidence)
+            return (ok, data, evidence)
+        except Exception as exc:
+            return (False, {"skill": skill, "error": str(exc)}, [Evidence(
+                step=step.action,
+                label=action,
+                detail=f"{skill} failed: {exc}",
+                success=False,
+                data={"skill": skill, "error": str(exc)},
+            )])
     return handler
-
-
-def _passthrough_validator(action: str):
-    def handler(task: Task, step: TaskStep, ctx: ExecutionContext) -> tuple[bool, dict, list]:
-        try:
-            from core.capabilities.registry import lookup
-            skill = "skill_validator.validate_syntax" if action == "validate_syntax" else "skill_validator.check_capability_interface"
-            res = lookup("skill_validator")().call(skill, **step.params)
-            ok = bool(getattr(res, "success", False))
-            data = getattr(res, "data", {})
-            ev = [Evidence(step=step.action, label=action, detail="validated" if ok else "validation failed", success=ok, data=data if isinstance(data, dict) else {})]
-            return (ok, data if isinstance(data, dict) else {"result": str(data)}, ev)
-        except Exception as e:
-            return (False, {}, [Evidence(step=step.action, label=action, detail=f"{action} failed: {e}", success=False, data={"error": str(e)})])
-    return handler
-
-
-def _passthrough_registry(action: str):
-    def handler(task: Task, step: TaskStep, ctx: ExecutionContext) -> tuple[bool, dict, list]:
-        try:
-            from core.capabilities.registry import lookup
-            skill = {
-                "list_capabilities": "registry_manager.list_capabilities",
-                "publish_capability": "registry_manager.publish_capability",
-                "install_capability": "registry_manager.install_capability",
-            }[action]
-            res = lookup("registry_manager")().call(skill, **step.params)
-            ok = bool(getattr(res, "success", False))
-            data = getattr(res, "data", {})
-            ev = [Evidence(step=step.action, label=action, detail=f"{action} ok" if ok else f"{action} failed", success=ok, data=data if isinstance(data, dict) else {})]
-            return (ok, data if isinstance(data, dict) else {"result": str(data)}, ev)
-        except Exception as e:
-            return (False, {}, [Evidence(step=step.action, label=action, detail=f"{action} failed: {e}", success=False, data={"error": str(e)})])
-    return handler
-
-
-def _passthrough_command(task: Task, step: TaskStep, ctx: ExecutionContext) -> tuple[bool, dict, list]:
-    try:
-        from core.capabilities.registry import lookup
-        import importlib
-        cap = step.params.get("cap_id", "command_exec")
-        cmd = step.params.get("command", "")
-        importlib.import_module(f"core.capabilities.{cap}")
-        res = lookup(cap)().call(f"{cap}.run", command=cmd)
-        ok = bool(getattr(res, "success", False))
-        data = getattr(res, "data", {})
-        ev = [Evidence(step=step.action, label="command_run", detail=f"exit={data.get('exit_code')}" if isinstance(data, dict) else "ran", success=ok, data=data if isinstance(data, dict) else {})]
-        return (ok, data if isinstance(data, dict) else {"result": str(data)}, ev)
-    except Exception as e:
-        return (False, {}, [Evidence(step=step.action, label="command_run", detail=f"command failed: {e}", success=False, data={"error": str(e)})])
 
 
 _HANDLERS: dict[str, Any] = {
@@ -722,16 +738,17 @@ _HANDLERS: dict[str, Any] = {
     "reuse": _reuse,
     "verify": _verify,
     "verify_goal": _verify_goal,
-    # planner passthrough
-    "create_directory": _passthrough_file_tools("create_directory"),
-    "write_file": _passthrough_file_tools("write_file"),
-    "append_file": _passthrough_file_tools("append_file"),
-    "validate_syntax": _passthrough_validator("validate_syntax"),
-    "check_interface": _passthrough_validator("check_interface"),
-    "list_capabilities": _passthrough_registry("list_capabilities"),
-    "publish_capability": _passthrough_registry("publish_capability"),
-    "install_capability": _passthrough_registry("install_capability"),
-    "run_command": _passthrough_command,
+    # Planner actions execute through the same install/permission/schema
+    # gateway as model-originated capability calls.
+    "create_directory": _gateway_action("create_directory"),
+    "write_file": _gateway_action("write_file"),
+    "append_file": _gateway_action("append_file"),
+    "validate_syntax": _gateway_action("validate_syntax"),
+    "check_interface": _gateway_action("check_interface"),
+    "list_capabilities": _gateway_action("list_capabilities"),
+    "publish_capability": _gateway_action("publish_capability"),
+    "install_capability": _gateway_action("install_capability"),
+    "run_command": _gateway_action("run_command"),
 }
 
 
