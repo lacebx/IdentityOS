@@ -22,7 +22,14 @@ from core.executive.executor import (
     replay_policy_for_action,
     rollback_acquisition,
 )
-from core.executive.models import Evidence, Task, TaskStatus, TaskStep, TaskStepStatus
+from core.executive.models import (
+    Evidence,
+    ReplayPolicy,
+    Task,
+    TaskStatus,
+    TaskStep,
+    TaskStepStatus,
+)
 from core.executive.progress import compute_progress, render_progress_block
 from core.executive.recovery import recover_tasks
 from core.executive.scheduler import TaskScheduler
@@ -239,6 +246,10 @@ class ExecutiveRuntime:
             raise TypeError(f"Invalid step definition: {type(s).__name__}")
         if step.replay_policy is None:
             step.replay_policy = replay_policy_for_action(step.action)
+        if step.replay_policy == ReplayPolicy.BLOCK:
+            # A non-replay-safe effect gets one automatic attempt. If its
+            # outcome is unknown, only explicit reconciliation may continue it.
+            step.max_retries = 1
         return step
 
     def get_task(self, identity_id: str, task_id: str) -> Optional[Task]:

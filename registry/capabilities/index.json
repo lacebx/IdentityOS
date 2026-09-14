@@ -211,12 +211,12 @@
     {
       "id": "task_planner",
       "name": "Task Planner",
-      "version": "1.0.0",
-      "description": "Plan and execute multi-step tasks with progress tracking",
+      "version": "1.1.0",
+      "description": "Plan multi-step work and queue it in the durable Executive",
       "author": "IdentityOS",
       "skills": 1,
       "permissions": [
-        "public"
+        "task:execute"
       ],
       "url": "task_planner/manifest.json"
     },
