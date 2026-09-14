@@ -8,7 +8,7 @@ import re
 import threading
 import uuid
 from datetime import datetime, timezone
-from typing import Any, Iterable, Optional
+from typing import Any, Iterable
 
 from core.capabilities.contracts import validate_parameters
 from core.executive.models import ReplayPolicy, TaskStep
@@ -23,7 +23,6 @@ from .models import (
 )
 from .store import EmbodimentStore
 
-
 _ID = re.compile(r"^[a-z][a-z0-9_.-]{1,63}$")
 _SENSITIVE = ("api_key", "credential", "password", "secret", "token")
 _MAX_OBSERVATION_BYTES = 64 * 1024
@@ -33,7 +32,7 @@ class EmbodimentError(RuntimeError):
     pass
 
 
-class DeviceUnavailable(EmbodimentError):
+class DeviceUnavailableError(EmbodimentError):
     pass
 
 
@@ -94,7 +93,7 @@ class EmbodimentHub:
     ) -> dict[str, Any]:
         adapter = self._adapters.get(device_id)
         if adapter is None:
-            raise DeviceUnavailable(f"device is not attached: {device_id}")
+            raise DeviceUnavailableError(f"device is not attached: {device_id}")
         requested = sorted(set(actions))
         if not requested:
             raise DeviceAuthorizationError("at least one device action is required")
@@ -211,7 +210,7 @@ class EmbodimentHub:
             )
         adapter = self._adapters.get(device_id)
         if adapter is None:
-            raise DeviceUnavailable(f"device is not attached: {device_id}")
+            raise DeviceUnavailableError(f"device is not attached: {device_id}")
         grant = self.store.authorizations(identity_id).get(device_id)
         if grant is None:
             raise DeviceAuthorizationError(

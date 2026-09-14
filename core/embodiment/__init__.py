@@ -4,7 +4,7 @@ from .adapters import CapabilityDeviceAdapter
 from .hub import (
     DeviceAuthorizationError,
     DeviceInvocationError,
-    DeviceUnavailable,
+    DeviceUnavailableError,
     EmbodimentError,
     EmbodimentHub,
 )
@@ -26,7 +26,7 @@ __all__ = [
     "DeviceInvocationContext",
     "DeviceInvocationError",
     "DeviceObservation",
-    "DeviceUnavailable",
+    "DeviceUnavailableError",
     "EmbodimentError",
     "EmbodimentHub",
     "EmbodimentStore",

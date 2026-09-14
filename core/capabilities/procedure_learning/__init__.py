@@ -51,7 +51,10 @@ class ProcedureLearningCapability(Capability):
         ),
         Skill(
             name="procedure_learning.learn",
-            description="Learn a parameterized procedure from a completed Executive task using a protected held-out suite",
+            description=(
+                "Learn a parameterized procedure from a completed Executive task "
+                "using a protected held-out suite"
+            ),
             permission="procedure:learn",
             effect="write",
             input_schema=object_schema(

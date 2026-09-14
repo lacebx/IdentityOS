@@ -8,7 +8,6 @@ import zipfile
 from pathlib import Path
 from typing import Any
 
-
 PAYLOAD_NAMES = ("capability.py", "manifest.json", "acceptance.json")
 
 

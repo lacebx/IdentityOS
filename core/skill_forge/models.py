@@ -6,7 +6,6 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
-
 _CAPABILITY_ID = re.compile(r"^[a-z][a-z0-9_]{1,63}$")
 
 

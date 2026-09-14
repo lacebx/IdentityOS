@@ -1,6 +1,6 @@
 """Evidence-backed procedure learning and compilation."""
 
-from .learner import ProcedureLearningError, ProcedureLearner
+from .learner import ProcedureLearner, ProcedureLearningError
 from .models import HeldOutExample, Procedure, ProcedureVersion
 from .store import ProcedureStore
 

@@ -22,7 +22,6 @@ from core.identity import create_identity
 from runtime.orchestrator import IdentityRuntime
 from runtime.persistence import JSONFileBackend
 
-
 EMPTY_SCHEMA = {
     "type": "object",
     "properties": {},

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import sys
 import types
 from typing import Any, Optional
@@ -10,18 +9,32 @@ from typing import Any, Optional
 from core.capabilities.base import Capability
 
 from .artifacts import verify_package_record
-
+from .audit import audit_source
 
 PACKAGE_NAMESPACE = "skill_forge.packages"
 
 
-def capability_class_from_source(source: str, capability_id: str, digest: str) -> type[Capability]:
+def capability_class_from_source(
+    source: str,
+    capability_id: str,
+    digest: str,
+    *,
+    allowed_permissions: set[str],
+    allowed_dependencies: set[str],
+) -> type[Capability]:
+    """Load source only after enforcing the exact manifest-derived audit policy."""
+    issues = audit_source(source, allowed_permissions, allowed_dependencies)
+    if issues:
+        raise ValueError("forged source audit failed: " + "; ".join(issues))
     module_name = f"identityos_forged_{capability_id}_{digest[:12]}"
     module = types.ModuleType(module_name)
     module.__file__ = f"<{module_name}>"
     sys.modules[module_name] = module
     try:
-        exec(compile(source, module.__file__, "exec"), module.__dict__)
+        # This is the single intentional in-process execution boundary. The
+        # exact source is audited immediately above and package callers bind it
+        # to a verified digest before reaching this loader.
+        exec(compile(source, module.__file__, "exec"), module.__dict__)  # nosec B102
     finally:
         sys.modules.pop(module_name, None)
     matches = [
@@ -48,4 +61,10 @@ def persisted_capability_class(storage: Any, identity_id: str, capability_id: st
     manifest = record.get("manifest", {})
     if manifest.get("id") != capability_id:
         raise ValueError("persisted forged package manifest id mismatch")
-    return capability_class_from_source(str(record["source"]), capability_id, digest)
+    return capability_class_from_source(
+        str(record["source"]),
+        capability_id,
+        digest,
+        allowed_permissions=set(manifest.get("permissions", [])),
+        allowed_dependencies=set(manifest.get("dependencies", [])),
+    )

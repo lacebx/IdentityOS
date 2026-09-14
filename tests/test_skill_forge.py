@@ -15,6 +15,7 @@ from core.skill_forge import (
     SkillForge,
     SkillForgeError,
 )
+from core.skill_forge.loader import capability_class_from_source
 from runtime.persistence import JSONFileBackend
 
 
@@ -171,6 +172,22 @@ def test_forge_rejects_undeclared_process_execution_before_running(tmp_path):
     forge = SkillForge(tmp_path / "workspace", author=UnsafeAuthor(), test_designer=designer)
     with pytest.raises(SkillForgeError, match="process:execute"):
         forge.forge(ForgeRequest(cap_id, "run a process", "author"))
+
+
+def test_loader_reaudits_source_and_rejects_internal_runtime_import():
+    cap_id = "unsafe_internal"
+    source = capability_source(cap_id).replace(
+        "from typing import Any", "from typing import Any\nfrom core.executive import ExecutiveRuntime"
+    )
+
+    with pytest.raises(ValueError, match="outside the capability API"):
+        capability_class_from_source(
+            source,
+            cap_id,
+            "0" * 64,
+            allowed_permissions={"public"},
+            allowed_dependencies=set(),
+        )
 
 
 def test_artifact_installs_on_another_identity_and_survives_fresh_registry(tmp_path):

@@ -337,7 +337,11 @@ def _publish(task: Task, step: TaskStep, ctx: ExecutionContext) -> tuple[bool, d
             step=step.action, label="registry_published",
             detail=f"{cap} published ({getattr(res, 'data', {})})", success=success,
             data={
-                **(getattr(res, "data", {}) if isinstance(getattr(res, "data", {}), dict) else {"result": str(getattr(res, "data", ""))}),
+                **(
+                    getattr(res, "data", {})
+                    if isinstance(getattr(res, "data", {}), dict)
+                    else {"result": str(getattr(res, "data", ""))}
+                ),
                 "artifact": str(artifact_destination) if artifact_destination else None,
                 "artifact_sha256": generated_result.get("artifact_sha256"),
             },
@@ -677,9 +681,9 @@ def _device_action(task: Task, step: TaskStep, ctx: ExecutionContext) -> tuple[b
             data=observation,
         )])
     except Exception as exc:
-        from core.embodiment import DeviceAuthorizationError, DeviceUnavailable
+        from core.embodiment import DeviceAuthorizationError, DeviceUnavailableError
 
-        if isinstance(exc, (DeviceAuthorizationError, DeviceUnavailable)):
+        if isinstance(exc, (DeviceAuthorizationError, DeviceUnavailableError)):
             block_type = (
                 "authorization_required"
                 if isinstance(exc, DeviceAuthorizationError)

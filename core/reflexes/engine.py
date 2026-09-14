@@ -20,7 +20,6 @@ from core.procedures import ProcedureLearner, ProcedureStore
 from .models import ReflexBinding, ReflexRun
 from .store import ReflexStore
 
-
 _ID = re.compile(r"^[a-z][a-z0-9_]{1,63}$")
 _FIELD = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
 _SENSITIVE = ("api_key", "credential", "password", "secret", "token")
