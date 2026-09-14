@@ -34,6 +34,9 @@ An adapter must return a `DeviceObservation`. The hub persists its source,
 evidence class, data digest, task ID, identity ID, and bounded structured data.
 Observations larger than 64 KiB are rejected. Durable device task parameters
 with secret-bearing keys are rejected rather than written to task storage.
+Adapter observations are also sanitized before they become task evidence:
+values beneath token, password, credential, authorization, cookie, API-key, or
+secret-shaped keys are replaced with `[REDACTED]` before hashing and persistence.
 
 Evidence classes are explicit: `hardware`, `runtime`, or `simulated`. A device
 not declared hardware-backed cannot claim a hardware observation. Test doubles
