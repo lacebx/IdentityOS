@@ -68,7 +68,7 @@
       "version": "1.0.0",
       "description": "Person-like web surfing: search, score usefulness, open pages, click/type/login, authenticated sessions",
       "author": "IdentityOS",
-      "skills": 13,
+      "skills": 22,
       "permissions": [
         "public",
         "network",

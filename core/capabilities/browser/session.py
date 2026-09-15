@@ -9,12 +9,14 @@ from __future__ import annotations
 
 import atexit
 import hashlib
+import json
 import queue
 import re
 import threading
 from contextvars import copy_context
 from concurrent.futures import Future
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Optional, TypeVar
 
@@ -43,6 +45,149 @@ class SessionState:
     last_url: str = ""
     history: list[str] = field(default_factory=list)
     lock: threading.RLock = field(default_factory=threading.RLock)
+    # Profile support
+    browser_type: str = "chromium"  # chromium, firefox, webkit
+    user_profile_dir: Optional[Path] = None  # Path to existing browser profile
+    # Multi-tab support
+    pages: dict[str, Any] = field(default_factory=dict)  # tab_id -> page
+    active_tab_id: str = "main"
+    # Checkpoint support
+    checkpoints: list[dict] = field(default_factory=list)  # serialized checkpoints
+    max_checkpoints: int = 10  # max checkpoints to keep
+
+    # ─── Serialization ────────────────────────────────────────────────────
+    def serialize_cookies(self) -> list[dict]:
+        """Serialize cookies from the browser context."""
+        if not self.context:
+            return []
+        try:
+            cookies = self.context.cookies()
+            return [
+                {
+                    "name": c["name"],
+                    "value": c["value"],
+                    "domain": c["domain"],
+                    "path": c["path"],
+                    "expires": c.get("expires"),
+                    "httpOnly": c.get("httpOnly", False),
+                    "secure": c.get("secure", False),
+                    "sameSite": c.get("sameSite", "Lax"),
+                }
+                for c in cookies
+            ]
+        except Exception:
+            return []
+
+    def serialize_local_storage(self) -> dict:
+        """Serialize localStorage from the active page."""
+        if not self.page:
+            return {}
+        try:
+            return self.page.evaluate("() => { const data = {}; for (let i = 0; i < localStorage.length; i++) { const key = localStorage.key(i); data[key] = localStorage.getItem(key); } return data; }")
+        except Exception:
+            return {}
+
+    def serialize_session_storage(self) -> dict:
+        """Serialize sessionStorage from the active page."""
+        if not self.page:
+            return {}
+        try:
+            return self.page.evaluate("() => { const data = {}; for (let i = 0; i < sessionStorage.length; i++) { const key = sessionStorage.key(i); data[key] = sessionStorage.getItem(key); } return data; }")
+        except Exception:
+            return {}
+
+    def serialize_tabs(self) -> list[dict]:
+        """Serialize all tabs."""
+        tabs = []
+        for tab_id, page in self.pages.items():
+            if page == self.page:
+                continue
+            try:
+                tabs.append({
+                    "tab_id": tab_id,
+                    "url": page.url,
+                    "title": page.title(),
+                })
+            except Exception:
+                pass
+        # Add active tab
+        if self.page:
+            tabs.insert(0, {
+                "tab_id": self.active_tab_id,
+                "url": self.page.url,
+                "title": self.page.title(),
+            })
+        return tabs
+
+    def serialize_state(self) -> dict:
+        """Serialize complete session state for checkpointing."""
+        return {
+            "timestamp": datetime.now().isoformat(),
+            "session_key": self.session_key,
+            "identity_id": self.identity_id,
+            "last_url": self.last_url,
+            "history": self.history[-100:],  # keep last 100
+            "cookies": self.serialize_cookies(),
+            "local_storage": self.serialize_local_storage(),
+            "session_storage": self.serialize_session_storage(),
+            "tabs": self.serialize_tabs(),
+            "active_tab_id": self.active_tab_id,
+        }
+
+    def restore_cookies(self, cookies: list[dict]) -> None:
+        """Restore cookies to the browser context."""
+        if not self.context or not cookies:
+            return
+        try:
+            self.context.add_cookies(cookies)
+        except Exception:
+            pass
+
+    def restore_local_storage(self, data: dict) -> None:
+        """Restore localStorage to the active page."""
+        if not self.page or not data:
+            return
+        try:
+            for key, value in data.items():
+                self.page.evaluate(f"localStorage.setItem({json.dumps(key)}, {json.dumps(value)})")
+        except Exception:
+            pass
+
+    def restore_session_storage(self, data: dict) -> None:
+        """Restore sessionStorage to the active page."""
+        if not self.page or not data:
+            return
+        try:
+            for key, value in data.items():
+                self.page.evaluate(f"sessionStorage.setItem({json.dumps(key)}, {json.dumps(value)})")
+        except Exception:
+            pass
+
+    def create_checkpoint(self) -> dict:
+        """Create a checkpoint of current session state."""
+        checkpoint = self.serialize_state()
+        self.checkpoints.append(checkpoint)
+        # Trim old checkpoints
+        if len(self.checkpoints) > self.max_checkpoints:
+            self.checkpoints = self.checkpoints[-self.max_checkpoints:]
+        return checkpoint
+
+    def restore_checkpoint(self, checkpoint: dict) -> bool:
+        """Restore session from a checkpoint."""
+        try:
+            if "cookies" in checkpoint:
+                self.restore_cookies(checkpoint["cookies"])
+            if "local_storage" in checkpoint:
+                self.restore_local_storage(checkpoint["local_storage"])
+            if "session_storage" in checkpoint:
+                self.restore_session_storage(checkpoint["session_storage"])
+            if "last_url" in checkpoint:
+                self.last_url = checkpoint["last_url"]
+            if "history" in checkpoint:
+                self.history = checkpoint["history"]
+            return True
+        except Exception:
+            return False
 
 
 _SESSIONS: dict[str, SessionState] = {}
@@ -151,8 +296,16 @@ def _session_key(
     storage_root: str | Path,
     identity_id: str,
     execution_scope: str,
+    browser_type: str = "chromium",
+    user_profile_dir: Optional[Path] = None,
 ) -> str:
-    return str(session_dir(storage_root, identity_id, execution_scope).resolve())
+    base = str(session_dir(storage_root, identity_id, execution_scope).resolve())
+    if browser_type != "chromium":
+        base = f"{base}-{browser_type}"
+    if user_profile_dir:
+        profile_hash = hashlib.sha256(str(user_profile_dir).encode()).hexdigest()[:8]
+        base = f"{base}-profile-{profile_hash}"
+    return base
 
 
 def get_session(
@@ -160,8 +313,10 @@ def get_session(
     *,
     storage_root: str | Path = ".identity_store",
     execution_scope: str = "sdk",
+    browser_type: str = "chromium",
+    user_profile_dir: Optional[Path] = None,
 ) -> Optional[SessionState]:
-    key = _session_key(storage_root, identity_id, execution_scope)
+    key = _session_key(storage_root, identity_id, execution_scope, browser_type, user_profile_dir)
     with _GLOBAL_LOCK:
         return _SESSIONS.get(key)
 
@@ -174,17 +329,21 @@ def ensure_session(
     user_agent: Optional[str] = None,
     execution_scope: str = "sdk",
     allow_private_network: bool = False,
+    browser_type: str = "chromium",
+    user_profile_dir: Optional[Path] = None,
 ) -> SessionState:
     """Start or reuse a browser session for this identity."""
 
     def _ensure() -> SessionState:
         with _GLOBAL_LOCK:
-            key = _session_key(storage_root, identity_id, execution_scope)
+            key = _session_key(storage_root, identity_id, execution_scope, browser_type, user_profile_dir)
             existing = _SESSIONS.get(key)
             if existing and existing.started and existing.page is not None:
                 if (
                     existing.headless == headless
                     and existing.allow_private_network == allow_private_network
+                    and existing.browser_type == browser_type
+                    and existing.user_profile_dir == user_profile_dir
                 ):
                     return existing
                 _SESSIONS.pop(key, None)
@@ -197,11 +356,34 @@ def ensure_session(
                 headless=headless,
                 allow_private_network=allow_private_network,
                 user_data_dir=session_dir(storage_root, identity_id, execution_scope),
+                browser_type=browser_type,
+                user_profile_dir=user_profile_dir,
             )
             state.playwright = _shared_playwright()
             try:
-                state.context = state.playwright.chromium.launch_persistent_context(
-                    user_data_dir=str(state.user_data_dir / "profile"),
+                # Determine user data directory
+                if state.user_profile_dir and state.user_profile_dir.exists():
+                    # Use existing browser profile
+                    profile_dir = state.user_profile_dir
+                    state.user_profile_dir.mkdir(parents=True, exist_ok=True)
+                else:
+                    # Use internal profile directory
+                    profile_dir = state.user_data_dir / "profile"
+                    profile_dir.mkdir(parents=True, exist_ok=True)
+
+                # Select browser type
+                browser_launcher = getattr(state.playwright, state.browser_type)
+                if browser_launcher is None:
+                    raise BrowserUnavailable(f"Browser type '{state.browser_type}' not available")
+
+                # Prepare launch arguments
+                launch_args = ["--disable-blink-features=AutomationControlled"]
+                if state.browser_type == "firefox":
+                    launch_args = ["-headless"] if headless else []
+
+                # Launch persistent context
+                state.context = browser_launcher.launch_persistent_context(
+                    user_data_dir=str(profile_dir),
                     headless=headless,
                     viewport={"width": 1280, "height": 800},
                     locale="en-US",
@@ -210,7 +392,7 @@ def ensure_session(
                         "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
                         "(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
                     ),
-                    args=["--disable-blink-features=AutomationControlled"],
+                    args=launch_args,
                 )
                 state.context.route(
                     "**/*",
@@ -222,6 +404,8 @@ def ensure_session(
                     else route.abort("blockedbyclient"),
                 )
                 state.page = state.context.pages[0] if state.context.pages else state.context.new_page()
+                # Initialize multi-tab support
+                state.pages = {state.active_tab_id: state.page}
                 state.started = True
                 _SESSIONS[key] = state
                 return state
@@ -305,6 +489,212 @@ def close_all() -> None:
 
 
 atexit.register(close_all)
+
+
+# ─── Multi-tab Support ────────────────────────────────────────────────────
+
+def new_tab(
+    identity_id: str,
+    *,
+    storage_root: str | Path = ".identity_store",
+    execution_scope: str = "sdk",
+    browser_type: str = "chromium",
+    user_profile_dir: Optional[Path] = None,
+    url: str = "about:blank",
+) -> dict:
+    """Create a new tab in the session."""
+    def _new_tab() -> dict:
+        state = get_session(identity_id, storage_root=storage_root, execution_scope=execution_scope, browser_type=browser_type, user_profile_dir=user_profile_dir)
+        if not state or not state.started or not state.context:
+            return {"success": False, "error": "No active session"}
+        with state.lock:
+            tab_id = f"tab-{len(state.pages) + 1}"
+            page = state.context.new_page()
+            page.goto(url, wait_until="domcontentloaded", timeout=45000)
+            state.pages[tab_id] = page
+            state.active_tab_id = tab_id
+            state.page = page
+            return {"success": True, "tab_id": tab_id, "url": url}
+    return run_in_browser_thread(_new_tab)
+
+
+def switch_tab(
+    identity_id: str,
+    tab_id: str,
+    *,
+    storage_root: str | Path = ".identity_store",
+    execution_scope: str = "sdk",
+    browser_type: str = "chromium",
+    user_profile_dir: Optional[Path] = None,
+) -> dict:
+    """Switch to a different tab."""
+    def _switch() -> dict:
+        state = get_session(identity_id, storage_root=storage_root, execution_scope=execution_scope, browser_type=browser_type, user_profile_dir=user_profile_dir)
+        if not state or not state.started:
+            return {"success": False, "error": "No active session"}
+        with state.lock:
+            if tab_id not in state.pages:
+                return {"success": False, "error": f"Tab {tab_id} not found"}
+            state.active_tab_id = tab_id
+            state.page = state.pages[tab_id]
+            return {"success": True, "tab_id": tab_id}
+    return run_in_browser_thread(_switch)
+
+
+def close_tab(
+    identity_id: str,
+    tab_id: str,
+    *,
+    storage_root: str | Path = ".identity_store",
+    execution_scope: str = "sdk",
+    browser_type: str = "chromium",
+    user_profile_dir: Optional[Path] = None,
+) -> dict:
+    """Close a specific tab."""
+    def _close() -> dict:
+        state = get_session(identity_id, storage_root=storage_root, execution_scope=execution_scope, browser_type=browser_type, user_profile_dir=user_profile_dir)
+        if not state or not state.started:
+            return {"success": False, "error": "No active session"}
+        with state.lock:
+            if tab_id not in state.pages:
+                return {"success": False, "error": f"Tab {tab_id} not found"}
+            if len(state.pages) <= 1:
+                return {"success": False, "error": "Cannot close last tab"}
+            page = state.pages.pop(tab_id)
+            try:
+                page.close()
+            except Exception:
+                pass
+            # Switch to another tab if we closed the active one
+            if state.active_tab_id == tab_id:
+                state.active_tab_id = next(iter(state.pages))
+                state.page = state.pages[state.active_tab_id]
+            return {"success": True, "active_tab_id": state.active_tab_id}
+    return run_in_browser_thread(_close)
+
+
+def list_tabs(
+    identity_id: str,
+    *,
+    storage_root: str | Path = ".identity_store",
+    execution_scope: str = "sdk",
+    browser_type: str = "chromium",
+    user_profile_dir: Optional[Path] = None,
+) -> list[dict]:
+    """List all tabs in the session."""
+    state = get_session(identity_id, storage_root=storage_root, execution_scope=execution_scope, browser_type=browser_type, user_profile_dir=user_profile_dir)
+    if not state or not state.started:
+        return []
+    with state.lock:
+        tabs = []
+        for tab_id, page in state.pages.items():
+            try:
+                tabs.append({
+                    "tab_id": tab_id,
+                    "url": page.url,
+                    "title": page.title(),
+                    "active": tab_id == state.active_tab_id,
+                })
+            except Exception:
+                pass
+        return tabs
+
+
+# ─── Checkpoint Support ───────────────────────────────────────────────────
+
+def create_checkpoint(
+    identity_id: str,
+    *,
+    storage_root: str | Path = ".identity_store",
+    execution_scope: str = "sdk",
+    browser_type: str = "chromium",
+    user_profile_dir: Optional[Path] = None,
+) -> dict:
+    """Create a checkpoint of the current session state."""
+    def _create() -> dict:
+        state = get_session(identity_id, storage_root=storage_root, execution_scope=execution_scope, browser_type=browser_type, user_profile_dir=user_profile_dir)
+        if not state or not state.started:
+            return {"success": False, "error": "No active session"}
+        return {"success": True, "checkpoint": state.create_checkpoint()}
+    return run_in_browser_thread(_create)
+
+
+def restore_checkpoint(
+    identity_id: str,
+    checkpoint_index: int = -1,
+    *,
+    storage_root: str | Path = ".identity_store",
+    execution_scope: str = "sdk",
+    browser_type: str = "chromium",
+    user_profile_dir: Optional[Path] = None,
+) -> dict:
+    """Restore session from a checkpoint (default: latest)."""
+    def _restore() -> dict:
+        state = get_session(identity_id, storage_root=storage_root, execution_scope=execution_scope, browser_type=browser_type, user_profile_dir=user_profile_dir)
+        if not state or not state.started:
+            return {"success": False, "error": "No active session"}
+        if not state.checkpoints:
+            return {"success": False, "error": "No checkpoints available"}
+        checkpoint = state.checkpoints[checkpoint_index]
+        success = state.restore_checkpoint(checkpoint)
+        return {"success": success}
+    return run_in_browser_thread(_restore)
+
+
+def list_checkpoints(
+    identity_id: str,
+    *,
+    storage_root: str | Path = ".identity_store",
+    execution_scope: str = "sdk",
+    browser_type: str = "chromium",
+    user_profile_dir: Optional[Path] = None,
+) -> list[dict]:
+    """List available checkpoints for a session."""
+    state = get_session(identity_id, storage_root=storage_root, execution_scope=execution_scope, browser_type=browser_type, user_profile_dir=user_profile_dir)
+    if not state:
+        return []
+    return [
+        {"index": i, "timestamp": cp.get("timestamp"), "url": cp.get("last_url")}
+        for i, cp in enumerate(state.checkpoints)
+    ]
+
+
+def export_session(
+    identity_id: str,
+    *,
+    storage_root: str | Path = ".identity_store",
+    execution_scope: str = "sdk",
+    browser_type: str = "chromium",
+    user_profile_dir: Optional[Path] = None,
+) -> dict:
+    """Export complete session state for backup/migration."""
+    state = get_session(identity_id, storage_root=storage_root, execution_scope=execution_scope, browser_type=browser_type, user_profile_dir=user_profile_dir)
+    if not state or not state.started:
+        return {"success": False, "error": "No active session"}
+    return {"success": True, "session": state.serialize_state()}
+
+
+def import_session(
+    identity_id: str,
+    session_data: dict,
+    *,
+    storage_root: str | Path = ".identity_store",
+    execution_scope: str = "sdk",
+    browser_type: str = "chromium",
+    user_profile_dir: Optional[Path] = None,
+) -> dict:
+    """Import session state from backup."""
+    def _import() -> dict:
+        state = ensure_session(
+            identity_id,
+            storage_root=storage_root,
+            execution_scope=execution_scope,
+            browser_type=browser_type,
+            user_profile_dir=user_profile_dir,
+        )
+        success = state.restore_checkpoint(session_data)
+        return {"success": success}
+    return run_in_browser_thread(_import)
 
 
 def page_snapshot(page: Any, *, max_chars: int = 12000) -> dict[str, Any]:

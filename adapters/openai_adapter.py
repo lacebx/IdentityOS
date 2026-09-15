@@ -701,8 +701,24 @@ class OpenAIAdapter(BaseAdapter):
     def health_check(self) -> bool:
         try:
             client = self._get_client()
-            client.models.list()
-            return True
+            # Try models.list() first (standard OpenAI)
+            try:
+                client.models.list()
+                return True
+            except Exception as e:
+                # Some providers (Gemini, NVIDIA, etc.) don't support /models endpoint
+                # Fall back to a minimal completion request
+                error_msg = str(e).lower()
+                if any(code in error_msg for code in ("404", "not found", "not supported", "unsupported")):
+                    # Try a minimal request instead
+                    client.chat.completions.create(
+                        model=self.model or "gpt-4o",
+                        messages=[{"role": "user", "content": "hi"}],
+                        max_tokens=1,
+                    )
+                    return True
+                # Re-raise if it's a different error
+                raise
         except Exception:
             return False
 

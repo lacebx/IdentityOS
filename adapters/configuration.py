@@ -36,6 +36,71 @@ def _numbered_keys(env: Mapping[str, str], prefix: str) -> list[str]:
     return [value for _, value in sorted(matches)]
 
 
+def _discover_openai_providers(env: Mapping[str, str]) -> list[dict[str, Any]]:
+    """Discover all named OpenAI-compatible providers from environment.
+
+    Looks for variables matching:
+    - OPENAI_API_KEY (legacy, treated as 'openai')
+    - OPENAI_<NAME>_API_KEY (named providers, e.g., OPENAI_GEMINI_API_KEY)
+    - OLLAMA_API_KEY (legacy, treated as 'ollama')
+
+    Returns list of dicts with: name, api_key, base_url, model, is_local
+    """
+    providers = []
+
+    # Legacy OPENAI_API_KEY (treated as 'openai' unless base_url is local)
+    openai_key = env.get("OPENAI_API_KEY")
+    if _valid(openai_key):
+        openai_base = env.get("OPENAI_BASE_URL", "")
+        is_local = any(host in openai_base for host in ("localhost", "127.0.0.1"))
+        providers.append({
+            "name": "ollama" if is_local else "openai",
+            "display_name": "Ollama (local)" if is_local else "OpenAI",
+            "api_key": openai_key,
+            "base_url": openai_base or ("http://localhost:11434/v1" if is_local else None),
+            "model": env.get("OLLAMA_MODEL" if is_local else "OPENAI_MODEL", env.get("IDENTITY_MODEL", "llama3.2" if is_local else "gpt-4o")),
+            "is_local": is_local,
+        })
+
+    # Legacy OLLAMA_API_KEY (explicit Ollama)
+    ollama_key = env.get("OLLAMA_API_KEY")
+    if _valid(ollama_key):
+        ollama_base = env.get("OLLAMA_BASE_URL", "http://localhost:11434/v1")
+        providers.append({
+            "name": "ollama",
+            "display_name": "Ollama (local)",
+            "api_key": ollama_key,
+            "base_url": ollama_base,
+            "model": env.get("OLLAMA_MODEL", env.get("IDENTITY_MODEL", "llama3.2")),
+            "is_local": True,
+        })
+
+    # Named OpenAI-compatible providers: OPENAI_<NAME>_API_KEY
+    pattern = re.compile(r"^OPENAI_([A-Z0-9_]+)_API_KEY$")
+    for key_name, api_key in env.items():
+        match = pattern.match(key_name)
+        if match and _valid(api_key):
+            name = match.group(1).lower()
+            # Skip reserved names
+            if name in ("api", "key", "base", "url", "model", "organization", "timeout"):
+                continue
+
+            base_url = env.get(f"OPENAI_{match.group(1)}_BASE_URL", "")
+            model = env.get(f"OPENAI_{match.group(1)}_MODEL", env.get("IDENTITY_MODEL", "gpt-4o"))
+            is_local = any(host in base_url for host in ("localhost", "127.0.0.1"))
+
+            providers.append({
+                "name": name,
+                "display_name": match.group(1).replace("_", " ").title(),
+                "api_key": api_key,
+                "base_url": base_url or None,
+                "model": model,
+                "is_local": is_local,
+            })
+
+    return providers
+
+
 def build_adapter_from_env(env: Optional[Mapping[str, str]] = None) -> Optional[BaseAdapter]:
     """Build the configured provider chain without making a network request.
 
@@ -95,24 +160,28 @@ def build_adapter_from_env(env: Optional[Mapping[str, str]] = None) -> Optional[
         ))
         configured.add("anthropic")
 
-    openai_key = values.get("OPENAI_API_KEY")
-    openai_base = values.get("OPENAI_BASE_URL", "")
-    is_local = any(host in openai_base for host in ("localhost", "127.0.0.1"))
-    timeout = _resolve_openai_timeout(values.get("OPENAI_TIMEOUT"))
-    if _valid(openai_key) and "openai" not in configured and "ollama" not in configured:
-        if is_local:
+    # Discover all OpenAI-compatible providers (including named ones)
+    openai_providers = _discover_openai_providers(values)
+    for provider in openai_providers:
+        provider_name = provider["name"]
+        if provider_name in configured:
+            continue
+
+        timeout = _resolve_openai_timeout(values.get("OPENAI_TIMEOUT"))
+        if provider["is_local"]:
             candidates.append(OllamaAdapter(
-                model=values.get("OLLAMA_MODEL", values.get("IDENTITY_MODEL", "llama3.2")),
-                base_url=openai_base or "http://localhost:11434/v1",
+                model=provider["model"],
+                base_url=provider["base_url"],
                 timeout=timeout,
             ))
         else:
             candidates.append(OpenAIAdapter(
-                model=values.get("OPENAI_MODEL", values.get("IDENTITY_MODEL", "gpt-4o")),
-                api_key=openai_key,
-                base_url=openai_base or None,
+                model=provider["model"],
+                api_key=provider["api_key"],
+                base_url=provider["base_url"],
                 timeout=timeout,
             ))
+        configured.add(provider_name)
 
     if not candidates:
         return None
@@ -134,3 +203,13 @@ def describe_adapter(adapter: Optional[BaseAdapter]) -> dict[str, Any]:
             for item in leaves
         ],
     }
+
+
+def list_configured_openai_providers(env: Optional[Mapping[str, str]] = None) -> list[dict[str, Any]]:
+    """Return list of all configured OpenAI-compatible providers for UI selection."""
+    values = os.environ if env is None else env
+    providers = _discover_openai_providers(values)
+    # Add display info
+    for p in providers:
+        p["configured"] = True
+    return providers

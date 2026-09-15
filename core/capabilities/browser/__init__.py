@@ -11,6 +11,7 @@ import re
 import shutil
 import time
 from contextvars import ContextVar
+from pathlib import Path
 from typing import Any, Optional
 from urllib.parse import parse_qs, quote_plus, unquote, urlparse
 
@@ -24,13 +25,23 @@ from .session import (
     BrowserUnavailable,
     close_identity_sessions,
     close_session,
+    close_tab,
+    create_checkpoint,
     ensure_session,
+    export_session,
     get_session,
     identity_browser_dir,
+    import_session,
+    list_checkpoints,
+    list_tabs,
+    new_tab,
     page_snapshot,
+    restore_checkpoint,
     run_in_browser_thread,
+    switch_tab,
 )
 from .url_policy import validate_navigation_url
+from .nl_interface import create_nl_interface
 
 _SECRET_KEYS = {"password", "passwd", "pass", "secret", "token", "api_key"}
 _EXECUTION_SCOPE: ContextVar[str] = ContextVar(
@@ -114,6 +125,10 @@ class BrowserCapability(Capability):
         self._allow_private_network = bool(
             (config or {}).get("allow_private_network", False)
         )
+        self._browser_type = (config or {}).get("browser_type", "chromium")
+        self._user_profile_dir = (config or {}).get("user_profile_dir")
+        if self._user_profile_dir:
+            self._user_profile_dir = Path(self._user_profile_dir).expanduser().resolve()
         self._identity_id = ""
         self._http = httpx.Client(
             timeout=20,
@@ -143,6 +158,13 @@ class BrowserCapability(Capability):
 
     def on_identity_loaded(self, identity_id: str) -> None:
         self._identity_id = identity_id
+
+    @property
+    def nl(self) -> "BrowserNLInterface":
+        """Natural language interface for high-level browser commands."""
+        if not hasattr(self, "_nl_interface"):
+            self._nl_interface = create_nl_interface(self)
+        return self._nl_interface
 
     def prompts(self, identity_id: str) -> list[str]:
         return [
@@ -343,6 +365,94 @@ class BrowserCapability(Capability):
             effect="write",
             input_schema=object_schema({}),
         ),
+        # Multi-tab
+        Skill(
+            name="browser.new_tab",
+            description="Create a new tab in the browser session",
+            permission="browser:write",
+            effect="write",
+            input_schema=object_schema(
+                {
+                    "url": {"type": "string"},
+                },
+            ),
+        ),
+        Skill(
+            name="browser.switch_tab",
+            description="Switch to a different tab by tab_id",
+            permission="browser:write",
+            effect="write",
+            input_schema=object_schema(
+                {
+                    "tab_id": {"type": "string", "minLength": 1},
+                },
+                required=("tab_id",),
+            ),
+        ),
+        Skill(
+            name="browser.close_tab",
+            description="Close a specific tab by tab_id",
+            permission="browser:write",
+            effect="write",
+            input_schema=object_schema(
+                {
+                    "tab_id": {"type": "string", "minLength": 1},
+                },
+                required=("tab_id",),
+            ),
+        ),
+        Skill(
+            name="browser.list_tabs",
+            description="List all tabs in the current browser session",
+            permission="browser:read",
+            effect="read",
+            input_schema=object_schema({}),
+        ),
+        # Checkpoints
+        Skill(
+            name="browser.checkpoint_create",
+            description="Create a checkpoint of the current session state (cookies, localStorage, tabs)",
+            permission="browser:write",
+            effect="write",
+            input_schema=object_schema({}),
+        ),
+        Skill(
+            name="browser.checkpoint_restore",
+            description="Restore session from a checkpoint (default: latest)",
+            permission="browser:write",
+            effect="write",
+            input_schema=object_schema(
+                {
+                    "checkpoint_index": {"type": "integer"},
+                },
+            ),
+        ),
+        Skill(
+            name="browser.checkpoint_list",
+            description="List available checkpoints for the session",
+            permission="browser:read",
+            effect="read",
+            input_schema=object_schema({}),
+        ),
+        Skill(
+            name="browser.session_export",
+            description="Export complete session state for backup/migration",
+            permission="browser:read",
+            effect="read",
+            input_schema=object_schema({}),
+        ),
+        Skill(
+            name="browser.session_import",
+            description="Import session state from backup",
+            permission="browser:write",
+            effect="write",
+            input_schema=object_schema(
+                {
+                    "session_data": {"type": "object"},
+                },
+                required=("session_data",),
+            ),
+        ),
     ]
 
     def skills(self) -> list[Skill]:
@@ -382,6 +492,17 @@ class BrowserCapability(Capability):
                 "browser.wait": self._wait,
                 "browser.status": self._status,
                 "browser.close": self._close,
+                # Multi-tab
+                "browser.new_tab": self._new_tab,
+                "browser.switch_tab": self._switch_tab,
+                "browser.close_tab": self._close_tab,
+                "browser.list_tabs": self._list_tabs,
+                # Checkpoints
+                "browser.checkpoint_create": self._checkpoint_create,
+                "browser.checkpoint_restore": self._checkpoint_restore,
+                "browser.checkpoint_list": self._checkpoint_list,
+                "browser.session_export": self._session_export,
+                "browser.session_import": self._session_import,
             }
             handler = dispatch.get(skill_name)
             if handler is None:
@@ -429,6 +550,8 @@ class BrowserCapability(Capability):
             headless=self._headless if headless is None else headless,
             execution_scope=_EXECUTION_SCOPE.get(),
             allow_private_network=self._allow_private_network,
+            browser_type=self._browser_type,
+            user_profile_dir=self._user_profile_dir,
         )
         return state
 
@@ -988,3 +1111,93 @@ class BrowserCapability(Capability):
             execution_scope=_EXECUTION_SCOPE.get(),
         )
         return {"closed": closed, "identity_id": self._require_identity()}
+
+    # ─── Multi-tab Handlers ──────────────────────────────────────────────
+
+    def _new_tab(self, url: str = "about:blank", **_: Any) -> dict[str, Any]:
+        return new_tab(
+            self._require_identity(),
+            storage_root=self._storage_root,
+            execution_scope=_EXECUTION_SCOPE.get(),
+            browser_type=self._browser_type,
+            user_profile_dir=self._user_profile_dir,
+            url=url,
+        )
+
+    def _switch_tab(self, tab_id: str, **_: Any) -> dict[str, Any]:
+        return switch_tab(
+            self._require_identity(),
+            tab_id,
+            storage_root=self._storage_root,
+            execution_scope=_EXECUTION_SCOPE.get(),
+            browser_type=self._browser_type,
+            user_profile_dir=self._user_profile_dir,
+        )
+
+    def _close_tab(self, tab_id: str, **_: Any) -> dict[str, Any]:
+        return close_tab(
+            self._require_identity(),
+            tab_id,
+            storage_root=self._storage_root,
+            execution_scope=_EXECUTION_SCOPE.get(),
+            browser_type=self._browser_type,
+            user_profile_dir=self._user_profile_dir,
+        )
+
+    def _list_tabs(self, **_: Any) -> list[dict]:
+        return list_tabs(
+            self._require_identity(),
+            storage_root=self._storage_root,
+            execution_scope=_EXECUTION_SCOPE.get(),
+            browser_type=self._browser_type,
+            user_profile_dir=self._user_profile_dir,
+        )
+
+    # ─── Checkpoint Handlers ─────────────────────────────────────────────
+
+    def _checkpoint_create(self, **_: Any) -> dict[str, Any]:
+        return create_checkpoint(
+            self._require_identity(),
+            storage_root=self._storage_root,
+            execution_scope=_EXECUTION_SCOPE.get(),
+            browser_type=self._browser_type,
+            user_profile_dir=self._user_profile_dir,
+        )
+
+    def _checkpoint_restore(self, checkpoint_index: int = -1, **_: Any) -> dict[str, Any]:
+        return restore_checkpoint(
+            self._require_identity(),
+            checkpoint_index,
+            storage_root=self._storage_root,
+            execution_scope=_EXECUTION_SCOPE.get(),
+            browser_type=self._browser_type,
+            user_profile_dir=self._user_profile_dir,
+        )
+
+    def _checkpoint_list(self, **_: Any) -> list[dict]:
+        return list_checkpoints(
+            self._require_identity(),
+            storage_root=self._storage_root,
+            execution_scope=_EXECUTION_SCOPE.get(),
+            browser_type=self._browser_type,
+            user_profile_dir=self._user_profile_dir,
+        )
+
+    def _session_export(self, **_: Any) -> dict[str, Any]:
+        return export_session(
+            self._require_identity(),
+            storage_root=self._storage_root,
+            execution_scope=_EXECUTION_SCOPE.get(),
+            browser_type=self._browser_type,
+            user_profile_dir=self._user_profile_dir,
+        )
+
+    def _session_import(self, session_data: dict, **_: Any) -> dict[str, Any]:
+        return import_session(
+            self._require_identity(),
+            session_data,
+            storage_root=self._storage_root,
+            execution_scope=_EXECUTION_SCOPE.get(),
+            browser_type=self._browser_type,
+            user_profile_dir=self._user_profile_dir,
+        )

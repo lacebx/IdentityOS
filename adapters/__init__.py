@@ -10,7 +10,7 @@ from .openrouter_adapter import OpenRouterAdapter
 from .groq_adapter import GroqAdapter
 from .cerebras_adapter import CerebrasAdapter
 from .sambanova_adapter import SambaNovaAdapter
-from .configuration import build_adapter_from_env, describe_adapter
+from .configuration import build_adapter_from_env, describe_adapter, list_configured_openai_providers
 
 
 def get_adapter(
@@ -51,4 +51,5 @@ __all__ = [
     "get_adapter",
     "build_adapter_from_env",
     "describe_adapter",
+    "list_configured_openai_providers",
 ]

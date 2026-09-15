@@ -21,79 +21,440 @@
       "allow_private_network": {
         "type": "boolean",
         "description": "Explicitly allow localhost/private-network navigation for controlled environments (default false)"
+      },
+      "browser_type": {
+        "type": "string",
+        "enum": [
+          "chromium",
+          "firefox",
+          "webkit"
+        ],
+        "description": "Browser engine to use (default: chromium)"
+      },
+      "user_profile_dir": {
+        "type": "string",
+        "description": "Path to existing browser profile directory for persistent sessions"
       }
     }
   },
   "permissions": {
     "network": true,
     "filesystem": true,
-    "browser": true
+    "browser": true,
+    "browser:read": true,
+    "browser:write": true,
+    "browser:credentials": true
   },
   "skills": [
     {
       "name": "browser.open",
-      "description": "Open a URL in a persistent browser session",
-      "permission": "browser:read"
+      "description": "Open a URL in a persistent browser session (starts browser if needed)",
+      "permission": "browser:read",
+      "effect": "write",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "minLength": 1
+          },
+          "headless": {
+            "type": "boolean"
+          },
+          "wait_until": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ]
+      }
     },
     {
       "name": "browser.navigate",
       "description": "Navigate the current tab to a URL",
-      "permission": "browser:write"
+      "permission": "browser:write",
+      "effect": "write",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "minLength": 1
+          },
+          "wait_until": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ]
+      }
     },
     {
       "name": "browser.search",
       "description": "Search the web and score results against a task",
-      "permission": "browser:read"
+      "permission": "browser:read",
+      "effect": "read",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "minLength": 1
+          },
+          "task": {
+            "type": "string"
+          },
+          "max_results": {
+            "type": "integer"
+          },
+          "engine": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "query"
+        ]
+      }
     },
     {
       "name": "browser.evaluate_results",
       "description": "Score search results against a task and recommend URLs",
-      "permission": "browser:read"
+      "permission": "browser:read",
+      "effect": "read",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "task": {
+            "type": "string",
+            "minLength": 1
+          },
+          "results": {
+            "type": "array"
+          },
+          "min_score": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "task",
+          "results"
+        ]
+      }
     },
     {
       "name": "browser.snapshot",
       "description": "Read current page text and interactive elements",
-      "permission": "browser:read"
+      "permission": "browser:read",
+      "effect": "read",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "max_chars": {
+            "type": "integer"
+          }
+        }
+      }
     },
     {
       "name": "browser.click",
       "description": "Click an element by selector, text, or role",
-      "permission": "browser:write"
+      "permission": "browser:write",
+      "effect": "write",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "selector": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "exact": {
+            "type": "boolean"
+          }
+        }
+      }
     },
     {
       "name": "browser.type",
       "description": "Type into an input or the focused element",
-      "permission": "browser:write"
+      "permission": "browser:write",
+      "effect": "write",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string"
+          },
+          "selector": {
+            "type": "string"
+          },
+          "clear": {
+            "type": "boolean"
+          },
+          "press_enter": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "text"
+        ]
+      }
     },
     {
       "name": "browser.fill",
       "description": "Fill a form field by selector",
-      "permission": "browser:write"
+      "permission": "browser:write",
+      "effect": "write",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "selector": {
+            "type": "string",
+            "minLength": 1
+          },
+          "value": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "selector",
+          "value"
+        ]
+      }
     },
     {
       "name": "browser.login",
-      "description": "Log into a site with user-provided credentials",
-      "permission": "browser:credentials"
+      "description": "Log into a site with user-provided credentials. Optionally pass username_selector/password_selector/submit_selector; otherwise auto-detect.",
+      "permission": "browser:credentials",
+      "effect": "write",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "minLength": 1
+          },
+          "username": {
+            "type": "string",
+            "minLength": 1
+          },
+          "password": {
+            "type": "string",
+            "minLength": 1
+          },
+          "username_selector": {
+            "type": "string"
+          },
+          "password_selector": {
+            "type": "string"
+          },
+          "submit_selector": {
+            "type": "string"
+          },
+          "success_url_contains": {
+            "type": "string"
+          },
+          "wait_ms": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "url",
+          "username",
+          "password"
+        ]
+      }
     },
     {
       "name": "browser.press",
-      "description": "Press a keyboard key",
-      "permission": "browser:write"
+      "description": "Press a keyboard key (Enter, Tab, Escape, etc.)",
+      "permission": "browser:write",
+      "effect": "write",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "key"
+        ]
+      }
     },
     {
       "name": "browser.wait",
-      "description": "Wait for selector, URL, or milliseconds",
-      "permission": "browser:read"
+      "description": "Wait for a selector, URL substring, or fixed milliseconds",
+      "permission": "browser:read",
+      "effect": "read",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "selector": {
+            "type": "string"
+          },
+          "url_contains": {
+            "type": "string"
+          },
+          "ms": {
+            "type": "integer"
+          },
+          "timeout_ms": {
+            "type": "integer"
+          }
+        }
+      }
     },
     {
       "name": "browser.status",
       "description": "Report browser session status",
-      "permission": "browser:read"
+      "permission": "browser:read",
+      "effect": "read",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      }
     },
     {
       "name": "browser.close",
       "description": "Close the browser session",
-      "permission": "browser:write"
+      "permission": "browser:write",
+      "effect": "write",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "browser.new_tab",
+      "description": "Create a new tab in the browser session",
+      "permission": "browser:write",
+      "effect": "write",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "name": "browser.switch_tab",
+      "description": "Switch to a different tab by tab_id",
+      "permission": "browser:write",
+      "effect": "write",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "tab_id": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "tab_id"
+        ]
+      }
+    },
+    {
+      "name": "browser.close_tab",
+      "description": "Close a specific tab by tab_id",
+      "permission": "browser:write",
+      "effect": "write",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "tab_id": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "tab_id"
+        ]
+      }
+    },
+    {
+      "name": "browser.list_tabs",
+      "description": "List all tabs in the current browser session",
+      "permission": "browser:read",
+      "effect": "read",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "browser.checkpoint_create",
+      "description": "Create a checkpoint of the current session state (cookies, localStorage, tabs)",
+      "permission": "browser:write",
+      "effect": "write",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "browser.checkpoint_restore",
+      "description": "Restore session from a checkpoint (default: latest)",
+      "permission": "browser:write",
+      "effect": "write",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "checkpoint_index": {
+            "type": "integer"
+          }
+        }
+      }
+    },
+    {
+      "name": "browser.checkpoint_list",
+      "description": "List available checkpoints for the session",
+      "permission": "browser:read",
+      "effect": "read",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "browser.session_export",
+      "description": "Export complete session state for backup/migration",
+      "permission": "browser:read",
+      "effect": "read",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "browser.session_import",
+      "description": "Import session state from backup",
+      "permission": "browser:write",
+      "effect": "write",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "session_data": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "session_data"
+        ]
+      }
     }
   ]
 }
