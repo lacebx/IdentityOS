@@ -1,0 +1,7 @@
+{
+  "name": "identityos_live_bridge",
+  "description": "IdentityOS Live Browser Bridge - Native Messaging Host",
+  "path": "native_host.py",
+  "type": "stdio",
+  "allowed_extensions": ["live-browser-bridge@identityos"]
+}

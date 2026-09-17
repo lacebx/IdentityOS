@@ -39,6 +39,30 @@ def model_tool_schema(schema: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
+def _coerce_value(name: str, value: Any, schema: dict[str, Any]) -> Any:
+    """Coerce common string representations to proper types based on schema."""
+    if not isinstance(value, str):
+        return value
+    expected = schema.get("type")
+    if expected == "boolean":
+        lower = value.lower().strip()
+        if lower in ("true", "1", "yes", "on"):
+            return True
+        if lower in ("false", "0", "no", "off"):
+            return False
+    if expected == "integer":
+        try:
+            return int(value)
+        except ValueError:
+            pass
+    if expected == "number":
+        try:
+            return float(value)
+        except ValueError:
+            pass
+    return value
+
+
 def normalize_parameters(
     schema: dict[str, Any], params: dict[str, Any]
 ) -> dict[str, Any]:
@@ -46,10 +70,19 @@ def normalize_parameters(
 
     A null explicitly allowed by the runtime schema is preserved.  Required
     arguments are also preserved so normal contract validation rejects them.
+
+    Also performs basic type coercion (string "true" -> bool, string "123" -> int, etc.)
     """
     if not isinstance(params, dict) or not schema:
         return dict(params)
-    return _normalize_object(schema, params)
+    normalized = _normalize_object(schema, params)
+    # Apply type coercion for string inputs from model
+    properties = schema.get("properties", {})
+    for name, value in normalized.items():
+        prop = properties.get(name)
+        if prop:
+            normalized[name] = _coerce_value(name, value, prop)
+    return normalized
 
 
 def _make_optional_properties_nullable(schema: Any) -> None:

@@ -66,3 +66,18 @@ def test_runtime_wires_and_releases_durable_acquisition(tmp_path):
 
     runtime.shutdown()
     assert get_acquisition_provider(storage) is None
+
+
+def test_runtime_install_local_datetime_capability_and_call(tmp_path):
+    storage = JSONFileBackend(root_dir=str(tmp_path / "store"))
+    runtime = IdentityRuntime(storage=storage)
+    identity = create_identity("DatetimeCaps", identity_id="datetime-caps")
+    runtime.register(identity)
+
+    runtime.capability_registry.install(identity.id, "datetime")
+    now = runtime.capability_registry.call(identity.id, "datetime.now")
+
+    assert now.success is True, now.error
+    assert "datetime" in now.data
+
+    runtime.shutdown()

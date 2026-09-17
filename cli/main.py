@@ -749,6 +749,7 @@ def _interactive_adapter_select():
     from adapters.openrouter_adapter import OpenRouterAdapter
     from adapters.openai_adapter import OpenAIAdapter, AnthropicAdapter, OllamaAdapter
     from adapters.base import collect_api_keys
+    from adapters.configuration import list_configured_openai_providers
 
     def _has(prefix: str) -> bool:
         return bool(collect_api_keys(prefix))
@@ -774,29 +775,46 @@ def _interactive_adapter_select():
             _probe_adapter("OpenRouter", OpenRouterAdapter, os.environ.get("IDENTITY_MODEL", "openai/gpt-4o"))
         )
 
-    if os.environ.get("OPENAI_API_KEY"):
-        candidates.append(
-            _probe_adapter("OpenAI", OpenAIAdapter, os.environ.get("IDENTITY_MODEL", "gpt-4o"))
-        )
-
     if os.environ.get("ANTHROPIC_API_KEY"):
         candidates.append(
             _probe_adapter("Anthropic", AnthropicAdapter, os.environ.get("IDENTITY_MODEL", "claude-3-5-sonnet-20241022"))
         )
 
-    # Ollama (local) — auto-start the server if it isn't running, then offer it
-    ollama_ok, ollama_msg = _ensure_ollama_running()
-    ollama_models = _fetch_ollama_models() if ollama_ok else []
-    if ollama_ok:
-        if ollama_models:
-            ollama_model = _resolve_ollama_default_model(ollama_models)
-            candidates.append(_probe_adapter("Ollama (local)", OllamaAdapter, ollama_model))
+    # Discover all OpenAI-compatible providers (OpenAI, Ollama, Gemini, NVIDIA, etc.)
+    openai_providers = list_configured_openai_providers()
+    for provider in openai_providers:
+        name = provider["display_name"]
+        model = provider["model"]
+        is_local = provider["is_local"]
+        base_url = provider["base_url"]
+        api_key = provider["api_key"]
+
+        if is_local:
+            candidates.append(_probe_adapter(name, OllamaAdapter, model, base_url=base_url))
         else:
-            candidates.append(
-                ("Ollama (local)", None, "Ollama: no models pulled (run `ollama pull <model>`)")
-            )
-    else:
-        candidates.append(("Ollama (local)", None, f"Ollama: {ollama_msg}"))
+            # NVIDIA Nemotron models: disable thinking to prevent reasoning leakage
+            extra_body = {}
+            if "nvidia" in name.lower() or "nemotron" in model.lower():
+                extra_body = {"chat_template_kwargs": {"enable_thinking": False}}
+            candidates.append(_probe_adapter(name, OpenAIAdapter, model, api_key=api_key, base_url=base_url, extra_body=extra_body))
+
+    # Ollama (local) — auto-start the server if it isn't running, then offer it
+    # Only add if not already discovered via OLLAMA_API_KEY
+    has_explicit_ollama = any(p["name"] == "ollama" for p in openai_providers)
+    ollama_models = []
+    if not has_explicit_ollama:
+        ollama_ok, ollama_msg = _ensure_ollama_running()
+        ollama_models = _fetch_ollama_models() if ollama_ok else []
+        if ollama_ok:
+            if ollama_models:
+                ollama_model = _resolve_ollama_default_model(ollama_models)
+                candidates.append(_probe_adapter("Ollama (local)", OllamaAdapter, ollama_model))
+            else:
+                candidates.append(
+                    ("Ollama (local)", None, "Ollama: no models pulled (run `ollama pull <model>`)")
+                )
+        else:
+            candidates.append(("Ollama (local)", None, f"Ollama: {ollama_msg}"))
 
     # Separate working from failed
     working = [(n, a) for n, a, e in candidates if a is not None]

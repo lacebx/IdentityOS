@@ -382,6 +382,9 @@ class OpenAIAdapter(BaseAdapter):
         max_tokens: int = 1024,
         max_tool_rounds: int = 4,
         timeout: Optional[float] = None,
+        reasoning_effort: Optional[str] = None,
+        reasoning_exclude: bool = True,
+        extra_body: Optional[dict] = None,
         **kwargs
     ):
         if api_key is None:
@@ -395,6 +398,9 @@ class OpenAIAdapter(BaseAdapter):
         self.temperature = temperature
         self.max_tokens = max_tokens
         self.max_tool_rounds = max(1, int(max_tool_rounds))
+        self.reasoning_effort = reasoning_effort
+        self.reasoning_exclude = reasoning_exclude
+        self.extra_body = extra_body or {}
 
         if timeout is None:
             timeout = os.environ.get("OPENAI_TIMEOUT")
@@ -477,6 +483,12 @@ class OpenAIAdapter(BaseAdapter):
                     tools_enabled_for_request = bool(request_kwargs.get("tools")) and (
                         request_kwargs.get("tool_choice") != "none"
                     )
+                    # Add reasoning_effort if configured (for models that support it, e.g., o1, Nemotron)
+                    if self.reasoning_effort and "reasoning_effort" not in request_kwargs:
+                        request_kwargs["reasoning_effort"] = self.reasoning_effort
+                    # Add extra_body if configured (e.g., for NVIDIA Nemotron to disable thinking)
+                    if self.extra_body and "extra_body" not in request_kwargs:
+                        request_kwargs["extra_body"] = self.extra_body
                     response = client.chat.completions.create(
                         model=model,
                         messages=messages,
@@ -611,6 +623,12 @@ class OpenAIAdapter(BaseAdapter):
             choice = response.choices[0]
             message = choice.message
 
+            # Handle reasoning content (e.g., Nemotron, o1 models)
+            reasoning_content = getattr(message, "reasoning_content", None)
+            if self.reasoning_exclude and reasoning_content:
+                # Reasoning is internal — do not expose to user
+                pass
+
             # --- Tool Calling Loop ---
             if getattr(message, "tool_calls", None) and execute_tool:
                 if tool_rounds >= self.max_tool_rounds:
@@ -652,7 +670,8 @@ class OpenAIAdapter(BaseAdapter):
                 tool_rounds += 1
                 continue
 
-            return message.content or ""
+            content = message.content or ""
+            return content
 
         raise RuntimeError(
             f"Adapter tool-call limit reached after {tool_rounds} round(s) without "
@@ -701,8 +720,24 @@ class OpenAIAdapter(BaseAdapter):
     def health_check(self) -> bool:
         try:
             client = self._get_client()
-            client.models.list()
-            return True
+            # Try models.list() first (standard OpenAI)
+            try:
+                client.models.list()
+                return True
+            except Exception as e:
+                # Some providers (Gemini, NVIDIA, etc.) don't support /models endpoint
+                # Fall back to a minimal completion request
+                error_msg = str(e).lower()
+                if any(code in error_msg for code in ("404", "not found", "not supported", "unsupported")):
+                    # Try a minimal request instead
+                    client.chat.completions.create(
+                        model=self.model or "gpt-4o",
+                        messages=[{"role": "user", "content": "hi"}],
+                        max_tokens=1,
+                    )
+                    return True
+                # Re-raise if it's a different error
+                raise
         except Exception:
             return False
 

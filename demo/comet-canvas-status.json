@@ -1,0 +1,38 @@
+{
+  "profile_used": "lace",
+  "canvas_host": "https://oklahomachristian.instructure.com",
+  "page_url": "https://sso.oc.edu/rubycas/login?service=https%3A%2F%2Foklahomachristian.instructure.com%2Flogin%2Fcas",
+  "page_title": "Oklahoma Christian University Central Login",
+  "api": {
+    "location": "https://sso.oc.edu/rubycas/login?service=https%3A%2F%2Foklahomachristian.instructure.com%2Flogin%2Fcas",
+    "title": "Oklahoma Christian University Central Login",
+    "profile": {
+      "status": 404,
+      "ok": false,
+      "body": "<!DOCTYPE HTML PUBLIC \"-//IETF//DTD HTML 2.0//EN\">\n<html><head>\n<title>404 Not Found</title>\n</head><body>\n<h1>Not Found</h1>\n<p>The requested URL was not found on this server.</p>\n<hr>\n<address>Apache/2.4.25 (Debian) Server at sso.oc.edu Port 443</address>\n</body></html>\n"
+    },
+    "courses": {
+      "status": 404,
+      "ok": false,
+      "body": "<!DOCTYPE HTML PUBLIC \"-//IETF//DTD HTML 2.0//EN\">\n<html><head>\n<title>404 Not Found</title>\n</head><body>\n<h1>Not Found</h1>\n<p>The requested URL was not found on this server.</p>\n<hr>\n<address>Apache/2.4.25 (Debian) Server at sso.oc.edu Port 443</address>\n</body></html>\n"
+    },
+    "todo": {
+      "status": 404,
+      "ok": false,
+      "body": "<!DOCTYPE HTML PUBLIC \"-//IETF//DTD HTML 2.0//EN\">\n<html><head>\n<title>404 Not Found</title>\n</head><body>\n<h1>Not Found</h1>\n<p>The requested URL was not found on this server.</p>\n<hr>\n<address>Apache/2.4.25 (Debian) Server at sso.oc.edu Port 443</address>\n</body></html>\n"
+    },
+    "upcoming": {
+      "status": 404,
+      "ok": false,
+      "body": "<!DOCTYPE HTML PUBLIC \"-//IETF//DTD HTML 2.0//EN\">\n<html><head>\n<title>404 Not Found</title>\n</head><body>\n<h1>Not Found</h1>\n<p>The requested URL was not found on this server.</p>\n<hr>\n<address>Apache/2.4.25 (Debian) Server at sso.oc.edu Port 443</address>\n</body></html>\n"
+    },
+    "missing": {
+      "status": 404,
+      "ok": false,
+      "body": "<!DOCTYPE HTML PUBLIC \"-//IETF//DTD HTML 2.0//EN\">\n<html><head>\n<title>404 Not Found</title>\n</head><body>\n<h1>Not Found</h1>\n<p>The requested URL was not found on this server.</p>\n<hr>\n<address>Apache/2.4.25 (Debian) Server at sso.oc.edu Port 443</address>\n</body></html>\n"
+    },
+    "assignments": []
+  },
+  "snapshot_url": "https://sso.oc.edu/rubycas/login?service=https%3A%2F%2Foklahomachristian.instructure.com%2Flogin%2Fcas",
+  "snapshot_title": "Oklahoma Christian University Central Login"
+}

@@ -7,6 +7,16 @@
 
 ---
 
+## What's New
+
+- **Live browser bridge** — identities drive your real Firefox through
+  `browser.live.*` skills (WebExtension + native messaging). Setup and usage:
+  `docs/live-browser-bridge.md`.
+- **Multiple OpenAI-compatible providers** — configure any number of endpoints
+  with `OPENAI_<NAME>_API_KEY` / `_BASE_URL` / `_MODEL`; discovered
+  side-effect-free at startup. Legacy `OPENAI_API_KEY` and `OLLAMA_API_KEY`
+  remain supported. Details: `docs/openai_providers.md`.
+
 ## Why IdentityOS Exists
 
 Today every AI starts over.

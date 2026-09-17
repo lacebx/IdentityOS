@@ -7,10 +7,16 @@ logged-in work continues across skill calls.
 
 from __future__ import annotations
 
+import json
+import os
 import re
 import shutil
+import struct
+import subprocess
 import time
+import threading
 from contextvars import ContextVar
+from pathlib import Path
 from typing import Any, Optional
 from urllib.parse import parse_qs, quote_plus, unquote, urlparse
 
@@ -24,19 +30,61 @@ from .session import (
     BrowserUnavailable,
     close_identity_sessions,
     close_session,
+    close_tab,
+    create_checkpoint,
     ensure_session,
+    export_session,
     get_session,
     identity_browser_dir,
+    import_session,
+    list_checkpoints,
+    list_tabs,
+    new_tab,
     page_snapshot,
+    restore_checkpoint,
     run_in_browser_thread,
+    switch_tab,
+)
+from .firefox_profiles import (
+    list_firefox_profiles,
+    prepare_firefox_profile,
+    resolve_firefox_profile,
 )
 from .url_policy import validate_navigation_url
+from .nl_interface import BrowserNLInterface, create_nl_interface
 
 _SECRET_KEYS = {"password", "passwd", "pass", "secret", "token", "api_key"}
 _EXECUTION_SCOPE: ContextVar[str] = ContextVar(
     "identityos_browser_execution_scope",
     default="sdk",
 )
+
+
+def _read_exact(stream: Any, n: int) -> bytes:
+    """Read exactly *n* bytes from a pipe, tolerating partial reads.
+
+    ``stream.read(n)`` may return fewer bytes than requested — for example
+    when a large native-messaging frame exceeds the OS pipe buffer — so
+    framing code must loop until the whole frame has arrived.
+    """
+    buf = bytearray()
+    while len(buf) < n:
+        chunk = stream.read(n - len(buf))
+        if not chunk:
+            break
+        buf.extend(chunk)
+    return bytes(buf)
+
+
+def _write_all(stream: Any, data: bytes) -> None:
+    """Write all of *data*, tolerating partial writes on unbuffered pipes."""
+    view = memoryview(data)
+    while view:
+        written = stream.write(view)
+        if written is None:
+            break
+        view = view[written:]
+    stream.flush()
 
 
 def _redact(params: dict[str, Any]) -> dict[str, Any]:
@@ -92,6 +140,124 @@ def _score_result(task: str, title: str, snippet: str, url: str) -> dict[str, An
     }
 
 
+
+
+class _NativeMessagingClient:
+    """Client for communicating with the Firefox Native Messaging host."""
+    
+    def __init__(self, host_script: Optional[str] = None):
+        self._host_script = host_script or os.environ.get(
+            "IDENTITYOS_NATIVE_HOST",
+            str(Path(__file__).parent.parent.parent.parent / "browser_extension" / "native_host.py")
+        )
+        self._process: Optional[subprocess.Popen] = None
+        self._lock = threading.Lock()
+        self._request_id = 0
+        self._pending: dict[int, threading.Event] = {}
+        self._responses: dict[int, dict] = {}
+        self._reader_thread: Optional[threading.Thread] = None
+        self._running = False
+        
+    def _ensure_started(self) -> None:
+        if self._running:
+            return
+        try:
+            self._process = subprocess.Popen(
+                ["python3", "-u", self._host_script, "--relay"],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                bufsize=0,
+            )
+            self._running = True
+            self._reader_thread = threading.Thread(target=self._read_loop, daemon=True)
+            self._reader_thread.start()
+            time.sleep(0.3)
+        except Exception as e:
+            raise RuntimeError(f"Failed to start native messaging host: {e}")
+    
+    def _read_loop(self) -> None:
+        """Read length-prefixed JSON messages from stdout."""
+        while self._running and self._process and self._process.stdout:
+            try:
+                length_bytes = _read_exact(self._process.stdout, 4)
+                if len(length_bytes) < 4:
+                    break
+                length = struct.unpack("@I", length_bytes)[0]
+                message_bytes = _read_exact(self._process.stdout, length)
+                if len(message_bytes) < length:
+                    break
+                message = json.loads(message_bytes.decode("utf-8"))
+                msg_id = message.get("id")
+                if msg_id in self._pending:
+                    self._responses[msg_id] = message
+                    self._pending[msg_id].set()
+            except Exception:
+                break
+    
+    def send(self, msg_type: str, **kwargs) -> dict:
+        """Send a message and wait for response."""
+        self._ensure_started()
+        
+        with self._lock:
+            self._request_id += 1
+            req_id = self._request_id
+            event = threading.Event()
+            self._pending[req_id] = event
+            
+            message = {"id": req_id, "type": "browser", **kwargs}
+            encoded = json.dumps(message).encode("utf-8")
+            length = struct.pack("@I", len(encoded))
+            
+            try:
+                if self._process and self._process.stdin:
+                    _write_all(self._process.stdin, struct.pack("@I", len(encoded)) + encoded)
+            except Exception as e:
+                self._pending.pop(req_id, None)
+                raise RuntimeError(f"Failed to send message: {e}")
+        
+        # Wait for response with timeout
+        if event.wait(timeout=30.0):
+            response = self._responses.pop(req_id, None)
+            self._pending.pop(req_id, None)
+            if response and "error" in response:
+                raise RuntimeError(response["error"])
+            return response.get("result", {}) if response else {}
+        else:
+            self._pending.pop(req_id, None)
+            raise TimeoutError("Native messaging host request timed out")
+    
+    def close(self) -> None:
+        self._running = False
+        if self._process:
+            try:
+                self._process.terminate()
+                self._process.wait(timeout=5)
+            except Exception:
+                pass
+            self._process = None
+
+
+# Global client instance
+_native_client: Optional[_NativeMessagingClient] = None
+
+
+def _get_native_client() -> _NativeMessagingClient:
+    global _native_client
+    if _native_client is None:
+        _native_client = _NativeMessagingClient()
+    return _native_client
+
+
+def _call_native(msg_type: str, **kwargs) -> dict:
+    """Call the native messaging host."""
+    try:
+        client = _get_native_client()
+        return client.send("browser", type=msg_type, **kwargs)
+    except Exception as e:
+        return {"error": f"Native messaging error: {e}"}
+
+
 @register
 class BrowserCapability(Capability):
     id = "browser"
@@ -104,8 +270,24 @@ class BrowserCapability(Capability):
         "Person-like web surfing: search, judge result usefulness, open pages, "
         "click/type/login, and act inside authenticated sessions (Comet-style)."
     )
-    permissions = ["browser:read", "browser:write", "browser:credentials"]
-    default_grants = ["browser:read", "browser:write"]
+    permissions = [
+        "browser:read",
+        "browser:write",
+        "browser:credentials",
+        "browser:live_read",
+        "browser:live_tabs",
+        "browser:live_write",
+    ]
+    # Live-browser scopes are granted by default because the bridge is inert
+    # until the user explicitly loads the Firefox WebExtension and the native
+    # host is running. ``browser:credentials`` stays an explicit grant.
+    default_grants = [
+        "browser:read",
+        "browser:write",
+        "browser:live_read",
+        "browser:live_tabs",
+        "browser:live_write",
+    ]
 
     def __init__(self, config: Optional[dict] = None) -> None:
         super().__init__(config)
@@ -114,6 +296,10 @@ class BrowserCapability(Capability):
         self._allow_private_network = bool(
             (config or {}).get("allow_private_network", False)
         )
+        self._browser_type = (config or {}).get("browser_type", "chromium")
+        self._user_profile_dir = (config or {}).get("user_profile_dir")
+        if self._user_profile_dir:
+            self._user_profile_dir = Path(self._user_profile_dir).expanduser().resolve()
         self._identity_id = ""
         self._http = httpx.Client(
             timeout=20,
@@ -144,6 +330,13 @@ class BrowserCapability(Capability):
     def on_identity_loaded(self, identity_id: str) -> None:
         self._identity_id = identity_id
 
+    @property
+    def nl(self) -> "BrowserNLInterface":
+        """Natural language interface for high-level browser commands."""
+        if not hasattr(self, "_nl_interface"):
+            self._nl_interface = create_nl_interface(self)
+        return self._nl_interface
+
     def prompts(self, identity_id: str) -> list[str]:
         return [
             "## Browser Skills (MANDATORY for web tasks)",
@@ -154,13 +347,27 @@ class BrowserCapability(Capability):
             "3) browser.open or browser.navigate to visit a promising URL",
             "4) browser.snapshot to read the page and see clickable elements",
             "5) browser.click / browser.type / browser.fill / browser.press to interact",
-            "6) browser.login only after browser:credentials is explicitly granted",
-            "7) Keep using browser.snapshot after each action to verify what changed",
+            "6) browser.use_profile(profile='lace') to reuse a real Firefox login session",
+            "7) browser.login only after browser:credentials is explicitly granted",
+            "8) browser.eval_js to read structured data from the page / call site APIs",
+            "9) Keep using browser.snapshot after each action to verify what changed",
             "Do NOT claim you cannot browse, search, or log in. You CAN — use these skills.",
-            "Never invent page content. Only report what browser.snapshot / search returned.",
+            "Never invent page content. Only report what browser.snapshot / search / eval_js returned.",
             "Chat credentials must use password=<value>; the runtime replaces the value with an ephemeral reference.",
             "Never invent or echo passwords. Preserve secret-ref:// values exactly in tool arguments.",
             "Only log into sites the user explicitly authorized with credentials they provided.",
+            "",
+            "## Live vs. isolated browser",
+            "There are TWO browsers, and picking the right one matters:",
+            "- browser.live.* controls the user's REAL Firefox — the windows and tabs "
+            "they already have open on their screen. Use it whenever the request refers "
+            "to \"my browser\", \"my tabs\", \"what do I have open\", or the user's own "
+            "logged-in session.",
+            "- browser.* (without .live) controls Comet's own isolated automated browser "
+            "session. Use it for autonomous research and pages Comet opens itself.",
+            "Do not answer questions about the user's own tabs using browser.list_tabs; "
+            "use browser.live.list_tabs. If browser.live.status reports the bridge is not "
+            "connected, say so truthfully instead of substituting the isolated session.",
         ]
 
     _SKILLS = [
@@ -228,7 +435,10 @@ class BrowserCapability(Capability):
         ),
         Skill(
             name="browser.snapshot",
-            description="Read the current page: URL, title, visible text, and interactive elements",
+            description=(
+                "Read the current page in Comet's isolated automated browser session: "
+                "URL, title, visible text, and interactive elements"
+            ),
             permission="browser:read",
             effect="read",
             input_schema=object_schema(
@@ -331,7 +541,10 @@ class BrowserCapability(Capability):
         ),
         Skill(
             name="browser.status",
-            description="Report whether a browser session is open and the current URL/title",
+            description=(
+                "Report whether Comet's isolated automated browser session is open "
+                "(not the user's own Firefox) and its current URL/title"
+            ),
             permission="browser:read",
             effect="read",
             input_schema=object_schema({}),
@@ -342,6 +555,276 @@ class BrowserCapability(Capability):
             permission="browser:write",
             effect="write",
             input_schema=object_schema({}),
+        ),
+        Skill(
+            name="browser.list_profiles",
+            description="List local Firefox profiles (name, path, locked, canvas history hint)",
+            permission="browser:read",
+            effect="read",
+            input_schema=object_schema({}),
+        ),
+        Skill(
+            name="browser.use_profile",
+            description=(
+                "Attach a local Firefox profile by name or path (e.g. lace, original, "
+                "default-release). Copies the profile when Firefox currently has it locked."
+            ),
+            permission="browser:write",
+            effect="write",
+            input_schema=object_schema(
+                {
+                    "profile": {"type": "string", "minLength": 1},
+                    "browser_type": {"type": "string"},
+                    "headless": {"type": "boolean"},
+                    "force_copy": {"type": "boolean"},
+                },
+                required=("profile",),
+            ),
+        ),
+        Skill(
+            name="browser.eval_js",
+            description="Run JavaScript in the active page and return the JSON-serializable result",
+            permission="browser:write",
+            effect="write",
+            input_schema=object_schema(
+                {
+                    "expression": {"type": "string", "minLength": 1},
+                },
+                required=("expression",),
+            ),
+        ),
+        # Multi-tab
+        Skill(
+            name="browser.new_tab",
+            description="Create a new tab in Comet's isolated automated browser session",
+            permission="browser:write",
+            effect="write",
+            input_schema=object_schema(
+                {
+                    "url": {"type": "string"},
+                },
+            ),
+        ),
+        Skill(
+            name="browser.switch_tab",
+            description="Switch to a different tab in Comet's isolated automated browser session by tab_id",
+            permission="browser:write",
+            effect="write",
+            input_schema=object_schema(
+                {
+                    "tab_id": {"type": "string", "minLength": 1},
+                },
+                required=("tab_id",),
+            ),
+        ),
+        Skill(
+            name="browser.close_tab",
+            description="Close a specific tab by tab_id",
+            permission="browser:write",
+            effect="write",
+            input_schema=object_schema(
+                {
+                    "tab_id": {"type": "string", "minLength": 1},
+                },
+                required=("tab_id",),
+            ),
+        ),
+        Skill(
+            name="browser.list_tabs",
+            description=(
+                "List tabs in Comet's isolated automated browser session. This is NOT "
+                "the user's own Firefox — for the user's real open tabs use browser.live.list_tabs"
+            ),
+            permission="browser:read",
+            effect="read",
+            input_schema=object_schema({}),
+        ),
+        # Checkpoints
+        Skill(
+            name="browser.checkpoint_create",
+            description="Create a checkpoint of the current session state (cookies, localStorage, tabs)",
+            permission="browser:write",
+            effect="write",
+            input_schema=object_schema({}),
+        ),
+        Skill(
+            name="browser.checkpoint_restore",
+            description="Restore session from a checkpoint (default: latest)",
+            permission="browser:write",
+            effect="write",
+            input_schema=object_schema(
+                {
+                    "checkpoint_index": {"type": "integer"},
+                },
+            ),
+        ),
+        Skill(
+            name="browser.checkpoint_list",
+            description="List available checkpoints for the session",
+            permission="browser:read",
+            effect="read",
+            input_schema=object_schema({}),
+        ),
+        Skill(
+            name="browser.session_export",
+            description="Export complete session state for backup/migration",
+            permission="browser:read",
+            effect="read",
+            input_schema=object_schema({}),
+        ),
+        Skill(
+            name="browser.session_import",
+            description="Import session state from backup",
+            permission="browser:write",
+            effect="write",
+            input_schema=object_schema(
+                {
+                    "session_data": {"type": "object"},
+                },
+                required=("session_data",),
+            ),
+        ),
+        # Live browser mode (Firefox WebExtension bridge)
+        Skill(
+            name="browser.live.status",
+            description="Check whether Comet is connected to the user's real Firefox browser (live bridge status)",
+            permission="browser:live_read",
+            effect="read",
+            input_schema=object_schema({}),
+        ),
+        Skill(
+            name="browser.live.list_tabs",
+            description=(
+                "List all tabs currently open in the user's real Firefox browser "
+                "(their own windows and tabs). Use this for \"my tabs\", \"my browser\", "
+                "and \"what do I have open\" questions"
+            ),
+            permission="browser:live_tabs",
+            effect="read",
+            input_schema=object_schema({}),
+        ),
+        Skill(
+            name="browser.live.active_tab",
+            description="Get the tab the user currently has focused in their real Firefox browser",
+            permission="browser:live_tabs",
+            effect="read",
+            input_schema=object_schema({}),
+        ),
+        Skill(
+            name="browser.live.activate_tab",
+            description="Activate a specific tab in the user's real Firefox browser",
+            permission="browser:live_write",
+            effect="write",
+            input_schema=object_schema(
+                {
+                    "tab_id": {"type": "string", "minLength": 1},
+                },
+                required=("tab_id",),
+            ),
+        ),
+        Skill(
+            name="browser.live.create_tab",
+            description="Create a new tab in the user's real Firefox browser",
+            permission="browser:live_write",
+            effect="write",
+            input_schema=object_schema(
+                {
+                    "url": {"type": "string"},
+                },
+            ),
+        ),
+        Skill(
+            name="browser.live.close_tab",
+            description="Close a specific tab in the user's real Firefox browser",
+            permission="browser:live_write",
+            effect="write",
+            input_schema=object_schema(
+                {
+                    "tab_id": {"type": "string", "minLength": 1},
+                },
+                required=("tab_id",),
+            ),
+        ),
+        Skill(
+            name="browser.live.snapshot",
+            description="Read a tab in the user's real Firefox browser (URL, title, visible text, interactive elements)",
+            permission="browser:live_read",
+            effect="read",
+            input_schema=object_schema(
+                {
+                    "tab_id": {"type": "string", "minLength": 1},
+                    "max_chars": {"type": "integer"},
+                },
+                required=("tab_id",),
+            ),
+        ),
+        Skill(
+            name="browser.live.navigate",
+            description="Navigate a tab in the user's real Firefox browser to a URL",
+            permission="browser:live_write",
+            effect="write",
+            input_schema=object_schema(
+                {
+                    "tab_id": {"type": "string", "minLength": 1},
+                    "url": {"type": "string", "minLength": 1},
+                    "wait_until": {"type": "string"},
+                },
+                required=("tab_id", "url"),
+            ),
+        ),
+        Skill(
+            name="browser.live.click",
+            description="Click an element in a tab of the user's real Firefox browser",
+            permission="browser:live_write",
+            effect="write",
+            input_schema=object_schema(
+                {
+                    "tab_id": {"type": "string", "minLength": 1},
+                    "selector": {"type": "string", "minLength": 1},
+                },
+                required=("tab_id", "selector"),
+            ),
+        ),
+        Skill(
+            name="browser.live.fill",
+            description="Fill a form field in a tab of the user's real Firefox browser",
+            permission="browser:live_write",
+            effect="write",
+            input_schema=object_schema(
+                {
+                    "tab_id": {"type": "string", "minLength": 1},
+                    "selector": {"type": "string", "minLength": 1},
+                    "value": {"type": "string"},
+                },
+                required=("tab_id", "selector", "value"),
+            ),
+        ),
+        Skill(
+            name="browser.live.type",
+            description="Type text into an element in a tab of the user's real Firefox browser",
+            permission="browser:live_write",
+            effect="write",
+            input_schema=object_schema(
+                {
+                    "tab_id": {"type": "string", "minLength": 1},
+                    "selector": {"type": "string", "minLength": 1},
+                    "text": {"type": "string"},
+                },
+                required=("tab_id", "selector", "text"),
+            ),
+        ),
+        Skill(
+            name="browser.live.press",
+            description="Press a keyboard key in a tab of the user's real Firefox browser",
+            permission="browser:live_write",
+            effect="write",
+            input_schema=object_schema(
+                {
+                    "tab_id": {"type": "string", "minLength": 1},
+                    "key": {"type": "string", "minLength": 1},
+                },
+                required=("tab_id", "key"),
+            ),
         ),
     ]
 
@@ -382,6 +865,33 @@ class BrowserCapability(Capability):
                 "browser.wait": self._wait,
                 "browser.status": self._status,
                 "browser.close": self._close,
+                "browser.list_profiles": self._list_profiles,
+                "browser.use_profile": self._use_profile,
+                "browser.eval_js": self._eval_js,
+                # Multi-tab
+                "browser.new_tab": self._new_tab,
+                "browser.switch_tab": self._switch_tab,
+                "browser.close_tab": self._close_tab,
+                "browser.list_tabs": self._list_tabs,
+                # Checkpoints
+                "browser.checkpoint_create": self._checkpoint_create,
+                "browser.checkpoint_restore": self._checkpoint_restore,
+                "browser.checkpoint_list": self._checkpoint_list,
+                "browser.session_export": self._session_export,
+                "browser.session_import": self._session_import,
+                # Live browser mode
+                "browser.live.status": self._live_status,
+                "browser.live.list_tabs": self._live_list_tabs,
+                "browser.live.active_tab": self._live_active_tab,
+                "browser.live.activate_tab": self._live_activate_tab,
+                "browser.live.create_tab": self._live_create_tab,
+                "browser.live.close_tab": self._live_close_tab,
+                "browser.live.snapshot": self._live_snapshot,
+                "browser.live.navigate": self._live_navigate,
+                "browser.live.click": self._live_click,
+                "browser.live.fill": self._live_fill,
+                "browser.live.type": self._live_type,
+                "browser.live.press": self._live_press,
             }
             handler = dispatch.get(skill_name)
             if handler is None:
@@ -429,6 +939,8 @@ class BrowserCapability(Capability):
             headless=self._headless if headless is None else headless,
             execution_scope=_EXECUTION_SCOPE.get(),
             allow_private_network=self._allow_private_network,
+            browser_type=self._browser_type,
+            user_profile_dir=self._user_profile_dir,
         )
         return state
 
@@ -437,6 +949,8 @@ class BrowserCapability(Capability):
             self._require_identity(),
             storage_root=self._storage_root,
             execution_scope=_EXECUTION_SCOPE.get(),
+            browser_type=self._browser_type,
+            user_profile_dir=self._user_profile_dir,
         )
 
     def _goto(self, url: str, wait_until: str = "domcontentloaded") -> dict[str, Any]:
@@ -796,14 +1310,42 @@ class BrowserCapability(Capability):
                         "interactive": snap.get("interactive", [])[:20],
                     }
 
+                # Fill only credential fields - leave hidden fields (CSRF tokens, etc.) alone
                 page.locator(user_sel).first.fill(username, timeout=15000)
                 page.locator(pass_sel).first.fill(password, timeout=15000)
 
                 submitted = False
+                # Use form.requestSubmit() when possible - it properly submits hidden fields
                 if submit_selector:
-                    page.locator(submit_selector).first.click(timeout=15000)
-                    submitted = True
-                else:
+                    try:
+                        page.locator(submit_selector).first.click(timeout=15000)
+                        submitted = True
+                    except Exception:
+                        pass
+                if not submitted:
+                    # Try form.requestSubmit() - the standard way that preserves hidden fields
+                    try:
+                        page.evaluate("""
+                            () => {
+                                const userSel = arguments[0];
+                                const passSel = arguments[1];
+                                const userInput = document.querySelector(userSel);
+                                const passInput = document.querySelector(passSel);
+                                if (userInput && passInput) {
+                                    const form = userInput.closest('form') || passInput.closest('form');
+                                    if (form && typeof form.requestSubmit === 'function') {
+                                        form.requestSubmit();
+                                        return true;
+                                    }
+                                }
+                                return false;
+                            }
+                        """, user_sel, pass_sel)
+                        submitted = True
+                    except Exception:
+                        pass
+                if not submitted:
+                    # Fallback: click common submit buttons
                     for cand in (
                         "button[type='submit']",
                         "input[type='submit']",
@@ -820,10 +1362,12 @@ class BrowserCapability(Capability):
                                 break
                         except Exception:
                             continue
-                    if not submitted:
-                        page.locator(pass_sel).first.press("Enter")
-                        submitted = True
+                if not submitted:
+                    # Final fallback: press Enter in password field
+                    page.locator(pass_sel).first.press("Enter")
+                    submitted = True
 
+                # Wait for navigation
                 page.wait_for_timeout(int(wait_ms or 2500))
                 try:
                     page.wait_for_load_state("networkidle", timeout=15000)
@@ -988,3 +1532,299 @@ class BrowserCapability(Capability):
             execution_scope=_EXECUTION_SCOPE.get(),
         )
         return {"closed": closed, "identity_id": self._require_identity()}
+
+    def _list_profiles(self, **_: Any) -> dict[str, Any]:
+        from .firefox_profiles import profile_is_locked, _canvas_score
+
+        profiles = []
+        for p in list_firefox_profiles():
+            profiles.append(
+                {
+                    "name": p.name,
+                    "path": str(p.path),
+                    "is_default": p.is_default,
+                    "locked": profile_is_locked(p.path),
+                    "canvas_history_hits": _canvas_score(p.path),
+                }
+            )
+        return {"profiles": profiles, "count": len(profiles)}
+
+    def _use_profile(
+        self,
+        profile: str = "",
+        browser_type: str = "firefox",
+        headless: Optional[bool] = None,
+        force_copy: bool = False,
+        **_: Any,
+    ) -> dict[str, Any]:
+        """Attach login state from a local Firefox profile.
+
+        System Firefox profiles are often newer than Playwright's bundled
+        Firefox, so we import cookies into a fresh Playwright profile instead
+        of launching the raw on-disk profile directory.
+        """
+        if not profile:
+            return {"error": "profile is required (name, alias like 'lace'/'original', or path)"}
+
+        from .firefox_cookies import auth_relevant_cookies, extract_firefox_cookies
+        from .firefox_profiles import resolve_firefox_profile
+
+        close_identity_sessions(self._require_identity(), storage_root=self._storage_root)
+
+        resolved = resolve_firefox_profile(profile)
+        # Prefer Chromium for cookie replay reliability; allow firefox if asked.
+        engine = (browser_type or "chromium").lower()
+        if engine == "firefox":
+            # Playwright's Firefox cannot open modern system profiles; still allow
+            # cookie import into a fresh Playwright Firefox profile.
+            pass
+        self._browser_type = engine if engine in {"chromium", "firefox", "webkit"} else "chromium"
+        self._user_profile_dir = None  # fresh Playwright profile + imported cookies
+        if headless is not None:
+            self._headless = bool(headless)
+
+        all_cookies = extract_firefox_cookies(resolved.path)
+        auth_cookies = auth_relevant_cookies(resolved.path)
+
+        state = ensure_session(
+            self._require_identity(),
+            storage_root=self._storage_root,
+            headless=self._headless,
+            execution_scope=_EXECUTION_SCOPE.get(),
+            allow_private_network=self._allow_private_network,
+            browser_type=self._browser_type,
+            user_profile_dir=None,
+        )
+
+        # Seed cookies into the fresh context.
+        # Playwright accepts bulk add_cookies before navigation when domain is set.
+        sample_errors: list[str] = []
+
+        def _seed() -> dict[str, Any]:
+            added = 0
+            skipped = 0
+            with state.lock:
+                # Prefer auth-related cookies first, then the rest.
+                ordered = list(auth_cookies) + [
+                    c for c in all_cookies if c not in auth_cookies
+                ]
+                # Try bulk insert in chunks — more reliable than one-by-one for some engines.
+                chunk: list[dict] = []
+                for cookie in ordered:
+                    chunk.append(cookie)
+                    if len(chunk) >= 50:
+                        try:
+                            state.context.add_cookies(chunk)
+                            added += len(chunk)
+                        except Exception as exc:
+                            # Fall back to per-cookie
+                            for one in chunk:
+                                try:
+                                    state.context.add_cookies([one])
+                                    added += 1
+                                except Exception as exc2:
+                                    skipped += 1
+                                    if len(sample_errors) < 5:
+                                        sample_errors.append(
+                                            f"{one.get('domain')} {one.get('name')}: {exc2}"
+                                        )
+                        chunk = []
+                if chunk:
+                    try:
+                        state.context.add_cookies(chunk)
+                        added += len(chunk)
+                    except Exception:
+                        for one in chunk:
+                            try:
+                                state.context.add_cookies([one])
+                                added += 1
+                            except Exception as exc2:
+                                skipped += 1
+                                if len(sample_errors) < 5:
+                                    sample_errors.append(
+                                        f"{one.get('domain')} {one.get('name')}: {exc2}"
+                                    )
+                return {
+                    "ok": True,
+                    "cookies_seen": len(all_cookies),
+                    "cookies_added": added,
+                    "cookies_skipped": skipped,
+                    "auth_cookie_names": sorted({c["name"] for c in auth_cookies}),
+                    "sample_errors": sample_errors,
+                }
+
+        seeded = run_in_browser_thread(_seed)
+        return {
+            "ok": True,
+            "mode": "cookie_import",
+            "browser_type": self._browser_type,
+            "profile_name": resolved.name,
+            "source_path": str(resolved.path),
+            "copied": False,
+            "locked": False,
+            "headless": state.headless,
+            "session_started": state.started,
+            **seeded,
+            "note": (
+                "Imported cookies from the Firefox profile into a fresh Playwright "
+                "browser (system Firefox profiles are incompatible with Playwright's "
+                "bundled Firefox binary)."
+            ),
+        }
+
+    def _eval_js(self, expression: str = "", **_: Any) -> dict[str, Any]:
+        if not expression:
+            return {"error": "expression is required"}
+
+        def _do() -> dict[str, Any]:
+            state = self._session()
+            if state is None or state.page is None:
+                return {"error": "no open browser session — call browser.open or browser.use_profile first"}
+            with state.lock:
+                value = state.page.evaluate(expression)
+                return {"ok": True, "url": state.page.url, "result": value}
+
+        return run_in_browser_thread(_do)
+
+    # ─── Multi-tab Handlers ──────────────────────────────────────────────
+
+    def _new_tab(self, url: str = "about:blank", **_: Any) -> dict[str, Any]:
+        return new_tab(
+            self._require_identity(),
+            storage_root=self._storage_root,
+            execution_scope=_EXECUTION_SCOPE.get(),
+            browser_type=self._browser_type,
+            user_profile_dir=self._user_profile_dir,
+            url=url,
+        )
+
+    def _switch_tab(self, tab_id: str, **_: Any) -> dict[str, Any]:
+        return switch_tab(
+            self._require_identity(),
+            tab_id,
+            storage_root=self._storage_root,
+            execution_scope=_EXECUTION_SCOPE.get(),
+            browser_type=self._browser_type,
+            user_profile_dir=self._user_profile_dir,
+        )
+
+    def _close_tab(self, tab_id: str, **_: Any) -> dict[str, Any]:
+        return close_tab(
+            self._require_identity(),
+            tab_id,
+            storage_root=self._storage_root,
+            execution_scope=_EXECUTION_SCOPE.get(),
+            browser_type=self._browser_type,
+            user_profile_dir=self._user_profile_dir,
+        )
+
+    def _list_tabs(self, **_: Any) -> list[dict]:
+        return list_tabs(
+            self._require_identity(),
+            storage_root=self._storage_root,
+            execution_scope=_EXECUTION_SCOPE.get(),
+            browser_type=self._browser_type,
+            user_profile_dir=self._user_profile_dir,
+        )
+
+    # ─── Checkpoint Handlers ─────────────────────────────────────────────
+
+    def _checkpoint_create(self, **_: Any) -> dict[str, Any]:
+        return create_checkpoint(
+            self._require_identity(),
+            storage_root=self._storage_root,
+            execution_scope=_EXECUTION_SCOPE.get(),
+            browser_type=self._browser_type,
+            user_profile_dir=self._user_profile_dir,
+        )
+
+    def _checkpoint_restore(self, checkpoint_index: int = -1, **_: Any) -> dict[str, Any]:
+        return restore_checkpoint(
+            self._require_identity(),
+            checkpoint_index,
+            storage_root=self._storage_root,
+            execution_scope=_EXECUTION_SCOPE.get(),
+            browser_type=self._browser_type,
+            user_profile_dir=self._user_profile_dir,
+        )
+
+    def _checkpoint_list(self, **_: Any) -> list[dict]:
+        return list_checkpoints(
+            self._require_identity(),
+            storage_root=self._storage_root,
+            execution_scope=_EXECUTION_SCOPE.get(),
+            browser_type=self._browser_type,
+            user_profile_dir=self._user_profile_dir,
+        )
+
+    def _session_export(self, **_: Any) -> dict[str, Any]:
+        return export_session(
+            self._require_identity(),
+            storage_root=self._storage_root,
+            execution_scope=_EXECUTION_SCOPE.get(),
+            browser_type=self._browser_type,
+            user_profile_dir=self._user_profile_dir,
+        )
+
+    def _session_import(self, session_data: dict, **_: Any) -> dict[str, Any]:
+        return import_session(
+            self._require_identity(),
+            session_data,
+            storage_root=self._storage_root,
+            execution_scope=_EXECUTION_SCOPE.get(),
+            browser_type=self._browser_type,
+            user_profile_dir=self._user_profile_dir,
+        )
+
+    # ─── Live Browser Mode Handlers (Firefox WebExtension Bridge) ────────────
+
+    def _live_status(self, **_: Any) -> dict[str, Any]:
+        """Check live browser bridge connection status."""
+        return _call_native("status")
+
+    def _live_list_tabs(self, **_: Any) -> list[dict]:
+        """List all tabs in the user's live Firefox browser."""
+        result = _call_native("list_tabs")
+        if isinstance(result, dict) and "error" in result:
+            return [{"error": result["error"]}]
+        return result
+
+    def _live_active_tab(self, **_: Any) -> dict[str, Any]:
+        """Get the currently active tab in the live browser."""
+        return _call_native("active_tab")
+
+    def _live_activate_tab(self, tab_id: str, **_: Any) -> dict[str, Any]:
+        """Activate a specific tab in the user's real Firefox browser."""
+        return _call_native("activate_tab", tabId=tab_id)
+
+    def _live_create_tab(self, url: str = "about:blank", **_: Any) -> dict[str, Any]:
+        """Create a new tab in the user's real Firefox browser."""
+        return _call_native("create_tab", url=url)
+
+    def _live_close_tab(self, tab_id: str, **_: Any) -> dict[str, Any]:
+        """Close a specific tab in the user's real Firefox browser."""
+        return _call_native("close_tab", tabId=tab_id)
+
+    def _live_snapshot(self, tab_id: str, max_chars: int = 4000, **_: Any) -> dict[str, Any]:
+        """Get a snapshot of a live browser tab."""
+        return _call_native("snapshot", tabId=tab_id, maxChars=max_chars)
+
+    def _live_navigate(self, tab_id: str, url: str, wait_until: str = "domcontentloaded", **_: Any) -> dict[str, Any]:
+        """Navigate a tab in the user's real Firefox browser to a URL."""
+        return _call_native("navigate", tabId=tab_id, url=url, waitUntil=wait_until)
+
+    def _live_click(self, tab_id: str, selector: str, **_: Any) -> dict[str, Any]:
+        """Click an element in a tab of the user's real Firefox browser."""
+        return _call_native("click", tabId=tab_id, selector=selector)
+
+    def _live_fill(self, tab_id: str, selector: str, value: str, **_: Any) -> dict[str, Any]:
+        """Fill a form field in a tab of the user's real Firefox browser."""
+        return _call_native("fill", tabId=tab_id, selector=selector, value=value)
+
+    def _live_type(self, tab_id: str, selector: str, text: str, **_: Any) -> dict[str, Any]:
+        """Type text into an element in a tab of the user's real Firefox browser."""
+        return _call_native("type", tabId=tab_id, selector=selector, text=text)
+
+    def _live_press(self, tab_id: str, key: str, **_: Any) -> dict[str, Any]:
+        """Press a keyboard key in a tab of the user's real Firefox browser."""
+        return _call_native("press", tabId=tab_id, key=key)

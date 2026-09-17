@@ -246,6 +246,9 @@ class IdentityRuntime:
         self._session_fact_stores: Dict[str, FactStore] = {}
         self._session_tools_offered: set[str] = set()
         self._executive_recovered: set[str] = set()
+        # Session-scoped secret references (identity_id, user_id) -> {secret_ref: plaintext}
+        # These are ephemeral and automatically expire after use or timeout
+        self._session_secrets: Dict[str, Dict[str, str]] = {}
         self._storage = storage
 
         self._migration_registry = MigrationRegistry()
@@ -752,6 +755,11 @@ class IdentityRuntime:
             self._save_session_fact_store(session_id)
         self._session_fact_stores.pop(session_id, None)
         self._session_tools_offered.discard(session_id)
+        # Clean up session-scoped secrets
+        if identity_id:
+            for user_id in list(self._session_secrets.keys()):
+                if user_id.startswith(f"{identity_id}:"):
+                    del self._session_secrets[user_id]
         if identity_id:
             self._emit(EventType.SESSION_ENDED, identity_id=identity_id, session_id=session_id)
 
@@ -833,6 +841,13 @@ class IdentityRuntime:
             )
         self._sessions.setdefault(session_id, identity.id)
         self._session_users.setdefault(session_id, user_id)
+
+        # Merge session-scoped secrets with this interaction's secrets
+        session_key = f"{identity.id}:{user_id}"
+        session_secrets = self._session_secrets.get(session_key, {})
+        merged_secrets = {**session_secrets, **interaction_secrets}
+        self._session_secrets[session_key] = merged_secrets
+
         trace.end_stage("session_resolution", stage_started)
 
         self._emit(EventType.MESSAGE_RECEIVED, identity_id=identity.id,
@@ -954,7 +969,7 @@ class IdentityRuntime:
                 params.update(args["params"])
 
             try:
-                params = resolve_sensitive_parameters(params, interaction_secrets)
+                params = resolve_sensitive_parameters(params, merged_secrets, skill_name)
                 result = self.capability_registry.call(
                     identity.id,
                     skill_name,
@@ -977,6 +992,12 @@ class IdentityRuntime:
                     "error": {"message": err_msg} if err_msg else None,
                 })
                 if success:
+                    # Consume used secret references from session store
+                    session_key = f"{identity.id}:{user_id}"
+                    if session_key in self._session_secrets:
+                        for ref, val in list(self._session_secrets[session_key].items()):
+                            if ref in str(params):
+                                del self._session_secrets[session_key][ref]
                     return _serialize_tool_result(data, self.max_tool_result_chars)
                 return _serialize_tool_result(
                     {"error": err_msg or "Skill reported failure"},

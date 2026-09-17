@@ -21,79 +21,734 @@
       "allow_private_network": {
         "type": "boolean",
         "description": "Explicitly allow localhost/private-network navigation for controlled environments (default false)"
+      },
+      "browser_type": {
+        "type": "string",
+        "enum": [
+          "chromium",
+          "firefox",
+          "webkit"
+        ],
+        "description": "Browser engine to use (default: chromium)"
+      },
+      "user_profile_dir": {
+        "type": "string",
+        "description": "Path to existing browser profile directory for persistent sessions"
       }
     }
   },
   "permissions": {
     "network": true,
     "filesystem": true,
-    "browser": true
+    "browser": true,
+    "browser:read": true,
+    "browser:write": true,
+    "browser:credentials": true
   },
   "skills": [
     {
       "name": "browser.open",
-      "description": "Open a URL in a persistent browser session",
-      "permission": "browser:read"
+      "description": "Open a URL in a persistent browser session (starts browser if needed)",
+      "permission": "browser:read",
+      "effect": "write",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "minLength": 1
+          },
+          "headless": {
+            "type": "boolean"
+          },
+          "wait_until": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ]
+      }
     },
     {
       "name": "browser.navigate",
       "description": "Navigate the current tab to a URL",
-      "permission": "browser:write"
+      "permission": "browser:write",
+      "effect": "write",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "minLength": 1
+          },
+          "wait_until": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ]
+      }
     },
     {
       "name": "browser.search",
-      "description": "Search the web and score results against a task",
-      "permission": "browser:read"
+      "description": "Search the web and return ranked results. Pass task= so each result includes a usefulness score relative to the user's goal.",
+      "permission": "browser:read",
+      "effect": "read",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "minLength": 1
+          },
+          "task": {
+            "type": "string"
+          },
+          "max_results": {
+            "type": "integer"
+          },
+          "engine": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "query"
+        ]
+      }
     },
     {
       "name": "browser.evaluate_results",
-      "description": "Score search results against a task and recommend URLs",
-      "permission": "browser:read"
+      "description": "Score previously obtained search results against a task and recommend which URLs are worth opening.",
+      "permission": "browser:read",
+      "effect": "read",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "task": {
+            "type": "string",
+            "minLength": 1
+          },
+          "results": {
+            "type": "array"
+          },
+          "min_score": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "task",
+          "results"
+        ]
+      }
     },
     {
       "name": "browser.snapshot",
-      "description": "Read current page text and interactive elements",
-      "permission": "browser:read"
+      "description": "Read the current page in Comet's isolated automated browser session: URL, title, visible text, and interactive elements",
+      "permission": "browser:read",
+      "effect": "read",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "max_chars": {
+            "type": "integer"
+          }
+        }
+      }
     },
     {
       "name": "browser.click",
-      "description": "Click an element by selector, text, or role",
-      "permission": "browser:write"
+      "description": "Click an element by CSS selector, visible text, or role+name",
+      "permission": "browser:write",
+      "effect": "write",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "selector": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "exact": {
+            "type": "boolean"
+          }
+        }
+      }
     },
     {
       "name": "browser.type",
-      "description": "Type into an input or the focused element",
-      "permission": "browser:write"
+      "description": "Type text into a focused or selected input (optionally clear first)",
+      "permission": "browser:write",
+      "effect": "write",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string"
+          },
+          "selector": {
+            "type": "string"
+          },
+          "clear": {
+            "type": "boolean"
+          },
+          "press_enter": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "text"
+        ]
+      }
     },
     {
       "name": "browser.fill",
-      "description": "Fill a form field by selector",
-      "permission": "browser:write"
+      "description": "Fill a form field by selector (clears existing value)",
+      "permission": "browser:write",
+      "effect": "write",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "selector": {
+            "type": "string",
+            "minLength": 1
+          },
+          "value": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "selector",
+          "value"
+        ]
+      }
     },
     {
       "name": "browser.login",
-      "description": "Log into a site with user-provided credentials",
-      "permission": "browser:credentials"
+      "description": "Log into a site with user-provided credentials. Optionally pass username_selector/password_selector/submit_selector; otherwise auto-detect.",
+      "permission": "browser:credentials",
+      "effect": "write",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "minLength": 1
+          },
+          "username": {
+            "type": "string",
+            "minLength": 1
+          },
+          "password": {
+            "type": "string",
+            "minLength": 1
+          },
+          "username_selector": {
+            "type": "string"
+          },
+          "password_selector": {
+            "type": "string"
+          },
+          "submit_selector": {
+            "type": "string"
+          },
+          "success_url_contains": {
+            "type": "string"
+          },
+          "wait_ms": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "url",
+          "username",
+          "password"
+        ]
+      }
     },
     {
       "name": "browser.press",
-      "description": "Press a keyboard key",
-      "permission": "browser:write"
+      "description": "Press a keyboard key (Enter, Tab, Escape, etc.)",
+      "permission": "browser:write",
+      "effect": "write",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "key"
+        ]
+      }
     },
     {
       "name": "browser.wait",
-      "description": "Wait for selector, URL, or milliseconds",
-      "permission": "browser:read"
+      "description": "Wait for a selector, URL substring, or fixed milliseconds",
+      "permission": "browser:read",
+      "effect": "read",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "selector": {
+            "type": "string"
+          },
+          "url_contains": {
+            "type": "string"
+          },
+          "ms": {
+            "type": "integer"
+          },
+          "timeout_ms": {
+            "type": "integer"
+          }
+        }
+      }
     },
     {
       "name": "browser.status",
-      "description": "Report browser session status",
-      "permission": "browser:read"
+      "description": "Report whether Comet's isolated automated browser session is open (not the user's own Firefox) and its current URL/title",
+      "permission": "browser:read",
+      "effect": "read",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      }
     },
     {
       "name": "browser.close",
-      "description": "Close the browser session",
-      "permission": "browser:write"
+      "description": "Close the browser session (cookies in profile may persist on disk)",
+      "permission": "browser:write",
+      "effect": "write",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "browser.new_tab",
+      "description": "Create a new tab in Comet's isolated automated browser session",
+      "permission": "browser:write",
+      "effect": "write",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "name": "browser.switch_tab",
+      "description": "Switch to a different tab in Comet's isolated automated browser session by tab_id",
+      "permission": "browser:write",
+      "effect": "write",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "tab_id": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "tab_id"
+        ]
+      }
+    },
+    {
+      "name": "browser.close_tab",
+      "description": "Close a specific tab by tab_id",
+      "permission": "browser:write",
+      "effect": "write",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "tab_id": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "tab_id"
+        ]
+      }
+    },
+    {
+      "name": "browser.list_tabs",
+      "description": "List tabs in Comet's isolated automated browser session. This is NOT the user's own Firefox — for the user's real open tabs use browser.live.list_tabs",
+      "permission": "browser:read",
+      "effect": "read",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "browser.checkpoint_create",
+      "description": "Create a checkpoint of the current session state (cookies, localStorage, tabs)",
+      "permission": "browser:write",
+      "effect": "write",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "browser.checkpoint_restore",
+      "description": "Restore session from a checkpoint (default: latest)",
+      "permission": "browser:write",
+      "effect": "write",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "checkpoint_index": {
+            "type": "integer"
+          }
+        }
+      }
+    },
+    {
+      "name": "browser.checkpoint_list",
+      "description": "List available checkpoints for the session",
+      "permission": "browser:read",
+      "effect": "read",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "browser.session_export",
+      "description": "Export complete session state for backup/migration",
+      "permission": "browser:read",
+      "effect": "read",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "browser.session_import",
+      "description": "Import session state from backup",
+      "permission": "browser:write",
+      "effect": "write",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "session_data": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "session_data"
+        ]
+      }
+    },
+    {
+      "name": "browser.eval_js",
+      "description": "Run JavaScript in the active page and return the JSON-serializable result",
+      "permission": "browser:write",
+      "effect": "write",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "expression": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "expression"
+        ]
+      }
+    },
+    {
+      "name": "browser.list_profiles",
+      "description": "List local Firefox profiles (name, path, locked, canvas history hint)",
+      "permission": "browser:read",
+      "effect": "read",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "browser.use_profile",
+      "description": "Attach a local Firefox profile by name or path (e.g. lace, original, default-release). Copies the profile when Firefox currently has it locked.",
+      "permission": "browser:write",
+      "effect": "write",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "profile": {
+            "type": "string",
+            "minLength": 1
+          },
+          "browser_type": {
+            "type": "string"
+          },
+          "headless": {
+            "type": "boolean"
+          },
+          "force_copy": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "profile"
+        ]
+      }
+    },
+    {
+      "name": "browser.live.status",
+      "description": "Check whether Comet is connected to the user's real Firefox browser (live bridge status)",
+      "permission": "browser:live_read",
+      "effect": "read",
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "browser.live.list_tabs",
+      "description": "List all tabs currently open in the user's real Firefox browser (their own windows and tabs). Use this for \"my tabs\", \"my browser\", and \"what do I have open\" questions",
+      "permission": "browser:live_tabs",
+      "effect": "read",
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "browser.live.active_tab",
+      "description": "Get the tab the user currently has focused in their real Firefox browser",
+      "permission": "browser:live_tabs",
+      "effect": "read",
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "browser.live.activate_tab",
+      "description": "Activate a specific tab in the user's real Firefox browser",
+      "permission": "browser:live_write",
+      "effect": "write",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "tab_id": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "tab_id"
+        ]
+      }
+    },
+    {
+      "name": "browser.live.create_tab",
+      "description": "Create a new tab in the user's real Firefox browser",
+      "permission": "browser:live_write",
+      "effect": "write",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "browser.live.close_tab",
+      "description": "Close a specific tab in the user's real Firefox browser",
+      "permission": "browser:live_write",
+      "effect": "write",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "tab_id": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "tab_id"
+        ]
+      }
+    },
+    {
+      "name": "browser.live.snapshot",
+      "description": "Read a tab in the user's real Firefox browser (URL, title, visible text, interactive elements)",
+      "permission": "browser:live_read",
+      "effect": "read",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "tab_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "max_chars": {
+            "type": "integer"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "tab_id"
+        ]
+      }
+    },
+    {
+      "name": "browser.live.navigate",
+      "description": "Navigate a tab in the user's real Firefox browser to a URL",
+      "permission": "browser:live_write",
+      "effect": "write",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "tab_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "url": {
+            "type": "string",
+            "minLength": 1
+          },
+          "wait_until": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "tab_id",
+          "url"
+        ]
+      }
+    },
+    {
+      "name": "browser.live.click",
+      "description": "Click an element in a tab of the user's real Firefox browser",
+      "permission": "browser:live_write",
+      "effect": "write",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "tab_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "selector": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "tab_id",
+          "selector"
+        ]
+      }
+    },
+    {
+      "name": "browser.live.fill",
+      "description": "Fill a form field in a tab of the user's real Firefox browser",
+      "permission": "browser:live_write",
+      "effect": "write",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "tab_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "selector": {
+            "type": "string",
+            "minLength": 1
+          },
+          "value": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "tab_id",
+          "selector",
+          "value"
+        ]
+      }
+    },
+    {
+      "name": "browser.live.type",
+      "description": "Type text into an element in a tab of the user's real Firefox browser",
+      "permission": "browser:live_write",
+      "effect": "write",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "tab_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "selector": {
+            "type": "string",
+            "minLength": 1
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "tab_id",
+          "selector",
+          "text"
+        ]
+      }
+    },
+    {
+      "name": "browser.live.press",
+      "description": "Press a keyboard key in a tab of the user's real Firefox browser",
+      "permission": "browser:live_write",
+      "effect": "write",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "tab_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "key": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "tab_id",
+          "key"
+        ]
+      }
     }
   ]
 }

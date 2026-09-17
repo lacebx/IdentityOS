@@ -1,6 +1,6 @@
 """Tests for core.cognitive_engine module."""
 
-from core.cognitive_engine import ComposedContext, ContextComposer
+from core.cognitive_engine import ComposedContext, ContextComposer, SessionMode
 from core.identity import IdentitySpec
 from core.memory import MemoryFragment, MemoryStore, MemoryType
 from core.relationships import IdentityGraph
@@ -64,3 +64,30 @@ class TestContextComposer:
         graph.connect("id3", "user1", trust_level=TrustLevel.HIGH)
         ctx = composer.compose(identity=identity, identity_graph=graph)
         assert "user1" in ctx.relationships_block
+
+
+class TestSessionModePrompting:
+    def test_roleplay_session_emits_session_mode_block(self):
+        composer = ContextComposer(
+            include_memory=False,
+            include_skills=False,
+            include_goals=False,
+            include_relationships=False,
+            include_motivations=False,
+            include_timeline=False,
+            include_synthesis=False,
+        )
+        identity = IdentitySpec(id="id4", name="RPer", role="assistant")
+        ctx = composer.compose(identity=identity, session_mode=SessionMode.ROLEPLAY)
+        assert "ROLEPLAY SESSION" in ctx.session_mode_block
+
+    def test_normal_session_has_no_session_mode_block(self):
+        composer = ContextComposer(include_memory=False)
+        identity = IdentitySpec(id="id5", name="PlainBot")
+        ctx = composer.compose(identity=identity, session_mode=SessionMode.NORMAL)
+        assert not getattr(ctx, "session_mode_block", None)
+
+    def test_render_orders_blocks_with_separator(self):
+        ctx = ComposedContext(identity_block="I", memory_block="M", skills_block="S")
+        rendered = ctx.render(separator="|")
+        assert rendered == "I|M|S"

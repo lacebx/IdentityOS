@@ -60,22 +60,62 @@ def protect_explicit_secrets(text: str) -> tuple[str, dict[str, str]]:
     return _EXPLICIT_SECRET.sub(_replace, text or ""), protected
 
 
+# Skills that are allowed to receive resolved secret-ref values
+_ALLOWED_SECRET_SKILLS = {
+    "browser.login",
+    # Add other skills that need credential resolution here
+}
+
+
+def _is_secret_ref(value: Any) -> bool:
+    """Check if a value is a secret-ref:// pattern."""
+    return isinstance(value, str) and value.startswith(SECRET_REFERENCE_PREFIX)
+
+
 def resolve_sensitive_parameters(
     params: Mapping[str, Any],
     protected: Mapping[str, str],
+    skill_name: str = "",
 ) -> dict[str, Any]:
-    """Resolve brokered secrets and reject plaintext model tool arguments."""
+    """Resolve brokered secrets and reject plaintext model tool arguments.
+
+    Only credential-aware skills (e.g., browser.login) may resolve brokered
+    secret references. Callers that do not name a skill (raw resolution during
+    a brokered interaction) may also resolve them. Non-credential skills such
+    as browser.fill, browser.type, and browser.eval_js will reject secret-ref
+    values so credentials never leak into generic automation.
+    """
     resolved: dict[str, Any] = {}
+    allow_resolution = not skill_name or skill_name in _ALLOWED_SECRET_SKILLS
     for name, value in params.items():
-        if name.lower() not in _SENSITIVE_ARGUMENTS:
+        is_sensitive_param = name.lower() in _SENSITIVE_ARGUMENTS
+        is_secret_ref = _is_secret_ref(value)
+
+        if not is_sensitive_param and not is_secret_ref:
             resolved[name] = value
             continue
-        if not isinstance(value, str) or value not in protected:
+
+        if is_secret_ref and value not in protected:
+            raise SecretReferenceError(
+                f"Parameter '{name}' contains an unknown secret-ref:// value. "
+                "Secret references must come from the current interaction's "
+                "brokered credentials. Use plain text instead."
+            )
+
+        if is_sensitive_param and not is_secret_ref:
             raise SecretReferenceError(
                 f"Sensitive parameter '{name}' must use an ephemeral secret reference. "
                 "Provide it explicitly in the user request as password=<value> or use "
                 "the SDK outside chat."
             )
+
+        if not allow_resolution:
+            raise SecretReferenceError(
+                f"Parameter '{name}' contains a secret-ref:// value which is not allowed in skill '{skill_name}'. "
+                f"Only credential-aware skills (e.g., browser.login) may use secret-ref. "
+                f"Use plain text instead."
+            )
+
         resolved[name] = protected[value]
     return resolved
 
