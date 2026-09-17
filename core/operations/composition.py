@@ -163,7 +163,7 @@ class OutreachComposer:
     ) -> tuple[str, str]:
         first_name = (relationship.display_name or "there").split()[0]
         subject = f"Re: {relationship.purpose or 'our conversation'}"
-        lines = [f"Hi {first_name},", "", "Thanks for getting back to me."]
+        lines: list[str] = [f"Hi {first_name},", ""]
 
         if intent == "thanks":
             lines.append("Glad this was useful — no action needed on your side.")
@@ -182,20 +182,28 @@ class OutreachComposer:
             )
         else:
             if facts:
-                lines.append("Here is what I can confirm from our verified project material:")
+                lines.append("Thanks for the note. Here is what I can confirm from our verified project material:")
                 lines.extend(f"- {fact}" for fact in facts[:5])
-            else:
+                lines.append("")
                 lines.append(
-                    "Happy to answer — I'll stick to what our project's documented material "
-                    "confirms and flag anything I need to check with the team."
+                    "Happy to go deeper on any of this, and I'll flag anything I need "
+                    "to check with the team rather than guess."
+                )
+            else:
+                # The monitor defers ungrounded replies before this is reached, but
+                # keep this truthful for direct callers.
+                lines.append(
+                    "Thanks for the note. I want to answer from our verified project "
+                    "material rather than guess, so let me confirm details and come back."
                 )
 
-        lines.extend([
-            "",
-            "Best,",
-            self.sender_name or "Aster",
-            self.signature or self.signature_line(),
-        ])
+        lines.extend(["", "Best,"])
+        if self.signature and self.sender_name and f"— {self.sender_name}" in self.signature:
+            lines.append(self.signature)
+        else:
+            lines.append(self.sender_name or "Aster")
+            if self.signature:
+                lines.append(self.signature)
         return subject, "\n".join(lines)
 
     def compose_follow_up(
@@ -219,16 +227,21 @@ class OutreachComposer:
                 return generated
         first_name = (relationship.display_name or "there").split()[0]
         subject = f"Re: {relationship.purpose or 'my earlier note'}"
-        body = "\n".join([
+        body_lines = [
             f"Hi {first_name},",
             "",
             "Following up once on my earlier note in case it landed at a busy time.",
             "If it isn't relevant, a one-line reply is all I need and I'll leave it there.",
             "",
             "Best,",
-            self.sender_name or "Aster",
-            self.signature or self.signature_line(),
-        ])
+        ]
+        if self.signature and self.sender_name and f"— {self.sender_name}" in self.signature:
+            body_lines.append(self.signature)
+        else:
+            body_lines.append(self.sender_name or "Aster")
+            if self.signature:
+                body_lines.append(self.signature)
+        body = "\n".join(body_lines)
         return subject, body
 
     # ── adapters ──────────────────────────────────────────────────────

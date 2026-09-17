@@ -25,8 +25,9 @@ ASTER_ID = "aster"
 ASTER_NAME = "Aster"
 
 ASTER_SIGNATURE = (
-    "— Aster / IdentityOS / Persistent Resource & Collaboration Operator / "
-    "Acting under delegated authority for Arsène Manzi / "
+    "— Aster\n"
+    "IdentityOS · Persistent Resource & Collaboration Operator\n"
+    "Acting under delegated authority for Arsène Manzi\n"
     "https://github.com/lacebx/IdentityOS"
 )
 ASTER_SHORT_SIGNATURE = "— Aster"

@@ -122,3 +122,124 @@ def test_parse_message_ids_handles_multiple_references():
     ids = parse_message_ids("<a@1> <b@2>\n<c@3>")
     assert ids == ["<a@1>", "<b@2>", "<c@3>"]
     assert parse_message_ids("") == []
+
+
+# ── IMAP high-water-mark cursor ─────────────────────────────────────────────
+
+
+class _FakeIMAP:
+    """Minimal imaplib-shaped object: uid->raw RFC822 bytes, mutable per test."""
+
+    def __init__(self, store: dict, meta: dict):
+        self.store = store
+        self.meta = meta
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def login(self, *args):
+        return ("OK", [b""])
+
+    def select(self, *args):
+        self._responses = {
+            "UIDVALIDITY": ("OK", [str(self.meta["uid_validity"]).encode()]),
+            "UIDNEXT": ("OK", [str(max(self.store, default=0) + 1).encode()]),
+        }
+        return ("OK", [b"1"])
+
+    def response(self, key):
+        return self._responses.get(key, ("NO", [b""]))
+
+    def uid(self, cmd, *args):
+        if cmd == "search":
+            spec = args[1]
+            parts = spec.split(":")
+            lo, hi = int(parts[0][4:]), int(parts[1])
+            uids = [str(u).encode() for u in sorted(self.store) if lo <= u <= hi]
+            return ("OK", [b" ".join(uids)])
+        if cmd == "fetch":
+            uid = int(args[0].decode())
+            return ("OK", [(self.store[uid], b")")])
+        return ("OK", [b""])
+
+
+def _fake_smtp(store: dict, meta: dict) -> SMTPBackend:
+    return SMTPBackend(
+        host="smtp.example.org",
+        sender="aster@identityos.local",
+        username="aster@identityos.local",
+        password="hunter2-local-test",
+        imap_host="imap.example.org",
+        imap_factory=lambda: _FakeIMAP(store, meta),
+    )
+
+
+def _raw_message(uid: int) -> bytes:
+    from email.message import EmailMessage
+
+    m = EmailMessage()
+    m["From"] = "alice@example.org"
+    m["Subject"] = "Re: hello"
+    m["Message-ID"] = f"<m{uid}@example.org>"
+    m["References"] = "<root@example.org>"
+    m.set_content("What exactly is IdentityOS?")
+    return m.as_bytes()
+
+
+def test_imap_cursor_baselines_without_replaying_history():
+    store = {1: _raw_message(1)}  # pre-dates the operator: history
+    meta = {"uid_validity": 77}
+    smtp = _fake_smtp(store, meta)
+
+    # First run establishes a baseline; nothing from before is ingested.
+    first = smtp.fetch_inbox_with_cursor(cursor=None)
+    assert first["messages"] == []
+    cursor = first["cursor"]
+    assert cursor["seeded"] is True
+    assert cursor["last_uid"] == 1
+
+    # New mail after the baseline is fetched exactly once.
+    store[2] = _raw_message(2)
+    store[3] = _raw_message(3)
+    second = smtp.fetch_inbox_with_cursor(cursor=cursor)
+    assert [m["external_id"] for m in second["messages"]] == ["<m2@example.org>", "<m3@example.org>"]
+    assert second["cursor"]["last_uid"] == 3
+
+    # Restart with the persisted cursor: no replay.
+    revived = _fake_smtp(store, meta)
+    third = revived.fetch_inbox_with_cursor(cursor=second["cursor"])
+    assert third["messages"] == []
+    assert third["cursor"]["last_uid"] == 3
+
+
+def test_imap_cursor_reseeds_when_uidvalidity_changes():
+    store = {1: _raw_message(1), 2: _raw_message(2)}
+    meta = {"uid_validity": 77}
+    smtp = _fake_smtp(store, meta)
+    first = smtp.fetch_inbox_with_cursor(cursor=None)
+    assert first["cursor"]["seeded"] is True
+
+    # The mailbox was re-folded: UIDVALIDITY changes; the cursor reseeds and
+    # does not treat pre-existing messages as new conversations.
+    meta["uid_validity"] = 999
+    second = smtp.fetch_inbox_with_cursor(cursor=first["cursor"])
+    assert second["messages"] == []
+    assert second["cursor"]["uid_validity"] == 999
+    assert second["cursor"]["last_uid"] == 2
+
+
+def test_capability_transport_read_inbox_cursor_roundtrips(tmp_path: Path):
+    storage = InMemoryBackend()
+    registry = CapabilityRegistry(storage)
+    registry.install("aster", "email", {"root": str(tmp_path), "mailbox": "aster"})
+    registry.grant("aster", "email", "email.read")
+
+    from core.capabilities.email import CapabilityTransport
+
+    transport = CapabilityTransport(registry, "aster")
+    result = transport.fetch_inbox_with_cursor(cursor={"seeded": False, "last_uid": 0})
+    assert result["messages"] == []
+    assert result["cursor"] is None or result["cursor"].get("seeded") is True

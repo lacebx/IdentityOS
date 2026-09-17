@@ -173,6 +173,10 @@ class Opportunity:
     value_proposition: str = ""
     potential_ask: str = ""
     confidence: float = 0.0
+    # True when a human explicitly designated this candidate for a live/offline
+    # test, so a zero-confidence candidate may be pursued through the normal
+    # pipeline under a manual override instead of being auto-rejected.
+    test_candidate: bool = False
     risks: list[str] = field(default_factory=list)
     status: OpportunityStatus = OpportunityStatus.DISCOVERED
     discovered_at: str = field(default_factory=lambda: utcnow().isoformat())
@@ -195,6 +199,7 @@ class Opportunity:
             "value_proposition": self.value_proposition,
             "potential_ask": self.potential_ask,
             "confidence": self.confidence,
+            "test_candidate": self.test_candidate,
             "risks": list(self.risks),
             "status": self.status.value,
             "discovered_at": self.discovered_at,
@@ -219,6 +224,7 @@ class Opportunity:
             value_proposition=data.get("value_proposition", ""),
             potential_ask=data.get("potential_ask", ""),
             confidence=float(data.get("confidence", 0.0)),
+            test_candidate=bool(data.get("test_candidate", False)),
             risks=list(data.get("risks", [])),
             status=OpportunityStatus(data.get("status", "discovered")),
             discovered_at=data.get("discovered_at", utcnow().isoformat()),
@@ -599,6 +605,45 @@ class BudgetState:
 
 
 @dataclass
+class ProjectFact:
+    """A single verified statement about the observed project.
+
+    Every fact carries its own provenance so a reply can cite *where* the
+    statement came from (source type, source path, observation timestamp and the
+    git commit the observation reflected).  A ``statement`` without a source is
+    not a runtime fact — it is a claim.
+    """
+
+    id: str = field(default_factory=lambda: new_id("fact"))
+    statement: str = ""
+    source_type: str = ""        # e.g. "readme" | "docs" | "manifest" | "git" | "tests" | "identity"
+    source_path: str = ""        # relative path that evidences the statement ("" for git/derived)
+    observed_at: str = field(default_factory=lambda: utcnow().isoformat())
+    commit_sha: str = ""         # git commit the observation reflects, when available
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "statement": self.statement,
+            "source_type": self.source_type,
+            "source_path": self.source_path,
+            "observed_at": self.observed_at,
+            "commit_sha": self.commit_sha,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "ProjectFact":
+        return cls(
+            id=data.get("id") or new_id("fact"),
+            statement=data.get("statement", ""),
+            source_type=data.get("source_type", ""),
+            source_path=data.get("source_path", ""),
+            observed_at=data.get("observed_at", utcnow().isoformat()),
+            commit_sha=data.get("commit_sha", ""),
+        )
+
+
+@dataclass
 class ProjectState:
     """A snapshot of what the operator currently understands about its project."""
 
@@ -609,6 +654,9 @@ class ProjectState:
     evidence: list[str] = field(default_factory=list)
     observed_at: str = field(default_factory=lambda: utcnow().isoformat())
     metadata: dict[str, Any] = field(default_factory=dict)
+    # Per-fact provenance. ``facts`` remains the concise statement list for
+    # compatibility; ``fact_details`` carries the source of each statement.
+    fact_details: list[ProjectFact] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -619,6 +667,7 @@ class ProjectState:
             "evidence": list(self.evidence),
             "observed_at": self.observed_at,
             "metadata": dict(self.metadata),
+            "fact_details": [f.to_dict() for f in self.fact_details],
         }
 
     @classmethod
@@ -631,6 +680,39 @@ class ProjectState:
             evidence=list(data.get("evidence", [])),
             observed_at=data.get("observed_at", utcnow().isoformat()),
             metadata=dict(data.get("metadata", {})),
+            fact_details=[ProjectFact.from_dict(f) for f in data.get("fact_details", [])],
+        )
+
+
+@dataclass
+class MailboxCursor:
+    """High-water mark for inbound mailbox processing.
+
+    ``uid_validity`` guards against a provider re-folding the mailbox: if it
+    changes, the cursor is reseeded at the new UIDNEXT so historical messages are
+    never re-ingested. ``last_uid`` is the highest UID already processed.
+    """
+
+    uid_validity: str = ""
+    last_uid: int = 0
+    seeded: bool = False
+    updated_at: str = field(default_factory=lambda: utcnow().isoformat())
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "uid_validity": self.uid_validity,
+            "last_uid": self.last_uid,
+            "seeded": self.seeded,
+            "updated_at": self.updated_at,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "MailboxCursor":
+        return cls(
+            uid_validity=str(data.get("uid_validity", "")),
+            last_uid=int(data.get("last_uid", 0)),
+            seeded=bool(data.get("seeded", False)),
+            updated_at=data.get("updated_at", utcnow().isoformat()),
         )
 
 

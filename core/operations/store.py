@@ -21,6 +21,7 @@ from .models import (
     Evaluation,
     FollowUp,
     FollowUpStatus,
+    MailboxCursor,
     Message,
     Need,
     NeedStatus,
@@ -56,6 +57,7 @@ class OperationsStore:
     CONTROLS = "operations.controls"
     BUDGET = "operations.budget"
     NOTIFICATIONS = "operations.notifications"
+    MAILBOX_CURSOR = "operations.mailbox_cursor"
 
     def __init__(self, storage: Any, identity_id: str) -> None:
         self._storage = storage
@@ -71,6 +73,7 @@ class OperationsStore:
         self._controls: ControlState = self._load_controls()
         self._budget: BudgetState = self._load_budget()
         self._notifications: list[NotificationEntry] = self._load_notifications()
+        self._mailbox_cursor: MailboxCursor = self._load_mailbox_cursor()
 
     # ── load helpers ──────────────────────────────────────────────────
 
@@ -125,6 +128,10 @@ class OperationsStore:
         raw = self._load(self.NOTIFICATIONS) or {}
         return [NotificationEntry.from_dict(n) for n in raw.get("items", [])]
 
+    def _load_mailbox_cursor(self) -> MailboxCursor:
+        raw = self._load(self.MAILBOX_CURSOR)
+        return MailboxCursor.from_dict(raw) if raw else MailboxCursor()
+
     # ── save helpers ──────────────────────────────────────────────────
 
     def _save(self, namespace: str, data: dict) -> None:
@@ -164,6 +171,9 @@ class OperationsStore:
     def _save_notifications(self) -> None:
         self._save(self.NOTIFICATIONS, {"items": [n.to_dict() for n in self._notifications]})
 
+    def _save_mailbox_cursor(self) -> None:
+        self._save(self.MAILBOX_CURSOR, self._mailbox_cursor.to_dict())
+
     # ── project state ─────────────────────────────────────────────────
 
     def project_state(self) -> Optional[ProjectState]:
@@ -172,6 +182,17 @@ class OperationsStore:
     def set_project_state(self, state: ProjectState) -> None:
         self._project = state
         self._save_project()
+
+    # ── mailbox cursor ─────────────────────────────────────────────────
+
+    def mailbox_cursor(self) -> MailboxCursor:
+        return self._mailbox_cursor
+
+    def set_mailbox_cursor(self, cursor: MailboxCursor | dict[str, Any]) -> None:
+        cursor = cursor if isinstance(cursor, MailboxCursor) else MailboxCursor.from_dict(cursor)
+        cursor.updated_at = utcnow().isoformat()
+        self._mailbox_cursor = cursor
+        self._save_mailbox_cursor()
 
     # ── needs ─────────────────────────────────────────────────────────
 

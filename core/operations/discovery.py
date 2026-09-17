@@ -34,6 +34,7 @@ class Candidate:
     potential_ask: str = ""
     risks: list[str] = field(default_factory=list)
     confidence: float = 0.0
+    test_candidate: bool = False
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "Candidate":
@@ -51,6 +52,7 @@ class Candidate:
             potential_ask=str(data.get("potential_ask", "")),
             risks=list(data.get("risks", [])),
             confidence=float(data.get("confidence", 0.0)),
+            test_candidate=bool(data.get("test_candidate", False)),
         )
 
 
@@ -176,6 +178,7 @@ class OpportunityDiscoverer:
                     value_proposition=candidate.value_proposition,
                     potential_ask=candidate.potential_ask,
                     confidence=candidate.confidence,
+                    test_candidate=candidate.test_candidate,
                     risks=list(candidate.risks),
                     status=OpportunityStatus.DISCOVERED,
                 )

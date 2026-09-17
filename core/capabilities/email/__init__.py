@@ -72,6 +72,15 @@ class CapabilityTransport:
         data = result.data or {}
         return data.get("messages", [])
 
+    def fetch_inbox_with_cursor(self, *, cursor: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+        result = self._registry.call(
+            self._identity_id, "email.read_inbox_cursor", cursor=cursor,
+        )
+        if not result.success:
+            return {"messages": [], "cursor": cursor}
+        data = result.data or {}
+        return {"messages": data.get("messages", []), "cursor": data.get("cursor")}
+
 
 @register
 class EmailCapability(Capability):
@@ -128,6 +137,13 @@ class EmailCapability(Capability):
             effect="read",
             input_schema=object_schema({}),
         ),
+        Skill(
+            name="email.read_inbox_cursor",
+            description="Read inbound email newer than a durable high-water-mark cursor",
+            permission="email.read",
+            effect="read",
+            input_schema=object_schema({"cursor": {"type": "object"}}),
+        ),
     ]
 
     def skills(self) -> list[Skill]:
@@ -155,6 +171,12 @@ class EmailCapability(Capability):
                 messages = self._transport.fetch_inbox()
                 return CapabilityResult.from_data(
                     "email", skill_name, {"messages": messages, "count": len(messages)},
+                    source="email", duration_ms=(_time.monotonic() - _t0) * 1000,
+                )
+            if skill_name == "email.read_inbox_cursor":
+                result = self._transport.fetch_inbox_with_cursor(cursor=params.get("cursor"))
+                return CapabilityResult.from_data(
+                    "email", skill_name, result,
                     source="email", duration_ms=(_time.monotonic() - _t0) * 1000,
                 )
             return CapabilityResult.fail("email", skill_name, "unknown_skill", f"Unknown skill: {skill_name}")

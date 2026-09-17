@@ -21,7 +21,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Optional
 
-from .capability_gap import CapabilityGap, CapabilityGapDetector
+from .capability_gap import CapabilityGap, CapabilityGapDetector, CapabilityStatus
 from .composition import OutreachBrief, OutreachComposer
 from .config import OperatorConfig
 from .discovery import OpportunityDiscoverer
@@ -41,7 +41,7 @@ from .models import (
     RelationshipStatus,
     utcnow,
 )
-from .monitor import ConversationMonitor, InboundResult
+from .monitor import ConversationMonitor, InboundDisposition, InboundResult
 from .needs import NeedDetector
 from .observer import ProjectStateObserver
 from .policy import AuthorityPolicy
@@ -120,7 +120,11 @@ class OperationsEngine:
             transparency=config.transparency,
         )
         self.monitor = ConversationMonitor(
-            self.composer, transport=self._transport, identity=self._identity
+            self.composer,
+            transport=self._transport,
+            identity=self._identity,
+            adapter=self._adapter,
+            self_address=self.config.sender_email,
         )
         self.follow_ups = FollowUpPlanner(self.store)
         self.gap_detector = CapabilityGapDetector(
@@ -258,12 +262,38 @@ class OperationsEngine:
             report.capability_gaps.append(resolved.to_dict())
             self._provenance(
                 ProvenancePhase.CONTROL,
-                f"capability gap: {gap.required_skill}",
+                f"capability gap: {gap.required_skill} [{gap.status}]",
                 action="capability_gap",
                 result=gap.resolution or "unresolved",
                 evidence=gap.evidence,
-                refs={"required_skill": gap.required_skill, "resolved": gap.resolved},
+                refs={"required_skill": gap.required_skill, "resolved": gap.resolved, "status": gap.status},
             )
+            self._notify_gap(gap)
+
+    def _notify_gap(self, gap: "CapabilityGap") -> None:
+        """Notify the principal about gaps that need a human decision, once per
+        (kind, skill) — re-ticking must not re-notify."""
+        if gap.resolved:
+            return
+        if gap.status == CapabilityStatus.INSTALLED_PERMISSION_MISSING.value:
+            kind, summary = "permission_required", (
+                f"Required skill '{gap.required_skill}' is installed but permission is denied: {gap.reason}"
+            )
+        elif gap.status == CapabilityStatus.AVAILABLE_NOT_INSTALLED.value:
+            kind, summary = "capability_available", (
+                f"A built-in capability provides required skill '{gap.required_skill}' but it is not installed"
+            )
+        else:
+            return
+        existing = self.store.list_notifications()
+        for entry in existing:
+            if entry.kind != kind:
+                continue
+            if str((entry.refs or {}).get("required_skill", "")) == gap.required_skill:
+                return
+        self._notify(kind=kind, summary=summary, refs={
+            "required_skill": gap.required_skill, "capability_gap_status": gap.status,
+        })
 
     def _phase_discover(self, report: TickReport) -> list[str]:
         from .models import NeedStatus
@@ -372,6 +402,19 @@ class OperationsEngine:
                     result=f"{budget.cold_outreach}/{controls.max_cold_outreach_per_day}",
                 )
                 break
+
+            if float(opportunity.confidence or 0.0) <= 0 and not opportunity.test_candidate:
+                # Defense in depth: an autonomous operator never pursues a candidate
+                # with no source confidence unless explicitly marked test_candidate.
+                skips.append({"opportunity_id": opportunity.id, "reason": "confidence_zero"})
+                self._provenance(
+                    ProvenancePhase.PLAN,
+                    "outreach skipped: source confidence is zero",
+                    action="confidence_gate",
+                    result="candidate not marked test_candidate=true",
+                    refs={"opportunity_id": opportunity.id, "confidence": opportunity.confidence},
+                )
+                continue
 
             need = self.store.get_need(opportunity.need_id)
             if need is None:
@@ -539,18 +582,23 @@ class OperationsEngine:
         if self._transport is None or not hasattr(self._transport, "fetch_inbox"):
             return results, replies, skips
         try:
-            incoming = self._transport.fetch_inbox() or []
+            incoming, new_cursor = self._fetch_inbox()
         except Exception as exc:  # pragma: no cover - defensive
             skips.append({"reason": "inbox_fetch_failed", "error": str(exc)})
             return results, replies, skips
+        if new_cursor is not None:
+            self.store.set_mailbox_cursor(new_cursor)
 
         for item in incoming:
             external_id = str(item.get("external_id", "") or item.get("id", ""))
             if external_id and self._already_processed(external_id):
                 continue
+            relationship_id = ""
+            raw_sender = str(item.get("from", item.get("sender_email", "")) or "unknown")
+            display = raw_sender
             result = self.monitor.ingest(
                 self.store,
-                sender_email=str(item.get("from", item.get("sender_email", ""))),
+                sender_email=raw_sender,
                 body=str(item.get("body", item.get("text", ""))),
                 subject=str(item.get("subject", "")),
                 thread_id=str(item.get("thread_id", "")),
@@ -559,16 +607,40 @@ class OperationsEngine:
                 references=list(item.get("references") or []),
             )
             results.append(result)
-            if result.responded:
+            if result.responded and result.relationship is not None:
                 replies.append(result.relationship.id)
+            if result.relationship is not None:
+                relationship_id = result.relationship.id
+                # Name real trusted senders by their relationship, but always
+                # surface the *actual* address when the message is automated,
+                # quarantined (thread intrusion), or from any sender mismatch.
+                if result.disposition in (InboundDisposition.TRUSTED_THREAD, InboundDisposition.APPROVED_SENDER) and (
+                    _norm(raw_sender) == _norm(result.relationship.email or "")
+                ):
+                    display = result.relationship.display_name
+            if result.disposition is not None:
+                display = f"{display} [{result.disposition.value}]"
             self._provenance(
                 ProvenancePhase.MONITOR if not result.escalated else ProvenancePhase.ESCALATE,
-                f"inbound from '{result.relationship.display_name}': {result.treated_as}",
+                f"inbound from '{display}': {result.treated_as}",
                 action="monitor",
                 result=result.reason,
-                refs={"relationship_id": result.relationship.id, "message_id": result.message.id},
+                refs={"relationship_id": relationship_id, "message_id": result.message.id},
             )
         return results, replies, skips
+
+    def _fetch_inbox(self) -> tuple[list[dict[str, Any]], Optional[dict[str, Any]]]:
+        """Fetch the inbox, advancing the durable high-water-mark cursor when the
+        transport supports cursor-based delivery (so historical mail is never
+        reprocessed after a restart or a first-run backfill)."""
+        fetcher = getattr(self._transport, "fetch_inbox_with_cursor", None)
+        if fetcher is None:
+            return list(self._transport.fetch_inbox() or []), None
+        cursor = self.store.mailbox_cursor()
+        result = fetcher(cursor=cursor.to_dict() if cursor else None)
+        messages = list(result.get("messages") or [])
+        new_cursor = result.get("cursor")
+        return messages, new_cursor
 
     def _phase_follow_ups(self, now: datetime) -> tuple[list[str], list[dict[str, Any]]]:
         sent: list[str] = []

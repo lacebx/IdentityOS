@@ -12,7 +12,7 @@ Nothing in this package is specific to one mission.  Mission data lives in an
 
 from __future__ import annotations
 
-from .capability_gap import CapabilityGap, CapabilityGapDetector
+from .capability_gap import CapabilityGap, CapabilityGapDetector, CapabilityStatus
 from .composition import OutreachBrief, OutreachComposer
 from .config import OperatorConfig
 from .discovery import (
@@ -45,7 +45,12 @@ from .models import (
     Relationship,
     RelationshipStatus,
 )
-from .monitor import ConversationMonitor, InboundResult, classify_intent
+from .monitor import (
+    ConversationMonitor,
+    InboundDisposition,
+    InboundResult,
+    classify_intent,
+)
 from .needs import NeedDetector, RequirementRule
 from .observer import ProjectStateObserver
 from .policy import Authority, AuthorityPolicy, AuthorizationDecision
@@ -61,6 +66,7 @@ __all__ = [
     "CandidateSource",
     "CapabilityGap",
     "CapabilityGapDetector",
+    "CapabilityStatus",
     "ContactDecision",
     "ControlState",
     "ConversationMonitor",
@@ -69,6 +75,7 @@ __all__ = [
     "FollowUp",
     "FollowUpPlanner",
     "FollowUpStatus",
+    "InboundDisposition",
     "InboundResult",
     "Message",
     "MessageDirection",

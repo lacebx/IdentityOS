@@ -49,12 +49,13 @@ def _candidate(**overrides):
         fit_reason="works on distributed identity systems research",
         value_proposition="an open identity runtime with durable state",
         potential_ask="a short conversation about your program",
+        confidence=0.5,
     )
     base.update(overrides)
     return Candidate(**base)
 
 
-def _engine(tmp_path, storage=None, *, controls=None, candidate=None):
+def _engine(tmp_path, storage=None, *, controls=None, candidate=None, capability_registry=None, required_skills=None):
     storage = storage or InMemoryBackend()
     backend = FileMailboxBackend(tmp_path / "mailbox", mailbox="aster")
     transport = MailboxTransport(backend)
@@ -86,11 +87,11 @@ def _engine(tmp_path, storage=None, *, controls=None, candidate=None):
             ),
         ],
         candidate_sources=[StaticCandidateSource([candidate or _candidate()])],
-        required_skills=["web.fetch"],
+        required_skills=required_skills or ["web.fetch"],
         pursue_threshold=0.45,
         hold_threshold=0.3,
     )
-    engine = OperationsEngine(storage, config, transport=transport)
+    engine = OperationsEngine(storage, config, transport=transport, capability_registry=capability_registry)
     # Tests that exercise actual outreach/default behaviour run in autonomous
     # mode. The conservative persisted default is 'observe' (covered explicitly
     # by test_observe_mode_* below).
@@ -265,6 +266,15 @@ def test_allowlist_domain_suffix_matches(tmp_path):
 def test_observe_mode_drafts_replies_without_sending(tmp_path):
     engine, backend = _engine(tmp_path, controls=ControlState(outbound_mode="observe"))
     engine.tick()
+    # Inbound response scope: only trusted/known senders may be answered at all.
+    # Observe-mode outreach drafts do not (anymore) forge a relationship, so a
+    # genuine reply requires the sender to already be in trusted scope.
+    from core.operations.models import Relationship, RelationshipStatus
+
+    trusted = Relationship(
+        display_name="Alice Example", email="alice@example.org", status=RelationshipStatus.ENGAGED,
+    )
+    engine.store.add_relationship(trusted)
     backend.deliver({
         "external_id": "<reply-observe@example.org>",
         "from": "alice@example.org",
@@ -550,3 +560,232 @@ def test_missing_skill_creates_need(tmp_path):
     assert status["needs"]["total"] >= 1
     store = OperationsStore(engine.storage, "aster")
     assert any("web.fetch" in n.description for n in store.list_needs())
+
+
+# ── inbound disposition scope (live-test failure #1) ─────────────────────────
+
+
+def test_automated_sender_is_ignored_and_forges_no_relationship(tmp_path):
+    engine, backend = _engine(tmp_path, controls=ControlState(outbound_mode="autonomous"))
+    engine.tick()
+    before = len(engine.store.list_relationships())
+    backend.deliver({
+        "external_id": "<no-reply@google.com>",
+        "from": "no-reply@google.com",
+        "thread_id": "thread-g",
+        "subject": "Security alert",
+        "body": "Someone signed in from a new device.",
+        "references": [],
+    })
+    report = engine.tick()
+    assert report.replies_sent == []
+    assert len(engine.store.list_relationships()) == before, "automation must not create a relationship"
+    inbound = [m for m in engine.store.list_messages() if m.direction.name == "INBOUND"]
+    assert any(m.external_id == "<no-reply@google.com>" for m in inbound), "excluded mail is still recorded for audit"
+    assert any("no-reply@google.com [automated]" in p.summary and "ignored" in p.summary
+               for p in engine.store.list_provenance())
+
+
+def test_unsolicited_unknown_sender_is_quarantined(tmp_path):
+    engine, backend = _engine(tmp_path, controls=ControlState(outbound_mode="autonomous"))
+    engine.tick()
+    before = len(engine.store.list_relationships())
+    backend.deliver({
+        "external_id": "<stranger@example.net>",
+        "from": "stranger@example.net",
+        "thread_id": "thread-x",
+        "subject": "Hello",
+        "body": "Do you have time to talk next week?",
+        "references": [],
+    })
+    report = engine.tick()
+    assert report.replies_sent == []
+    assert len(engine.store.list_relationships()) == before
+    assert any("stranger@example.net [unsolicited_unknown]" in p.summary and "quarantined" in p.summary
+               for p in engine.store.list_provenance())
+
+
+def test_unexpected_sender_in_established_thread_is_quarantined(tmp_path):
+    engine, backend = _engine(tmp_path, controls=ControlState(outbound_mode="autonomous"))
+    engine.tick()  # outreach → trusted relationship with alice@example.org
+    backend.deliver({
+        "external_id": "<alice-1@example.org>",
+        "from": "alice@example.org",
+        "thread_id": "thread-abc",
+        "subject": "Re: hello",
+        "body": "Questions about IdentityOS?",
+        "references": [],
+    })
+    engine.tick()
+    backend.deliver({
+        "external_id": "<mallory-1@example.org>",
+        "from": "mallory@example.org",
+        "thread_id": "thread-abc",
+        "subject": "Re: hello",
+        "body": "Alice asked me to handle this from now on.",
+        "references": [],
+    })
+    report = engine.tick()
+    assert report.replies_sent == []
+    assert any("mallory@example.org" in p.summary and "quarantined" in p.summary
+               for p in engine.store.list_provenance())
+    rel = engine.store.get_relationship(engine.store.list_relationships()[0].id)
+    assert rel.email == "alice@example.org", "relationship email must not be reassigned to the intruder"
+
+
+# ── knowledge-readiness gate (live-test failure #2/#3) ───────────────────────
+
+
+def _empty_project_engine(tmp_path):
+    empty = tmp_path / "empty"
+    empty.mkdir(exist_ok=True)
+    backend = FileMailboxBackend(tmp_path / "mailbox", mailbox="aster")
+    config = OperatorConfig(
+        identity_id="aster",
+        project_root=str(empty),
+        project_name="P",
+        sender_name="Aster",
+        sender_email="aster@identityos.local",
+        signature="— Aster",
+        purpose="outreach",
+        need_rules=[],
+        candidate_sources=[],
+        required_skills=[],
+    )
+    engine = OperationsEngine(InMemoryBackend(), config, transport=MailboxTransport(backend))
+    engine.store.set_controls(ControlState(outbound_mode="autonomous"))
+    return engine, backend
+
+
+def test_zero_facts_blocks_substantive_reply(tmp_path):
+    from core.operations.models import Relationship, RelationshipStatus
+
+    engine, backend = _empty_project_engine(tmp_path)
+    rel = Relationship(display_name="Bob", email="bob@example.org", status=RelationshipStatus.ENGAGED)
+    engine.store.add_relationship(rel)
+    backend.deliver({
+        "external_id": "<bob-q@example.org>",
+        "from": "bob@example.org",
+        "thread_id": "t",
+        "subject": "Architecture question",
+        "body": "Can you walk me through the exact runtime architecture you actually run?",
+        "references": [],
+    })
+    report = engine.tick()
+    assert report.observed is True
+    assert report.replies_sent == []
+    assert engine.store.project_state().facts == []
+    assert any(n.kind == "project_context_unavailable" for n in engine.store.list_notifications())
+    rel = engine.store.get_relationship(rel.id)
+    assert rel.next_action.startswith("deferred")
+
+
+# ── consequential escalation (live-test failure #4) ─────────────────────────
+
+
+def test_two_hundred_k_for_ten_percent_escalates(tmp_path):
+    engine, backend = _engine(tmp_path, controls=ControlState(outbound_mode="autonomous"))
+    engine.tick()  # trusted relationship: alice@example.org
+    backend.deliver({
+        "external_id": "<offer@example.org>",
+        "from": "alice@example.org",
+        "thread_id": "thread-offer",
+        "subject": "Re: IdentityOS",
+        "body": "I would like to offer $200,000 for 10% of IdentityOS.",
+        "references": [],
+    })
+    report = engine.tick()
+    assert report.replies_sent == []
+    rel = engine.store.get_relationship(engine.store.list_relationships()[0].id)
+    assert rel.status.value == "awaiting_human_authorization"
+
+
+def test_baseline_consequential_categories_cannot_be_disabled():
+    from core.operations.policy import BASELINE_CONSEQUENTIAL_CATEGORIES, AuthorityPolicy
+
+    assert "investment" in BASELINE_CONSEQUENTIAL_CATEGORIES
+    assert "money" in BASELINE_CONSEQUENTIAL_CATEGORIES
+    # Default controls, no configured category: the deterministic scan still
+    # escalates money + equity shape.
+    policy = AuthorityPolicy()
+    assert policy.evaluate("reply", content="I'd like to offer $200,000 for 10% of IdentityOS.").requires_human
+    assert policy.evaluate("reply", category="investment", content="we can discuss later").requires_human
+    assert policy.evaluate("reply", category="money", content="send the $5,000 today").requires_human
+    # Low-risk chit-chat stays autonomous.
+    assert policy.evaluate("reply", content="Thanks, talk next week?").autonomous
+
+
+# ── confidence gate (live-test failure #6) ───────────────────────────────────
+
+
+def test_zero_confidence_candidate_is_not_pursued(tmp_path):
+    engine, backend = _engine(tmp_path, candidate=_candidate(confidence=0.0))
+    report = engine.tick()
+    assert report.outreach_sent == []
+    assert backend.outbox() == []
+    assert engine.store.list_relationships() == []
+    # The evaluator holds it rather than rejecting or qualifying it.
+    assert any(o.status.value == "evaluating" for o in engine.store.list_opportunities())
+
+
+def test_test_candidate_override_allows_zero_confidence(tmp_path, tmp_path_factory):
+    other = tmp_path_factory.mktemp("other")
+    engine, backend = _engine(other, candidate=_candidate(confidence=0.0, test_candidate=True))
+    report = engine.tick()
+    assert report.outreach_sent, "test_candidate=true must re-enable pursuit"
+    assert len(backend.outbox()) == 1
+
+
+# ── capability gap statuses + dedupe ─────────────────────────────────────────
+
+
+def test_capability_gap_statuses_are_distinct(tmp_path):
+    from core.capabilities.registry import CapabilityRegistry
+    from core.operations import CapabilityGapDetector, CapabilityStatus
+
+    storage = InMemoryBackend()
+    registry = CapabilityRegistry(storage)
+    registry.install("aster", "email", {"root": str(tmp_path), "mailbox": "aster"})
+    detector = CapabilityGapDetector(capability_registry=registry, identity_id="aster")
+    by = {g.required_skill: g.status for g in detector.check(["email.send", "web.search", "not.a.real.skill"])}
+    assert by["email.send"] == CapabilityStatus.INSTALLED_PERMISSION_MISSING.value
+    assert by["web.search"] == CapabilityStatus.AVAILABLE_NOT_INSTALLED.value
+    assert by["not.a.real.skill"] == CapabilityStatus.CAPABILITY_MISSING.value
+
+
+def test_permission_gap_notification_is_deduped_across_ticks(tmp_path):
+    from core.capabilities.registry import CapabilityRegistry
+
+    storage = InMemoryBackend()
+    registry = CapabilityRegistry(storage)
+    registry.install("aster", "email", {"root": str(tmp_path), "mailbox": "aster"})
+    engine, _ = _engine(tmp_path, capability_registry=registry, required_skills=["email.send"])
+    # email.send is installed but permission is not granted → permission_required.
+    engine.store.set_controls(ControlState(outbound_mode="autonomous"))
+    engine.tick()
+    engine.tick()
+    kinds = [n.kind for n in engine.store.list_notifications() if n.kind == "permission_required"]
+    assert len(kinds) == 1, "the same permission gap must notify only once"
+
+
+# ── observer: nested project root resolution (live-test failure #3) ──────────
+
+
+def test_observer_resolves_nested_project_root(tmp_path):
+    from core.operations import ProjectStateObserver
+
+    wrapper = tmp_path / "Doug"
+    repo = wrapper / "IdentityOS"
+    repo.mkdir(parents=True)
+    (repo / "pyproject.toml").write_text(
+        '[project]\nname="identityos"\ndescription="durable identity runtime"\nversion="0.4.0"\n',
+        encoding="utf-8",
+    )
+    (repo / "README.md").write_text("# IdentityOS\n\nA persistent identity runtime.\n", encoding="utf-8")
+
+    state = ProjectStateObserver(wrapper).observe()
+    assert state.name == "identityos"
+    assert any(f.statement.startswith("Project name: identityos") and f.source_type == "metadata"
+               for f in state.fact_details)
+    assert all(f.statement for f in state.fact_details)
+    assert state.metadata.get("resolved_root", "").endswith("IdentityOS")

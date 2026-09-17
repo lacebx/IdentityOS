@@ -11,9 +11,9 @@ turns that boundary into an inspectable decision so the engine can mark work as
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Iterable
 
 from .models import ControlState
 
@@ -41,40 +41,78 @@ class AuthorizationDecision:
 
 # Categories that always require explicit human authorization, regardless of
 # operator configuration.  These are commitments that bind the principal.
-SENSITIVE_CATEGORIES: dict[str, tuple[str, ...]] = {
-    "financial": (
-        "invest", "investment", "valuation", "equity", "wire", "transfer funds",
-        "payment", "invoice", "price", "pricing", "fee", "budget commit",
-        "purchase", "payment terms",
+# ``require_approval_categories`` (a human control) may only ever ADD to this
+# baseline; no operator configuration can disable these.
+BASELINE_CONSEQUENTIAL_CATEGORIES: tuple[str, ...] = (
+    "investment",
+    "equity",
+    "contracts",
+    "legal",
+    "money",
+    "credentials",
+    "access",
+    "ip ownership",
+    "repository access",
+    "employment",
+    "exclusivity",
+)
+
+# Deterministic conservative pre-policy: a regex signal scan that runs BEFORE
+# any model-based classification.  A single strong signal is enough to escalate;
+# this intentionally errs toward the principal's review.
+CONSEQUENTIAL_SIGNALS: dict[str, tuple[str, ...]] = {
+    "investment": (
+        r"\binvest(?:or|ment|ed|ing|s)?\b", r"\bvaluation\b", r"\bterm ?sheet\b",
+        r"\bacquisit\w*\b", r"\b(?:merge|merger)\b",
     ),
-    "legal": (
-        "contract", "agreement", "terms and conditions", "nda", "liability",
-        "indemn", "warranty", "legal", "jurisdiction", "binding",
+    "equity": (
+        r"\bequity\b", r"\bstake\b", r"\bownership\b", r"\bshare(?:s|holder)? of\b",
+        r"\b\d{1,3}\s*%\s*of\b", r"\b(?:acqui|buy)\b",
     ),
-    "employment": (
-        "job offer", "employment", "salary", "compensation", "hire", "hiring",
-        "contractor agreement",
+    "money": (
+        r"\$\s?\d", r"(?:€|£)\s?\d", r"\d[\d,\.]*\s*(?:usd|gbp|eur|dollars?|euros?|pounds?)",
+        r"\b(?:wire|transfer funds?|invoice|payment|paying)\b",
+    ),
+    "credentials": (
+        r"\b(?:password|api\s?key|access token|secret|credential|ssh\s?key|private key)\b",
     ),
     "access": (
-        "credentials", "password", "api key", "token", "ssh key", "repo access",
-        "repository access", "admin access", "private key", "secret",
+        r"\b(?:repo(?:sitory)? access|admin access|push access|merge access|"
+        r"write access|grant(?:ing)? access|root access|superuser)\b",
     ),
-    "ip": (
-        "intellectual property", "assign copyright", "license", "licensing",
-        "ownership", "patent", "exclusive", "exclusivity", "transfer rights",
+    "contracts": (
+        r"\bcontract\b", r"\bagreement\b", r"\bterms?\s+and\s+conditions\b", r"\bnda\b",
+        r"\bindemn\w*\b", r"\bwarrant\w*\b", r"\bsigning\b", r"\bbinding\b",
     ),
-    "commitment": (
-        "we commit", "we guarantee", "we promise", "we will deliver by",
-        "deadline commitment", "sla", "service level",
+    "legal": (
+        r"\blegal\b", r"\bjurisdiction\b", r"\blitigation\b", r"\batto?rney\b", r"\blawsuit\b",
     ),
-    "strategy": (
-        "strategy change", "pivot", "price change", "acquire", "acquisition",
-        "merge", "partnership terms",
+    "employment": (
+        r"\b(?:job offer|salary|compensation|employment|hiring|hire|onboarding|contractor agreement)\b",
     ),
-    "privacy": (
-        "personal data", "private information", "confidential", "user data",
+    "ip ownership": (
+        r"\bintellectual property\b", r"\b(?:assign|copyright)\b (?:copyright|ownership)",
+        r"\bpatent\b", r"\blicens\w*\b", r"\btransfer(?:ring)? (?:ownership|rights|ip)\b",
+    ),
+    "exclusivity": (
+        r"\bexclusiv\w*\b", r"\bsole (?:distribution|rights|agent)\b",
+        r"\bno other .{0,30}(?:partners?|vendors?)\b",
     ),
 }
+
+# Compound signals: no single word is decisive, but money PLUS an equity/deal
+# shape is a strong, deterministic indicator of a binding proposal.
+CONSEQUENTIAL_COMPOUND_SIGNALS: tuple[tuple[tuple[str, ...], tuple[str, ...], str], ...] = (
+    (
+        (r"\$\s?\d", r"(?:€|£)\s?\d", r"\d[\d,\.]*\s*(?:usd|gbp|eur|dollars?|euros?|pounds?)"),
+        (
+            r"\d{1,3}\s*%", r"\bequity\b", r"\bstake\b", r"\bownership\b",
+            r"\binvest(?:or|ment|ed|ing)?\b", r"\bterm ?sheet\b", r"\bconvertible\b",
+            r"\bsafe\b", r"\bfor \d{1,3}\s*%", r"\boffer(?:ed|ing)?\b",
+        ),
+        "investment",
+    ),
+)
 
 
 # Explicit acts that bind the principal or disclose protected material.  These
@@ -88,7 +126,8 @@ COMMITMENT_PHRASES = (
     "here is the password", "the password is", "the token is", "ssh key is",
     "we assign copyright", "transfer ownership", "grant exclusive",
     "exclusive license", "we offer you the position", "salary of",
-    "we will deliver by", "service level agreement",
+    "we will deliver by", "service level agreement", "i commit", "i guarantee",
+    "i promise", "i accept the terms", "i will sign",
 )
 
 
@@ -111,11 +150,15 @@ class AuthorityPolicy:
     ) -> AuthorizationDecision:
         """Return the authority decision for an action.
 
-        ``mode="content"`` scans the full text for any consequential topic
-        (used when replying, where the subject matter itself may require care).
-        ``mode="commitment"`` scans only explicit binding/disclosure phrases
-        (used for outbound outreach, where asking about money or programs is
-        permitted but committing is not).
+        ``mode="content"`` scans the full text through the deterministic
+        consequential pre-policy (money, equity, contracts, credentials, access,
+        legal, employment, exclusivity).  ``mode="commitment"`` scans only
+        explicit binding/disclosure phrases (used for outbound outreach, where
+        asking about money or programs is permitted but committing is not).
+
+        The baseline consequential categories are enforced in every case: human
+        ``require_approval_categories`` configure extra categories, but no
+        configuration can disable the baseline.
         """
         haystack = f"{action}\n{category}\n{content}".lower()
 
@@ -146,17 +189,25 @@ class AuthorityPolicy:
 
         matched: list[str] = []
         matched_categories: list[str] = []
-        for cat, terms in SENSITIVE_CATEGORIES.items():
-            for term in terms:
-                if term in haystack:
-                    matched.append(term)
-                    matched_categories.append(cat)
+        for cat, patterns in CONSEQUENTIAL_SIGNALS.items():
+            hits = [p for p in patterns if re.search(p, haystack)]
+            if hits:
+                matched.extend(hits)
+                matched_categories.append(cat)
+        for money_patterns, shape_patterns, deal_category in CONSEQUENTIAL_COMPOUND_SIGNALS:
+            money_hits = [p for p in money_patterns if re.search(p, haystack)]
+            shape_hits = [p for p in shape_patterns if re.search(p, haystack)]
+            if money_hits and shape_hits:
+                matched.extend(money_hits)
+                matched.extend(shape_hits)
+                matched_categories.append(deal_category)
         if matched:
+            default_cat = matched_categories[0] if matched_categories else ""
             return AuthorizationDecision(
                 Authority.AWAITING_HUMAN_AUTHORIZATION,
                 "message touches consequential commitments: "
                 + ", ".join(sorted(set(matched_categories))),
-                category=matched_categories[0],
+                category=default_cat,
                 matched_terms=sorted(set(matched)),
             )
 

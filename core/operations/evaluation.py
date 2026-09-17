@@ -85,6 +85,15 @@ class TargetEvaluator:
             risks.extend(opportunity.risks)
         factors["risk"] = max(0.1, risk)
 
+        # Source confidence: how confident the discovery process was. A zero
+        # confidence candidate carries no evidentiary weight on its own; source
+        # confidence only *adds* when it is positive, so existing zero-confidence
+        # flow is unchanged.
+        source_confidence = min(1.0, max(0.0, float(opportunity.confidence or 0.0)))
+        if source_confidence > 0:
+            factors["source_confidence"] = round(source_confidence, 4)
+            evidence.append(f"source_confidence={source_confidence:.2f}")
+
         result = Evaluation(
             opportunity_id=opportunity.id,
             factors=factors,
@@ -100,6 +109,15 @@ class TargetEvaluator:
             result.recommendation = "hold"
         else:
             result.recommendation = "reject"
+
+        # A zero-confidence candidate is never pursued autonomously unless it was
+        # explicitly marked as a manual test candidate (test_candidate=true).
+        if float(opportunity.confidence or 0.0) <= 0 and not opportunity.test_candidate:
+            result.recommendation = "hold"
+            result.rationale = (
+                f"{result.rationale} | source_confidence_zero: candidate has no assigned "
+                "confidence and was not marked test_candidate=true; not pursued"
+            )
 
         rationale_parts = [
             f"need '{need.description}' (priority {need.priority})",

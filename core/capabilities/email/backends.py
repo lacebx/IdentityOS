@@ -34,6 +34,23 @@ def parse_message_ids(value: str) -> list[str]:
     return list(re.findall(r"<[^<>\s]+>", value or ""))
 
 
+def _extract_raw(fetched: Any) -> bytes:
+    """Pick the message literal bytes out of an imaplib fetch result.
+
+    imaplib returns lists of items shaped either as ``(payload, flags)`` tuples
+    (literal responses) or plain byte strings; the message literal is always the
+    first ``bytes`` we can find.
+    """
+    container = fetched[0] if fetched else None
+    if isinstance(container, tuple):
+        for item in container:
+            if isinstance(item, bytes):
+                return item
+    elif isinstance(container, bytes):
+        return container
+    return b""
+
+
 class FileMailboxBackend:
     """A real, file-backed mailbox. Deliveries and receipts are persisted JSON."""
 
@@ -131,6 +148,7 @@ class SMTPBackend:
         use_tls: bool = True,
         imap_host: str = "",
         imap_port: int = 993,
+        imap_factory: Any = None,
     ) -> None:
         self.host = host
         self.port = port
@@ -140,6 +158,7 @@ class SMTPBackend:
         self.use_tls = use_tls
         self.imap_host = imap_host
         self.imap_port = imap_port
+        self.imap_factory = imap_factory
 
     def send(
         self,
@@ -193,11 +212,10 @@ class SMTPBackend:
         if not self.imap_host:
             return []
         import email
-        import imaplib
 
         messages: list[dict[str, Any]] = []
         try:
-            with imaplib.IMAP4_SSL(self.imap_host, self.imap_port) as imap:
+            with self._connect_imap() as imap:
                 imap.login(self.username, self.password)
                 imap.select("INBOX")
                 status, data = imap.search(None, "UNSEEN")
@@ -207,7 +225,7 @@ class SMTPBackend:
                     status, fetched = imap.fetch(num, "(RFC822)")
                     if status != "OK" or not fetched:
                         continue
-                    raw = fetched[0][1]
+                    raw = _extract_raw(fetched)
                     parsed = email.message_from_bytes(raw)
                     if self._ignored(parsed):
                         continue
@@ -229,6 +247,114 @@ class SMTPBackend:
         except Exception as exc:
             raise MailboxError(f"IMAP fetch failed: {exc}") from exc
         return messages
+
+    def _connect_imap(self):
+        import imaplib
+
+        if self.imap_factory is not None:
+            return self.imap_factory()
+        return imaplib.IMAP4_SSL(self.imap_host, self.imap_port)
+
+    def fetch_inbox_with_cursor(self, *, cursor: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+        """Fetch only mail newer than a durable high-water mark (IMAP UID).
+
+        ``cursor`` carries ``uid_validity`` / ``last_uid`` / ``seeded`` and is
+        persisted by the operator between sessions.  The first run merely
+        *establishes* the baseline (no messages are ingested — historical mail
+        is never treated as a conversation).  If the mailbox is recreated (its
+        ``UIDVALIDITY`` changes) the cursor reseeds and starts over.
+
+        Returns ``{"messages": [...], "cursor": {...}}`` so the caller can
+        compactly persist the new high-water mark.
+        """
+        if not self.imap_host:
+            return {"messages": [], "cursor": None}
+
+        import email
+        import time as _time
+
+        stored_validity = int((cursor or {}).get("uid_validity") or 0)
+        last_uid = int((cursor or {}).get("last_uid") or 0)
+        seeded = bool((cursor or {}).get("seeded"))
+
+        messages: list[dict[str, Any]] = []
+        new_validity = 0
+        new_last_uid = last_uid
+        try:
+            with self._connect_imap() as imap:
+                imap.login(self.username, self.password)
+                select_status, _ = imap.select("INBOX")
+                if select_status != "OK":
+                    raise MailboxError("IMAP INBOX could not be selected")
+
+                validity_resp = imap.response("UIDVALIDITY")
+                new_validity = int(validity_resp[1][0]) if validity_resp and validity_resp[0] == "OK" and validity_resp[1] else 0
+                uidnext_resp = imap.response("UIDNEXT")
+                uidnext = int(uidnext_resp[1][0]) if uidnext_resp and uidnext_resp[0] == "OK" and uidnext_resp[1] else 0
+
+                reseed = (not seeded) or (stored_validity and stored_validity != new_validity)
+                if reseed:
+                    # Baseline only: never ingest mail that predates the operator.
+                    new_last_uid = max(uidnext - 1, 0)
+                    return {
+                        "messages": [],
+                        "cursor": {
+                            "uid_validity": new_validity,
+                            "last_uid": new_last_uid,
+                            "seeded": True,
+                            "updated_at": _time.time(),
+                        },
+                    }
+
+                top_uid = max(uidnext - 1, 0)
+                if top_uid <= last_uid:
+                    return {
+                        "messages": [],
+                        "cursor": {
+                            "uid_validity": new_validity,
+                            "last_uid": last_uid,
+                            "seeded": True,
+                            "updated_at": _time.time(),
+                        },
+                    }
+
+                status, data = imap.uid("search", None, f"UID {last_uid + 1}:{top_uid}")
+                if status == "OK" and data and data[0]:
+                    for num in data[0].split():
+                        fetch_status, fetched = imap.uid("fetch", num, "(RFC822)")
+                        if fetch_status != "OK" or not fetched:
+                            continue
+                        raw = _extract_raw(fetched)
+                        parsed = email.message_from_bytes(raw)
+                        if self._ignored(parsed):
+                            continue
+                        body = parsed.get_payload(decode=True)
+                        if isinstance(body, bytes):
+                            body = body.decode(parsed.get_content_charset() or "utf-8", errors="replace")
+                        in_reply_to = str(parsed.get("In-Reply-To", "") or "").strip()
+                        references = parse_message_ids(parsed.get("References", ""))
+                        thread_id = str(references[0] if references else in_reply_to)
+                        messages.append({
+                            "external_id": parsed.get("Message-ID", ""),
+                            "thread_id": thread_id,
+                            "in_reply_to": in_reply_to,
+                            "references": references,
+                            "from": email.utils.parseaddr(parsed.get("From", ""))[1],
+                            "subject": parsed.get("Subject", ""),
+                            "body": str(body or ""),
+                        })
+                new_last_uid = top_uid
+        except Exception as exc:
+            raise MailboxError(f"IMAP fetch failed: {exc}") from exc
+        return {
+            "messages": messages,
+            "cursor": {
+                "uid_validity": new_validity,
+                "last_uid": new_last_uid,
+                "seeded": True,
+                "updated_at": _time.time(),
+            },
+        }
 
     def _ignored(self, parsed: Any) -> bool:
         """True when a message is automation (bounce, autoreply, our own copy)."""
@@ -309,6 +435,12 @@ class MailboxTransport:
             to=to, subject=subject, body=body, thread_id=thread_id,
             in_reply_to=in_reply_to, references=references,
         )
+
+    def fetch_inbox_with_cursor(self, *, cursor: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+        fn = getattr(self.backend, "fetch_inbox_with_cursor", None)
+        if fn is None:
+            return {"messages": self.backend.fetch_inbox(), "cursor": None}
+        return fn(cursor=cursor)
 
     def fetch_inbox(self) -> list[dict[str, Any]]:
         return self.backend.fetch_inbox()

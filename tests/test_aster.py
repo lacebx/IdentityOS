@@ -73,6 +73,7 @@ def test_build_aster_engine_uses_search_source(tmp_path: Path):
                     fit_reason="identity work",
                     value_proposition="open runtime",
                     potential_ask="conversation",
+                    confidence=0.6,
                 )
             ])
         ],

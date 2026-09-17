@@ -3,17 +3,23 @@ core/operations/monitor.py
 
 Conversation monitoring and reply handling.
 
-The monitor ingests inbound messages, associates them with a persistent
-relationship, classifies what the person is asking for, and decides whether the
-operator may respond autonomously.  Anything that touches a consequential
-commitment is escalated and the relationship is marked
-``AWAITING_HUMAN_AUTHORIZATION`` rather than answered.
+The monitor ingests inbound messages, classifies their *disposition*, associates
+them with a persistent relationship when the sender is within trusted scope, and
+decides whether the operator may respond autonomously.
+
+Disposition is the primary inbound boundary.  Only messages in a trusted thread
+or from an approved (already-known) sender may be answered autonomously.
+Automated, bounce, self-copy, spam/bulk, and unsolicited-unknown messages are
+never answered — they are recorded so the audit trail stays complete.
+Anything that touches a consequential commitment is escalated and the
+relationship is marked ``AWAITING_HUMAN_AUTHORIZATION`` rather than answered.
 """
 
 from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from enum import Enum
 from typing import Any, Optional
 
 from .composition import OutreachComposer
@@ -53,6 +59,70 @@ _INTENT_PATTERNS: list[tuple[str, tuple[str, ...]]] = [
 ]
 
 
+class InboundDisposition(str, Enum):
+    """Why an inbound message deserves (or does not deserve) a response.
+
+    Only ``TRUSTED_THREAD`` and ``APPROVED_SENDER`` may reach an autonomous
+    reply.  The remaining dispositions are recorded but never answered.
+    """
+
+    TRUSTED_THREAD = "trusted_thread"
+    APPROVED_SENDER = "approved_sender"
+    UNSOLICITED_UNKNOWN = "unsolicited_unknown"
+    AUTOMATED = "automated"
+    BOUNCE = "bounce"
+    SELF_COPY = "self_copy"
+    SPAM_OR_BULK = "spam_or_bulk"
+
+
+# Secondary defensive filter: recognizable automated/unmailable sender aliases.
+# Trust scope (thread/relationship) is the *primary* boundary; these patterns
+# only tighten it.
+_AUTOMATED_SENDER_RE = re.compile(
+    r"^(?:no[-_.]?reply|do[-_.]?not[-_.]?reply|donotreply|noreply|"
+    r"mailer[-_.]?daemon|postmaster|delivery[-_.]?(?:status|failure)|"
+    r"auto[-_.]?reply|bounce|mail[-_.]?administrator)@",
+    re.IGNORECASE,
+)
+
+_BOUNCE_SUBJECT_RE = (
+    r"delivery status notification", r"undelivered(?: mail)?", r"undeliverable",
+    r"mail delivery (?:failed|failure)", r"returned mail", r"returned to sender",
+    r"mail status notification", r"delivery has failed", r"failure notice",
+    r"non[- ]delivery",
+)
+_BOUNCE_BODY_RE = (
+    r"this is the mail system at host", r"delivery status notification",
+    r"message could not be delivered", r"permanent(?: delivery)? failure",
+    r"the mime part of the returned message", r"mail delivery failed",
+    r"cannot deliver|was not delivered", r"remote host has closed the connection",
+)
+
+_AUTOMATED_SUBJECT_RE = (
+    r"auto[-\s]?gen", r"automated message", r"automatic reply", r"autorespond",
+    r"out[- ]of[- ]office", r"auto[- ]reply", r"automated response",
+    r"this mailbox (?:is|isn'?t) monitored", r"e?mail (?:status|notification)",
+)
+_AUTOMATED_BODY_RE = (
+    r"this is (?:a|an) (?:automated|automatic) message",
+    r"auto[- ]?generated (?:reply|email|message|response)",
+    r"out[- ]of[- ]office(?: autoreply)?", r"i am currently (?:away|out of the office)",
+    r"automatic response", r"no one(?: is)? (?:reads|monitors) this mailbox",
+)
+
+_SPAM_SUBJECT_RE = (
+    r"^\[[^\]]+\](\s|:)", r"\bnewsletter\b", r"(?:limited time|act now)",
+    r"congratulations!?", r"you'?ve won", r"\bviagra\b|\bcialis\b",
+    r"\bcrypto\b.{0,40}\b(?:gift|win)\b", r"\bbitcoin\b.{0,40}\b(?:double|gift)\b",
+    r"\bsponsored\b", r"\bpromo(?:tion)?\b.*\b\d+%?\s+off\b",
+)
+_SPAM_BODY_RE = (
+    r"unsubscribe.{0,80}(?:click|link)", r"this email is (?:an|a) advertisement",
+    r"you are subscribed to", r"to (?:unsubscribe|stop receiving)",
+    r"\bviagra\b|\bcialis\b", r"\bcasino\b|\blottery\b", r"earn \$\d",
+)
+
+
 def classify_intent(body: str) -> str:
     text = (body or "").lower()
     for intent, patterns in _INTENT_PATTERNS:
@@ -68,33 +138,56 @@ def _matches_any(patterns: tuple[str, ...], text: str) -> bool:
 
 @dataclass
 class InboundResult:
-    relationship: Relationship
+    relationship: Optional[Relationship]
     message: Message
     intent: str
-    treated_as: str        # "opt_out" | "decline" | "reply" | "escalated"
+    treated_as: str        # "opt_out" | "decline" | "reply" | "escalated" | "ignored" | "quarantined" | "deferred"
     responded: bool = False
     escalated: bool = False
     reason: str = ""
+    disposition: Optional[InboundDisposition] = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "relationship_id": self.relationship.id,
+            "relationship_id": self.relationship.id if self.relationship else "",
             "message_id": self.message.id,
             "intent": self.intent,
             "treated_as": self.treated_as,
             "responded": self.responded,
             "escalated": self.escalated,
             "reason": self.reason,
+            "disposition": self.disposition.value if self.disposition else "",
         }
 
 
 class ConversationMonitor:
     """Associates inbound messages with relationships and decides responses."""
 
-    def __init__(self, composer: OutreachComposer, *, transport: Any = None, identity: Any = None) -> None:
+    def __init__(
+        self,
+        composer: OutreachComposer,
+        *,
+        transport: Any = None,
+        identity: Any = None,
+        adapter: Any = None,
+        self_address: str = "",
+    ) -> None:
         self._composer = composer
         self._transport = transport
         self._identity = identity
+        self._adapter = adapter
+        self._self_address = self_address or self._derive_self_address(transport)
+
+    @staticmethod
+    def _derive_self_address(transport: Any) -> str:
+        sender = ""
+        if transport is not None:
+            backend = getattr(transport, "backend", None)
+            if backend is not None:
+                sender = str(getattr(backend, "sender", "") or "")
+            if not sender:
+                sender = str(getattr(transport, "sender", "") or "")
+        return sender
 
     def ingest(
         self,
@@ -108,10 +201,41 @@ class ConversationMonitor:
         in_reply_to: str = "",
         references: Optional[list[str]] = None,
     ) -> InboundResult:
-        relationship = self._resolve_relationship(
-            store, sender_email, thread_id,
-            message_ids=[i for i in [*list(references or []), in_reply_to] if i],
+        message_ids = [i for i in [*list(references or []), in_reply_to] if i]
+        disposition, relationship = self._classify(
+            store, sender_email=sender_email, thread_id=thread_id,
+            message_ids=message_ids, subject=subject, body=body,
         )
+
+        if disposition in (
+            InboundDisposition.SELF_COPY, InboundDisposition.BOUNCE,
+            InboundDisposition.AUTOMATED, InboundDisposition.SPAM_OR_BULK,
+        ):
+            message = self._record_inbound(
+                store, relationship_id=relationship.id if relationship else "",
+                sender_email=sender_email, body=body, subject=subject,
+                thread_id=thread_id, external_id=external_id, in_reply_to=in_reply_to,
+                references=references,
+            )
+            return InboundResult(
+                relationship, message, "ignored", "ignored",
+                disposition=disposition,
+                reason=f"{disposition.value}: excluded from autonomous response",
+            )
+
+        if disposition is InboundDisposition.UNSOLICITED_UNKNOWN:
+            message = self._record_inbound(
+                store, relationship_id="", sender_email=sender_email, body=body,
+                subject=subject, thread_id=thread_id, external_id=external_id,
+                in_reply_to=in_reply_to, references=references,
+            )
+            return InboundResult(
+                None, message, "unsolicited", "quarantined",
+                disposition=disposition,
+                reason="unsolicited unknown sender: quarantined, no autonomous reply",
+            )
+
+        # Trusted scope from here on.
         if relationship is None:
             relationship = Relationship(
                 display_name=sender_email.split("@")[0] if sender_email else "unknown",
@@ -120,24 +244,27 @@ class ConversationMonitor:
             )
             store.add_relationship(relationship)
 
-        message = Message(
-            relationship_id=relationship.id,
-            direction=MessageDirection.INBOUND,
-            subject=subject,
-            body=body,
-            received_at=utcnow().isoformat(),
-            external_id=external_id,
-            thread_id=thread_id,
-            in_reply_to=in_reply_to,
-            references=list(references or []),
-            status=MessageStatus.RECEIVED,
+        message = self._record_inbound(
+            store, relationship_id=relationship.id, sender_email=sender_email,
+            body=body, subject=subject, thread_id=thread_id, external_id=external_id,
+            in_reply_to=in_reply_to, references=references,
         )
-        store.append_message(message)
         relationship.message_ids.append(message.id)
         if thread_id and thread_id not in relationship.thread_ids:
             relationship.thread_ids.append(thread_id)
         relationship.last_inbound_at = message.received_at
         relationship.touch()
+
+        # A message inside a trusted thread but written by a *different* sender is
+        # still not autonomous scope: we record it for context but never reply to
+        # the intruder on the principal's behalf.
+        if relationship.email and _norm(relationship.email) != _norm(sender_email):
+            store.update_relationship(relationship)
+            return InboundResult(
+                relationship, message, "unsolicited", "quarantined",
+                disposition=disposition,
+                reason=f"unexpected sender '{sender_email}' in an existing thread: quarantined",
+            )
 
         text = body or ""
         if _matches_any(_OPT_OUT_PATTERNS, text):
@@ -146,7 +273,7 @@ class ConversationMonitor:
             relationship.next_action = "closed (opt-out)"
             relationship.follow_up_due_at = None
             store.update_relationship(relationship)
-            return InboundResult(relationship, message, "opt_out", "opt_out", reason="sender opted out")
+            return InboundResult(relationship, message, "opt_out", "opt_out", disposition=disposition, reason="sender opted out")
 
         if _matches_any(_DECLINE_PATTERNS, text):
             relationship.status = RelationshipStatus.DECLINED
@@ -155,7 +282,9 @@ class ConversationMonitor:
             store.update_relationship(relationship)
             intent = classify_intent(text)
             subject_out, reply_body = self._composer.compose_reply(
-                relationship, text, intent="decline", facts=self._verified_facts(store),
+                relationship, text, intent="decline",
+                facts=self._verified_facts(store),
+                adapter=self._adapter, identity=self._identity,
             )
             _, transmitted, escalated = self._dispatch_reply(
                 store, relationship, subject_out, reply_body, kind="decline", source=message,
@@ -169,7 +298,7 @@ class ConversationMonitor:
             )
             return InboundResult(
                 relationship, message, intent, "decline", responded=transmitted,
-                escalated=escalated, reason=reason,
+                escalated=escalated, reason=reason, disposition=disposition,
             )
 
         intent = classify_intent(text)
@@ -186,10 +315,34 @@ class ConversationMonitor:
             return InboundResult(
                 relationship, message, intent, "escalated", escalated=True,
                 reason=decision.reason if decision.requires_human else f"intent '{intent}' requires human",
+                disposition=disposition,
+            )
+
+        facts = self._verified_facts(store)
+        knowledge_intents = ("question", "documentation_request", "intro_request")
+        if intent in knowledge_intents and not facts:
+            # Knowledge-readiness gate: without verified project facts any
+            # substantive reply would be an ungrounded acknowledgement. Defer
+            # instead of pretending.
+            relationship.status = RelationshipStatus.ENGAGED
+            relationship.next_action = "deferred: project context unavailable"
+            store.update_relationship(relationship)
+            store.append_notification(
+                NotificationEntry(
+                    kind="project_context_unavailable",
+                    summary="Inbound request could not be answered: no verified project facts observed",
+                    refs={"message_id": message.id, "relationship_id": relationship.id, "recipient": relationship.email},
+                )
+            )
+            return InboundResult(
+                relationship, message, intent, "deferred",
+                reason="project_context_unavailable: no verified project facts",
+                disposition=disposition,
             )
 
         subject_out, reply_body = self._composer.compose_reply(
-            relationship, text, intent=intent, facts=self._verified_facts(store),
+            relationship, text, intent=intent, facts=facts,
+            adapter=self._adapter, identity=self._identity,
         )
         _, transmitted, escalated = self._dispatch_reply(
             store, relationship, subject_out, reply_body, kind="reply", source=message,
@@ -197,28 +350,68 @@ class ConversationMonitor:
         if escalated:
             return InboundResult(
                 relationship, message, intent, "escalated", escalated=True,
-                reason="outbound mode requires human approval",
+                reason="outbound mode requires human approval", disposition=disposition,
             )
         if not transmitted:
             return InboundResult(
                 relationship, message, intent, "reply", responded=False,
-                reason="observe mode: reply drafted, not sent",
+                reason="observe mode: reply drafted, not sent", disposition=disposition,
             )
         return InboundResult(
             relationship, message, intent, "reply", responded=True,
-            reason=decision.reason,
+            reason=decision.reason, disposition=disposition,
         )
 
     # ── helpers ───────────────────────────────────────────────────────
 
-    def _verified_facts(self, store: OperationsStore) -> list[str]:
-        """Verified project facts a reply may reference (from real observation)."""
-        state = store.project_state()
-        return list(state.facts) if state else []
+    def _record_inbound(
+        self, store: OperationsStore, *, relationship_id: str, sender_email: str,
+        body: str, subject: str, thread_id: str, external_id: str,
+        in_reply_to: str, references: Optional[list[str]],
+    ) -> Message:
+        message = Message(
+            relationship_id=relationship_id,
+            direction=MessageDirection.INBOUND,
+            subject=subject,
+            body=body,
+            received_at=utcnow().isoformat(),
+            external_id=external_id,
+            thread_id=thread_id,
+            in_reply_to=in_reply_to,
+            references=list(references or []),
+            status=MessageStatus.RECEIVED,
+        )
+        store.append_message(message)
+        return message
 
-    def _resolve_relationship(
-        self, store: OperationsStore, sender_email: str, thread_id: str,
-        *, message_ids: Optional[list[str]] = None,
+    def _classify(
+        self, store: OperationsStore, *, sender_email: str, thread_id: str,
+        message_ids: list[str], subject: str, body: str,
+    ) -> tuple[InboundDisposition, Optional[Relationship]]:
+        sender = _norm(sender_email)
+        self_addr = _norm(self._self_address)
+        if self_addr and sender and sender == self_addr:
+            return InboundDisposition.SELF_COPY, None
+        if sender and _AUTOMATED_SENDER_RE.search(sender_email):
+            return InboundDisposition.AUTOMATED, None
+        if _matches_any(_BOUNCE_SUBJECT_RE, subject) or _matches_any(_BOUNCE_BODY_RE, body):
+            return InboundDisposition.BOUNCE, None
+        if _matches_any(_AUTOMATED_SUBJECT_RE, subject) or _matches_any(_AUTOMATED_BODY_RE, body):
+            return InboundDisposition.AUTOMATED, None
+        if _matches_any(_SPAM_SUBJECT_RE, subject) or _matches_any(_SPAM_BODY_RE, body):
+            return InboundDisposition.SPAM_OR_BULK, None
+        # Primary boundary: trusted thread / known relationship scope.
+        relationship = self._resolve_thread_relationship(store, thread_id, message_ids)
+        if relationship is not None:
+            return InboundDisposition.TRUSTED_THREAD, relationship
+        if sender:
+            relationship = store.find_relationship_by_email(sender_email)
+            if relationship is not None:
+                return InboundDisposition.APPROVED_SENDER, relationship
+        return InboundDisposition.UNSOLICITED_UNKNOWN, None
+
+    def _resolve_thread_relationship(
+        self, store: OperationsStore, thread_id: str, message_ids: list[str],
     ) -> Optional[Relationship]:
         for candidate in ([thread_id] if thread_id else []) + list(message_ids or []):
             if not candidate:
@@ -226,9 +419,12 @@ class ConversationMonitor:
             found = store.find_relationship_by_thread(candidate)
             if found is not None:
                 return found
-        if sender_email:
-            return store.find_relationship_by_email(sender_email)
         return None
+
+    def _verified_facts(self, store: OperationsStore) -> list[str]:
+        """Verified project facts a reply may reference (from real observation)."""
+        state = store.project_state()
+        return list(state.facts) if state else []
 
     def _dispatch_reply(
         self, store: OperationsStore, relationship: Relationship, subject: str, body: str,
