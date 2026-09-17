@@ -24,6 +24,8 @@ from . import task_planner  # noqa: F401
 from . import command_exec  # noqa: F401
 from . import executive  # noqa: F401
 from . import worldmonitor  # noqa: F401
+from . import email  # noqa: F401
+from . import operations  # noqa: F401
 
 __all__ = [
     "Capability",

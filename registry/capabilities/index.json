@@ -54,9 +54,9 @@
       "id": "web",
       "name": "Web",
       "version": "1.0.0",
-      "description": "Fetch web pages and extract text from URLs",
+      "description": "Fetch web pages, search the web, and extract text from URLs",
       "author": "IdentityOS",
-      "skills": 2,
+      "skills": 3,
       "permissions": [
         "public"
       ],
