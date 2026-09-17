@@ -1,0 +1,702 @@
+"""
+cli/aster_cmds.py — Aster operator commands.
+
+``identity aster`` drives a persistent autonomous operator:
+  init / tick / run / stop / status / needs / opportunities / relationships /
+  messages / provenance / escalate / decide / pause / resume / override /
+  outbound-mode / would-send.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+import time
+from pathlib import Path
+from typing import Any, Optional
+
+
+DEFAULT_STORE = ".identity_store"
+
+
+def _get_storage(args: argparse.Namespace):
+    from runtime.persistence import get_backend
+
+    backend_kwargs: dict = {}
+    if args.backend == "sqlite":
+        backend_kwargs["db_path"] = str(Path(args.store) / "identities.db")
+    else:
+        backend_kwargs["root_dir"] = args.store
+    return get_backend(args.backend, **backend_kwargs)
+
+
+def _mailbox_root(args: argparse.Namespace) -> str:
+    return str(getattr(args, "mailbox_root", None) or os.environ.get("IDENTITY_MAILBOX_ROOT", ".identity_mailbox"))
+
+
+def _registry(storage: Any):
+    from core.capabilities.registry import CapabilityRegistry
+
+    return CapabilityRegistry(storage)
+
+
+def _build_engine(args: argparse.Namespace):
+    """Build (or reuse) a registered Aster engine for the given storage."""
+    from core.operations.aster import build_aster_engine
+    from core.operations.runtime_registry import get_engine_for
+
+    storage = _get_storage(args)
+    existing = get_engine_for(storage, "aster")
+    if existing is not None:
+        return existing
+
+    from core.capabilities.email import CapabilityTransport, build_transport
+
+    # Prefer the permission-gated email transport; fall back to a direct
+    # file mailbox so the operator can still run in offline/dry-run mode.
+    registry = _registry(storage)
+    transport = None
+    if registry.get("aster", "email") is not None:
+        transport = CapabilityTransport(registry, "aster")
+    else:
+        transport = build_transport(
+            {"root": _mailbox_root(args), "mailbox": "aster"},
+            identity_id="aster",
+        )
+
+    candidate_sources = _load_candidates(args)
+    search_fn = _build_search_fn(args)
+
+    return build_aster_engine(
+        storage,
+        project_root=args.project_root,
+        transport=transport,
+        capability_registry=registry,
+        candidate_sources=candidate_sources,
+        search_fn=search_fn,
+        register=True,
+    )
+
+
+def _load_candidates(args: argparse.Namespace) -> list[Any]:
+    from core.operations import StaticCandidateSource
+
+    path = getattr(args, "candidates", None)
+    if not path:
+        return []
+    file_path = Path(path)
+    if not file_path.is_file():
+        print(f"Candidates file not found: {file_path}", file=sys.stderr)
+        sys.exit(1)
+    data = json.loads(file_path.read_text(encoding="utf-8"))
+    candidates = data if isinstance(data, list) else data.get("candidates", [])
+    return [StaticCandidateSource(candidates, name=file_path.stem)]
+
+
+def _build_search_fn(args: argparse.Namespace) -> Optional[Any]:
+    storage = _get_storage(args)
+    registry = _registry(storage)
+    if not getattr(args, "search", False):
+        return None
+    granted, _ = registry.can("aster", "web.search")
+    if not granted:
+        print(
+            "web.search is not granted to 'aster'. Run: identity cap grant web --identity aster --permission network",
+            file=sys.stderr,
+        )
+        return None
+    cap = registry.get("aster", "web")
+    if cap is None:
+        print("web capability is not installed. Run: identity cap install web --identity aster", file=sys.stderr)
+        return None
+
+    def search(query: str) -> list[dict]:
+        result = registry.call("aster", "web.search", query=query)
+        if not result.success:
+            return []
+        return (result.data or {}).get("results", [])
+
+    return search
+
+
+def _print_json(data: Any) -> None:
+    print(json.dumps(data, indent=2, default=str))
+
+
+# ── commands ─────────────────────────────────────────────────────────────────
+
+
+def cmd_aster_init(args: argparse.Namespace) -> int:
+    from core.capabilities import email as _email_mod  # noqa: F401  (register)
+    from core.capabilities import operations as _ops_mod  # noqa: F401  (register)
+    from core.operations.aster import create_aster_identity, persist_aster_identity
+    from core.operations.runtime_registry import register_engine
+
+    storage = _get_storage(args)
+    spec = persist_aster_identity(storage)
+    print(f"Identity '{spec.id}' initialised ({spec.tagline}).")
+    print(f"  store       : {args.store} ({args.backend})")
+    print(f"  project     : {args.project_root}")
+
+    engine = _build_engine(args)
+    if engine:
+        register_engine(engine)
+        print(f"  engine      : {engine.mode}")
+
+    registry = _registry(storage)
+    # Persist only a non-secret config reference when real mail is available;
+    # credentials themselves always come from the environment at call time.
+    email_config = {"backend": "smtp"} if os.environ.get("IDENTITY_SMTP_HOST") else None
+    for cap_id in ("email", "operations", "web"):
+        if registry.get(spec.id, cap_id) is None:
+            registry.install(spec.id, cap_id, config=email_config if cap_id == "email" else None)
+            print(f"  installed   : capability '{cap_id}'")
+    if email_config:
+        print("  email       : SMTP/IMAP backend referenced from environment (credentials not stored)")
+    else:
+        print("  email       : file mailbox (set IDENTITY_SMTP_HOST/IDENTITY_IMAP_HOST and re-init for real mail)")
+    if args.grant_email:
+        registry.grant(spec.id, "email", "email.send")
+        registry.grant(spec.id, "email", "email.read")
+        print("  granted     : email.send, email.read")
+    if args.grant_search:
+        registry.grant(spec.id, "web", "network")
+        print("  granted     : web.network (web.search)")
+    if args.grant_operations:
+        registry.grant(spec.id, "operations", "operations.run")
+        print("  granted     : operations.run")
+
+    print()
+    print("Next: identity aster tick --project-root .")
+    print("Then: identity aster status")
+    return 0
+
+
+def cmd_aster_tick(args: argparse.Namespace) -> int:
+    engine = _build_engine(args)
+    report = engine.tick(
+        discover=not getattr(args, "no_discover", False),
+        evaluate=not getattr(args, "no_evaluate", False),
+        act=not getattr(args, "no_act", False),
+        monitor=not getattr(args, "no_monitor", False),
+        follow_ups=not getattr(args, "no_followups", False),
+    )
+    _print_json(report.to_dict())
+    return 0
+
+
+def cmd_aster_run(args: argparse.Namespace) -> int:
+    if getattr(args, "daemon", False):
+        return _spawn_daemon(args)
+
+    import signal
+    import threading
+
+    stop_requested = threading.Event()
+
+    def _on_stop(signum, frame) -> None:
+        # Arise, and follow me... on the next completed tick.
+        stop_requested.set()
+
+    signal.signal(signal.SIGTERM, _on_stop)
+    signal.signal(signal.SIGINT, _on_stop)
+
+    is_daemon = os.environ.get("ASTER_DAEMON") == "1"
+    if is_daemon:
+        pidfile = _pidfile_path(args)
+        pidfile.write_text(str(os.getpid()))
+
+    engine = _build_engine(args)
+    iterations = args.iterations or -1
+    interval = max(0.0, args.interval)
+    count = 0
+    print(f"Running Aster operator loop (interval={interval}s, iterations={iterations})", flush=True)
+    try:
+        while (iterations < 0 or count < iterations) and not stop_requested.is_set():
+            report = engine.tick()
+            print(f"[tick {count + 1}] outreach={len(report.outreach_sent)} "
+                  f"escalations={len(report.escalations)} replies={len(report.replies_sent)} "
+                  f"followups={len(report.follow_ups_sent)} errors={len(report.errors)}",
+                  flush=True)
+            count += 1
+            if stop_requested.is_set():
+                print("Graceful stop: in-flight tick completed; state persisted.", flush=True)
+                break
+            if interval <= 0:
+                break
+            time.sleep(interval)
+    finally:
+        if is_daemon:
+            _pidfile_path(args).unlink(missing_ok=True)
+            _lockfile_path(args).unlink(missing_ok=True)
+    return 0
+
+
+def _pidfile_path(args: argparse.Namespace) -> Path:
+    return Path(args.store) / "aster-daemon.pid"
+
+
+def _lockfile_path(args: argparse.Namespace) -> Path:
+    return Path(args.store) / "aster-daemon.lock"
+
+
+def _try_acquire_lock(args: argparse.Namespace):
+    """Atomically claim the daemon lock; returns an open fd holding it or None."""
+    import fcntl
+
+    lock_path = _lockfile_path(args)
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    fd = open(lock_path, "a+", encoding="utf-8")
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        fd.close()
+        return None
+    return fd
+
+
+def _spawn_daemon(args: argparse.Namespace) -> int:
+    import subprocess
+
+    lock_fd = _try_acquire_lock(args)
+    if lock_fd is None:
+        print(f"A daemon is already starting/running for this store. Stop it with 'identity aster stop'.", file=sys.stderr)
+        return 1
+
+    # With the spawn window locked, the pidfile is the steady-state guard: a
+    # live pid here means another daemon owns this store.
+    pidfile = _pidfile_path(args)
+    if pidfile.exists():
+        try:
+            pid_alive = int(pidfile.read_text().strip())
+            os.kill(pid_alive, 0)
+            lock_fd.close()
+            print(f"A daemon is already running (pid {pid_alive}). Stop it with 'identity aster stop'.", file=sys.stderr)
+            return 1
+        except (OSError, ValueError):
+            pidfile.unlink(missing_ok=True)
+
+    log_file = Path(args.store) / "aster-daemon.log"
+    store_abs = str(Path(args.store).resolve())
+    root_abs = str(Path(args.project_root).resolve())
+    log_abs = str(log_file.resolve())
+    cmd = [
+        sys.executable,
+        "-m",
+        "cli.main",
+        "aster",
+        "run",
+        "--store", store_abs,
+        "--backend", args.backend,
+        "--project-root", root_abs,
+        "--iterations", "-1",
+        "--interval", str(getattr(args, "interval", 300.0) or 300.0),
+    ]
+    env = dict(os.environ)
+    env["ASTER_DAEMON"] = "1"
+    if getattr(args, "candidates", None):
+        cmd += ["--candidates", Path(args.candidates).resolve().as_posix()]
+    if getattr(args, "search", False):
+        cmd += ["--search"]
+    if _mailbox_root(args) != ".identity_mailbox":
+        cmd += ["--mailbox-root", _mailbox_root(args)]
+
+    log_file.parent.mkdir(parents=True, exist_ok=True)
+    with log_file.open("ab") as log_handle:
+        proc = subprocess.Popen(
+            cmd,
+            stdout=log_handle,
+            stderr=log_handle,
+            start_new_session=True,
+            cwd=str(Path(Path(__file__).resolve().parents[1])),
+            env=env,
+        )
+    pidfile.write_text(str(proc.pid))
+    lock_fd.close()
+    print(f"Aster daemon started (pid {proc.pid}, log {log_abs}).")
+    print("Monitor with 'identity aster status --store %s'." % args.store)
+    return 0
+
+
+def cmd_aster_stop(args: argparse.Namespace) -> int:
+    import signal
+    import time as _time
+
+    pidfile = _pidfile_path(args)
+    if not pidfile.exists():
+        print("No Aster daemon is running for this store.", file=sys.stderr)
+        return 1
+    try:
+        pid = int(pidfile.read_text().strip())
+    except ValueError:
+        print("Corrupt pidfile; removing.", file=sys.stderr)
+        pidfile.unlink(missing_ok=True)
+        _lockfile_path(args).unlink(missing_ok=True)
+        return 1
+    try:
+        os.kill(pid, signal.SIGTERM)
+    except ProcessLookupError:
+        pidfile.unlink(missing_ok=True)
+        _lockfile_path(args).unlink(missing_ok=True)
+        print(f"No live process for pid {pid}; cleared stale daemon state.")
+        return 0
+    except Exception as exc:
+        print(f"Failed to signal daemon: {exc}", file=sys.stderr)
+        return 1
+    # Wait for a graceful stop: the daemon completes its in-flight tick, then
+    # removes its own pidfile. Give one interval-plus-slack before forcing it.
+    deadline = _time.monotonic() + 310.0
+    while _time.monotonic() < deadline:
+        if not pidfile.exists():
+            _lockfile_path(args).unlink(missing_ok=True)
+            print(f"Stopped Aster daemon (pid {pid}) after graceful in-flight completion. State is persisted.")
+            return 0
+        _time.sleep(0.25)
+    # Fallback: the daemon did not exit in time. Force-terminate.
+    try:
+        os.kill(pid, signal.SIGKILL)
+    except Exception:
+        pass
+    pidfile.unlink(missing_ok=True)
+    _lockfile_path(args).unlink(missing_ok=True)
+    print(f"Daemon (pid {pid}) did not finish its tick within the grace period; forced stop. State is persisted per-phase.")
+    return 0
+
+
+def cmd_aster_status(args: argparse.Namespace) -> int:
+    engine = _build_engine(args)
+    report = engine.status()
+    status = report.to_dict() if hasattr(report, "to_dict") else dict(report)
+    pidfile = _pidfile_path(args)
+    daemon = {"running": False, "pid": None}
+    if pidfile.exists():
+        try:
+            pid = int(pidfile.read_text().strip())
+            os.kill(pid, 0)
+            daemon = {"running": True, "pid": pid}
+        except (OSError, ValueError):
+            daemon = {"running": False, "pid": None}
+    if isinstance(status, dict):
+        status["daemon"] = daemon
+    _print_json(status)
+    return 0
+
+
+def cmd_aster_needs(args: argparse.Namespace) -> int:
+    engine = _build_engine(args)
+    _print_json({"needs": [n.to_dict() for n in engine.store.list_needs()]})
+    return 0
+
+
+def cmd_aster_opportunities(args: argparse.Namespace) -> int:
+    engine = _build_engine(args)
+    _print_json({"opportunities": [o.to_dict() for o in engine.store.list_opportunities()]})
+    return 0
+
+
+def cmd_aster_relationships(args: argparse.Namespace) -> int:
+    engine = _build_engine(args)
+    _print_json({"relationships": [r.to_dict() for r in engine.store.list_relationships()]})
+    return 0
+
+
+def cmd_aster_messages(args: argparse.Namespace) -> int:
+    engine = _build_engine(args)
+    limit = getattr(args, "limit", 20) or 20
+    messages = engine.store.list_messages()
+    _print_json({"messages": [m.to_dict() for m in messages[-limit:]], "total": len(messages)})
+    return 0
+
+
+def cmd_aster_provenance(args: argparse.Namespace) -> int:
+    engine = _build_engine(args)
+    limit = getattr(args, "limit", 50) or 50
+    _print_json({"provenance": engine.provenance(limit=limit)})
+    return 0
+
+
+def cmd_aster_escalate(args: argparse.Namespace) -> int:
+    engine = _build_engine(args)
+    pending = engine.pending_authorizations()
+    if not pending:
+        print("No outreach is awaiting human authorization.")
+        return 0
+    print(f"{len(pending)} item(s) awaiting human authorization:\n")
+    for item in pending:
+        print(f"  message_id : {item['message_id']}")
+        print(f"  to         : {item['recipient']}")
+        print(f"  subject    : {item['subject']}")
+        print(f"  body       : {item['body'][:220]}\n")
+    return 0
+
+
+def cmd_aster_decide(args: argparse.Namespace) -> int:
+    engine = _build_engine(args)
+    result = engine.authorize(
+        args.message_id, approved=args.approve, note=args.note, approver=getattr(args, "approver", "principal")
+    )
+    if not result.get("ok"):
+        print(f"Error: {result.get('error')}", file=sys.stderr)
+        return 1
+    print(f"Authorization recorded: {result.get('status')}")
+    return 0
+
+
+def cmd_aster_notify(args: argparse.Namespace) -> int:
+    if getattr(args, "mark_read", False):
+        engine = _build_engine(args)
+        marked = engine.store.mark_notifications_read()
+        print(f"Marked {marked} notification(s) read.")
+        return 0
+
+    engine = _build_engine(args)
+    items = engine.store.list_notifications(unread_only=getattr(args, "unread_only", False))
+    payload = {
+        "notifications": [n.to_dict() for n in items],
+        "unread": engine.store.unread_notification_count(),
+    }
+    _print_json(payload)
+    return 0
+
+
+def cmd_aster_pause(args: argparse.Namespace) -> int:
+    engine = _build_engine(args)
+    engine.pause(note=args.note)
+    print("Aster paused. Run 'identity aster resume' to resume.")
+    return 0
+
+
+def cmd_aster_resume(args: argparse.Namespace) -> int:
+    engine = _build_engine(args)
+    engine.resume(note=args.note)
+    print("Aster resumed.")
+    return 0
+
+
+def cmd_aster_override(args: argparse.Namespace) -> int:
+    from core.operations.models import normalize_outbound_mode
+
+    engine = _build_engine(args)
+    for assignment in args.set:
+        if "=" not in assignment:
+            print(f"Invalid assignment: {assignment} (expected key=value)", file=sys.stderr)
+            return 1
+        key, value = assignment.split("=", 1)
+        parsed: Any = value
+        if key == "outbound_mode":
+            normalized = normalize_outbound_mode(value)
+            if normalized != value.strip().lower():
+                print(
+                    f"outbound_mode must be one of observe / autonomous / approval_required",
+                    file=sys.stderr,
+                )
+                return 1
+            parsed = normalized
+        elif key in ("max_cold_outreach_per_day", "max_follow_ups_per_target", "max_research_calls_per_day"):
+            try:
+                parsed = int(value)
+            except ValueError:
+                print(f"{key} must be an integer", file=sys.stderr)
+                return 1
+        elif key == "follow_up_after_hours":
+            try:
+                parsed = float(value)
+            except ValueError:
+                print(f"{key} must be a number", file=sys.stderr)
+                return 1
+        elif key == "paused":
+            parsed = value.lower() in ("true", "1", "yes")
+        elif key in ("never_contact", "require_approval_categories", "allowed_external_recipients"):
+            parsed = [part.strip() for part in value.split(",") if part.strip()]
+        try:
+            engine.override(**{key: parsed})
+        except ValueError as exc:
+            print(f"Error: {exc}", file=sys.stderr)
+            return 1
+    _print_json(engine.store.controls().to_dict())
+    return 0
+
+
+def cmd_aster_outbound_mode(args: argparse.Namespace) -> int:
+    engine = _build_engine(args)
+    _print_json(engine.set_outbound_mode(args.mode))
+    return 0
+
+
+def cmd_aster_email_check(args: argparse.Namespace) -> int:
+    """Validate the real SMTP/IMAP configuration without printing credentials."""
+    import os
+
+    from core.capabilities.email import build_transport
+
+    storage = _get_storage(args)
+    registry = _registry(storage)
+    cap = registry.get("aster", "email")
+    cap_config = cap._config if cap is not None else {}
+    report: dict[str, Any] = {
+        "capability": {"installed": cap is not None, "config": cap_config, "backend": cap_config.get("backend", "file")},
+        "env": {
+            "smtp_host": bool(os.environ.get("IDENTITY_SMTP_HOST")),
+            "imap_host": bool(os.environ.get("IDENTITY_IMAP_HOST")),
+            "sender": bool(os.environ.get("IDENTITY_EMAIL_FROM")),
+            "auth_user": bool(os.environ.get("IDENTITY_SMTP_USER")),
+        },
+    }
+    if not os.environ.get("IDENTITY_SMTP_HOST"):
+        report["validation"] = {"error": "IDENTITY_SMTP_HOST is not set; no real SMTP/IMAP transport can be validated"}
+        _print_json(report)
+        return 1
+
+    transport = build_transport({"backend": "smtp"})
+    backend = transport.backend
+    report["validation"] = backend.validate()
+
+    if getattr(args, "send_test", None):
+        subject = "IdentityOS Aster — email-check"
+        body = (
+            "This is a transport validation message sent by Aster via the configured "
+            "SMTP channel. No action needed.\n\n— Aster / IdentityOS"
+        )
+        try:
+            result = transport.send(to=args.send_test, subject=subject, body=body)
+            report["send_test"] = {"ok": bool(result.get("ok")), "external_id": result.get("external_id", "")}
+        except Exception as exc:  # pragma: no cover - network dependent
+            report["send_test"] = {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+            _print_json(report)
+            return 1
+
+    _print_json(report)
+    return 0
+
+
+def cmd_aster_would_send(args: argparse.Namespace) -> int:
+    engine = _build_engine(args)
+    limit = getattr(args, "limit", 50) or 50
+    _print_json({"messages": engine.would_send(limit=limit)})
+    return 0
+
+
+# ── parser wiring ────────────────────────────────────────────────────────────
+
+
+def add_aster_parser(parser: argparse.ArgumentParser) -> None:
+    sub = parser.add_subparsers(dest="aster_command", required=True)
+
+    base = argparse.ArgumentParser(add_help=False)
+    base.add_argument("--store", default=DEFAULT_STORE)
+    base.add_argument("--backend", choices=["json", "sqlite"], default="json")
+    base.add_argument("--project-root", default=".", help="Path to the project Aster observes")
+    base.add_argument("--mailbox-root", default=None, help="File mailbox root (default: $IDENTITY_MAILBOX_ROOT)")
+
+    p_init = sub.add_parser("init", help="Create the Aster identity and install its capabilities", parents=[base])
+    p_init.add_argument("--grant-email", action="store_true", help="Grant email.send / email.read")
+    p_init.add_argument("--grant-search", action="store_true", help="Grant web.network (web.search)")
+    p_init.add_argument("--grant-operations", action="store_true", help="Grant operations.run")
+
+    for name, help_text in (
+        ("tick", "Run one operator tick"),
+        ("status", "Show real operator state"),
+        ("needs", "List detected needs"),
+        ("opportunities", "List discovered opportunities"),
+        ("relationships", "List persistent relationships"),
+    ):
+        p = sub.add_parser(name, help=help_text, parents=[base])
+        if name in ("tick",):
+            p.add_argument("--no-discover", action="store_true")
+            p.add_argument("--no-evaluate", action="store_true")
+            p.add_argument("--no-act", action="store_true")
+            p.add_argument("--no-monitor", action="store_true")
+            p.add_argument("--no-followups", action="store_true")
+            p.add_argument("--candidates", default=None)
+            p.add_argument("--search", action="store_true")
+
+    p_run = sub.add_parser("run", help="Run the operator loop continuously", parents=[base])
+    p_run.add_argument("--iterations", type=int, default=1, help="Number of ticks (default 1; use -1 for until stopped)")
+    p_run.add_argument("--interval", type=float, default=0.0, help="Seconds between ticks")
+    p_run.add_argument("--candidates", default=None)
+    p_run.add_argument("--search", action="store_true")
+    p_run.add_argument("--daemon", action="store_true", help="Run in the background with a pidfile")
+
+    p_stop = sub.add_parser("stop", help="Stop a background Aster daemon", parents=[base])
+
+    p_msg = sub.add_parser("messages", help="List persisted messages", parents=[base])
+    p_msg.add_argument("--limit", type=int, default=20)
+
+    p_prov = sub.add_parser("provenance", help="Show the audit ledger", parents=[base])
+    p_prov.add_argument("--limit", type=int, default=50)
+
+    p_esc = sub.add_parser("escalate", help="List outreach awaiting human authorization", parents=[base])
+
+    p_dec = sub.add_parser("decide", help="Approve or reject an escalated outreach", parents=[base])
+    p_dec.add_argument("--message-id", required=True)
+    p_dec.add_argument("--approve", action="store_true")
+    p_dec.add_argument("--reject", action="store_true")
+    p_dec.add_argument("--note", default="")
+    p_dec.add_argument("--as", dest="approver", default="principal", help="approver identity recorded in the audit ledger")
+
+    p_ntf = sub.add_parser("notify", help="List principal notifications (unread by default)", parents=[base])
+    p_ntf.add_argument("--all", dest="unread_only", action="store_false", help="include already-read notifications")
+    p_ntf.set_defaults(unread_only=True)
+    p_ntf.add_argument("--mark-read", dest="mark_read", action="store_true", help="mark all notifications read")
+
+    for name in ("pause", "resume"):
+        p = sub.add_parser(name, help=f"{name.capitalize()} the operator", parents=[base])
+        p.add_argument("--note", default="")
+
+    p_override = sub.add_parser("override", help="Set operator control constraints (key=value ...)", parents=[base])
+    p_override.add_argument("set", nargs="+", metavar="key=value")
+
+    p_mode = sub.add_parser(
+        "outbound-mode",
+        help="Set the outbound operating mode (observe | autonomous | approval_required)",
+        parents=[base],
+    )
+    p_mode.add_argument(
+        "mode",
+        choices=["observe", "autonomous", "approval_required"],
+        help="observe=record WOULD_SEND drafts, autonomous=send permitted, approval_required=always ask",
+    )
+
+    p_ws = sub.add_parser("would-send", help="List messages drafted in observation mode (not sent)", parents=[base])
+    p_ws.add_argument("--limit", type=int, default=50)
+
+    p_ec = sub.add_parser(
+        "email-check",
+        help="Validate the SMTP/IMAP configuration from the environment (never prints credentials)",
+        parents=[base],
+    )
+    p_ec.add_argument("--send-test", default=None, metavar="TO_ADDRESS",
+                      help="Optionally perform one real validation send to this address")
+
+
+_ASTER_COMMAND_MAP = {
+    "init": cmd_aster_init,
+    "tick": cmd_aster_tick,
+    "run": cmd_aster_run,
+    "stop": cmd_aster_stop,
+    "status": cmd_aster_status,
+    "needs": cmd_aster_needs,
+    "opportunities": cmd_aster_opportunities,
+    "relationships": cmd_aster_relationships,
+    "messages": cmd_aster_messages,
+    "provenance": cmd_aster_provenance,
+    "escalate": cmd_aster_escalate,
+    "decide": cmd_aster_decide,
+    "notify": cmd_aster_notify,
+    "pause": cmd_aster_pause,
+    "resume": cmd_aster_resume,
+    "override": cmd_aster_override,
+    "outbound-mode": cmd_aster_outbound_mode,
+    "would-send": cmd_aster_would_send,
+    "email-check": cmd_aster_email_check,
+}
+
+
+def cmd_aster_wrapper(args: argparse.Namespace) -> int:
+    handler = _ASTER_COMMAND_MAP.get(args.aster_command)
+    if handler is None:
+        print(f"Unknown aster command: {args.aster_command}", file=sys.stderr)
+        return 1
+    return handler(args)

@@ -46,6 +46,7 @@ from cli.registry_cmds import (
     cmd_explain,
     cmd_inspect_dashboard,
 )
+from cli.aster_cmds import cmd_aster_wrapper
 from cli.chat_commands import (  # noqa: F401  (re-exported for chat REPL + tests)
     ChatContext,
     dispatch_chat_command,
@@ -1161,6 +1162,12 @@ def build_parser() -> argparse.ArgumentParser:
     p_isp_install.add_argument("id", help="Pack id")
     p_isp_install.add_argument("--identity", required=True, help="Identity id to install on")
 
+    # aster
+    from cli.aster_cmds import add_aster_parser
+
+    p_aster = sub.add_parser("aster", help="Aster autonomous operator commands")
+    add_aster_parser(p_aster)
+
     return parser
 
 
@@ -1249,6 +1256,7 @@ COMMAND_MAP = {
     "registry": cmd_registry_wrapper,
     "cap": cmd_cap_wrapper,
     "isp": cmd_isp_wrapper,
+    "aster": cmd_aster_wrapper,
 }
 
 
