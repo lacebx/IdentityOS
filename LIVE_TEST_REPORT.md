@@ -8,10 +8,11 @@ permissioned `.aster-live-v2` re-run on a **clean store**, exercising the fixes
 below.
 
 Branch: `feat/live-browser-bridge`
-Corrective commit: `af4ef28` (on top of `f215b77`, `08efc62`, `e6ff431`,
-`3cfe99e`).
+Corrective commits: `af4ef28` (inbound/policy/confidence/etc.), plus the live-
+run-found cursor fixes committed on top (STATUS + literal extraction, see
+finding 17).
 
-Full suite after fixes: **1120 passed / 40 skipped / 3 pre-existing env-gated
+Full suite after fixes: **1122 passed / 40 skipped / 3 pre-existing env-gated
 errors** (`tests/test_cross_app_continuity.py` `NameError: repo_root` — unrelated,
 untouched).
 
@@ -140,11 +141,25 @@ and tolerant of `MailboxCursor | dict` storage.
   knowledge gate (deferred + `project_context_unavailable`), `$200k/10%`
   escalation, baseline-categories-can’t-be-disabled, confidence 0 hold vs
   `test_candidate` override, gap statuses + dedupe, nested-root observer.
-- `test_email_capability.py` (12): FakeIMAP cursor baseline-without-replay,
-  UIDVALIDITY reseed, `read_inbox_cursor` round-trip.
+- `test_email_capability.py` (14): FakeIMAP cursor baseline-without-replay,
+  UIDVALIDITY reseed, UIDNEXT fallback to `UID SEARCH ALL`, message-literal
+  extraction, `read_inbox_cursor` round-trip.
 - Observe-mode test updated to pre-seed a trusted relationship and asserts
   drafts-without-send; candidacy/mirror fixtures default trustworthy confidences.
-- Targeted run 56 passed; full suite 1120 passed / 40 skipped / 3 env-gated errors.
+- Targeted run + full suite verified from the live run itself (below).
+
+### 17. Two real-server regressions the FakeIMAP could not catch
+The `.aster-live-v2` live run immediately surfaced two defects in the cursor
+path that the fake never exercised:
+1. **Gmail does not echo `UIDNEXT` via `imap.response()` after SELECT**, so the
+   cursor read `uid_validity=0, last_uid=0` and *reseeded on every tick* — no
+   mail was ever ingested. Fixed with an explicit `STATUS (UIDVALIDITY UIDNEXT)`
+   call plus a `UID SEARCH ALL` fallback.
+2. **Real imaplib literal tuples are `(marker, message, flag)`**; the parser
+   previously took the first bytes (`b"66 (RFC822 {740}"`) as the message and
+   produced headerless, empty mail. Fixed by taking the **longest** bytes item.
+Both are now locked in by regression tests (`test_imap_cursor_uidnext_falls_back_to_uid_search_all`,
+`test_extract_raw_prefers_message_literal_over_rfc822_marker`).
 
 ---
 
@@ -223,3 +238,45 @@ python3 -m cli.main aster decide --store .aster-live-v2 approve|reject <opportun
 ### Rollback
 The store is a single directory; remove `.aster-live-v2` and re-init for a
 from-scratch re-run. The evidence store `.aster-live` remains untouched.
+
+---
+
+## Live run results (2026-09-17)
+
+Executed per the plan above on a clean `.aster-live-v2` store.
+
+### Verified automatically
+- `identity aster email-check`: SMTP (587, STARTTLS) **reachable, authenticated**;
+  IMAP (993) **reachable, authenticated, INBOX selectable**.
+- Clean-store init (json backend, `--grant-email --grant-operations`): live
+  engine, SMTP/IMAP backend referenced from env, credentials never stored.
+- Observe rehearsal: project resolved with **8 provenanced facts**
+  (source_type/source_path/commit_sha), no `0 fact(s)`; first run baselined the
+  mailbox without replaying history.
+- IMAP cursor persisted with real `uid_validity`/`last_uid`; the
+  `STATUS`/literal-extraction fixes (finding 17) landed after the run showed the
+  reseed/empty-mail bugs.
+- Self-copies (`arsenemnz@gmail.com → arsenemnz@gmail.com`): silently dropped
+  at the transport boundary, cursor advanced, **no reply, no relationship**,
+  no errors across repeated ticks.
+- Allowlisted autonomous outreach: candidate → qualified → sent to
+  `a.manzi@eagles.oc.edu` (SMTP evidence on the persisted message), transparent
+  AI-operator disclosure + multi-line signature; relationship now
+  `a.manzi@eagles.oc.edu → outreach_sent`.
+- Full suite after the live-run fixes: **1122 passed / 40 skipped / 3
+  env-gated errors** (+2 regression tests for the real-server cursor bugs).
+
+### Still requires the human (by design)
+- **Reply loop:** reply to the outreach mail Aster sent to
+  `a.manzi@eagles.oc.edu` (in that same thread). Then run one tick:
+  ```sh
+  python3 -m cli.main aster tick --store .aster-live-v2
+  python3 -m cli.main aster provenance --store .aster-live-v2   # disposition + sender shown
+  python3 -m cli.main aster relationships --store .aster-live-v2
+  ```
+  Expected: trusted-thread reply, grounded answer, sender named in provenance.
+- **Escalation probe (optional):** a crafted email in the same thread such as
+  “I'd like to offer $200,000 for 10%” should surface in
+  `identity aster escalate` with **no auto-reply**.
+
+Store: `.aster-live-v2` (gitignored as `.aster-live*`).

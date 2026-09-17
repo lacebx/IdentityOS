@@ -38,17 +38,22 @@ def _extract_raw(fetched: Any) -> bytes:
     """Pick the message literal bytes out of an imaplib fetch result.
 
     imaplib returns lists of items shaped either as ``(payload, flags)`` tuples
-    (literal responses) or plain byte strings; the message literal is always the
-    first ``bytes`` we can find.
+    (literal responses) or plain byte strings. A literal tuple is
+    ``(b'UID (RFC822 {size}', <message bytes>, b')')`` on real servers, so the
+    message literal is always the **longest** ``bytes`` item — the metadata
+    prefix can otherwise be mistaken for a (headerless) message.
     """
     container = fetched[0] if fetched else None
-    if isinstance(container, tuple):
+    candidates: list[bytes] = []
+    if isinstance(container, (tuple, list)):
         for item in container:
-            if isinstance(item, bytes):
-                return item
-    elif isinstance(container, bytes):
-        return container
-    return b""
+            if isinstance(item, (bytes, bytearray)):
+                candidates.append(bytes(item))
+    elif isinstance(container, (bytes, bytearray)):
+        candidates.append(bytes(container))
+    if not candidates:
+        return b""
+    return max(candidates, key=len)
 
 
 class FileMailboxBackend:
@@ -255,6 +260,38 @@ class SMTPBackend:
             return self.imap_factory()
         return imaplib.IMAP4_SSL(self.imap_host, self.imap_port)
 
+    def _mailbox_meta(self, imap: Any) -> tuple[int, int]:
+        """Return ``(uid_validity, uidnext)`` for INBOX.
+
+        Real servers (Gmail among them) do not reliably echo ``UIDNEXT`` in the
+        SELECT response, so we ask explicitly via STATUS and parse the literal
+        reply instead of trusting ``imap.response()`` bookkeeping.
+        """
+        import re as _re
+
+        uid_validity = 0
+        uidnext = 0
+        status, data = imap.status("INBOX", "(UIDVALIDITY UIDNEXT)")
+        blob = b""
+        if status == "OK" and isinstance(data, list) and data:
+            blob = data[0] if isinstance(data[0], bytes) else (data[0][0] if isinstance(data[0], (list, tuple)) and data[0] else b"")
+        raw = blob.decode("utf-8", errors="replace")
+        match = _re.search(r"UIDVALIDITY[ \t]+(\d+)", raw, _re.I)
+        if match:
+            uid_validity = int(match.group(1))
+        match = _re.search(r"UIDNEXT[ \t]+(\d+)", raw, _re.I)
+        if match:
+            uidnext = int(match.group(1))
+        if uidnext == 0:
+            # Fallback: highest existing UID + 1 (empty mailbox → 1).
+            search_status, search_data = imap.uid("search", None, "ALL")
+            if search_status == "OK" and search_data and search_data[0]:
+                uids = search_data[0].split()
+                uidnext = int(uids[-1]) + 1 if uids else 1
+            else:
+                uidnext = 1
+        return uid_validity, uidnext
+
     def fetch_inbox_with_cursor(self, *, cursor: Optional[dict[str, Any]] = None) -> dict[str, Any]:
         """Fetch only mail newer than a durable high-water mark (IMAP UID).
 
@@ -287,19 +324,16 @@ class SMTPBackend:
                 if select_status != "OK":
                     raise MailboxError("IMAP INBOX could not be selected")
 
-                validity_resp = imap.response("UIDVALIDITY")
-                new_validity = int(validity_resp[1][0]) if validity_resp and validity_resp[0] == "OK" and validity_resp[1] else 0
-                uidnext_resp = imap.response("UIDNEXT")
-                uidnext = int(uidnext_resp[1][0]) if uidnext_resp and uidnext_resp[0] == "OK" and uidnext_resp[1] else 0
+                uid_validity, uidnext = self._mailbox_meta(imap)
 
-                reseed = (not seeded) or (stored_validity and stored_validity != new_validity)
+                reseed = (not seeded) or (stored_validity and stored_validity != uid_validity)
                 if reseed:
                     # Baseline only: never ingest mail that predates the operator.
                     new_last_uid = max(uidnext - 1, 0)
                     return {
                         "messages": [],
                         "cursor": {
-                            "uid_validity": new_validity,
+                            "uid_validity": uid_validity,
                             "last_uid": new_last_uid,
                             "seeded": True,
                             "updated_at": _time.time(),
@@ -311,7 +345,7 @@ class SMTPBackend:
                     return {
                         "messages": [],
                         "cursor": {
-                            "uid_validity": new_validity,
+                            "uid_validity": uid_validity,
                             "last_uid": last_uid,
                             "seeded": True,
                             "updated_at": _time.time(),
@@ -349,7 +383,7 @@ class SMTPBackend:
         return {
             "messages": messages,
             "cursor": {
-                "uid_validity": new_validity,
+                "uid_validity": uid_validity,
                 "last_uid": new_last_uid,
                 "seeded": True,
                 "updated_at": _time.time(),

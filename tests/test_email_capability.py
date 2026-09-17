@@ -150,19 +150,33 @@ class _FakeIMAP:
         }
         return ("OK", [b"1"])
 
+    def status(self, *args):
+        # Real servers answer STATUS with a literal like:
+        # b'INBOX (UIDVALIDITY 77 UIDNEXT 6)'
+        parts = [f"UIDVALIDITY {self.meta['uid_validity']}"]
+        if not self.meta.get("omit_uidnext"):
+            parts.append(f"UIDNEXT {max(self.store, default=0) + 1}")
+        literal = f"INBOX ({' '.join(parts)})".encode()
+        return ("OK", [literal])
+
     def response(self, key):
         return self._responses.get(key, ("NO", [b""]))
 
     def uid(self, cmd, *args):
         if cmd == "search":
             spec = args[1]
+            if spec == "ALL":
+                return ("OK", [b" ".join(str(u).encode() for u in sorted(self.store))])
             parts = spec.split(":")
             lo, hi = int(parts[0][4:]), int(parts[1])
             uids = [str(u).encode() for u in sorted(self.store) if lo <= u <= hi]
             return ("OK", [b" ".join(uids)])
         if cmd == "fetch":
             uid = int(args[0].decode())
-            return ("OK", [(self.store[uid], b")")])
+            raw = self.store[uid]
+            # Real imaplib literals put the metadata marker BEFORE the message.
+            marker = f"{uid} (RFC822 {{{len(raw)}}}".encode()
+            return ("OK", [(marker, raw, b")")])
         return ("OK", [b""])
 
 
@@ -229,6 +243,34 @@ def test_imap_cursor_reseeds_when_uidvalidity_changes():
     assert second["messages"] == []
     assert second["cursor"]["uid_validity"] == 999
     assert second["cursor"]["last_uid"] == 2
+
+
+def test_imap_cursor_uidnext_falls_back_to_uid_search_all():
+    # A server that answers STATUS without UIDNEXT (no UID from the literal):
+    # the high-water mark is still derived from UID SEARCH ALL.
+    store = {1: _raw_message(1), 2: _raw_message(2)}
+    meta = {"uid_validity": 77, "omit_uidnext": True}
+    smtp = _fake_smtp(store, meta)
+    first = smtp.fetch_inbox_with_cursor(cursor=None)
+    assert first["messages"] == []
+    assert first["cursor"]["last_uid"] == 2  # fallback via UID SEARCH ALL
+
+    store[3] = _raw_message(3)
+    second = smtp.fetch_inbox_with_cursor(cursor=first["cursor"])
+    assert [m["external_id"] for m in second["messages"]] == ["<m3@example.org>"]
+    assert second["cursor"]["last_uid"] == 3
+
+
+def test_extract_raw_prefers_message_literal_over_rfc822_marker():
+    from core.capabilities.email.backends import _extract_raw
+
+    raw = _raw_message(1)
+    # Real imaplib literal tuple: (marker bytes, message bytes, flag bytes).
+    marker = b"1 (RFC822 {740}"
+    assert _extract_raw([(marker, raw, b")")]) == raw
+    # Plain bytes responses still work.
+    assert _extract_raw([raw]) == raw
+    assert _extract_raw([]) == b""
 
 
 def test_capability_transport_read_inbox_cursor_roundtrips(tmp_path: Path):

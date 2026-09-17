@@ -4,6 +4,7 @@ dist/
 .DS_Store
 *.egg-info/
 .env
+.aster-live*/
 identity_runtime.db
 .identity_store/
 .identity_store_cli/
