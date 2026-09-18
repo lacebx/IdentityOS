@@ -285,3 +285,88 @@ def test_capability_transport_read_inbox_cursor_roundtrips(tmp_path: Path):
     result = transport.fetch_inbox_with_cursor(cursor={"seeded": False, "last_uid": 0})
     assert result["messages"] == []
     assert result["cursor"] is None or result["cursor"].get("seeded") is True
+
+
+def test_extract_message_text_multipart_alternative_prefers_plain():
+    from email.message import EmailMessage
+    from core.capabilities.email.backends import extract_message_text
+
+    msg = EmailMessage()
+    msg["From"] = "alice@example.org"
+    msg["To"] = "aster@identityos.local"
+    msg["Subject"] = "Question"
+    msg.set_content("This is the plain text body.")
+    msg.add_alternative("<p>This is the <b>HTML</b> body.</p>", subtype="html")
+
+    extracted = extract_message_text(msg)
+    assert extracted == "This is the plain text body."
+    assert "HTML" not in extracted
+
+
+def test_extract_message_text_html_only_falls_back_to_clean_text():
+    from email.message import EmailMessage
+    from core.capabilities.email.backends import extract_message_text
+
+    msg = EmailMessage()
+    msg["From"] = "alice@example.org"
+    msg["To"] = "aster@identityos.local"
+    msg["Subject"] = "HTML Only"
+    msg.set_content("<p>Hello <b>Aster</b>,</p><p>Can you tell me more?</p>", subtype="html")
+
+    extracted = extract_message_text(msg)
+    assert "Hello Aster," in extracted
+    assert "Can you tell me more?" in extracted
+    assert "<p>" not in extracted and "<b>" not in extracted
+
+
+def test_extract_message_text_ignores_attachment_as_body():
+    from email.message import EmailMessage
+    from core.capabilities.email.backends import extract_message_text
+
+    msg = EmailMessage()
+    msg["From"] = "alice@example.org"
+    msg["To"] = "aster@identityos.local"
+    msg["Subject"] = "With Attachment"
+    msg.set_content("Actual human message body.")
+    msg.add_attachment(b"Attachment file content.", maintype="text", subtype="plain", filename="readme.txt")
+
+    extracted = extract_message_text(msg)
+    assert extracted == "Actual human message body."
+    assert "Attachment file content" not in extracted
+
+
+def test_strip_quoted_reply_handles_english_and_arabic_markers():
+    from core.capabilities.email.backends import strip_quoted_reply
+
+    english_reply = (
+        "Why isn't IdentityOS just a memory database wrapped around an LLM?\n\n"
+        "On Thu, Sep 17, 2026 at 1:45 AM <arsenemnz@gmail.com> wrote:\n"
+        "> Dear Arsène,\n"
+        "> I am Aster reaching out on behalf of IdentityOS.\n"
+    )
+    assert strip_quoted_reply(english_reply) == "Why isn't IdentityOS just a memory database wrapped around an LLM?"
+
+    arabic_reply = (
+        "This is the second time you sent this but yes I have seen it\n\n"
+        "في خميس، ١٧ سبتمبر، ٢٠٢٦ في ٠١:٤٥، كتب <arsenemnz@gmail.com>:\n"
+        "> Dear Arsène,\n"
+        "> I am Aster reaching out on behalf of IdentityOS.\n"
+    )
+    assert strip_quoted_reply(arabic_reply) == "This is the second time you sent this but yes I have seen it"
+
+
+def test_generate_message_id_and_custom_id_send(tmp_path: Path):
+    from core.capabilities.email.backends import FileMailboxBackend, generate_message_id
+
+    custom_id = generate_message_id("identityos.test")
+    assert custom_id.startswith("<") and custom_id.endswith("@identityos.test>")
+
+    backend = FileMailboxBackend(tmp_path / "mb")
+    result = backend.send(
+        to="test@example.org",
+        subject="Hello",
+        body="World",
+        message_id=custom_id,
+    )
+    assert result["external_id"] == custom_id
+    assert backend.outbox()[0]["external_id"] == custom_id

@@ -147,12 +147,25 @@ class OutreachComposer:
         facts: Optional[list[str]] = None,
         adapter: Any = None,
         identity: Any = None,
-    ) -> tuple[str, str]:
+    ) -> tuple[str, str, str]:
+        """Return ``(subject, body, generation_mode)`` for a reply.
+
+        ``generation_mode`` is one of:
+          * ``identity_model_generation`` — written by a model adapter
+            (the only mode allowed for substantive/knowledge replies);
+          * ``template_fallback`` — a scripted close for status-only intents
+            (decline / thanks / scheduling);
+          * ``unavailable`` — a substantive intent but no working model
+            runtime.  The monitor must *defer* (never send a canned answer
+            masquerading as a model one).
+        """
         if adapter is not None:
             generated = self._reply_via_adapter(relationship, inbound_body, intent, facts or [], adapter, identity)
             if generated:
-                return generated
-        return self._structured_reply(relationship, inbound_body, intent, facts or [])
+                return (*generated, "identity_model_generation")
+        if intent in ("question", "documentation_request", "intro_request", "interest"):
+            return "", "", "unavailable"
+        return (*self._structured_reply(relationship, inbound_body, intent, facts or []), "template_fallback")
 
     def _structured_reply(
         self,
@@ -172,30 +185,19 @@ class OutreachComposer:
                 "Happy to find a time. I can do a short call in the next week; "
                 "send a couple of windows that suit you and I'll confirm."
             )
-        elif intent == "documentation_request":
-            lines.append("Here is the public material you can share freely:")
-            lines.extend(f"- {fact}" for fact in facts[:5])
         elif intent == "decline":
             lines.append(
                 "Understood, and thank you for the candid reply. I'll close this out and "
                 "won't reach out again about it."
             )
         else:
-            if facts:
-                lines.append("Thanks for the note. Here is what I can confirm from our verified project material:")
-                lines.extend(f"- {fact}" for fact in facts[:5])
-                lines.append("")
-                lines.append(
-                    "Happy to go deeper on any of this, and I'll flag anything I need "
-                    "to check with the team rather than guess."
-                )
-            else:
-                # The monitor defers ungrounded replies before this is reached, but
-                # keep this truthful for direct callers.
-                lines.append(
-                    "Thanks for the note. I want to answer from our verified project "
-                    "material rather than guess, so let me confirm details and come back."
-                )
+            # Knowledge/substantive intents are answered only through a model
+            # adapter (see compose_reply); this is a truthful stand-in for
+            # direct callers that must not pretend to be a model answer.
+            lines.append(
+                "Thanks for the note. I'll confirm the details from our verified "
+                "material and come back to you rather than guess."
+            )
 
         lines.extend(["", "Best,"])
         if self.signature and self.sender_name and f"— {self.sender_name}" in self.signature:

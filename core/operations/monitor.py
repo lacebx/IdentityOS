@@ -17,6 +17,7 @@ relationship is marked ``AWAITING_HUMAN_AUTHORIZATION`` rather than answered.
 
 from __future__ import annotations
 
+import hashlib
 import re
 from dataclasses import dataclass
 from enum import Enum
@@ -200,6 +201,7 @@ class ConversationMonitor:
         external_id: str = "",
         in_reply_to: str = "",
         references: Optional[list[str]] = None,
+        raw_body: str = "",
     ) -> InboundResult:
         message_ids = [i for i in [*list(references or []), in_reply_to] if i]
         disposition, relationship = self._classify(
@@ -215,7 +217,7 @@ class ConversationMonitor:
                 store, relationship_id=relationship.id if relationship else "",
                 sender_email=sender_email, body=body, subject=subject,
                 thread_id=thread_id, external_id=external_id, in_reply_to=in_reply_to,
-                references=references,
+                references=references, raw_body=raw_body,
             )
             return InboundResult(
                 relationship, message, "ignored", "ignored",
@@ -227,7 +229,7 @@ class ConversationMonitor:
             message = self._record_inbound(
                 store, relationship_id="", sender_email=sender_email, body=body,
                 subject=subject, thread_id=thread_id, external_id=external_id,
-                in_reply_to=in_reply_to, references=references,
+                in_reply_to=in_reply_to, references=references, raw_body=raw_body,
             )
             return InboundResult(
                 None, message, "unsolicited", "quarantined",
@@ -247,7 +249,7 @@ class ConversationMonitor:
         message = self._record_inbound(
             store, relationship_id=relationship.id, sender_email=sender_email,
             body=body, subject=subject, thread_id=thread_id, external_id=external_id,
-            in_reply_to=in_reply_to, references=references,
+            in_reply_to=in_reply_to, references=references, raw_body=raw_body,
         )
         relationship.message_ids.append(message.id)
         if thread_id and thread_id not in relationship.thread_ids:
@@ -266,6 +268,36 @@ class ConversationMonitor:
                 reason=f"unexpected sender '{sender_email}' in an existing thread: quarantined",
             )
 
+        # Empty-body gate: if no readable text could be extracted, do NOT
+        # classify, do NOT fall back to a template, and do NOT reply — defer
+        # and notify the principal instead.
+        if not (body or "").strip():
+            relationship.status = RelationshipStatus.ENGAGED
+            relationship.next_action = "deferred: message body unavailable"
+            store.update_relationship(relationship)
+            store.append_notification(
+                NotificationEntry(
+                    kind="inbound_body_unavailable",
+                    summary="An inbound message had no readable text body; deferred with no reply.",
+                    refs={"message_id": message.id, "relationship_id": relationship.id,
+                          "recipient": relationship.email, "external_id": external_id},
+                )
+            )
+            store.append_provenance(
+                ProvenanceEntry(
+                    phase=ProvenancePhase.MONITOR,
+                    summary="inbound message with no readable text body; no reply sent",
+                    action="monitor",
+                    result="inbound_body_unavailable",
+                    refs={"message_id": message.id, "relationship_id": relationship.id},
+                )
+            )
+            return InboundResult(
+                relationship, message, "unknown", "deferred",
+                reason="inbound_body_unavailable: message body could not be extracted",
+                disposition=disposition,
+            )
+
         text = body or ""
         if _matches_any(_OPT_OUT_PATTERNS, text):
             relationship.opted_out = True
@@ -281,13 +313,14 @@ class ConversationMonitor:
             relationship.follow_up_due_at = None
             store.update_relationship(relationship)
             intent = classify_intent(text)
-            subject_out, reply_body = self._composer.compose_reply(
+            subject_out, reply_body, reply_mode = self._composer.compose_reply(
                 relationship, text, intent="decline",
                 facts=self._verified_facts(store),
                 adapter=self._adapter, identity=self._identity,
             )
             _, transmitted, escalated = self._dispatch_reply(
                 store, relationship, subject_out, reply_body, kind="decline", source=message,
+                mode=reply_mode,
             )
             relationship.status = RelationshipStatus.DECLINED
             store.update_relationship(relationship)
@@ -340,12 +373,33 @@ class ConversationMonitor:
                 disposition=disposition,
             )
 
-        subject_out, reply_body = self._composer.compose_reply(
+        subject_out, reply_body, reply_mode = self._composer.compose_reply(
             relationship, text, intent=intent, facts=facts,
             adapter=self._adapter, identity=self._identity,
         )
+        if reply_mode == "unavailable":
+            # Substantive reply requires a working model runtime. Never send a
+            # canned answer as if it were a model answer — fail explicitly by
+            # deferring and notifying the principal.
+            relationship.status = RelationshipStatus.ENGAGED
+            relationship.next_action = "deferred: reply generation unavailable (no model runtime)"
+            store.update_relationship(relationship)
+            store.append_notification(
+                NotificationEntry(
+                    kind="reply_generation_unavailable",
+                    summary="A substantive inbound could not be answered: no model runtime is configured for reply generation.",
+                    refs={"message_id": message.id, "relationship_id": relationship.id,
+                          "recipient": relationship.email},
+                )
+            )
+            return InboundResult(
+                relationship, message, intent, "deferred",
+                reason="reply_generation_unavailable: no model runtime for substantive reply",
+                disposition=disposition,
+            )
         _, transmitted, escalated = self._dispatch_reply(
             store, relationship, subject_out, reply_body, kind="reply", source=message,
+            mode=reply_mode, policy_reason=decision.reason,
         )
         if escalated:
             return InboundResult(
@@ -367,13 +421,16 @@ class ConversationMonitor:
     def _record_inbound(
         self, store: OperationsStore, *, relationship_id: str, sender_email: str,
         body: str, subject: str, thread_id: str, external_id: str,
-        in_reply_to: str, references: Optional[list[str]],
+        in_reply_to: str, references: Optional[list[str]], raw_body: str = "",
     ) -> Message:
+        raw = raw_body or body or ""
         message = Message(
             relationship_id=relationship_id,
             direction=MessageDirection.INBOUND,
             subject=subject,
             body=body,
+            raw_body=raw,
+            body_sha256=hashlib.sha256(raw.encode("utf-8", errors="replace")).hexdigest() if raw else "",
             received_at=utcnow().isoformat(),
             external_id=external_id,
             thread_id=thread_id,
@@ -429,17 +486,21 @@ class ConversationMonitor:
     def _dispatch_reply(
         self, store: OperationsStore, relationship: Relationship, subject: str, body: str,
         *, kind: str, source: Optional[Message] = None,
+        mode: str = "template_fallback", policy_reason: str = "",
     ) -> tuple[Optional[Message], bool, bool]:
         """Route a composed reply through the outbound operating mode.
 
         Returns ``(message, transmitted, escalated)``.  ``observe`` records a
         WOULD_SEND draft without transmitting; ``approval_required`` records an
-        escalation; ``autonomous`` transmits through the transport.
+        escalation; ``autonomous`` transmits through the transport.  Every
+        record carries ``generation`` metadata so a template reply can never be
+        confused with a model-backed one.
         """
-        mode = normalize_outbound_mode(store.controls().outbound_mode)
+        outbound_mode = normalize_outbound_mode(store.controls().outbound_mode)
         thread, in_reply_to, references = self._threading_for(source, relationship)
+        generation = self._generation_meta(store, mode, source, policy_reason=policy_reason)
 
-        if mode == "approval_required":
+        if outbound_mode == "approval_required":
             if self._has_draft(store, relationship.id, kind):
                 return None, False, False
             record = Message(
@@ -452,6 +513,7 @@ class ConversationMonitor:
                 thread_id=thread,
                 in_reply_to=in_reply_to,
                 references=list(references),
+                generation=generation,
             )
             store.append_message(record)
             relationship.message_ids.append(record.id)
@@ -468,7 +530,7 @@ class ConversationMonitor:
             )
             return record, False, True
 
-        if mode == "observe":
+        if outbound_mode == "observe":
             if self._has_draft(store, relationship.id, kind):
                 return None, False, False
             record = Message(
@@ -481,6 +543,7 @@ class ConversationMonitor:
                 thread_id=thread,
                 in_reply_to=in_reply_to,
                 references=list(references),
+                generation=generation,
             )
             store.append_message(record)
             relationship.message_ids.append(record.id)
@@ -499,8 +562,34 @@ class ConversationMonitor:
         reply = self._send_reply(
             store, relationship, subject, body,
             thread=thread, in_reply_to=in_reply_to, references=list(references),
+            generation=generation,
         )
         return reply, reply is not None, False
+
+    def _generation_meta(
+        self, store: OperationsStore, reply_mode: str, source: Optional[Message],
+        *, policy_reason: str = "",
+    ) -> dict[str, Any]:
+        """Provenance for how an outbound reply was produced.
+
+        Distinguishes ``identity_model_generation`` (model adapter wrote it)
+        from ``template_fallback`` and records provider/model, the inbound
+        messages being answered, the policy decision, and the verified facts
+        the model could cite.  Compact keys only (no credentials).
+        """
+        meta: dict[str, Any] = {
+            "mode": reply_mode,
+            "adapter": type(self._adapter).__name__ if self._adapter is not None else "",
+            "model": str(getattr(self._adapter, "model", "") or "") if self._adapter is not None else "",
+            "inbound_message_ids": [source.id] if source else [],
+            "inbound_external_ids": [source.external_id] if source and source.external_id else [],
+        }
+        if policy_reason:
+            meta["policy"] = policy_reason
+        state = store.project_state()
+        if state is not None:
+            meta["verified_fact_ids"] = [f.id for f in state.fact_details]
+        return {k: v for k, v in meta.items() if v not in ("", [], None)}
 
     def _threading_for(self, source: Optional[Message], relationship: Relationship) -> tuple[str, str, list[str]]:
         """Derive the RFC threading context for a reply to ``source``."""
@@ -525,65 +614,66 @@ class ConversationMonitor:
     def _send_reply(
         self, store: OperationsStore, relationship: Relationship, subject: str, body: str,
         *, thread: str = "", in_reply_to: str = "", references: Optional[list[str]] = None,
+        generation: Optional[dict[str, Any]] = None,
     ) -> Optional[Message]:
         """Transmit a reply through the transport, so 'sent' is runtime-verified.
 
         Returns the recorded message on success, or None when nothing was
         transmitted (no transport or send failed); in that case a FAILED record
         is persisted so the failure is observable, never silently 'sent'.
+
+        A standards-compliant RFC 5322 ``Message-ID`` is generated *before*
+        transmission and persisted verbatim in ``Message.external_id`` (falling
+        back to the transport's identifier only if it overrides ours).  The
+        relationship is re-persisted on every path so ``message_ids`` and
+        ``last_outbound_at`` are never lost to an unsaved in-memory append.
         """
         if not thread:
             thread = relationship.thread_ids[-1] if relationship.thread_ids else ""
-        if self._transport is None:
+        generation = dict(generation or {})
+
+        def _record_failure(reason: str) -> None:
             record = Message(
                 relationship_id=relationship.id,
                 direction=MessageDirection.OUTBOUND,
                 subject=subject,
                 body=body,
                 status=MessageStatus.FAILED,
-                authorization="dry_run_no_transport",
+                authorization=reason,
                 thread_id=thread,
                 in_reply_to=in_reply_to,
                 references=list(references or []),
+                generation=generation,
             )
             store.append_message(record)
             relationship.message_ids.append(record.id)
+            store.update_relationship(relationship)
+
+        if self._transport is None:
+            _record_failure("dry_run_no_transport")
             return None
+
+        from core.capabilities.email.backends import generate_message_id
+
+        message_id = generate_message_id()
         try:
             result = self._transport.send(
                 to=relationship.email, subject=subject, body=body, thread_id=thread,
                 in_reply_to=in_reply_to, references=list(references or []),
+                message_id=message_id,
             )
         except Exception as exc:
-            record = Message(
-                relationship_id=relationship.id,
-                direction=MessageDirection.OUTBOUND,
-                subject=subject,
-                body=body,
-                status=MessageStatus.FAILED,
-                authorization="conversational_autonomous",
-                thread_id=thread,
-                in_reply_to=in_reply_to,
-                references=list(references or []),
-            )
-            store.append_message(record)
-            relationship.message_ids.append(record.id)
+            generation["error"] = f"{type(exc).__name__}: {exc}"
+            _record_failure("conversational_autonomous")
             return None
         if isinstance(result, dict) and not result.get("ok"):
-            record = Message(
-                relationship_id=relationship.id,
-                direction=MessageDirection.OUTBOUND,
-                subject=subject,
-                body=body,
-                status=MessageStatus.FAILED,
-                authorization="conversational_autonomous",
-                thread_id=thread,
-                in_reply_to=in_reply_to,
-                references=list(references or []),
-            )
-            store.append_message(record)
-            relationship.message_ids.append(record.id)
+            generation["error"] = str(result.get("error", "send_not_ok"))
+            _record_failure("conversational_autonomous")
             return None
+
+        external_id = str(result.get("external_id") or message_id)
+        generation["mode"] = generation.get("mode") or "identity_model_generation"
+        generation["message_id"] = external_id
         message = Message(
             relationship_id=relationship.id,
             direction=MessageDirection.OUTBOUND,
@@ -592,12 +682,18 @@ class ConversationMonitor:
             sent_at=utcnow().isoformat(),
             status=MessageStatus.SENT,
             authorization="conversational_autonomous",
+            external_id=external_id,
             thread_id=result.get("thread_id") or thread,
             in_reply_to=result.get("in_reply_to") or in_reply_to,
             references=references or [],
+            generation=generation,
         )
         store.append_message(message)
         relationship.message_ids.append(message.id)
+        resolved_thread = message.thread_id
+        if resolved_thread and resolved_thread not in relationship.thread_ids:
+            relationship.thread_ids.append(resolved_thread)
         relationship.last_outbound_at = message.sent_at
+        store.update_relationship(relationship)
         store.record_usage("replies")
         return message

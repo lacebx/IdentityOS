@@ -40,6 +40,7 @@ pytestmark = pytest.mark.skipif(
 
 API_BASE = "http://localhost:8000"
 SERVER_WAIT = 5
+REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
 @pytest.fixture(scope="module")
@@ -62,7 +63,7 @@ def runtime_server():
 
     proc = subprocess.Popen(
         [sys.executable, "-m", "runtime.main"],
-        cwd=str(repo_root),
+        cwd=str(REPO_ROOT),
         env=env,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,

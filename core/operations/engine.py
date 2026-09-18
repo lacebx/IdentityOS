@@ -596,10 +596,12 @@ class OperationsEngine:
             relationship_id = ""
             raw_sender = str(item.get("from", item.get("sender_email", "")) or "unknown")
             display = raw_sender
+            body_text = str(item.get("body", item.get("text", "")))
             result = self.monitor.ingest(
                 self.store,
                 sender_email=raw_sender,
-                body=str(item.get("body", item.get("text", ""))),
+                body=body_text,
+                raw_body=str(item.get("raw_body", body_text)),
                 subject=str(item.get("subject", "")),
                 thread_id=str(item.get("thread_id", "")),
                 external_id=external_id,

@@ -68,16 +68,34 @@ def _build_engine(args: argparse.Namespace):
 
     candidate_sources = _load_candidates(args)
     search_fn = _build_search_fn(args)
+    adapter = _build_reply_adapter()
 
     return build_aster_engine(
         storage,
         project_root=args.project_root,
         transport=transport,
+        adapter=adapter,
         capability_registry=registry,
         candidate_sources=candidate_sources,
         search_fn=search_fn,
         register=True,
     )
+
+
+def _build_reply_adapter() -> Any:
+    """Resolve the model adapter used for substantive replies, non-interactively.
+
+    Reads the configured providers from the environment (IDENTITY_ADAPTER /
+    API keys).  Returns None when nothing is configured — substantive replies
+    then fail explicitly (deferred) instead of being faked by a template.
+    Never returns credentials; adapters keep keys in object state.
+    """
+    try:
+        from adapters.configuration import build_adapter_from_env
+
+        return build_adapter_from_env(os.environ)
+    except Exception:
+        return None
 
 
 def _load_candidates(args: argparse.Namespace) -> list[Any]:

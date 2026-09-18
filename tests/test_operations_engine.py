@@ -26,6 +26,27 @@ from core.operations.policy import Authority, AuthorityPolicy, is_conversational
 from runtime.persistence import InMemoryBackend
 
 
+class _StubAdapter:
+    """Deterministic stand-in for a model generation runtime.
+
+    Model-backed reply tests must exercise the *model generation* path, not a
+    canned template, so the engine is given a stub adapter whose ``generate``
+    returns a real (subject + body) reply.
+    """
+
+    model = "stub-model"
+
+    def generate(self, context: str, user_input: str, identity: Any, **kwargs: Any) -> str:
+        if '"inbound"' in user_input or '"intent"' in user_input:
+            return "Subject: Re: your note\nThanks for the note — model-drafted answer from the verified facts."
+        return (
+            "Subject: Connecting IdentityOS with your research\n"
+            "Dear Alice,\n\nI'm Aster reaching out on behalf of IdentityOS because your "
+            "distributed identity systems research connects directly to what we are building.\n\n"
+            "Transparency: I am an AI operator."
+        )
+
+
 def _project(tmp_path: Path) -> Path:
     root = tmp_path / "project"
     root.mkdir(exist_ok=True)
@@ -55,7 +76,7 @@ def _candidate(**overrides):
     return Candidate(**base)
 
 
-def _engine(tmp_path, storage=None, *, controls=None, candidate=None, capability_registry=None, required_skills=None):
+def _engine(tmp_path, storage=None, *, controls=None, candidate=None, capability_registry=None, required_skills=None, adapter=None):
     storage = storage or InMemoryBackend()
     backend = FileMailboxBackend(tmp_path / "mailbox", mailbox="aster")
     transport = MailboxTransport(backend)
@@ -91,7 +112,10 @@ def _engine(tmp_path, storage=None, *, controls=None, candidate=None, capability
         pursue_threshold=0.45,
         hold_threshold=0.3,
     )
-    engine = OperationsEngine(storage, config, transport=transport, capability_registry=capability_registry)
+    engine = OperationsEngine(
+        storage, config, transport=transport, adapter=_StubAdapter() if adapter is None else adapter,
+        capability_registry=capability_registry,
+    )
     # Tests that exercise actual outreach/default behaviour run in autonomous
     # mode. The conservative persisted default is 'observe' (covered explicitly
     # by test_observe_mode_* below).
@@ -369,7 +393,12 @@ def test_inbound_question_gets_autonomous_reply(tmp_path):
     # A recorded reply must actually have been transmitted through the transport.
     outbound = [m for m in backend.outbox() if m.get("thread_id") == "thread-1"]
     assert outbound, "autonomous reply must reach the mailbox, not just the ledger"
-    assert "Aster" in outbound[-1]["body"]
+    assert outbound[-1]["body"].strip() and outbound[-1]["external_id"], "sent reply must carry body and a Message-ID"
+    # The reply must be provably model-generated, never a canned template.
+    sent_message = [m for m in engine.store.list_messages() if m.status is MessageStatus.SENT]
+    assert sent_message and any(m.generation.get("mode") == "identity_model_generation" for m in sent_message)
+    model_reply = next(m for m in sent_message if m.generation.get("mode") == "identity_model_generation")
+    assert model_reply.external_id, "persisted outbound Message-ID must not be empty"
 
 
 def test_opt_out_is_honoured(tmp_path):

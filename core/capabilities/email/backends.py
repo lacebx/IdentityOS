@@ -21,6 +21,7 @@ import json
 import re
 import time
 import uuid
+from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any, Iterable, Optional
 
@@ -54,6 +55,153 @@ def _extract_raw(fetched: Any) -> bytes:
     if not candidates:
         return b""
     return max(candidates, key=len)
+
+
+def generate_message_id(domain: str = "identityos") -> str:
+    """Return a fresh RFC 5322 ``Message-ID`` header value (``<...@...>``).
+
+    Generated *before* transmission so the exact identifier can be persisted in
+    ``Message.external_id`` without depending on the transport echoing it back.
+    """
+    return f"<{uuid.uuid4().hex}@{domain or 'identityos'}>"
+
+
+def _part_is_attachment(part: Any) -> bool:
+    disposition = str(part.get_content_disposition() or "").lower()
+    if disposition == "attachment":
+        return True
+    if disposition == "inline":
+        return bool(part.get_filename())
+    return bool(part.get_filename())
+
+
+def _decode_part_text(part: Any) -> str:
+    """Decode one text MIME part to a Unicode string (CTE/charset aware)."""
+    try:
+        payload = part.get_content()
+    except Exception:
+        return ""
+    if isinstance(payload, bytes):
+        payload = payload.decode(part.get_content_charset() or "utf-8", errors="replace")
+    return str(payload or "").replace("\r\n", "\n").replace("\r", "\n")
+
+
+_HTML_BLOCK_TAGS = {
+    "p", "div", "br", "li", "tr", "ul", "ol", "blockquote", "section",
+    "h1", "h2", "h3", "h4", "h5", "h6", "address", "pre",
+}
+
+
+def _html_to_text(html: str) -> str:
+    """Convert HTML to plain text via the stdlib parser (no regex MIME tricks)."""
+    if not html:
+        return ""
+
+    class _Extractor(HTMLParser):
+        def __init__(self) -> None:
+            super().__init__(convert_charrefs=True)
+            self._parts: list[str] = []
+            self._skip = False
+
+        def handle_starttag(self, tag, attrs) -> None:
+            tag = str(tag).lower()
+            if tag in ("script", "style"):
+                self._skip = True
+            if tag in _HTML_BLOCK_TAGS:
+                self._parts.append("\n")
+
+        def handle_endtag(self, tag) -> None:
+            tag = str(tag).lower()
+            if tag in ("script", "style"):
+                self._skip = False
+            if tag in _HTML_BLOCK_TAGS:
+                self._parts.append("\n")
+
+        def handle_data(self, data) -> None:
+            if not self._skip:
+                self._parts.append(data)
+
+    parser = _Extractor()
+    parser.feed(html)
+    body = "".join(parser._parts)
+    body = re.sub(r"[ \t]+", " ", body)
+    while "\n\n\n" in body:
+        body = body.replace("\n\n\n", "\n\n")
+    return body.strip()
+
+
+def extract_message_text(parsed: Any) -> str:
+    """Return the human-readable text of a parsed email message.
+
+    Standards-based extraction: prefers the first non-attachment
+    ``text/plain`` part, falls back to non-attachment ``text/html`` (decoded to
+    text), and never uses an attachment as the body.  ``multipart/alternative``
+    copies are *not* concatenated — exactly one rendering is returned, with
+    line endings normalized to ``\\n``.
+    """
+    if parsed is None:
+        return ""
+    parts = list(parsed.walk()) if hasattr(parsed, "walk") else [parsed]
+    plain_parts: list[str] = []
+    html_parts: list[str] = []
+    for part in parts:
+        if not hasattr(part, "get_content_type"):
+            continue
+        if part.is_multipart():
+            continue
+        if _part_is_attachment(part):
+            continue
+        ctype = str(part.get_content_type() or "").lower()
+        if ctype == "text/plain":
+            plain_parts.append(_decode_part_text(part))
+        elif ctype == "text/html":
+            html_parts.append(_decode_part_text(part))
+    if plain_parts:
+        text = "\n".join(p for p in plain_parts if p)
+    elif html_parts:
+        text = _html_to_text("\n".join(p for p in html_parts if p))
+    else:
+        text = ""
+    return text.replace("\r\n", "\n").replace("\r", "\n").strip()
+
+
+_QUOTED_MARKER_RE = re.compile(
+    r"^\s*(?:"
+    r"On\b.*?\bwrote\s*[::]?\s*$"                          # On Thu, Sep 17, 2026 ... wrote:
+    r"|في\b.*?\bكتب\b.*[،:]\s*$"                           # في ...، كتب <addr>:
+    r"|-----Original Message-----"
+    r"|----- ?Forwarded Message ?-----"
+    r"|Begin forwarded message"
+    r")\s*$",
+    re.IGNORECASE,
+)
+
+
+def strip_quoted_reply(text: str) -> str:
+    """Return only the *new* contribution of a reply email.
+
+    Removes quoted blocks (lines prefixed with ``>``), and truncates everything
+    from the first leading-separator marker (``On ... wrote:``, the Arabic
+    ``في ... ، كتب ...:`` form, or a forwarded-message guard).  The caller is
+    expected to preserve the unmodified text (e.g. ``raw_body``) for the audit
+    trail; the returned new text is what intent/classification run against.
+    """
+    lines = (text or "").replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    kept: list[str] = []
+    for line in lines:
+        stripped = line.strip()
+        if not stripped:
+            kept.append(line.rstrip())
+            continue
+        if stripped.startswith(">") or stripped.startswith("|"):
+            continue
+        if _QUOTED_MARKER_RE.match(stripped):
+            break
+        kept.append(line.rstrip())
+    body = "\n".join(kept).strip()
+    while "\n\n\n" in body:
+        body = body.replace("\n\n\n", "\n\n")
+    return body
 
 
 class FileMailboxBackend:
@@ -93,10 +241,11 @@ class FileMailboxBackend:
         thread_id: str = "",
         in_reply_to: str = "",
         references: Optional[Iterable[str]] = None,
+        message_id: str = "",
     ) -> dict[str, Any]:
         if not to:
             raise MailboxError("recipient address is required")
-        message_id = f"<{uuid.uuid4().hex}@identityos.local>"
+        message_id = message_id or generate_message_id("identityos.local")
         record = {
             "external_id": message_id,
             "thread_id": thread_id or f"thread-{uuid.uuid4().hex[:10]}",
@@ -174,13 +323,14 @@ class SMTPBackend:
         thread_id: str = "",
         in_reply_to: str = "",
         references: Optional[Iterable[str]] = None,
+        message_id: str = "",
     ) -> dict[str, Any]:
         if not self.host or not self.sender:
             return {"ok": False, "error": "SMTP host and sender are required"}
         import smtplib
         from email.message import EmailMessage
 
-        message_id = f"<{uuid.uuid4().hex}@identityos>"
+        message_id = message_id or generate_message_id("identityos")
         msg = EmailMessage()
         msg["From"] = self.sender
         msg["To"] = to
@@ -217,6 +367,7 @@ class SMTPBackend:
         if not self.imap_host:
             return []
         import email
+        import email.policy
 
         messages: list[dict[str, Any]] = []
         try:
@@ -231,12 +382,10 @@ class SMTPBackend:
                     if status != "OK" or not fetched:
                         continue
                     raw = _extract_raw(fetched)
-                    parsed = email.message_from_bytes(raw)
+                    parsed = email.message_from_bytes(raw, policy=email.policy.default)
                     if self._ignored(parsed):
                         continue
-                    body = parsed.get_payload(decode=True)
-                    if isinstance(body, bytes):
-                        body = body.decode(parsed.get_content_charset() or "utf-8", errors="replace")
+                    full_text = extract_message_text(parsed)
                     in_reply_to = str(parsed.get("In-Reply-To", "") or "").strip()
                     references = parse_message_ids(parsed.get("References", ""))
                     thread_id = str(references[0] if references else in_reply_to)
@@ -247,7 +396,8 @@ class SMTPBackend:
                         "references": references,
                         "from": email.utils.parseaddr(parsed.get("From", ""))[1],
                         "subject": parsed.get("Subject", ""),
-                        "body": str(body or ""),
+                        "body": strip_quoted_reply(full_text),
+                        "raw_body": full_text,
                     })
         except Exception as exc:
             raise MailboxError(f"IMAP fetch failed: {exc}") from exc
@@ -308,6 +458,7 @@ class SMTPBackend:
             return {"messages": [], "cursor": None}
 
         import email
+        import email.policy
         import time as _time
 
         stored_validity = int((cursor or {}).get("uid_validity") or 0)
@@ -359,12 +510,10 @@ class SMTPBackend:
                         if fetch_status != "OK" or not fetched:
                             continue
                         raw = _extract_raw(fetched)
-                        parsed = email.message_from_bytes(raw)
+                        parsed = email.message_from_bytes(raw, policy=email.policy.default)
                         if self._ignored(parsed):
                             continue
-                        body = parsed.get_payload(decode=True)
-                        if isinstance(body, bytes):
-                            body = body.decode(parsed.get_content_charset() or "utf-8", errors="replace")
+                        full_text = extract_message_text(parsed)
                         in_reply_to = str(parsed.get("In-Reply-To", "") or "").strip()
                         references = parse_message_ids(parsed.get("References", ""))
                         thread_id = str(references[0] if references else in_reply_to)
@@ -375,7 +524,8 @@ class SMTPBackend:
                             "references": references,
                             "from": email.utils.parseaddr(parsed.get("From", ""))[1],
                             "subject": parsed.get("Subject", ""),
-                            "body": str(body or ""),
+                            "body": strip_quoted_reply(full_text),
+                            "raw_body": full_text,
                         })
                 new_last_uid = top_uid
         except Exception as exc:
@@ -464,10 +614,11 @@ class MailboxTransport:
     def send(
         self, *, to: str, subject: str, body: str, thread_id: str = "",
         in_reply_to: str = "", references: Optional[Iterable[str]] = None,
+        message_id: str = "",
     ) -> dict[str, Any]:
         return self.backend.send(
             to=to, subject=subject, body=body, thread_id=thread_id,
-            in_reply_to=in_reply_to, references=references,
+            in_reply_to=in_reply_to, references=references, message_id=message_id,
         )
 
     def fetch_inbox_with_cursor(self, *, cursor: Optional[dict[str, Any]] = None) -> dict[str, Any]:

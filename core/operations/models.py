@@ -330,6 +330,11 @@ class Message:
     channel: str = "email"
     subject: str = ""
     body: str = ""
+    # Full decoded text (pre quote-stripping) plus its SHA-256, kept so the
+    # audit trail can prove what was actually received even though
+    # ``body`` holds only the new contribution used for classification.
+    raw_body: str = ""
+    body_sha256: str = ""
     sent_at: Optional[str] = None
     received_at: Optional[str] = None
     external_id: str = ""
@@ -341,6 +346,10 @@ class Message:
     evidence: list[str] = field(default_factory=list)
     need_id: str = ""
     opportunity_id: str = ""
+    # For outbound messages: how the content was produced and from what.
+    # mode distinguishes ``identity_model_generation`` from ``template_fallback``
+    # so a canned reply is never presented as model-backed.
+    generation: dict[str, Any] = field(default_factory=dict)
     created_at: str = field(default_factory=lambda: utcnow().isoformat())
 
     def to_dict(self) -> dict[str, Any]:
@@ -351,6 +360,8 @@ class Message:
             "channel": self.channel,
             "subject": self.subject,
             "body": self.body,
+            "raw_body": self.raw_body,
+            "body_sha256": self.body_sha256,
             "sent_at": self.sent_at,
             "received_at": self.received_at,
             "external_id": self.external_id,
@@ -362,6 +373,7 @@ class Message:
             "evidence": list(self.evidence),
             "need_id": self.need_id,
             "opportunity_id": self.opportunity_id,
+            "generation": dict(self.generation),
             "created_at": self.created_at,
         }
 
@@ -374,6 +386,8 @@ class Message:
             channel=data.get("channel", "email"),
             subject=data.get("subject", ""),
             body=data.get("body", ""),
+            raw_body=data.get("raw_body", ""),
+            body_sha256=data.get("body_sha256", ""),
             sent_at=data.get("sent_at"),
             received_at=data.get("received_at"),
             external_id=data.get("external_id", ""),
@@ -385,6 +399,7 @@ class Message:
             evidence=list(data.get("evidence", [])),
             need_id=data.get("need_id", ""),
             opportunity_id=data.get("opportunity_id", ""),
+            generation=dict(data.get("generation", {})),
             created_at=data.get("created_at", utcnow().isoformat()),
         )
 

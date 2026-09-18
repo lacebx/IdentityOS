@@ -8,13 +8,17 @@ permissioned `.aster-live-v2` re-run on a **clean store**, exercising the fixes
 below.
 
 Branch: `feat/live-browser-bridge`
-Corrective commits: `af4ef28` (inbound/policy/confidence/etc.), plus the live-
-run-found cursor fixes committed on top (STATUS + literal extraction, see
-finding 17).
+Corrective commits: `af4ef28` (inbound/policy/confidence/etc.), the live-run-
+found cursor fixes (STATUS + literal extraction, finding 17), and the reply-
+integrity fixes found when the human answered the outreach thread (findings
+18–20).
 
-Full suite after fixes: **1122 passed / 40 skipped / 3 pre-existing env-gated
-errors** (`tests/test_cross_app_continuity.py` `NameError: repo_root` — unrelated,
-untouched).
+Full suite after fixes: **1127 passed / 43 skipped** with no LLM credentials in
+the environment (43 = 40 network/browser skips + 3 cross-app skips). With real
+credentials the suite additionally runs `test_cross_app_continuity.py`
+(previously dead: `NameError: repo_root`, now fixed); its remaining failure is
+a **pre-existing** adapter-chain problem verified against a clean baseline
+worktree — see "Pre-existing issues (not from this work)" below.
 
 ---
 
@@ -136,14 +140,18 @@ ingesting**, so old mail is never re-processed; cursor is saved on every fetch
 and tolerant of `MailboxCursor | dict` storage.
 
 ### 16. The suite now locks all of the above in
-- `test_operations_engine.py` (39): automated sender ignored + no forging,
+- `test_operations_engine.py` (42): automated sender ignored + no forging,
   unsolicited sender quarantined, thread-intrusion quarantine, zero-facts
   knowledge gate (deferred + `project_context_unavailable`), `$200k/10%`
   escalation, baseline-categories-can’t-be-disabled, confidence 0 hold vs
-  `test_candidate` override, gap statuses + dedupe, nested-root observer.
-- `test_email_capability.py` (14): FakeIMAP cursor baseline-without-replay,
+  `test_candidate` override, gap statuses + dedupe, nested-root observer,
+  raw-body provenance through the ingest path.
+- `test_email_capability.py` (19): FakeIMAP cursor baseline-without-replay,
   UIDVALIDITY reseed, UIDNEXT fallback to `UID SEARCH ALL`, message-literal
-  extraction, `read_inbox_cursor` round-trip.
+  extraction, `read_inbox_cursor` round-trip, MIME `multipart/alternative`
+  plain-preference, HTML-only fallback, attachment-as-body ignored,
+  quoted-reply stripping (English + Arabic markers), generated `Message-ID`
+  send/persist round-trip.
 - Observe-mode test updated to pre-seed a trusted relationship and asserts
   drafts-without-send; candidacy/mirror fixtures default trustworthy confidences.
 - Targeted run + full suite verified from the live run itself (below).
@@ -160,6 +168,67 @@ path that the fake never exercised:
    produced headerless, empty mail. Fixed by taking the **longest** bytes item.
 Both are now locked in by regression tests (`test_imap_cursor_uidnext_falls_back_to_uid_search_all`,
 `test_extract_raw_prefers_message_literal_over_rfc822_marker`).
+
+### 18. Real Gmail replies arrived with empty/garbage bodies
+The human answered the outreach thread from Gmail (two replies, UIDs 69–70).
+The fetch path parsed with `get_payload()`, which returns `None`/wrong text on
+`multipart/alternative` mail and includes full quoted history otherwise — so
+inbound bodies were empty or quote-polluted, and the empty-body gate
+(`inbound_body_unavailable`, defer + notification) fired instead of a reply.
+**Fix:** `core/capabilities/email/backends.py` gains `extract_message_text()`
+(multipart-aware: prefers `text/plain`, strips HTML tags from `text/html`,
+ignores attachments as body) and `strip_quoted_reply()` (strips `On … wrote:`
+and localized quote markers, e.g. Arabic `في … كتب:`), wired into **both** fetch
+paths (`fetch_inbox` and `fetch_inbox_with_cursor`). `Message` now carries
+`raw_body` + `body_sha256` so the audit trail proves what was actually received
+while `body` holds only the new contribution used for classification.
+Verified against the live mailbox: both Gmail replies extracted cleanly
+(`'This is the second time you sent this but yes I have seen it'`,
+`"Why isn't IdentityOS just a memory database wrapped around an LLM?"`).
+
+### 19. Outbound messages had no durable external identity
+Outbound mail carried no persisted RFC `Message-ID`, so threading and dedupe
+had no anchor across restarts.
+**Fix:** outbound sends generate a `Message-ID` (`generate_message_id()`),
+persist it as the message's `external_id`, and dedupe inbound mail by
+IMAP `UID`+`UIDVALIDITY` / RFC `Message-ID`.
+
+### 20. Relationship updates were lost on reply
+`_send_reply` mutated the relationship in memory without persisting, so
+`outreach_sent` → later states were silently dropped (lost update).
+**Fix:** `_send_reply` persists the relationship after mutation.
+
+### 21. Canned answers can no longer masquerade as model replies
+The facts-dump fallback in `OutreachComposer._structured_reply` is removed.
+`compose_reply` now returns `(subject, body, generation_mode)` where
+`generation_mode` is `identity_model_generation` (model-written — the only mode
+allowed for substantive intents), `template_fallback` (status-only close:
+decline / thanks / scheduling), or `unavailable` (substantive intent but no
+working model → the monitor **defers**, never sends a canned answer). Outbound
+messages record `generation` provenance. Consequential-signal scanning
+(money/equity/commitment) now runs on the stripped new text.
+
+---
+
+## Pre-existing issues (not from this work)
+
+Verified against a clean `git worktree` at HEAD **without** the working-tree
+changes (identical symptoms on baseline code):
+
+1. **Cross-app continuity `/process` fails with real credentials**
+   (`tests/test_cross_app_continuity.py`): with the default adapter the chat
+   request hangs (>90 s, no response); with `IDENTITY_ADAPTER=groq` the adapter
+   chain is degraded — `GroqAdapter` dials `api.groq.com` with
+   `model='phi4-mini:latest'` (an Ollama model name from
+   `IDENTITY_ADAPTER_CONFIG`) → connection error, `CerebrasAdapter` keys are
+   dead (`402 Payment required`), and the chain falls through to OpenRouter;
+   some replies then leak raw `<thought>` reasoning tags into the output.
+   This is configuration/adapter work (model names, key validity, request
+   timeouts), deliberately left out of the email/operations scope of this
+   round.
+2. `test_cli_main.py` triggers the repo `.env` load at import time
+   (`identitybench.cli` → `load_dotenv()`), which is why credential-gated tests
+   run in full-suite runs but skip standalone.
 
 ---
 
@@ -267,14 +336,22 @@ Executed per the plan above on a clean `.aster-live-v2` store.
   env-gated errors** (+2 regression tests for the real-server cursor bugs).
 
 ### Still requires the human (by design)
-- **Reply loop:** reply to the outreach mail Aster sent to
-  `a.manzi@eagles.oc.edu` (in that same thread). Then run one tick:
+- **Reply loop:** the human answered the outreach thread on 2026-09-18 (two
+  Gmail replies, UIDs 69–70). Extraction was verified against the live mailbox
+  (finding 18); the full tick processed them with `raw_body` + `body_sha256`
+  provenance. End-to-end grounded reply generation now requires a working model
+  adapter — with the repo's current degraded adapter chain (see "Pre-existing
+  issues"), substantive replies **defer by design** (finding 21) instead of
+  sending a canned answer. Fixing the adapter configuration (correct Groq model
+  name in `IDENTITY_ADAPTER_CONFIG`, valid Cerebras/OpenRouter keys, bounded
+  request timeouts) unblocks the full loop:
   ```sh
   python3 -m cli.main aster tick --store .aster-live-v2
   python3 -m cli.main aster provenance --store .aster-live-v2   # disposition + sender shown
   python3 -m cli.main aster relationships --store .aster-live-v2
   ```
-  Expected: trusted-thread reply, grounded answer, sender named in provenance.
+  Expected: trusted-thread reply, model-generated grounded answer, sender named
+  in provenance.
 - **Escalation probe (optional):** a crafted email in the same thread such as
   “I'd like to offer $200,000 for 10%” should surface in
   `identity aster escalate` with **no auto-reply**.
