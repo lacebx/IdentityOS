@@ -122,6 +122,45 @@ class TestOpenAIAdapter:
         assert kwargs["max_retries"] == 0
         assert adapter.timeout == 7.0
 
+    def test_timeout_uses_the_installed_sdk_transport_type(self):
+        # This module intentionally replaces sys.modules['openai'] with a mock.
+        # A fresh interpreter verifies the actual installed SDK and socket timeout.
+        import subprocess
+        subprocess.run([sys.executable, "-c", '''
+import socket, threading, time
+from openai import APITimeoutError, Timeout
+from adapters.openai_adapter import OpenAIAdapter
+server = socket.socket()
+server.bind(('127.0.0.1', 0))
+server.listen()
+release = threading.Event()
+def stalled():
+    conn, _ = server.accept()
+    with conn:
+        conn.recv(65536)
+        release.wait(2)
+thread = threading.Thread(target=stalled, daemon=True)
+thread.start()
+client = OpenAIAdapter(api_key='test-local', timeout=.1,
+    base_url=f'http://127.0.0.1:{server.getsockname()[1]}/v1')._get_client()
+try:
+    assert isinstance(client.timeout, Timeout)
+    assert client._client.timeout.connect == 5.0
+    assert client._client.timeout.read == .1
+    started = time.monotonic()
+    try:
+        client.chat.completions.create(model='test', messages=[{'role':'user','content':'hello'}])
+    except APITimeoutError:
+        assert time.monotonic() - started < 1.5
+    else:
+        raise AssertionError('Stalled local server did not time out')
+finally:
+    release.set()
+    thread.join(3)
+    server.close()
+    client.close()
+'''], check=True, timeout=10)
+
     def test_timeout_defaults_from_environment(self, monkeypatch):
         monkeypatch.setenv("OPENAI_TIMEOUT", "19.25")
 
