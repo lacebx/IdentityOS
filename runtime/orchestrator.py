@@ -13,6 +13,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from core.channels.context import ChannelContext, channel_authority
 from core.cognitive_engine import ComposedContext, ContextComposer
 from core.migrations import (
     MigrationManager,
@@ -168,6 +169,7 @@ class InteractionRequest:
     session_id: Optional[str] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
     timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
+    channel_context: Optional[ChannelContext] = None
 
 @dataclass
 class InteractionResponse:
@@ -836,6 +838,7 @@ class IdentityRuntime:
             except Exception:
                 pass
 
+    @channel_authority
     def process(self, request: InteractionRequest, top_k_memories: int = 3) -> InteractionResponse:
         trace = InteractionTrace(request.id)
         stage_started = trace.start_stage()
@@ -956,7 +959,7 @@ class IdentityRuntime:
         # evaluation, memory, timeline, and persistence path below.
         _reflex_dispatch = None
         stage_started = trace.start_stage()
-        if self.reflex_engine is not None and not interaction_secrets:
+        if self.reflex_engine is not None and not interaction_secrets and request.channel_context is None:
             allowed, _ = self.capability_registry.can(identity.id, "reflex.execute")
             if allowed:
                 try:
@@ -974,7 +977,7 @@ class IdentityRuntime:
 
         _prometheus_evolved = False
         stage_started = trace.start_stage()
-        if self.prometheus and _reflex_dispatch is None:
+        if self.prometheus and _reflex_dispatch is None and request.channel_context is None:
             try:
                 self.prometheus.reconcile_executive(identity.id)
                 self.prometheus.begin_interaction(request.id)
@@ -1097,6 +1100,7 @@ class IdentityRuntime:
             emotion_state=emotion_state,
             capability_prompts=cap_prompts if cap_prompts else None,
             evidence_results=None,
+            channel_context=request.channel_context,
         )
         trace.end_stage("context_composition", stage_started)
 
@@ -1168,6 +1172,7 @@ class IdentityRuntime:
             _reflex_dispatch is None
             and not _prometheus_evolved
             and self.prometheus
+            and request.channel_context is None
             and self.adapter
         ):
             try:
@@ -1234,8 +1239,11 @@ class IdentityRuntime:
                    memory_id=episodic.id, memory_type=episodic.memory_type.value,
                    content=episodic.content[:200])
 
+        # Assistant descriptions of a transient interface must not become
+        # canonical semantic facts or permanent personality mutations.
         semantic_mem = self._extract_and_store_semantic_memory(
-            user_input=sanitized_input, output=final_output,
+            user_input=sanitized_input,
+            output=final_output if request.channel_context is None else "",
             identity_id=identity.id, session_id=session_id, user_id=user_id,
         )
 
@@ -1247,7 +1255,9 @@ class IdentityRuntime:
             self.mutation_engine.fact_store = fact_store
 
         mutation_proposals = self.mutation_engine.analyze(
-            user_input=sanitized_input, assistant_response=final_output, identity_spec=identity,
+            user_input=sanitized_input,
+            assistant_response=final_output if request.channel_context is None else "",
+            identity_spec=identity,
         )
         validated_mutations: List[MutationProposal] = []
         if mutation_proposals:
