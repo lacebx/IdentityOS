@@ -48,6 +48,32 @@ def test_untrusted_mode_treated_as_absent(tmp_path):
     assert store.get("h") is None
 
 
+def test_mid_handle_traversal_rejected(tmp_path):
+    """Mid-handle up-level segments must never escape the store root subtree.
+
+    Only the *leading* '..' is caught by the first-char rule; a handle like
+    'a/../x' or 'a/../../escape_probe.txt' resolves outside the store root and
+    must be rejected like any other traversal.
+    """
+    from core.secrets.store import SecretHandleError, SecretStore
+    store = SecretStore(tmp_path / "secrets")
+    for bad in ("a/../x", "a/../../escape_probe.txt", "h/..", "a//b", "a/./b"):
+        with pytest.raises(SecretHandleError):
+            store.put(bad, "x" * 10)
+    outside = tmp_path / "escape_probe.txt"
+    assert not outside.exists()
+
+
+def test_mid_handle_get_cannot_read_outside_root(tmp_path):
+    """A get() on an up-level handle must never read a file outside the root."""
+    from core.secrets.store import SecretHandleError, SecretStore
+    store = SecretStore(tmp_path / "secrets")
+    decoy = tmp_path / "decoy.txt"
+    decoy.write_text("ADVERSARIAL-DECOY")
+    with pytest.raises(SecretHandleError):
+        store.get("a/../decoy.txt")
+
+
 def test_invalid_handles_rejected():
     store = SecretStore("/tmp/nowhere")
     with pytest.raises(SecretHandleError):

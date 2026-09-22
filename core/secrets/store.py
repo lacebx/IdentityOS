@@ -69,7 +69,18 @@ class SecretStore:
         return self._root
 
     def _path(self, handle: str) -> Path:
+        """Return the canonical on-disk path for *handle*.
+
+        A handle is just a namespace/name slug: the only separators that reach
+        the filesystem are plain ``/`` directory boundaries below ``_root``, and
+        no segment may resolve up or through the store root.  Up-level (``..``),
+        current-dir (``.``), or empty segments are rejected here, canonically,
+        so a handle such as ``secret://a/../../etc/passwd`` is traversal-free by
+        construction and can never escape the root subtree.
+        """
         if not HANDLE_PATTERN.match(handle):
+            raise SecretHandleError(f"invalid secret handle: {handle!r}")
+        if any(segment in ("", ".", "..") for segment in handle.split("/")):
             raise SecretHandleError(f"invalid secret handle: {handle!r}")
         return self._root / handle
 
