@@ -42,6 +42,16 @@ def _registry(storage: Any):
     return CapabilityRegistry(storage)
 
 
+def _interop_dirs(args: argparse.Namespace) -> tuple[str, str]:
+    """(secret store dir, culture commons state dir) under the project/identity stores."""
+    root = Path(getattr(args, "project_root", ".") or ".")
+    state_dir = Path(getattr(args, "store", DEFAULT_STORE) or DEFAULT_STORE)
+    return (
+        str((root / ".identityos" / "secrets").resolve()),
+        str((state_dir / ".identityos" / "culture_commons").resolve()),
+    )
+
+
 def _build_engine(args: argparse.Namespace):
     """Build (or reuse) a registered Aster engine for the given storage."""
     from core.operations.aster import build_aster_engine
@@ -53,6 +63,8 @@ def _build_engine(args: argparse.Namespace):
         return existing
 
     from core.capabilities.email import CapabilityTransport, build_transport
+
+    secret_dir, cc_state_dir = _interop_dirs(args)
 
     # Prefer the permission-gated email transport; fall back to a direct
     # file mailbox so the operator can still run in offline/dry-run mode.
@@ -70,16 +82,33 @@ def _build_engine(args: argparse.Namespace):
     search_fn = _build_search_fn(args)
     adapter = _build_reply_adapter()
 
-    return build_aster_engine(
+    from core.operations.executive_acquisition import build_gap_acquisition
+    from core.secrets.store import SecretStore
+
+    secret_store = SecretStore(secret_dir)
+    acquisition = build_gap_acquisition(
+        storage,
+        "aster",
+        capability_registry=registry,
+    )
+
+    engine = build_aster_engine(
         storage,
         project_root=args.project_root,
         transport=transport,
         adapter=adapter,
         capability_registry=registry,
+        acquisition=acquisition,
         candidate_sources=candidate_sources,
         search_fn=search_fn,
+        secret_store=secret_store,
         register=True,
     )
+    if getattr(args, "with_culture", False):
+        from core.operations.surfaces import CultureCommonsSurface
+
+        engine._surfaces.append(CultureCommonsSurface(engine))
+    return engine
 
 
 def _build_reply_adapter() -> Any:
@@ -149,6 +178,9 @@ def _print_json(data: Any) -> None:
 def cmd_aster_init(args: argparse.Namespace) -> int:
     from core.capabilities import email as _email_mod  # noqa: F401  (register)
     from core.capabilities import operations as _ops_mod  # noqa: F401  (register)
+    from core.capabilities import a2a as _a2a_mod  # noqa: F401  (register)
+    from core.capabilities import culture_commons as _cc_mod  # noqa: F401  (register)
+    from core.capabilities import mcp as _mcp_mod  # noqa: F401  (register)
     from core.operations.aster import create_aster_identity, persist_aster_identity
     from core.operations.runtime_registry import register_engine
 
@@ -163,6 +195,7 @@ def cmd_aster_init(args: argparse.Namespace) -> int:
         register_engine(engine)
         print(f"  engine      : {engine.mode}")
 
+    secret_dir, cc_state_dir = _interop_dirs(args)
     registry = _registry(storage)
     # Persist only a non-secret config reference when real mail is available;
     # credentials themselves always come from the environment at call time.
@@ -170,6 +203,13 @@ def cmd_aster_init(args: argparse.Namespace) -> int:
     for cap_id in ("email", "operations", "web"):
         if registry.get(spec.id, cap_id) is None:
             registry.install(spec.id, cap_id, config=email_config if cap_id == "email" else None)
+            print(f"  installed   : capability '{cap_id}'")
+    for cap_id in ("mcp", "a2a", "culture_commons"):
+        if registry.get(spec.id, cap_id) is None:
+            config = None
+            if cap_id == "culture_commons":
+                config = {"state_dir": cc_state_dir, "secret_store_dir": secret_dir}
+            registry.install(spec.id, cap_id, config=config)
             print(f"  installed   : capability '{cap_id}'")
     if email_config:
         print("  email       : SMTP/IMAP backend referenced from environment (credentials not stored)")
@@ -185,6 +225,16 @@ def cmd_aster_init(args: argparse.Namespace) -> int:
     if args.grant_operations:
         registry.grant(spec.id, "operations", "operations.run")
         print("  granted     : operations.run")
+    if args.grant_mcp:
+        registry.grant(spec.id, "mcp", "mcp.call")
+        print("  granted     : mcp.call")
+    if args.grant_a2a:
+        registry.grant(spec.id, "a2a", "a2a.converse")
+        print("  granted     : a2a.converse")
+    if args.grant_culture:
+        registry.grant(spec.id, "culture_commons", "culture_commons.standing")
+        registry.grant(spec.id, "culture_commons", "culture_commons.post")
+        print("  granted     : culture_commons.standing, culture_commons.post")
 
     print()
     print("Next: identity aster tick --project-root .")
@@ -200,6 +250,7 @@ def cmd_aster_tick(args: argparse.Namespace) -> int:
         act=not getattr(args, "no_act", False),
         monitor=not getattr(args, "no_monitor", False),
         follow_ups=not getattr(args, "no_followups", False),
+        surfaces=bool(getattr(args, "with_culture", False)),
     )
     _print_json(report.to_dict())
     return 0
@@ -233,7 +284,9 @@ def cmd_aster_run(args: argparse.Namespace) -> int:
     print(f"Running Aster operator loop (interval={interval}s, iterations={iterations})", flush=True)
     try:
         while (iterations < 0 or count < iterations) and not stop_requested.is_set():
-            report = engine.tick()
+            report = engine.tick(
+                surfaces=bool(getattr(args, "with_culture", False)),
+            )
             print(f"[tick {count + 1}] outreach={len(report.outreach_sent)} "
                   f"escalations={len(report.escalations)} replies={len(report.replies_sent)} "
                   f"followups={len(report.follow_ups_sent)} errors={len(report.errors)}",
@@ -320,6 +373,8 @@ def _spawn_daemon(args: argparse.Namespace) -> int:
         cmd += ["--search"]
     if _mailbox_root(args) != ".identity_mailbox":
         cmd += ["--mailbox-root", _mailbox_root(args)]
+    if getattr(args, "with_culture", False):
+        cmd += ["--with-culture"]
 
     log_file.parent.mkdir(parents=True, exist_ok=True)
     with log_file.open("ab") as log_handle:
@@ -596,6 +651,177 @@ def cmd_aster_would_send(args: argparse.Namespace) -> int:
     return 0
 
 
+# ── interop: capabilities / acquire / culture commons ───────────────────────
+
+
+def cmd_aster_capabilities(args: argparse.Namespace) -> int:
+    """List installed interop capabilities, their skills and effective grants."""
+    storage = _get_storage(args)
+    registry = _registry(storage)
+    out: list[dict[str, Any]] = []
+    for cap_id in ("mcp", "a2a", "culture_commons"):
+        cap = registry.get("aster", cap_id)
+        if cap is None:
+            out.append({"capability": cap_id, "installed": False})
+            continue
+        skills = [
+            {
+                "name": s.name,
+                "permission": s.permission,
+                "effect": getattr(s, "effect", ""),
+                "granted": _skill_granted(registry, cap_id, s),
+            }
+            for s in cap.skills()
+        ]
+        granted_perms = sorted(
+            {
+                s.permission
+                for s in cap.skills()
+                if s.permission != "public" and registry.can("aster", s.name)[0]
+            }
+        )
+        out.append(
+            {
+                "capability": cap_id,
+                "installed": True,
+                "version": getattr(cap, "version", ""),
+                "skills": skills,
+                "granted": granted_perms,
+            }
+        )
+    _print_json({"identity": "aster", "capabilities": out})
+    return 0
+
+
+def _skill_granted(registry: Any, cap_id: str, skill: Any) -> bool:
+    if getattr(skill, "permission", "public") == "public":
+        return True
+    allowed, _ = registry.can("aster", skill.name)
+    return allowed
+
+
+def cmd_aster_acquire(args: argparse.Namespace) -> int:
+    """Acquire a skill by routing its provider capability through the Executive."""
+    from core.operations.executive_acquisition import build_gap_acquisition
+
+    storage = _get_storage(args)
+    registry = _registry(storage)
+    acquire = build_gap_acquisition(
+        storage,
+        "aster",
+        capability_registry=registry,
+    )
+    skill = getattr(args, "skill", "") or "mcp.discover"
+    ok, detail = acquire(skill)
+    _print_json({"skill": skill, "success": ok, "detail": detail})
+    return 0 if ok else 1
+
+
+def cmd_aster_culture(args: argparse.Namespace) -> int:
+    from core.operations.surfaces import CultureCommonsSurface
+
+    engine = _build_engine(args)
+    surface = CultureCommonsSurface(engine)
+    registry = engine._capability_registry
+    sub = getattr(args, "culture_command", "status")
+
+    if sub == "discover":
+        result = registry.call("aster", "culture_commons.room.read")
+        if not result.success:
+            _print_json({"success": False, "error": result.error})
+            return 1
+        _print_json({"success": True, "room": result.data})
+        return 0
+
+    if sub == "inspect":
+        target = getattr(args, "arc", None)
+        if target:
+            result = registry.call("aster", "culture_commons.arc.read", name=target)
+        else:
+            result = registry.call("aster", "culture_commons.identity.inspect")
+        if not result.success:
+            _print_json({"success": False, "error": result.error})
+            return 1
+        _print_json({"success": True, "data": result.data})
+        return 0
+
+    if sub == "observe":
+        _print_json(surface.observe())
+        return 0
+
+    if sub == "status":
+        _print_json(surface.status())
+        return 0
+
+    if sub == "sign":
+        name = getattr(args, "name", None) or "Aster_IDOS"
+        result = registry.call("aster", "culture_commons.standing.sign", name=name, confirm=True)
+        if not result.success:
+            _print_json({"success": False, "error": result.error})
+            return 1
+        data = result.data or {}
+        _print_json({"success": True, "standing": data.get("standing"), "secret_handle": data.get("secret_handle"), "note": data.get("note", "")})
+        return 0
+
+    if sub == "recover":
+        name = getattr(args, "name", None) or "Aster_IDOS"
+        result = registry.call("aster", "culture_commons.standing.recover", name=name)
+        if not result.success:
+            _print_json({"success": False, "error": result.error})
+            return 1
+        _print_json({"success": True, "result": result.data})
+        return 0
+
+    if sub in ("enter", "rise"):
+        skill = "culture_commons.standing.enter" if sub == "enter" else "culture_commons.standing.rise"
+        params = {"confirm": True}
+        if sub == "enter":
+            params["seat"] = "p1"
+        result = registry.call("aster", skill, **params)
+        if not result.success:
+            _print_json({"success": False, "error": result.error})
+            return 1
+        _print_json({"success": True, "result": result.data})
+        return 0
+
+    if sub == "speak":
+        content = getattr(args, "content", "")
+        if not content:
+            print("--content is required for speak", file=sys.stderr)
+            return 1
+        result = registry.call("aster", "culture_commons.speak", content=content, confirm=True)
+        if not result.success:
+            _print_json({"success": False, "error": result.error})
+            return 1
+        _print_json({"success": True, "result": result.data})
+        return 0
+
+    if sub == "post":
+        result = registry.call(
+            "aster",
+            "culture_commons.board.post",
+            board=getattr(args, "board", ""),
+            subject=getattr(args, "subject", ""),
+            content=getattr(args, "content", ""),
+            confirm=True,
+        )
+        if not result.success:
+            _print_json({"success": False, "error": result.error})
+            return 1
+        _print_json({"success": True, "result": result.data})
+        return 0
+
+    if sub == "relation":
+        from core.operations.surfaces import SURFACE_NAMESPACE
+
+        snapshot = engine.store._storage.load("aster", SURFACE_NAMESPACE)
+        _print_json({"facts": (snapshot or {}).get("facts", []), "relationships": [r.to_dict() for r in engine.store.list_relationships() if getattr(r, "purpose", "").startswith("culture_commons")]})
+        return 0
+
+    print(f"Unknown culture command: {sub}", file=sys.stderr)
+    return 1
+
+
 # ── parser wiring ────────────────────────────────────────────────────────────
 
 
@@ -612,6 +838,9 @@ def add_aster_parser(parser: argparse.ArgumentParser) -> None:
     p_init.add_argument("--grant-email", action="store_true", help="Grant email.send / email.read")
     p_init.add_argument("--grant-search", action="store_true", help="Grant web.network (web.search)")
     p_init.add_argument("--grant-operations", action="store_true", help="Grant operations.run")
+    p_init.add_argument("--grant-mcp", action="store_true", help="Grant mcp.call to invoke arbitrary MCP tools")
+    p_init.add_argument("--grant-a2a", action="store_true", help="Grant a2a.converse to message agents")
+    p_init.add_argument("--grant-culture", action="store_true", help="Grant culture_commons.standing + post")
 
     for name, help_text in (
         ("tick", "Run one operator tick"),
@@ -627,6 +856,7 @@ def add_aster_parser(parser: argparse.ArgumentParser) -> None:
             p.add_argument("--no-act", action="store_true")
             p.add_argument("--no-monitor", action="store_true")
             p.add_argument("--no-followups", action="store_true")
+            p.add_argument("--with-culture", action="store_true", help="also poll the Culture Commons surface")
             p.add_argument("--candidates", default=None)
             p.add_argument("--search", action="store_true")
 
@@ -635,6 +865,7 @@ def add_aster_parser(parser: argparse.ArgumentParser) -> None:
     p_run.add_argument("--interval", type=float, default=0.0, help="Seconds between ticks")
     p_run.add_argument("--candidates", default=None)
     p_run.add_argument("--search", action="store_true")
+    p_run.add_argument("--with-culture", action="store_true", help="poll the Culture Commons surface each tick")
     p_run.add_argument("--daemon", action="store_true", help="Run in the background with a pidfile")
 
     p_stop = sub.add_parser("stop", help="Stop a background Aster daemon", parents=[base])
@@ -688,6 +919,31 @@ def add_aster_parser(parser: argparse.ArgumentParser) -> None:
     p_ec.add_argument("--send-test", default=None, metavar="TO_ADDRESS",
                       help="Optionally perform one real validation send to this address")
 
+    p_caps = sub.add_parser("capabilities", help="List installed interop capabilities and their skill grants", parents=[base])
+
+    p_acq = sub.add_parser("acquire", help="Acquire a skill by installing its provider capability (e.g. mcp.discover)", parents=[base])
+    p_acq.add_argument("--skill", default="mcp.discover", help="Skill to acquire")
+
+    p_cu = sub.add_parser("culture", help="Culture Commons interop commands", parents=[base])
+    cu_sub = p_cu.add_subparsers(dest="culture_command", required=True)
+    cu_sub.add_parser("discover", help="Show the current room")
+    p_cu_arc = cu_sub.add_parser("inspect", help="Inspect an arc or Aster's own identity")
+    p_cu_arc.add_argument("--arc", default=None, metavar="NAME")
+    cu_sub.add_parser("observe", help="One-shot situation read, recorded to provenance")
+    cu_sub.add_parser("status", help="Standing + observation status (no network)")
+    cu_sub.add_parser("sign", help="Sign a name and establish standing (secret never displayed)")
+    p_cu_recover = cu_sub.add_parser("recover", help="Recover standing using the stored secret")
+    p_cu_recover.add_argument("--name", default="Aster_IDOS")
+    cu_sub.add_parser("enter", help="Take a seat in the room (requires standing)")
+    cu_sub.add_parser("rise", help="Leave the room (requires standing)")
+    p_cu_speak = cu_sub.add_parser("speak", help="Speak a message in the room (requires a seat + post grant)")
+    p_cu_speak.add_argument("--content", default="")
+    p_cu_post = cu_sub.add_parser("post", help="Open a thread on a board and post its first trace")
+    p_cu_post.add_argument("--board", default="")
+    p_cu_post.add_argument("--subject", default="")
+    p_cu_post.add_argument("--content", default="")
+    cu_sub.add_parser("relation", help="Show persisted commons facts and relationships")
+
 
 _ASTER_COMMAND_MAP = {
     "init": cmd_aster_init,
@@ -709,6 +965,9 @@ _ASTER_COMMAND_MAP = {
     "outbound-mode": cmd_aster_outbound_mode,
     "would-send": cmd_aster_would_send,
     "email-check": cmd_aster_email_check,
+    "capabilities": cmd_aster_capabilities,
+    "acquire": cmd_aster_acquire,
+    "culture": cmd_aster_culture,
 }
 
 

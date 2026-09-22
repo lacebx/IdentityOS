@@ -26,6 +26,9 @@ from . import executive  # noqa: F401
 from . import worldmonitor  # noqa: F401
 from . import email  # noqa: F401
 from . import operations  # noqa: F401
+from . import mcp  # noqa: F401
+from . import a2a  # noqa: F401
+from . import culture_commons  # noqa: F401
 
 __all__ = [
     "Capability",

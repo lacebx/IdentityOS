@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Any, Iterable, Optional
 
 from .capability_gap import CapabilityGap, CapabilityGapDetector, CapabilityStatus
 from .composition import OutreachBrief, OutreachComposer
@@ -92,6 +92,8 @@ class OperationsEngine:
         capability_registry: Any = None,
         acquisition: Any = None,
         search_fn: Any = None,
+        secret_store: Any = None,
+        surfaces: Iterable[Any] = (),
     ) -> None:
         self.config = config
         self.storage = storage
@@ -103,6 +105,8 @@ class OperationsEngine:
         self._capability_registry = capability_registry
         self._acquisition = acquisition
         self._search_fn = search_fn
+        self._secret_store = secret_store
+        self._surfaces = list(surfaces)
 
         self.observer = ProjectStateObserver(config.project_root)
         self.detector = NeedDetector(config.need_rules)
@@ -203,6 +207,7 @@ class OperationsEngine:
         act: bool = True,
         monitor: bool = True,
         follow_ups: bool = True,
+        surfaces: bool = False,
     ) -> TickReport:
         now = now or datetime.now(timezone.utc)
         report = TickReport()
@@ -212,6 +217,8 @@ class OperationsEngine:
             report.skipped.append({"reason": "paused"})
             return report
 
+        if surfaces:
+            report.observed = self._phase_surfaces(report) or report.observed
         if observe:
             report.observed = self._phase_observe()
         if detect_needs:
@@ -254,6 +261,25 @@ class OperationsEngine:
             refs={"project_id": state.project_id},
         )
         return True
+
+    def _phase_surfaces(self, report: TickReport) -> bool:
+        observed_any = False
+        for surface in self._surfaces:
+            try:
+                observed = bool((surface.observe() or {}).get("observed"))
+            except Exception as exc:
+                report.skipped.append({"surface": surface.name, "reason": "observe_failed", "error": str(exc)})
+                self._provenance(
+                    ProvenancePhase.OBSERVE,
+                    f"surface '{surface.name}' observe failed",
+                    action="surface.observe",
+                    result=str(exc),
+                    refs={"surface": surface.name},
+                )
+                continue
+            if observed:
+                observed_any = True
+        return observed_any
 
     def _phase_gaps(self, report: TickReport) -> None:
         gaps = self.gap_detector.check(self.config.required_skills)
@@ -978,6 +1004,18 @@ class OperationsEngine:
         evidence: Optional[list[str]] = None,
         refs: Optional[dict[str, Any]] = None,
     ) -> ProvenanceEntry:
+        if self._secret_store is not None:
+            summary = self._scrub(summary)
+            result = self._scrub(result)
+            action = self._scrub(action)
+            evidence = [self._scrub(e) for e in (evidence or [])]
+            if refs:
+                refs = {
+                    k: self._scrub(v) if isinstance(v, str)
+                    else [self._scrub(i) for i in v] if isinstance(v, list)
+                    else v
+                    for k, v in refs.items()
+                }
         return self.store.append_provenance(
             ProvenanceEntry(
                 phase=phase,
@@ -988,6 +1026,14 @@ class OperationsEngine:
                 refs=dict(refs or {}),
             )
         )
+
+    def _scrub(self, text: str) -> str:
+        if self._secret_store is None:
+            return text
+        try:
+            return self._secret_store.scrub(text)
+        except Exception:
+            return text
 
     def _notify(
         self, *, kind: str = "escalation", summary: str, refs: Optional[dict[str, Any]] = None
