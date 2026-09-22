@@ -598,6 +598,9 @@ class BudgetState:
     follow_ups: int = 0
     replies: int = 0
     research_calls: int = 0
+    # Interop-surface usage (Culture Commons and friends).
+    cc_reads: int = 0
+    cc_posts: int = 0
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -606,6 +609,8 @@ class BudgetState:
             "follow_ups": self.follow_ups,
             "replies": self.replies,
             "research_calls": self.research_calls,
+            "cc_reads": self.cc_reads,
+            "cc_posts": self.cc_posts,
         }
 
     @classmethod
@@ -616,6 +621,8 @@ class BudgetState:
             follow_ups=int(data.get("follow_ups", 0)),
             replies=int(data.get("replies", 0)),
             research_calls=int(data.get("research_calls", 0)),
+            cc_reads=int(data.get("cc_reads", 0)),
+            cc_posts=int(data.get("cc_posts", 0)),
         )
 
 

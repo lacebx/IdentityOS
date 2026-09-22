@@ -120,5 +120,34 @@ class BaseAdapter(ABC):
         """Optional: verify the adapter can reach its backend."""
         return True
 
+    def generate_with_vision(
+        self,
+        context: str,
+        user_input: str,
+        identity: Any,
+        image_base64: str,
+        **kwargs
+    ) -> str:
+        """
+        Generate a response from the LLM with vision (image) input.
+
+        Args:
+            context: The rendered system context from ContextComposer.
+            user_input: The sanitized user input (instruction).
+            identity: The active Identity object.
+            image_base64: Base64-encoded image data.
+
+        Kwargs:
+            tools: Optional list of OpenAI-compatible tool definitions.
+            execute_tool: Optional callable(name, args) -> str to run tool calls.
+
+        Returns:
+            Raw string output from the LLM.
+
+        Default implementation raises NotImplementedError.
+        Adapters that support vision should override this method.
+        """
+        raise NotImplementedError(f"{self.__class__.__name__} does not support vision")
+
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(model={self.model!r})"

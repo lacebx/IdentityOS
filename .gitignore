@@ -35,3 +35,19 @@ research/mode-b/manifests/.done-*-both
 research/mode-b/manifests/*-bare.json
 research/mode-b/manifests/*-idos.json
 research/mode-b/manifests/*-smoke.json
+
+# Interop: secret store and Culture Commons local state must never be committed
+.identityos/secrets/
+.identityos/culture_commons/
+
+# Runtime mailbox state (never commit)
+.identity_mailbox/
+
+# Browser profiles and runtime state
+browser_profiles/
+*.sqlite
+*.db
+
+# Screenshots and downloads
+screenshots/
+downloads/

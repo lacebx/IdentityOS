@@ -39,6 +39,12 @@ class ComposedContext:
     time_awareness_block: str = ""
     custom_blocks: Dict[str, str] = field(default_factory=dict)
     evidence_footer_block: str = ""
+    # Provenance of what the context actually selected, by source:
+    #   "memory"  — long-term/semantic fragments included in the prompt
+    #   "recent"  — working-memory (recent conversation) fragment IDs
+    #   "facts"   — identity fact-store record IDs rendered into the prompt
+    # Lets callers prove which context a generation was grounded in.
+    source_ids: Dict[str, list] = field(default_factory=dict)
 
     def render(self, separator: str = "\n\n") -> str:
         sections = []
@@ -117,7 +123,7 @@ class ContextComposer:
         if self.include_identity:
             ctx.identity_block = self._render_identity(identity)
         if self.include_identity_evolution:
-            ctx.identity_evolution_block = self._render_identity_evolution(identity, fact_store=fact_store)
+            ctx.identity_evolution_block = self._render_identity_evolution(identity, fact_store=fact_store, ctx=ctx)
 
         if session_mode and session_mode != SessionMode.NORMAL:
             label_map = {
@@ -309,6 +315,7 @@ class ContextComposer:
                 top_k_memories,
                 session_id,
                 user_id,
+                ctx=ctx,
             )
 
         if self.include_skills:
@@ -475,7 +482,8 @@ class ContextComposer:
         return "\n".join(lines)
 
     def _render_identity_evolution(
-        self, identity: "IdentitySpec", fact_store: Optional[Any] = None
+        self, identity: "IdentitySpec", fact_store: Optional[Any] = None,
+        ctx: Optional["ComposedContext"] = None,
     ) -> str:
         if fact_store is None:
             return ""
@@ -488,7 +496,10 @@ class ContextComposer:
         active_facts = fact_store.active()
         if active_facts:
             has_any = True
+            rendered_ids = ctx.source_ids.setdefault("facts", []) if ctx is not None else []
             for f in active_facts:
+                if getattr(f, "id", None):
+                    rendered_ids.append(f.id)
                 confidence_pct = int(f.confidence * 100)
                 reinforced = f" (reinforced {f.times_reinforced}x)" if f.times_reinforced > 0 else ""
                 lines.append(
@@ -501,6 +512,11 @@ class ContextComposer:
         if active_prefs:
             has_any = True
             lines.append("Preferences:")
+            if ctx is not None:
+                rendered_ids = ctx.source_ids.setdefault("facts", [])
+                for f in active_prefs:
+                    if getattr(f, "id", None):
+                        rendered_ids.append(f.id)
             for f in active_prefs:
                 label = f.field.split(".")[-1].replace("_", " ")
                 lines.append(f"  - {label}: {f.value}")
@@ -571,6 +587,7 @@ class ContextComposer:
         top_k: int,
         session_id: Optional[str] = None,
         user_id: Optional[str] = None,
+        ctx: Optional["ComposedContext"] = None,
     ) -> str:
         if identity_id and user_id is not None:
             all_frags = store.by_user(identity_id, user_id)
@@ -595,6 +612,10 @@ class ContextComposer:
         
         if working_memory:
             lines.append("## Recent Conversation (Working Memory)")
+            if ctx is not None:
+                ctx.source_ids.setdefault("recent", []).extend(
+                    f.id for f in working_memory if f.id
+                )
             for frag in reversed(working_memory):
                 lines.append(f"  {frag.content}")
             lines.append("")
@@ -610,6 +631,10 @@ class ContextComposer:
             relevant_past = [(frag, sc) for frag, sc in scored[:top_k] if sc > 1.5]
             if relevant_past:
                 lines.append("## Relevant Past Memories")
+                if ctx is not None:
+                    ctx.source_ids.setdefault("memory", []).extend(
+                        frag.id for frag, _ in relevant_past if frag.id
+                    )
                 for frag, sc in relevant_past:
                     lines.append(f"  [{frag.memory_type.value.upper()}] {frag.content}")
                 lines.append("")
@@ -621,6 +646,10 @@ class ContextComposer:
                 scored = [(f, self._score_memory(f, query)) for f in current_frags]
                 scored.sort(key=lambda x: x[1], reverse=True)
                 lines.append("## This Conversation")
+                if ctx is not None:
+                    ctx.source_ids.setdefault("memory", []).extend(
+                        f.id for f, _ in scored[:top_k] if f.id
+                    )
                 for frag, sc in scored[:top_k]:
                     lines.append(f"  [{frag.memory_type.value.upper()}] {frag.content}")
                 lines.append("")

@@ -196,6 +196,7 @@ class CapabilityRegistry:
         skill_name: str,
         *,
         execution_scope: Optional[str] = None,
+        adapter: Any = None,
         **params: Any,
     ) -> Any:
         cap = self._find_capability_for_skill(identity_id, skill_name)
@@ -231,6 +232,7 @@ class CapabilityRegistry:
         result = cap.call_scoped(
             skill_name,
             execution_scope=execution_scope,
+            adapter=adapter,
             **normalized_params,
         )
         if isinstance(result, CapabilityResult):

@@ -353,6 +353,13 @@ class ConversationMonitor:
 
         facts = self._verified_facts(store)
         knowledge_intents = ("question", "documentation_request", "intro_request")
+        if intent in knowledge_intents:
+            # Enrich with bounded technical context (identity spec, north star,
+            # operator doc) so substantive replies are grounded in real project
+            # architecture rather than just flat facts. Prepend so the 5-item
+            # slice in the composer prioritizes technical context.
+            tech = self._technical_context(store)
+            facts = tech + list(facts)
         if intent in knowledge_intents and not facts:
             # Knowledge-readiness gate: without verified project facts any
             # substantive reply would be an ungrounded acknowledgement. Defer
@@ -483,6 +490,63 @@ class ConversationMonitor:
         state = store.project_state()
         return list(state.facts) if state else []
 
+    def _technical_context(self, store: OperationsStore) -> list[str]:
+        """Retrieve bounded excerpts from key project docs for grounded replies.
+
+        Reads identity spec, north star, operator doc, and spec from the resolved
+        project root. Each excerpt is labeled with its source so the model can
+        cite it. Total chars bounded to ~2500 so it fits in context.
+        """
+        state = store.project_state()
+        if not state:
+            return []
+        root = state.metadata.get("resolved_root", "")
+        if not root:
+            return []
+
+        from pathlib import Path
+        root_path = Path(root)
+        docs_dir = root_path / "docs"
+        spec_dir = root_path / "spec"
+
+        excerpts: list[str] = []
+        MAX_PER_DOC = 500
+        MAX_TOTAL = 2500
+        total = 0
+
+        # Priority docs that explain the architecture/portability model
+        for doc_name in (
+            "07-identity-spec.md",
+            "01-north-star.md",
+            "ASTER-OPERATOR.md",
+            "SPEC.md",
+            "spec/identity.schema.json",
+        ):
+            if doc_name.startswith("spec/"):
+                p = spec_dir / doc_name.split("/", 1)[1]
+            else:
+                p = docs_dir / doc_name
+            if not p.is_file():
+                continue
+            try:
+                text = p.read_text(encoding="utf-8", errors="replace")
+            except Exception:
+                continue
+            # Take first meaningful lines (skip title/badges)
+            lines = [ln for ln in text.splitlines()
+                     if ln.strip() and not ln.strip().startswith("#")
+                     and not ln.strip().startswith("[!")
+                     and not ln.strip().startswith("![")
+                     and not ln.strip().startswith("<")
+                     and not ln.strip().startswith("```")]
+            excerpt = " ".join(lines)[:MAX_PER_DOC]
+            if excerpt:
+                excerpts.append(f"[{doc_name}] {excerpt}")
+                total += len(excerpt)
+                if total >= MAX_TOTAL:
+                    break
+        return excerpts
+
     def _dispatch_reply(
         self, store: OperationsStore, relationship: Relationship, subject: str, body: str,
         *, kind: str, source: Optional[Message] = None,
@@ -584,6 +648,15 @@ class ConversationMonitor:
             "inbound_message_ids": [source.id] if source else [],
             "inbound_external_ids": [source.external_id] if source and source.external_id else [],
         }
+        # A fallback chain reports which provider actually generated the reply;
+        # never present the chain head as the author (live-test finding).
+        selection = getattr(self._adapter, "last_selection", None) or {}
+        if selection.get("provider"):
+            meta["provider"] = selection["provider"]
+        if selection.get("model"):
+            meta["model"] = selection["model"]
+        if selection.get("latency_ms") is not None:
+            meta["latency_ms"] = selection["latency_ms"]
         if policy_reason:
             meta["policy"] = policy_reason
         state = store.project_state()

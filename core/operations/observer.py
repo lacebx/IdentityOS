@@ -220,11 +220,11 @@ class ProjectStateObserver:
 
     def _summarize_text(self, text: str, limit: int = 400) -> str:
         lines = [ln.strip() for ln in text.splitlines()]
-        # Drop the title line and badge-only lines.
+        # Drop the title line, badge-only lines, and raw HTML tag lines.
         body = [
             ln for ln in lines
             if ln and not ln.startswith("#") and not ln.startswith("[!")
-            and not ln.startswith("![")
+            and not ln.startswith("![") and not ln.startswith("<")
         ]
         return " ".join(body)[:limit]
 

@@ -152,6 +152,23 @@ class CerebrasAdapter(OpenAIAdapter):
                         f"All Cerebras API keys exhausted (context too large). Last error: {last_error}"
                     ) from last_error
                 if "429" in msg_lower or "rate limit" in msg_lower or "quota" in msg_lower:
+                    # HTTP 402 (payment_required) is a billing/account state,
+                    # not a transient rate limit: the key cannot recover after
+                    # a short wait, so quarantine it and fall through instead
+                    # of retrying it indefinitely (live-test finding).
+                    if "402" in msg_lower or "payment required" in msg_lower:
+                        self._cooldowns[self._key_index] = float("inf")
+                        logger.warning(
+                            "Cerebras key %d returned 402 (billing); "
+                            "disabling it for this process.",
+                            self._key_index,
+                        )
+                        if self._rotate_key() is None:
+                            raise RuntimeError(
+                                "All Cerebras API keys are billing-blocked or "
+                                f"unavailable. Last error: {last_error}"
+                            ) from last_error
+                        continue
                     retry_after = 60
                     logger.warning("Rate limited on Cerebras key %d", self._key_index)
                     self._cooldowns[self._key_index] = time.time() + retry_after

@@ -974,6 +974,7 @@ class IdentityRuntime:
                     identity.id,
                     skill_name,
                     execution_scope=f"user:{user_id}",
+                    adapter=self.adapter,
                     **params,
                 )
                 duration_ms = (_time_mod.monotonic() - t0) * 1000
@@ -1042,8 +1043,13 @@ class IdentityRuntime:
             profile_recall = try_explicit_abstain(sanitized_input, user_profile)
 
         stage_started = trace.start_stage()
+        _generation_selection: Dict[str, Any] = {}
+        _generation_error: Optional[Exception] = None
+        _generation_mode = "unavailable"
+        _latency: Optional[float] = None
         if profile_recall is not None:
             raw_output = profile_recall
+            _generation_mode = "profile_recall"
         elif self.adapter:
             self._emit(EventType.MODEL_REQUESTED, identity_id=identity.id,
                        session_id=session_id, model=self.adapter.model)
@@ -1067,23 +1073,60 @@ class IdentityRuntime:
                     identity=identity, **generate_kwargs,
                 )
             except TypeError:
-                raw_output = self.adapter.generate(
-                    context=context.render(), user_input=model_input, identity=identity,
-                )
+                try:
+                    raw_output = self.adapter.generate(
+                        context=context.render(), user_input=model_input, identity=identity,
+                    )
+                except Exception as exc:
+                    _generation_error = exc
+            except Exception as exc:
+                # A generation failure must terminate cleanly and defer — never
+                # hang the interaction indefinitely and never surface as an
+                # unhandled HTTP 500 (live-test finding: chain exhaustion used
+                # to propagate straight out of process()).
+                _generation_error = exc
 
-            raw_output = str(raw_output or "")
-            raw_output = re.sub(r"\[Thought\]", "<thought>", raw_output, flags=re.IGNORECASE)
-            raw_output = re.sub(r"\[/Thought\]", "</thought>", raw_output, flags=re.IGNORECASE)
-            if raw_output.count("<thought>") > raw_output.count("</thought>"):
-                raw_output += "\n</thought>"
+            if _generation_error is None:
+                _generation_mode = "identity_model_generation"
+                raw_output = str(raw_output or "")
+                raw_output = re.sub(r"\[Thought\]", "<thought>", raw_output, flags=re.IGNORECASE)
+                raw_output = re.sub(r"\[/Thought\]", "</thought>", raw_output, flags=re.IGNORECASE)
+                if raw_output.count("<thought>") > raw_output.count("</thought>"):
+                    raw_output += "\n</thought>"
+            else:
+                raw_output = ""
 
             _latency = _time_mod.monotonic() - _t0
-            self._emit(EventType.MODEL_RESPONDED, identity_id=identity.id,
-                       session_id=session_id, model=self.adapter.model,
-                       response_length=len(raw_output), latency_ms=round(_latency * 1000))
+            # Which provider actually generated the reply — never assume the
+            # chain head did (a fallback chain reports the real selection).
+            _generation_selection = getattr(self.adapter, "last_selection", None) or {
+                "provider": type(self.adapter).__name__,
+                "model": str(getattr(self.adapter, "model", "") or ""),
+                "attempted": [],
+            }
+            if _generation_error is not None:
+                _generation_selection = dict(_generation_selection)
+                _generation_selection["error"] = str(_generation_error)
+                self._emit_subsystem_failure(
+                    "model_generation",
+                    _generation_error,
+                    identity_id=identity.id,
+                    session_id=session_id,
+                )
+            else:
+                self._emit(EventType.MODEL_RESPONDED, identity_id=identity.id,
+                           session_id=session_id,
+                           model=_generation_selection.get("model") or self.adapter.model,
+                           response_length=len(raw_output), latency_ms=round(_latency * 1000))
         else:
             raw_output = f"[No adapter configured. Context prepared for {identity.name}]"
         trace.end_stage("model", stage_started)
+
+        if _generation_error is not None:
+            raw_output = (
+                "[Generation unavailable] The model runtime could not generate a reply "
+                f"({type(_generation_error).__name__}). The request is deferred; no reply was produced."
+            )
 
         _has_evidence = bool(_evidence_results)
 
@@ -1292,6 +1335,24 @@ class IdentityRuntime:
                     session_id=session_id,
                 )
 
+        generation_provenance = {
+            "generation_mode": _generation_mode,
+            "provider": str(_generation_selection.get("provider", "")),
+            "model": str(_generation_selection.get("model", "")),
+            "latency_ms": round(_latency * 1000) if _latency is not None else None,
+            "attempted": list(_generation_selection.get("attempted", [])),
+            "memory_ids": list(context.source_ids.get("memory", [])),
+            "recent_message_ids": list(context.source_ids.get("recent", [])),
+            "fact_ids": list(context.source_ids.get("facts", [])),
+            "policy": {
+                "input_allowed": input_policy.allowed,
+                "input_policies": list(input_policy.applied_policies),
+                "output_allowed": output_policy.allowed,
+                "output_policies": list(output_policy.applied_policies),
+            },
+            "output_message_id": episodic.id,
+        }
+
         return InteractionResponse(
             request_id=request.id, identity_id=identity.id, user_id=user_id, output=final_output,
             context_used=context, policy_passed=policy_passed, eval_score=eval_report.overall_score,
@@ -1299,6 +1360,7 @@ class IdentityRuntime:
                 "timings_ms": timings,
                 "debug_request_id": request.id if debug_recorded else None,
                 "capability_results": [dict(item) for item in _evidence_results],
+                "generation_provenance": generation_provenance,
             },
         )
 

@@ -124,6 +124,7 @@ def build_aster_config(
     candidate_sources: Optional[Iterable[CandidateSource]] = None,
     required_skills: Optional[list[str]] = None,
     search_fn: Any = None,
+    interop: bool = True,
 ) -> OperatorConfig:
     sources: list[CandidateSource] = list(candidate_sources or [])
     if search_fn is not None:
@@ -133,6 +134,14 @@ def build_aster_config(
                 query_template="{category} program or organization related to: {need}",
             )
         )
+    if required_skills is None:
+        skills = ["web.fetch", "web.search", "email.send"]
+        if interop:
+            from .skill_acquisition import build_interop_required_skills
+
+            skills.extend(build_interop_required_skills())
+    else:
+        skills = required_skills
     return OperatorConfig(
         identity_id=ASTER_ID,
         project_root=str(project_root),
@@ -144,7 +153,7 @@ def build_aster_config(
         purpose="IdentityOS resource & collaboration outreach",
         need_rules=default_need_rules(),
         candidate_sources=sources,
-        required_skills=required_skills or ["web.fetch", "web.search", "email.send"],
+        required_skills=skills,
         pursue_threshold=0.5,
         hold_threshold=0.38,
     )
@@ -163,6 +172,8 @@ def build_aster_engine(
     search_fn: Any = None,
     required_skills: Optional[list[str]] = None,
     sender_email: str = "",
+    secret_store: Any = None,
+    surfaces: Iterable[Any] = (),
     register: bool = True,
 ) -> OperationsEngine:
     config = build_aster_config(
@@ -181,6 +192,8 @@ def build_aster_engine(
         capability_registry=capability_registry,
         acquisition=acquisition,
         search_fn=search_fn,
+        secret_store=secret_store,
+        surfaces=surfaces,
     )
     if register:
         register_engine(engine)

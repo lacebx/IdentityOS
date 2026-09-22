@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import time as _time
 from typing import Any, Optional
 
 from .base import BaseAdapter
@@ -10,6 +11,19 @@ logger = logging.getLogger(__name__)
 _EXHAUSTION_MARKERS = [
     "api keys exhausted",
     "all adapters exhausted",
+]
+
+# Provider states that cannot recover after a short wait.  A billing/ quota
+# exhaustion (e.g. HTTP 402 ``payment_required``) is an account state, not a
+# transient rate limit: stop using that provider immediately instead of
+# retrying it indefinitely (live-test finding).
+_EXHAUSTION_TOKENS = [
+    "rate limit", "429", "quota", "throttl",
+    "connection", "timed out", "timeout",
+    "service unavailable", "502", "503", "504",
+    "api keys exhausted", "invalid api key",
+    "authentication failed", "401",
+    "402", "payment required", "billing",
 ]
 
 
@@ -38,6 +52,9 @@ class ChainAdapter(BaseAdapter):
         self._adapters = adapters
         first = adapters[0] if adapters else None
         super().__init__(model=model or (first.model if first else ""))
+        # Provenance of the most recent generate(): which provider/model
+        # actually produced the reply (never assume the chain head did).
+        self.last_selection: Optional[dict] = None
 
     @property
     def model(self) -> str:
@@ -62,11 +79,7 @@ class ChainAdapter(BaseAdapter):
         msg = str(error).lower()
         if any(marker in msg for marker in _EXHAUSTION_MARKERS):
             return True
-        for token in ("rate limit", "429", "quota", "throttl",
-                      "connection", "timed out", "timeout",
-                      "service unavailable", "502", "503", "504",
-                      "api keys exhausted", "invalid api key",
-                      "authentication failed", "401"):
+        for token in _EXHAUSTION_TOKENS:
             if token in msg:
                 return True
         return False
@@ -84,8 +97,9 @@ class ChainAdapter(BaseAdapter):
 
         for idx, adapter in enumerate(self._adapters):
             name = type(adapter).__name__
+            started = _time.monotonic()
             try:
-                return adapter.generate(
+                output = adapter.generate(
                     context=context,
                     user_input=user_input,
                     identity=identity,
@@ -93,9 +107,23 @@ class ChainAdapter(BaseAdapter):
                     max_tokens=max_tokens,
                     **kwargs,
                 )
+                self.last_selection = {
+                    "provider": name,
+                    "model": str(getattr(adapter, "model", "") or ""),
+                    "latency_ms": int((_time.monotonic() - started) * 1000),
+                    "attempted": [{"provider": n, "error": e} for n, e in errors],
+                }
+                return output
             except Exception as exc:
                 errors.append((name, str(exc)))
                 if not self._is_exhaustion(exc):
+                    self.last_selection = {
+                        "provider": name,
+                        "model": str(getattr(adapter, "model", "") or ""),
+                        "latency_ms": int((_time.monotonic() - started) * 1000),
+                        "attempted": [{"provider": n, "error": e} for n, e in errors],
+                        "error": str(exc),
+                    }
                     raise  # Non-exhaustion errors propagate immediately
                 if idx < len(self._adapters) - 1:
                     next_name = type(self._adapters[idx + 1]).__name__
@@ -107,6 +135,12 @@ class ChainAdapter(BaseAdapter):
                     )
                 continue
 
+        self.last_selection = {
+            "provider": "",
+            "model": "",
+            "attempted": [{"provider": n, "error": e} for n, e in errors],
+            "error": "all adapters exhausted",
+        }
         raise RuntimeError(
             f"All adapters exhausted ({len(self._adapters)} tried). Errors:\n"
             + "\n".join(f"  {n}: {e}" for n, e in errors)

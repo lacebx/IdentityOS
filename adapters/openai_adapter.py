@@ -412,6 +412,9 @@ class OpenAIAdapter(BaseAdapter):
             try:
                 import httpx
                 from openai import OpenAI
+                # An explicit httpx client with a neutral User-Agent avoids
+                # provider-side bot filtering of the SDK's default headers
+                # (Groq's Cloudflare rejects the default with error 1010).
                 self._client = OpenAI(
                     api_key=self.api_key,
                     base_url=self.base_url,
@@ -421,6 +424,10 @@ class OpenAIAdapter(BaseAdapter):
                     # adapters. SDK retries would multiply the configured
                     # timeout and make fallback latency unpredictable.
                     max_retries=0,
+                    http_client=httpx.Client(
+                        headers={"User-Agent": "identityos-runtime/1.0"},
+                        timeout=httpx.Timeout(timeout=self.timeout, connect=5.0),
+                    ),
                 )
             except ImportError:
                 raise ImportError("openai package not found. Install with: pip install openai")
@@ -740,6 +747,83 @@ class OpenAIAdapter(BaseAdapter):
                 raise
         except Exception:
             return False
+
+    def generate_with_vision(
+        self,
+        context: str,
+        user_input: str,
+        identity: Any,
+        image_base64: str,
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
+        retries: int = 3,
+        **kwargs
+    ) -> str:
+        """
+        Generate a response from the LLM with vision (image) input.
+
+        Uses OpenAI-compatible vision API (GPT-4o, GPT-4 Turbo with vision, etc.)
+        """
+        client = self._get_client()
+        model = self.model or "gpt-4o"
+        last_exc = None
+        effective_max = max_tokens or self.max_tokens
+
+        # Build messages with image
+        messages = [
+            {"role": "system", "content": context},
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": user_input},
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:image/png;base64,{image_base64}",
+                            "detail": "high"
+                        }
+                    }
+                ]
+            }
+        ]
+
+        for attempt in range(retries + 1):
+            try:
+                response = client.chat.completions.create(
+                    model=model,
+                    messages=messages,
+                    temperature=temperature or self.temperature,
+                    max_tokens=effective_max,
+                )
+                break
+            except Exception as exc:
+                last_exc = exc
+                msg = str(exc)
+                msg_lower = msg.lower()
+                if "rate limit" in msg_lower or "429" in msg:
+                    if attempt < retries:
+                        wait = 2 ** attempt * 5
+                        logger.warning("Rate limited, retrying in %ds...", wait)
+                        _time.sleep(wait)
+                    continue
+                if _is_token_limit_error(msg) and effective_max and effective_max > 256:
+                    effective_max = max(256, effective_max // 2)
+                    logger.warning(
+                        "Token-limit rejection (max_tokens shrunk to %d): %.120s",
+                        effective_max, msg,
+                    )
+                    continue
+                raise RuntimeError(
+                    f"Adapter vision error (model={model!r}, base_url={self.base_url!r}): {msg}"
+                ) from exc
+
+        if response is None:
+            raise RuntimeError(f"Adapter vision error: no response from {model}")
+
+        choice = response.choices[0]
+        message = choice.message
+        content = message.content or ""
+        return content
 
 
 class AnthropicAdapter(BaseAdapter):
