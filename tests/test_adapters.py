@@ -134,10 +134,12 @@ server = socket.socket()
 server.bind(('127.0.0.1', 0))
 server.listen()
 release = threading.Event()
+received_at = []
 def stalled():
     conn, _ = server.accept()
     with conn:
         conn.recv(65536)
+        received_at.append(time.monotonic())
         release.wait(2)
 thread = threading.Thread(target=stalled, daemon=True)
 thread.start()
@@ -147,11 +149,12 @@ try:
     assert isinstance(client.timeout, Timeout)
     assert client._client.timeout.connect == 5.0
     assert client._client.timeout.read == .1
-    started = time.monotonic()
     try:
         client.chat.completions.create(model='test', messages=[{'role':'user','content':'hello'}])
     except APITimeoutError:
-        assert time.monotonic() - started < 1.5
+        # Time the stalled socket, not SDK lazy imports under CPU contention.
+        assert received_at, 'The request never reached the local server'
+        assert time.monotonic() - received_at[0] < 1.5
     else:
         raise AssertionError('Stalled local server did not time out')
 finally:
@@ -159,7 +162,7 @@ finally:
     thread.join(3)
     server.close()
     client.close()
-'''], check=True, timeout=10)
+'''], check=True, timeout=30)
 
     def test_timeout_defaults_from_environment(self, monkeypatch):
         monkeypatch.setenv("OPENAI_TIMEOUT", "19.25")

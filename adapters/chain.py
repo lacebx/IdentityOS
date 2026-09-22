@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import logging
+import threading
+import time
 from typing import Any, Optional
 
 from .base import BaseAdapter
@@ -34,8 +36,12 @@ class ChainAdapter(BaseAdapter):
         self,
         adapters: list[BaseAdapter],
         model: str = "",
+        cooldown_seconds: float = 0,
     ) -> None:
         self._adapters = adapters
+        self._cooldown_seconds = max(0, cooldown_seconds)
+        self._cooldowns: dict[int, float] = {}
+        self._cooldown_lock = threading.Lock()
         first = adapters[0] if adapters else None
         super().__init__(model=model or (first.model if first else ""))
 
@@ -64,9 +70,9 @@ class ChainAdapter(BaseAdapter):
             return True
         for token in ("rate limit", "429", "quota", "throttl",
                       "connection", "timed out", "timeout",
-                      "service unavailable", "502", "503", "504",
+                      "service unavailable", "500", "502", "503", "504",
                       "api keys exhausted", "invalid api key",
-                      "authentication failed", "401"):
+                      "authentication failed", "401", "402"):
             if token in msg:
                 return True
         return False
@@ -81,9 +87,23 @@ class ChainAdapter(BaseAdapter):
         **kwargs,
     ) -> str:
         errors: list[tuple[str, str]] = []
+        tool_invoked = False
+        execute_tool = kwargs.get("execute_tool")
+        if execute_tool is not None:
+            def tracked_tool(*args, **tool_kwargs):
+                nonlocal tool_invoked
+                # Set before invocation: a callback can fail after a side effect.
+                tool_invoked = True
+                return execute_tool(*args, **tool_kwargs)
+            kwargs["execute_tool"] = tracked_tool
 
         for idx, adapter in enumerate(self._adapters):
             name = type(adapter).__name__
+            with self._cooldown_lock:
+                cooling = self._cooldowns.get(idx, 0) > time.monotonic()
+            if cooling:
+                errors.append((name, "provider cooling down"))
+                continue
             try:
                 return adapter.generate(
                     context=context,
@@ -95,8 +115,12 @@ class ChainAdapter(BaseAdapter):
                 )
             except Exception as exc:
                 errors.append((name, str(exc)))
+                if tool_invoked:
+                    raise  # Never replay an already-started capability on failover.
                 if not self._is_exhaustion(exc):
                     raise  # Non-exhaustion errors propagate immediately
+                with self._cooldown_lock:
+                    self._cooldowns[idx] = time.monotonic() + self._cooldown_seconds
                 if idx < len(self._adapters) - 1:
                     next_name = type(self._adapters[idx + 1]).__name__
                     logger.warning(
