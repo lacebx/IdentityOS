@@ -4,15 +4,20 @@ Ref: mission "acquire, safely operate, remember, and reuse an external capabilit
 
 ## 0. Execution facts (worktree isolation)
 
-- Starting commit (baseline): `5d5bd97e8393a0cc91d73b8ef938003a695dc3e0` (`main`)
+- **Correct base**: `0f6cabf0630fbb4113896bfc701700e7072db5ac` — tip of the committed Aster branch (`feat/live-browser-bridge`).
 - Branch: `feat/interop-culture-commons`
 - Worktree: `/home/lace/Documents/Doug/IdentityOS-CC`
 - Initial `git status` in worktree: clean (0 entries)
-- Baseline suite (run on clean `main` worktree):
+- **Authoritative baseline** (run after base correction, clean `0f6cabf` + plan commit `8b68d03`):
   - command: `python -m pytest tests/ -q`
-  - result: **975 passed, 33 skipped, 0 failed**
-- All pre-existing browser/Comet WIP remains untouched on `feat/live-browser-bridge` (main worktree) plus stashes. This branch is created from `main` and will carry Culture Commons / interoperability changes only.
-- Draft interop work that previously existed as untracked files on `feat/live-browser-bridge` will be ported into this branch selectively (generic MCP client + tests), and its parallel acquisition resolver will be **retired**, not carried over (see §1).
+  - result: **1127 passed, 43 skipped, 0 failed** (62.29s)
+- **INVALIDATED BASELINE** (do not delete; label truthfully): `975 passed / 33 skipped` was measured on a stale local `main` (`5d5bd97`) before the base correction. Not used for regression comparison.
+- Ancestry proof:
+  - `7288b76` (PR #99 acquisition lifecycle) is an ancestor of `0f6cabf` (exit 0).
+  - `087adc5` (remote-main / PR #102 browser merge) is **not** an ancestor of `0f6cabf` as a merge commit; its content is present via `ef2113a` (origin/feat/live-browser-bridge tip), which is the parent of the Aster line (`f215b77`) — so the browser architecture is included without the PR #102 merge wrapper.
+  - `b60fd56` (origin/main) and `5d5bd97` (WorldMonitor/main) are ancestors of `0f6cabf` (exit 0).
+- All pre-existing browser/Comet WIP remains untouched on `feat/live-browser-bridge` (main worktree) plus stashes. This branch carries Culture Commons / interoperability changes only.
+- Draft interop work that previously existed as **uncommitted** files on `feat/live-browser-bridge` will be **selectively ported** after review; the parallel `core/operations/skill_acquisition.py` resolver is **retired**, not carried over (see §1).
 
 ## 1. Reuse the existing durable acquisition lifecycle (no second system)
 
