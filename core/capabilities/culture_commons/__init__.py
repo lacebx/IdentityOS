@@ -275,10 +275,12 @@ class CultureCommonsCapability(Capability):
         response = client.call_tool(self._tool("recover"), {"name": name, "secret": permanent_secret})
         extracted = self._extract_secret(response, name)
         
-        # DO NOT overwrite the permanent secret with temporary tokens
-        # The permanent secret from sign_your_name is the only one that should be stored
+        # Store the TEMPORARY session token separately (never overwrites permanent credential)
+        # The temporary token is used for authenticated calls during this session
         if extracted:
             self._set_standing({"signed": True, "seated": False, "name": name, "recovered_at": self._now()})
+            # Store temporary token for session use
+            self._set_session_token(extracted)
         return CapabilityResult.from_data(
             self.id, "culture_commons.standing.recover",
             {"name": name, "result": store.scrub_mapping(response), "secret_stored_at": f"secret://{secret_handle}" if extracted else None},
@@ -475,6 +477,16 @@ class CultureCommonsCapability(Capability):
     def _set_standing(self, value: dict[str, Any]) -> None:
         self._write_state("standing.json", value)
 
+    def _set_session_token(self, token: str) -> None:
+        self._write_state("session_token.json", {"token": token, "created_at": self._now()})
+
+    def _get_session_token(self) -> Optional[str]:
+        data = self._read_state("session_token.json", {})
+        return data.get("token") if data else None
+
+    def _clear_session_token(self) -> None:
+        self._write_state("session_token.json", {})
+
     def _record_observation(self, value: dict[str, Any]) -> None:
         history = self._read_state("observations.json", [])[-49:]
         history.append(value)
@@ -512,11 +524,14 @@ class CultureCommonsCapability(Capability):
     def _mcp_client(self, *, authenticated: bool) -> MCPClient:
         headers: dict[str, str] = {}
         store = self._secret_store()
-        if authenticated and store.has(self._secret_handle()):
-            # Standing is an optional credential: public reads must still work
-            # before any secret exists, so the auth header is only attached when
-            # the secret is actually provisioned.
-            headers[self._config.get("auth_header", "authorization")] = f"{SECRET_REF_PREFIX}{self._secret_handle()}"
+        if authenticated:
+            # Prefer session token for authenticated calls during active session
+            session_token = self._get_session_token()
+            if session_token:
+                headers[self._config.get("auth_header", "authorization")] = f"Bearer {session_token}"
+            elif store.has(self._secret_handle()):
+                # Fallback to permanent credential for recovery operations
+                headers[self._config.get("auth_header", "authorization")] = f"{SECRET_REF_PREFIX}{self._secret_handle()}"
         return MCPClient(
             MCPServer(name="culture-commons", url=self._url(), headers=headers),
             timeout=float(self._config.get("timeout", 30.0)),
