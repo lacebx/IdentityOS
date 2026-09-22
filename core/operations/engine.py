@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Iterable, Optional
+from typing import Any, Iterable, Optional, Mapping
 
 from .capability_gap import CapabilityGap, CapabilityGapDetector, CapabilityStatus
 from .composition import OutreachBrief, OutreachComposer
@@ -108,6 +108,14 @@ class OperationsEngine:
         self._secret_store = secret_store
         self._surfaces = list(surfaces)
 
+        # Adaptive polling state
+        self._last_observation_fingerprint: Optional[str] = None
+        self._current_poll_interval = float(config.poll_interval or 300.0)
+        self._min_poll_interval = 300.0  # 5 minutes
+        self._max_poll_interval = 3600.0  # 1 hour
+        self._adaptive_polling = bool(config.adaptive_polling)
+        self._consecutive_unchanged = 0
+
         self.observer = ProjectStateObserver(config.project_root)
         self.detector = NeedDetector(config.need_rules)
         sources = list(config.candidate_sources)
@@ -137,6 +145,38 @@ class OperationsEngine:
             acquisition=acquisition,
             store=self.store,
         )
+
+    def _compute_observation_fingerprint(self, state: Any) -> str:
+        """Compute a deterministic fingerprint of the observed state."""
+        import hashlib
+        content_parts = []
+        if hasattr(state, 'facts') and state.facts:
+            content_parts.extend(sorted(state.facts))
+        if hasattr(state, 'metadata') and state.metadata:
+            for k, v in sorted(state.metadata.items()):
+                content_parts.append(f"{k}:{v}")
+        if hasattr(state, 'observed_at'):
+            content_parts.append(f"observed_at:{state.observed_at}")
+        fingerprint = hashlib.sha256("|".join(content_parts).encode()).hexdigest()[:32]
+        return fingerprint
+
+    def _update_poll_interval(self, state_changed: bool) -> None:
+        """Adaptively adjust poll interval based on state changes."""
+        if not self._adaptive_polling:
+            return
+        if state_changed:
+            self._current_poll_interval = max(self._min_poll_interval, self._current_poll_interval * 0.5)
+            self._consecutive_unchanged = 0
+        else:
+            self._consecutive_unchanged += 1
+            if self._consecutive_unchanged >= 2:
+                self._current_poll_interval = min(self._max_poll_interval, self._current_poll_interval * 1.5)
+
+    def get_current_poll_interval(self) -> float:
+        """Return the current adaptive poll interval in seconds."""
+        return self._current_poll_interval
+
+    # ── lifecycle helpers ─────────────────────────────────────────────
 
     # ── lifecycle helpers ─────────────────────────────────────────────
 
@@ -219,8 +259,24 @@ class OperationsEngine:
 
         if surfaces:
             report.observed = self._phase_surfaces(report) or report.observed
+        
+        # Observe and check for state changes
+        state_changed = False
         if observe:
+            # Capture previous fingerprint
+            prev_fingerprint = self._last_observation_fingerprint
             report.observed = self._phase_observe()
+            # Compute new fingerprint
+            current_state = self.store.project_state()
+            if current_state:
+                new_fingerprint = self._compute_observation_fingerprint(current_state)
+                self._last_observation_fingerprint = new_fingerprint
+                if prev_fingerprint is not None and new_fingerprint != prev_fingerprint:
+                    state_changed = True
+        
+        # Adaptive polling interval
+        self._update_poll_interval(state_changed)
+        
         if detect_needs:
             self._phase_gaps(report)
             report.needs_created = [n.id for n in self.detector.detect(self.store, self.store.project_state())] if self.store.project_state() else []

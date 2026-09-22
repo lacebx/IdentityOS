@@ -41,3 +41,4 @@ __all__ = [
     "EvidenceManager",
     "EvidenceReport",
 ]
+from core.capabilities import notification as _notif_mod  # noqa: F401

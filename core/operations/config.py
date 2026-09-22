@@ -35,6 +35,8 @@ class OperatorConfig:
     max_needs_per_tick: int = 5
     max_outreach_per_tick: int = 3
     metadata: dict[str, Any] = field(default_factory=dict)
+    poll_interval: float = 300.0
+    adaptive_polling: bool = True
 
     def composer_defaults(self) -> dict[str, str]:
         return {

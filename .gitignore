@@ -51,3 +51,4 @@ browser_profiles/
 # Screenshots and downloads
 screenshots/
 downloads/
+.identityos/private/
