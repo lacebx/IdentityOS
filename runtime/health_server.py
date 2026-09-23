@@ -1,12 +1,34 @@
 """
-runtime/health_server.py — localhost-only presence endpoint.
+runtime/health_server.py — localhost-only Aster Control endpoint.
 
-GET /health  -> sanitized presence JSON (machine-readable)
-GET /status  -> mobile-friendly HTML dashboard (same real data, auto-refresh)
+Read paths (Tailnet-private, no per-request auth — same posture as the
+dashboard they extend; polling them never invokes a model):
 
-Zero model calls on any path. Binds localhost only by default. The dashboard
-renders only sanitized ``public_view`` fields: no topics, phone numbers,
-credentials, tokens, message contents, or chain-of-thought ever leave the box.
+  GET /health            sanitized presence JSON
+  GET /status            mobile dashboard (Overview tab renders server-side)
+  GET /api/presence      presence JSON (alias)
+  GET /api/activity      sanitized provenance/notification timeline
+  GET /api/relationships sanitized relationships
+  GET /api/capabilities  installed capabilities + per-skill permission state
+  GET /api/messages      principal conversation history (sanitized envelopes)
+  GET /manifest.json     PWA manifest (no tracking, local icon only)
+  GET /icon.svg          original Aster mark (local asset, no third parties)
+
+State-changing paths (require principal verification — see _principal_verified):
+
+  POST /api/messages     submit a principal message to the SAME persistent
+                         identity; stored RECEIVED, processed by the operator
+                         loop, never faked.
+
+Principal verification = Tailnet Host match + exact Tailscale-User-Login match
++ anti-CSRF request marker. Tailscale Serve injects the login header for
+genuine Tailnet viewers; direct-local requests cannot satisfy the Host rule,
+so forged headers from localhost curl are rejected. Funnel is never used.
+
+Zero model calls on any path in this process. Binds localhost only by
+default. Only sanitized fields leave the box: no topics, phone numbers,
+credentials, tokens, standing secrets, message contents (outside the
+principal's own conversation), or chain-of-thought.
 """
 
 from __future__ import annotations
@@ -14,15 +36,26 @@ from __future__ import annotations
 import argparse
 import html
 import json
+import os
 import sys
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Optional
+from urllib.parse import urlparse
 
 from core.operations.presence import PresenceStore
 from runtime.persistence import get_backend
 
 REFRESH_SECONDS = 15
+MESSAGES_POLL_SECONDS = 4
+ACTIVITY_POLL_SECONDS = 20
+SLOW_POLL_SECONDS = 60
+MAX_POST_BYTES = 16 * 1024
+MAX_POSTS_PER_MINUTE = 20
+
+_post_minutes: dict[str, int] = {}
+_post_minutes_lock = threading.Lock()
 
 
 def _esc(value: Any) -> str:
@@ -46,6 +79,11 @@ def render_dashboard(view: dict[str, Any]) -> str:
 <meta name="theme-color" content="#0b0f14">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Aster">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/icon.svg">
+<link rel="icon" type="image/svg+xml" href="/icon.svg">
 <title>Aster · {{status}}</title>
 <style>
 :root {{ color-scheme: dark; }}
@@ -70,6 +108,30 @@ h1 {{ font-size: 26px; margin: 6px 0 2px; letter-spacing: .2px; }}
 .grid {{ display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }}
 .foot {{ margin-top: 14px; color: #93a1b3; font-size: 12px; text-align: center; }}
 .warn {{ color: #ffb02e; }}
+nav.tabs {{ display: flex; gap: 6px; margin-top: 14px; overflow-x: auto; }}
+nav.tabs button {{ flex: 1 0 auto; background: #131a24; color: #93a1b3; border: 1px solid #223047;
+  border-radius: 10px; padding: 10px 8px; font-size: 13px; font-weight: 600; }}
+nav.tabs button.on {{ color: #e8eef4; border-color: #34d17b; }}
+section.tab {{ display: none; }}
+section.tab.on {{ display: block; }}
+.ev {{ border-left: 3px solid #2b3a55; padding: 6px 0 6px 12px; margin: 10px 0; }}
+.ev .t {{ font-size: 12px; color: #93a1b3; }}
+.ev .c {{ font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #5aa9ff; }}
+.msg {{ border-radius: 14px; padding: 10px 14px; margin: 10px 0; max-width: 92%; line-height: 1.45; }}
+.msg.in {{ background: #1d3a5f; margin-left: auto; }}
+.msg.out {{ background: #16241d; border: 1px solid #234034; }}
+.msg .meta {{ font-size: 11px; color: #93a1b3; margin-top: 6px; }}
+.msg .st {{ display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 8px;
+  border-radius: 999px; background: #223047; margin-top: 6px; }}
+.st-processing {{ color: #ffb02e; }} .st-completed, .st-sent {{ color: #34d17b; }}
+.st-deferred, .st-permission_required, .st-failed {{ color: #ff6b4a; }}
+form.composer {{ display: flex; gap: 8px; margin-top: 12px; position: sticky; bottom: 0;
+  background: #0b0f14; padding: 10px 0; }}
+form.composer textarea {{ flex: 1; background: #131a24; color: #e8eef4; border: 1px solid #223047;
+  border-radius: 12px; padding: 10px 12px; font-size: 16px; resize: none; }}
+form.composer button {{ background: #34d17b; color: #06210f; border: 0; border-radius: 12px;
+  padding: 0 18px; font-size: 16px; font-weight: 700; }}
+.err {{ color: #ff6b4a; font-size: 13px; margin-top: 8px; }}
 </style>
 </head>
 <body>
@@ -81,7 +143,14 @@ h1 {{ font-size: 26px; margin: 6px 0 2px; letter-spacing: .2px; }}
     </div>
     <div class="pill st-{status} h-{health}" id="pill"><span class="dot"></span><span id="status">{status.upper()}</span></div>
   </div>
-
+  <nav class="tabs">
+    <button data-tab="overview" class="on">Overview</button>
+    <button data-tab="activity">Activity</button>
+    <button data-tab="relationships">People</button>
+    <button data-tab="capabilities">Skills</button>
+    <button data-tab="messages">Messages</button>
+  </nav>
+  <section class="tab on" id="sec-overview">
   <div class="card"><div class="label">Activity</div><div class="value big" id="activity">{_esc(view.get("activity") or "—")}</div></div>
   <div class="card"><div class="label">Current objective</div><div class="value" id="objective">{_esc(view.get("current_objective") or "—")}</div></div>
 
@@ -102,8 +171,27 @@ h1 {{ font-size: 26px; margin: 6px 0 2px; letter-spacing: .2px; }}
     <div class="card"><div class="label">Opportunities</div><div class="value" id="opportunities">—</div></div>
   </div>
   <div class="card"><div class="label">Capabilities</div><div class="value" id="capabilities">—</div><div class="sub" id="capabilities-sub"></div></div>
+  </section>
+  <section class="tab" id="sec-activity">
+    <div class="card"><div class="label">Recent activity</div><div id="timeline"><div class="sub">Loading…</div></div></div>
+  </section>
+  <section class="tab" id="sec-relationships">
+    <div class="card"><div class="label">Relationships</div><div id="rel-list"><div class="sub">Loading…</div></div></div>
+  </section>
+  <section class="tab" id="sec-capabilities">
+    <div class="card"><div class="label">Capabilities</div><div id="cap-list"><div class="sub">Loading…</div></div></div>
+  </section>
+  <section class="tab" id="sec-messages">
+    <div class="card"><div class="label">Conversation with Aster</div><div id="msg-list"><div class="sub">Loading…</div></div>
+      <form class="composer" id="composer">
+        <textarea id="composer-text" rows="2" maxlength="4000" placeholder="Message Aster…"></textarea>
+        <button type="submit">Send</button>
+      </form>
+      <div class="err" id="composer-err"></div>
+    </div>
+  </section>
 
-  <div class="foot"><span id="updated">Loading…</span> · auto-refreshes every {REFRESH_SECONDS}s</div>
+  <div class="foot"><span id="updated">Loading…</span> · auto-refreshes</div>
 </div>
 <script>
 (function () {{
@@ -185,13 +273,391 @@ h1 {{ font-size: 26px; margin: 6px 0 2px; letter-spacing: .2px; }}
       $("updated").className = "warn";
     }}
   }}
+  var activeTab = "overview";
+  function showTab(name) {{
+    activeTab = name;
+    var btns = document.querySelectorAll("nav.tabs button");
+    for (var bi = 0; bi < btns.length; bi++) {{
+      btns[bi].className = btns[bi].getAttribute("data-tab") === name ? "on" : "";
+    }}
+    var secs = document.querySelectorAll("section.tab");
+    for (var si = 0; si < secs.length; si++) {{
+      secs[si].className = "tab" + (secs[si].id === "sec-" + name ? " on" : "");
+    }}
+    pull(name, true);
+  }}
+  var navBtns = document.querySelectorAll("nav.tabs button");
+  for (var ni = 0; ni < navBtns.length; ni++) {{
+    (function (b) {{
+      b.addEventListener("click", function () {{ showTab(b.getAttribute("data-tab")); }});
+    }})(navBtns[ni]);
+  }}
+  function el(tag, cls, text) {{
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text != null) e.textContent = text;
+    return e;
+  }}
+  function fmtTime(iso) {{
+    if (!iso) return "";
+    try {{ return new Date(Date.parse(iso)).toLocaleString(); }} catch (e) {{ return ""; }}
+  }}
+  async function getJSON(path) {{
+    var r = await fetch(path, {{ cache: "no-store" }});
+    if (!r.ok) throw new Error("http " + r.status);
+    return r.json();
+  }}
+  function statusLabel(s) {{
+    var m = {{"received": "Received", "queued": "Queued for Aster",
+      "processing": "Aster is working on it…", "completed": "Completed",
+      "deferred": "Deferred", "permission_required": "Needs your approval",
+      "failed": "Failed", "sent": "Sent"}};
+    return m[s] || s || "";
+  }}
+  async function pullMessages() {{
+    var mm = await getJSON("/api/messages?limit=50");
+    var ml = $("msg-list"); ml.textContent = "";
+    var msgs = mm.messages || [];
+    if (!msgs.length) ml.appendChild(el("div", "sub", "No messages yet. Say hello."));
+    for (var i = 0; i < msgs.length; i++) {{
+      var msg = msgs[i];
+      var mine = msg.direction === "inbound";
+      var bubble = el("div", "msg " + (mine ? "in" : "out"), msg.body || "");
+      var meta = [fmtTime(msg.sent_at || msg.received_at || msg.created_at)];
+      if (!mine && msg.via && msg.via.model) meta.push("via " + msg.via.model);
+      else if (!mine && msg.via && msg.via.adapter) meta.push("via " + msg.via.adapter);
+      bubble.appendChild(el("div", "meta", meta.join(" · ")));
+      if (mine) {{
+        var st = el("div", "st st-" + msg.status,
+          statusLabel(msg.status) + (msg.detail ? " — " + msg.detail : ""));
+        bubble.appendChild(st);
+      }}
+      ml.appendChild(bubble);
+    }}
+  }}
+  async function pull(name, now) {{
+    if (document.hidden && !now) return;
+    try {{
+      if (name === "activity") {{
+        var a = await getJSON("/api/activity?limit=30");
+        var tl = $("timeline"); tl.textContent = "";
+        var evs = a.events || [];
+        if (!evs.length) tl.appendChild(el("div", "sub", "No activity recorded yet."));
+        for (var i = 0; i < evs.length; i++) {{
+          var ev = evs[i];
+          var d = el("div", "ev");
+          d.appendChild(el("div", "t", fmtTime(ev.at)));
+          d.appendChild(el("div", "c", ev.category || ""));
+          d.appendChild(el("div", "", ev.description || ""));
+          if (ev.outcome) d.appendChild(el("div", "sub", ev.outcome));
+          tl.appendChild(d);
+        }}
+      }} else if (name === "relationships") {{
+        var rr = await getJSON("/api/relationships");
+        var rl = $("rel-list"); rl.textContent = "";
+        var rels = rr.relationships || [];
+        if (!rels.length) rl.appendChild(el("div", "sub", "No relationships yet."));
+        for (var m = 0; m < rels.length; m++) {{
+          var rel = rels[m];
+          var card = el("div", "ev");
+          card.appendChild(el("div", "c", rel.type || rel.state || ""));
+          card.appendChild(el("div", "big", rel.name || ""));
+          var bits = [];
+          if (rel.where) bits.push(rel.where);
+          if (rel.state) bits.push(rel.state);
+          bits.push(rel.interactions + " interaction" + (rel.interactions === 1 ? "" : "s"));
+          if (rel.last_interaction) bits.push("last " + ago(rel.last_interaction));
+          card.appendChild(el("div", "sub", bits.join(" · ")));
+          for (var n = 0; n < (rel.notes || []).length; n++) {{
+            card.appendChild(el("div", "sub", rel.notes[n]));
+          }}
+          if (rel.pending) card.appendChild(el("div", "", "Pending: " + rel.pending));
+          rl.appendChild(card);
+        }}
+      }} else if (name === "capabilities") {{
+        var cc = await getJSON("/api/capabilities");
+        var cl = $("cap-list"); cl.textContent = "";
+        var caps = cc.capabilities || [];
+        if (!caps.length) cl.appendChild(el("div", "sub", "No capabilities installed."));
+        for (var p = 0; p < caps.length; p++) {{
+          var cap = caps[p];
+          var cc0 = el("div", "ev");
+          cc0.appendChild(el("div", "c", cap.installed ? "installed" : "not installed"));
+          cc0.appendChild(el("div", "big", cap.name || cap.id));
+          if (cap.description) cc0.appendChild(el("div", "sub", cap.description));
+          for (var q = 0; q < (cap.skills || []).length; q++) {{
+            var sk = cap.skills[q];
+            cc0.appendChild(el("div", sk.allowed ? "" : "warn",
+              (sk.allowed ? "✓ " : "✕ ") + sk.name));
+            if (!sk.allowed && sk.limited_explanation) {{
+              cc0.appendChild(el("div", "sub", sk.limited_explanation));
+            }} else if (!sk.allowed && sk.reason) {{
+              cc0.appendChild(el("div", "sub", sk.reason));
+            }}
+          }}
+          cl.appendChild(cc0);
+        }}
+      }} else if (name === "messages") {{
+        await pullMessages();
+      }}
+    }} catch (e) {{}}
+  }}
+  $("composer").addEventListener("submit", async function (e) {{
+    e.preventDefault();
+    var box = $("composer-text");
+    var err = $("composer-err");
+    err.textContent = "";
+    var text = box.value.trim();
+    if (!text) return;
+    try {{
+      var r = await fetch("/api/messages", {{
+        method: "POST",
+        headers: {{"Content-Type": "application/json", "X-Requested-With": "AsterControl"}},
+        body: JSON.stringify({{text: text}})
+      }});
+      var data = await r.json().catch(function () {{ return {{}}; }});
+      if (!r.ok) throw new Error((data && data.error) || ("http " + r.status));
+      box.value = "";
+      await pullMessages();
+    }} catch (ex) {{
+      err.textContent = "Send failed: " + ex.message;
+    }}
+  }});
   setInterval(tick, 1000);
-  setInterval(refresh, {REFRESH_SECONDS} * 1000);
+  setInterval(function () {{ if (!document.hidden && activeTab === "overview") refresh(); }}, {REFRESH_SECONDS} * 1000);
+  setInterval(function () {{ if (!document.hidden && activeTab === "messages") pullMessages().catch(function () {{}}); }}, {MESSAGES_POLL_SECONDS} * 1000);
+  setInterval(function () {{ if (!document.hidden && activeTab === "activity") pull("activity"); }}, {ACTIVITY_POLL_SECONDS} * 1000);
+  setInterval(function () {{ if (!document.hidden && (activeTab === "relationships" || activeTab === "capabilities")) pull(activeTab); }}, {SLOW_POLL_SECONDS} * 1000);
   refresh();
 }})();
 </script>
 </body>
 </html>"""
+
+
+# ── control API: sanitizers ───────────────────────────────────────────────
+
+def _clip(value: Any, limit: int) -> str:
+    text = "" if value is None else str(value)
+    return text if len(text) <= limit else text[:limit] + "…"
+
+
+def _timeline(store: Any, *, limit: int = 30) -> list[dict[str, Any]]:
+    """Sanitized recent activity from provenance + notifications.
+
+    Only timestamp, category, summary, and short outcome are exposed.
+    Evidence arrays and refs are deliberately excluded: they may carry
+    operational details (addresses, excerpts) that have no place in the UI.
+    """
+    entries: list[dict[str, Any]] = []
+    for item in store.list_provenance(limit=max(1, limit)):
+        entries.append({
+            "at": item.at,
+            "category": item.phase.value if hasattr(item.phase, "value") else str(item.phase),
+            "description": _clip(item.summary, 280),
+            "outcome": _clip(item.result, 200),
+        })
+    for note in store.list_notifications()[-max(1, limit):]:
+        entries.append({
+            "at": getattr(note, "at", ""),
+            "category": f"notification:{getattr(note, 'kind', '')}",
+            "description": _clip(getattr(note, "summary", ""), 280),
+            "outcome": "unread" if not getattr(note, "read", True) else "read",
+        })
+    entries.sort(key=lambda e: e["at"] or "", reverse=True)
+    return entries[: max(1, limit)]
+
+
+def _relationship_cards(store: Any) -> list[dict[str, Any]]:
+    """Sanitized relationships. Email addresses are never exposed."""
+    cards: list[dict[str, Any]] = []
+    for rel in store.list_relationships():
+        last = [t for t in (
+            getattr(rel, "last_inbound_at", None),
+            getattr(rel, "last_outbound_at", None),
+        ) if t]
+        notes = [_clip(n, 200) for n in (getattr(rel, "notes", None) or [])][-5:]
+        thread_ids = list(getattr(rel, "thread_ids", None) or [])
+        cards.append({
+            "id": rel.id,
+            "name": _clip(getattr(rel, "display_name", ""), 120) or "(unnamed)",
+            "type": _clip(getattr(rel, "role", "") or getattr(rel, "purpose", ""), 160),
+            "state": rel.status.value if hasattr(rel.status, "value") else str(rel.status),
+            "where": _clip(getattr(rel, "organization", ""), 160),
+            "first_contact": getattr(rel, "first_contacted_at", None),
+            "last_interaction": max(last) if last else None,
+            "interactions": len(getattr(rel, "message_ids", None) or []),
+            "threads": len(thread_ids),
+            "notes": notes,
+            "pending": _clip(getattr(rel, "next_action", ""), 200),
+        })
+    cards.sort(key=lambda c: c["last_interaction"] or "", reverse=True)
+    return cards
+
+
+def _capability_cards(registry: Any, identity_id: str, store: Any) -> list[dict[str, Any]]:
+    """Installed capabilities with per-skill permission state.
+
+    Capability configs are NEVER exposed (they may hold topics/secrets).
+    Human-readable degradation reasons come from the latest gap records.
+    """
+    gap_reasons: dict[str, str] = {}
+    try:
+        for item in store.list_provenance(limit=200):
+            summary = item.summary or ""
+            if summary.startswith("capability gap:"):
+                skill = (summary.split(":", 1)[1] or "").split("[")[0].strip()
+                if skill and skill not in gap_reasons:
+                    gap_reasons[skill] = _clip(item.result, 200)
+    except Exception:
+        pass
+    cards: list[dict[str, Any]] = []
+    try:
+        installed = registry.list(identity_id)
+    except Exception:
+        installed = []
+    for cap in installed:
+        try:
+            skills = cap.skills()
+        except Exception:
+            skills = []
+        skill_cards = []
+        for skill in skills:
+            try:
+                allowed, reason = registry.can(identity_id, skill.name)
+            except Exception:
+                allowed, reason = False, "permission check failed"
+            skill_cards.append({
+                "name": skill.name,
+                "description": _clip(getattr(skill, "description", ""), 200),
+                "permission": getattr(skill, "permission", "public"),
+                "effect": getattr(skill, "effect", ""),
+                "allowed": bool(allowed),
+                "reason": _clip(reason, 200),
+                "limited_explanation": gap_reasons.get(skill.name, ""),
+            })
+        cards.append({
+            "id": getattr(cap, "id", ""),
+            "name": _clip(getattr(cap, "name", "") or getattr(cap, "id", ""), 120),
+            "version": _clip(getattr(cap, "version", ""), 40),
+            "description": _clip(getattr(cap, "description", ""), 300),
+            "installed": True,
+            "skills": skill_cards,
+            "last_used": "unknown",
+        })
+    cards.sort(key=lambda c: c["id"])
+    return cards
+
+
+def _message_cards(store: Any, *, limit: int = 50) -> list[dict[str, Any]]:
+    """Principal conversation envelopes. Bodies belong to the principal's own
+    conversation and are visible here — and nowhere else in the UI."""
+    from core.operations.principal import CONTROL_CHANNEL, thread_messages
+
+    cards: list[dict[str, Any]] = []
+    for message in thread_messages(store, limit=limit):
+        response_id = ""
+        detail = ""
+        for piece in message.evidence or []:
+            if not isinstance(piece, str):
+                continue
+            if piece.startswith("response:"):
+                response_id = piece.split(":", 1)[1]
+            elif piece and not detail:
+                detail = piece[:300]
+        generation = dict(message.generation or {})
+        cards.append({
+            "id": message.id,
+            "direction": message.direction.value if hasattr(message.direction, "value") else str(message.direction),
+            "body": message.body or "",
+            "status": message.status.value if hasattr(message.status, "value") else str(message.status),
+            "created_at": message.created_at,
+            "received_at": message.received_at,
+            "sent_at": message.sent_at,
+            "in_reply_to": message.in_reply_to or "",
+            "thread_id": message.thread_id or "",
+            "response_id": response_id,
+            "detail": detail,
+            "via": {
+                "mode": generation.get("mode", ""),
+                "adapter": generation.get("adapter", ""),
+                "model": generation.get("model", ""),
+            },
+        })
+    return cards
+
+
+# ── control API: principal verification ───────────────────────────────────
+
+def _expected_login() -> str:
+    return (os.environ.get("ASTER_BUILDER_LOGIN", "") or "").strip()
+
+
+def _expected_host() -> str:
+    return (os.environ.get("ASTER_TAILNET_HOST", "") or "").strip().lower()
+
+
+def _principal_verified(handler: BaseHTTPRequestHandler) -> tuple[bool, str]:
+    """Verify a state-changing request comes from the builder via the Tailnet.
+
+    Three independent checks, all required:
+    1. Host must be the Tailnet hostname. Tailscale Serve forwards the
+       original Host; direct-local requests (Host: localhost/127.0.0.1)
+       fail here even with forged identity headers.
+    2. Tailscale-User-Login must exactly match the configured builder login.
+       Tailscale Serve injects this for genuine Tailnet viewers.
+    3. Anti-CSRF marker: browsers issuing cross-site requests cannot set
+       X-Requested-With (preflight fails — we never emit CORS headers), so
+       ordinary CSRF forms/fetch are rejected. Same-origin UI sets it.
+    """
+    host = (handler.headers.get("Host", "") or "").split(":")[0].strip().lower()
+    expected_host = _expected_host()
+    if not expected_host or host != expected_host:
+        return False, "untrusted host"
+    login = (handler.headers.get("Tailscale-User-Login", "") or "").strip()
+    expected_login = _expected_login()
+    if not expected_login or login != expected_login:
+        return False, "principal not verified"
+    if not handler.headers.get("X-Requested-With"):
+        origin = (handler.headers.get("Origin", "") or handler.headers.get("Referer", ""))
+        if expected_host not in origin.lower():
+            return False, "missing request marker"
+    return True, ""
+
+
+def _post_rate_ok() -> bool:
+    bucket = int(time.time() // 60)
+    with _post_minutes_lock:
+        _post_minutes[bucket] = _post_minutes.get(bucket, 0) + 1
+        for old in [k for k in _post_minutes if k < bucket - 1]:
+            del _post_minutes[old]
+        return _post_minutes[bucket] <= MAX_POSTS_PER_MINUTE
+
+
+# ── PWA assets ────────────────────────────────────────────────────────────
+
+APP_MANIFEST = {
+    "name": "Aster",
+    "short_name": "Aster",
+    "description": "Private Aster Control for IdentityOS",
+    "display": "standalone",
+    "orientation": "portrait",
+    "background_color": "#0b0f14",
+    "theme_color": "#0b0f14",
+    "start_url": "/status",
+    "scope": "/",
+    "icons": [
+        {"src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any"}
+    ],
+}
+
+ICON_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+<rect width="128" height="128" rx="28" fill="#0b0f14"/>
+<circle cx="64" cy="64" r="34" fill="none" stroke="#34d17b" stroke-width="6"/>
+<circle cx="64" cy="64" r="12" fill="#34d17b"/>
+<circle cx="64" cy="18" r="5" fill="#5aa9ff"/>
+</svg>
+"""
 
 
 class _HealthHandler(BaseHTTPRequestHandler):
@@ -201,9 +667,25 @@ class _HealthHandler(BaseHTTPRequestHandler):
         # Suppress default log noise; serve() prints its own startup line.
         pass
 
+    def _backend(self):
+        """Build store/registry accessors bound to this server's storage."""
+        presence = self.presence_store
+        storage = presence._storage if presence is not None else None
+        identity_id = presence.identity_id if presence is not None else "aster"
+        return storage, identity_id
+
     def do_GET(self) -> None:
-        path = self.path.split("?")[0]
-        if path not in ("/health", "/status"):
+        parsed = urlparse(self.path)
+        path = parsed.path
+        if path == "/manifest.json":
+            self._send(200, json.dumps(APP_MANIFEST, indent=2).encode("utf-8"),
+                       "application/manifest+json")
+            return
+        if path == "/icon.svg":
+            self._send(200, ICON_SVG.encode("utf-8"), "image/svg+xml")
+            return
+        if path not in ("/health", "/status", "/api/presence", "/api/activity",
+                        "/api/relationships", "/api/capabilities", "/api/messages"):
             self._send(404, b'{"error": "not found"}', "application/json")
             return
 
@@ -215,9 +697,103 @@ class _HealthHandler(BaseHTTPRequestHandler):
         if path == "/status":
             body = render_dashboard(view).encode("utf-8")
             self._send(200, body, "text/html; charset=utf-8")
-        else:
+            return
+        if path in ("/health", "/api/presence"):
             body = json.dumps(view, indent=2).encode("utf-8")
             self._send(200, body, "application/json; charset=utf-8")
+            return
+        self._serve_read_api(path, parsed)
+
+    def _serve_read_api(self, path: str, parsed: Any) -> None:
+        from urllib.parse import parse_qs
+
+        from core.operations.store import OperationsStore
+
+        storage, identity_id = self._backend()
+        if storage is None:
+            self._send(503, b'{"error": "storage not initialized"}', "application/json")
+            return
+        store = OperationsStore(storage, identity_id)
+        try:
+            limit = int(parse_qs(parsed.query).get("limit", ["30"])[0])
+        except (ValueError, TypeError):
+            limit = 30
+        limit = max(1, min(100, limit))
+        try:
+            if path == "/api/activity":
+                payload = {"events": _timeline(store, limit=limit)}
+            elif path == "/api/relationships":
+                payload = {"relationships": _relationship_cards(store)}
+            elif path == "/api/capabilities":
+                from core.capabilities.registry import CapabilityRegistry
+
+                payload = {"capabilities": _capability_cards(
+                    CapabilityRegistry(storage), identity_id, store)}
+            elif path == "/api/messages":
+                payload = {"messages": _message_cards(store, limit=limit)}
+            else:
+                self._send(404, b'{"error": "not found"}', "application/json")
+                return
+        except Exception as exc:
+            self._send(500, json.dumps({"error": f"{type(exc).__name__}"}).encode(),
+                       "application/json")
+            return
+        self._send(200, json.dumps(payload).encode("utf-8"), "application/json; charset=utf-8")
+
+    def do_POST(self) -> None:
+        parsed = urlparse(self.path)
+        if parsed.path != "/api/messages":
+            self._send(404, b'{"error": "not found"}', "application/json")
+            return
+        if self.presence_store is None:
+            self._send(503, b'{"error": "presence store not initialized"}', "application/json")
+            return
+        ok, reason = _principal_verified(self)
+        if not ok:
+            self._send(403, json.dumps({"error": reason}).encode("utf-8"),
+                       "application/json")
+            return
+        if not _post_rate_ok():
+            self._send(429, b'{"error": "rate limit: slow down"}', "application/json")
+            return
+        try:
+            length = int(self.headers.get("Content-Length", "0") or "0")
+        except ValueError:
+            length = 0
+        if length <= 0 or length > MAX_POST_BYTES:
+            self._send(400, b'{"error": "invalid request size"}', "application/json")
+            return
+        try:
+            payload = json.loads(self.rfile.read(length).decode("utf-8"))
+        except (ValueError, UnicodeDecodeError):
+            self._send(400, b'{"error": "invalid JSON"}', "application/json")
+            return
+        text = payload.get("text", "") if isinstance(payload, dict) else ""
+        thread_id = payload.get("thread_id", "") if isinstance(payload, dict) else ""
+        if not isinstance(text, str) or not isinstance(thread_id, str):
+            self._send(400, b'{"error": "invalid parameters"}', "application/json")
+            return
+
+        from core.operations.store import OperationsStore
+        from core.operations.principal import submit_principal_message
+
+        storage, identity_id = self._backend()
+        store = OperationsStore(storage, identity_id)
+        try:
+            message = submit_principal_message(store, text, thread_id=thread_id.strip())
+        except ValueError as exc:
+            self._send(400, json.dumps({"error": str(exc)}).encode("utf-8"),
+                       "application/json")
+            return
+        except RuntimeError as exc:
+            self._send(429, json.dumps({"error": str(exc)}).encode("utf-8"),
+                       "application/json")
+            return
+        self._send(201, json.dumps({
+            "id": message.id,
+            "status": message.status.value,
+            "created_at": message.created_at,
+        }).encode("utf-8"), "application/json; charset=utf-8")
 
     def _send(self, code: int, body: bytes, content_type: str) -> None:
         self.send_response(code)

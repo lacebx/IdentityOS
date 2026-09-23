@@ -330,6 +330,21 @@ class OperationsStore:
                 break
         self._save_messages()
 
+    def refresh_messages(self) -> None:
+        """Reload messages from the backend, discarding the cached collection.
+
+        Required for long-lived operator processes: principal messages (and
+        any other records) written by a different process — e.g. the control
+        server persisting an inbound phone message — are invisible until the
+        cache is refreshed. Without this, cross-process writes would sit
+        unprocessed until restart.
+        """
+        self._messages = self._load_messages()
+
+    def refresh_relationships(self) -> None:
+        """Reload relationships from the backend (same cross-process reason)."""
+        self._relationships = self._load_relationships()
+
     # ── provenance ────────────────────────────────────────────────────
 
     def append_provenance(self, entry: ProvenanceEntry) -> ProvenanceEntry:

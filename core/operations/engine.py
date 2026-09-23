@@ -18,6 +18,7 @@ conversations, no in-memory-only progress.
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Any, Iterable, Optional, Mapping
@@ -64,6 +65,8 @@ class TickReport:
     escalations: list[str] = field(default_factory=list)
     replies_sent: list[str] = field(default_factory=list)
     follow_ups_sent: list[str] = field(default_factory=list)
+    principal_processed: list[str] = field(default_factory=list)
+    principal_deferred: list[str] = field(default_factory=list)
     skipped: list[dict[str, Any]] = field(default_factory=list)
     errors: list[dict[str, Any]] = field(default_factory=list)
 
@@ -79,6 +82,8 @@ class TickReport:
             "escalations": list(self.escalations),
             "replies_sent": list(self.replies_sent),
             "follow_ups_sent": list(self.follow_ups_sent),
+            "principal_processed": list(self.principal_processed),
+            "principal_deferred": list(self.principal_deferred),
             "skipped": list(self.skipped),
             "errors": list(self.errors),
         }
@@ -329,6 +334,9 @@ class OperationsEngine:
         if monitor:
             _, report.replies_sent, monitor_skips = self._phase_monitor()
             report.skipped.extend(monitor_skips)
+            principal_results = self._phase_principal(now)
+            report.principal_processed = [r["message_id"] for r in principal_results if r.get("outcome") == "completed"]
+            report.principal_deferred = [r["message_id"] for r in principal_results if r.get("outcome") != "completed"]
         if follow_ups:
             report.follow_ups_sent, follow_skips = self._phase_follow_ups(now)
             report.skipped.extend(follow_skips)
@@ -876,6 +884,268 @@ class OperationsEngine:
         messages = list(result.get("messages") or [])
         new_cursor = result.get("cursor")
         return messages, new_cursor
+
+    def _phase_principal(self, now: datetime) -> list[dict[str, Any]]:
+        """Process queued principal (Aster Control) messages as the operator.
+
+        Every transition is written by actual execution: RECEIVED/QUEUED →
+        PROCESSING → COMPLETED, or DEFERRED / PERMISSION_REQUIRED / FAILED.
+        A substantive reply REQUIRES a working model runtime; without one the
+        message is DEFERRED, never answered by a template masquerading as
+        Aster. Existing permissions, budgets, and escalation rules remain
+        authoritative — the phone UI cannot bypass them.
+        """
+        from .principal import (
+            CONTROL_CHANNEL,
+            CommandClass,
+            build_principal_context,
+            classify_command,
+            pending_principal_messages,
+            thread_messages,
+        )
+
+        outcomes: list[dict[str, Any]] = []
+        # Cross-process visibility: the control server persists inbound
+        # principal messages through its own store instance. Refresh before
+        # scanning or this long-lived process would never see them.
+        self.store.refresh_messages()
+        self.store.refresh_relationships()
+        pending = pending_principal_messages(self.store)
+        if not pending:
+            return outcomes
+        self._presence_update(
+            "set_status", PresenceStatus.THINKING,
+            activity=f"Processing {len(pending)} principal message(s)",
+        )
+        for inbound in pending:
+            outcomes.append(self._process_principal_message(inbound, now))
+        return outcomes
+
+    def _process_principal_message(self, inbound: Message, now: datetime) -> dict[str, Any]:
+        from .principal import (
+            CONTROL_CHANNEL,
+            CommandClass,
+            build_principal_context,
+            classify_command,
+            thread_messages,
+        )
+
+        inbound.status = MessageStatus.PROCESSING
+        self.store.update_message(inbound)
+        command = classify_command(inbound.body or "")
+
+        if command in (CommandClass.EXECUTE, CommandClass.COMMUNICATE):
+            gate = self._principal_policy_gate(inbound, command)
+            if gate is not None:
+                return gate
+
+        if self._adapter is None:
+            return self._settle_principal(
+                inbound, MessageStatus.DEFERRED,
+                reason="no model runtime configured; substantive replies require a working model",
+                notify=False,
+            )
+        response_text, generation = self._generate_principal_response(inbound, command)
+        if response_text is None:
+            return self._settle_principal(
+                inbound, MessageStatus.DEFERRED,
+                reason=generation.get("detail", "model unavailable; will retry on a later tick"),
+                notify=False,
+            )
+        relationship = self.store.get_relationship(inbound.relationship_id)
+        response = Message(
+            relationship_id=inbound.relationship_id,
+            direction=MessageDirection.OUTBOUND,
+            channel=CONTROL_CHANNEL,
+            subject="",
+            body=response_text,
+            sent_at=utcnow().isoformat(),
+            thread_id=inbound.thread_id or "principal",
+            in_reply_to=inbound.id,
+            status=MessageStatus.SENT,
+            authorization="principal:response",
+            generation=generation,
+        )
+        self.store.append_message(response)
+        if relationship is not None:
+            relationship.message_ids.append(response.id)
+            relationship.last_outbound_at = response.sent_at
+            relationship.next_action = "awaiting principal message"
+            self.store.update_relationship(relationship)
+        self._provenance(
+            ProvenancePhase.PRINCIPAL,
+            "replied to principal via Aster Control",
+            action="principal.respond",
+            result=f"command={command.value} mode={generation.get('mode', '')}",
+            refs={"message_id": inbound.id, "response_id": response.id,
+                  "relationship_id": inbound.relationship_id},
+        )
+        self._presence_update(
+            "mark_meaningful_action", "Replied to Arsène via Aster Control"
+        )
+        return self._settle_principal(
+            inbound, MessageStatus.COMPLETED,
+            reason=f"responded ({command.value})",
+            response_id=response.id,
+            notify=False,
+        )
+
+    def _principal_policy_gate(self, inbound: Message, command: CommandClass) -> Optional[dict[str, Any]]:
+        """Enforce existing policy on COMMUNICATE/EXECUTE instructions.
+
+        Returns None when the instruction may proceed to response generation
+        (which for these classes includes executing the allowed action first);
+        otherwise settles the message as PERMISSION_REQUIRED and returns the
+        outcome. The phone UI never bypasses IdentityOS permissions.
+        """
+        from .principal import CommandClass
+
+        controls = self.store.controls()
+        decision = AuthorityPolicy(controls).evaluate(
+            f"principal instruction ({command.value}): {(inbound.body or '')[:200]}",
+            category="principal_instruction",
+            content=inbound.body or "",
+            mode="commitment",
+        )
+        if decision.requires_human:
+            self._notify(
+                kind="principal_instruction",
+                summary=f"principal instruction requires authorization ({command.value})",
+                refs={"message_id": inbound.id},
+            )
+            self._provenance(
+                ProvenancePhase.PRINCIPAL,
+                "principal instruction held for authorization",
+                action="principal.gate",
+                result=decision.reason,
+                refs={"message_id": inbound.id, "command": command.value,
+                      "notify": "principal:instruction"},
+            )
+            return self._settle_principal(
+                inbound, MessageStatus.PERMISSION_REQUIRED,
+                reason=decision.reason or "authorization required by policy",
+                notify=False,
+            )
+        if command is CommandClass.EXECUTE:
+            lowered = (inbound.body or "").strip().lower()
+            if re.search(r"\bpause\b", lowered) and "operator" in lowered:
+                self.pause(note="principal instruction via Aster Control")
+                return None
+            if re.search(r"\bresume\b", lowered) and "operator" in lowered:
+                self.resume(note="principal instruction via Aster Control")
+                return None
+            return self._settle_principal(
+                inbound, MessageStatus.DEFERRED,
+                reason="policy allows autonomous action but no safe executor is wired "
+                       "for this instruction; recorded for principal review",
+                notify=False,
+            )
+        return None
+
+    def _generate_principal_response(
+        self, inbound: Message, command: CommandClass
+    ) -> tuple[Optional[str], dict[str, Any]]:
+        from .principal import build_principal_context, thread_messages
+
+        presence_summary = ""
+        if self._presence is not None:
+            try:
+                view = self._presence.public_view()
+                presence_summary = (
+                    f"activity={view.get('status')}: {view.get('activity')}; "
+                    f"last heartbeat {view.get('heartbeat_age_seconds')}s ago; "
+                    f"last meaningful action: {view.get('last_meaningful_action')}; "
+                    f"commons={view.get('commons_standing')}; "
+                    f"opportunities={view.get('opportunity_count')}"
+                )
+            except Exception:
+                presence_summary = ""
+        history = thread_messages(self.store, limit=10)
+        context, user_input = build_principal_context(
+            identity_name=self.config.sender_name or "Aster",
+            objective=self.config.purpose,
+            history=history,
+            command=command,
+            presence_summary=presence_summary,
+        )
+        try:
+            text = self._adapter.generate(context, user_input, self._identity)
+        except Exception as exc:
+            return None, {"mode": "unavailable", "detail": f"model call failed: {exc}"}
+        text = (text or "").strip()
+        if not text:
+            return None, {"mode": "unavailable", "detail": "model returned an empty response"}
+        return text, self._generation_metadata()
+
+    def _generation_metadata(self) -> dict[str, Any]:
+        # Attribute the provider that ACTUALLY generated. A ChainAdapter
+        # records its winning leaf in last_selection; naively naming the
+        # first chain entry misattributes fall-through responses.
+        selection = getattr(self._adapter, "last_selection", None) or {}
+        if selection.get("provider"):
+            return {
+                "mode": "identity_model_generation",
+                "adapter": selection.get("provider", ""),
+                "model": selection.get("model", ""),
+                "latency_ms": selection.get("latency_ms"),
+            }
+        try:
+            from adapters.configuration import describe_adapter
+
+            described = describe_adapter(self._adapter)
+            providers = described.get("providers") or []
+            first = providers[0] if providers else {}
+            return {
+                "mode": "identity_model_generation",
+                "adapter": first.get("adapter", type(self._adapter).__name__),
+                "model": first.get("model", str(getattr(self._adapter, "model", "") or "")),
+            }
+        except Exception:
+            return {
+                "mode": "identity_model_generation",
+                "adapter": type(self._adapter).__name__,
+                "model": str(getattr(self._adapter, "model", "") or ""),
+            }
+
+    def _settle_principal(
+        self,
+        inbound: Message,
+        status: MessageStatus,
+        *,
+        reason: str = "",
+        response_id: str = "",
+        notify: bool = False,
+    ) -> dict[str, Any]:
+        from .principal import CommandClass, classify_command
+
+        command = classify_command(inbound.body or "")
+        inbound.status = status
+        if response_id:
+            inbound.evidence = list(inbound.evidence or []) + [f"response:{response_id}"]
+        if reason and status is not MessageStatus.COMPLETED:
+            inbound.evidence = list(inbound.evidence or []) + [reason[:300]]
+        self.store.update_message(inbound)
+        if notify:
+            self._notify(
+                kind="principal_instruction",
+                summary=f"principal message {status.value}: {reason[:140]}",
+                refs={"message_id": inbound.id},
+            )
+        self._provenance(
+            ProvenancePhase.PRINCIPAL,
+            f"principal message {status.value}",
+            action="principal.settle",
+            result=reason[:300],
+            refs={"message_id": inbound.id, "command": command.value,
+                  "response_id": response_id},
+        )
+        return {
+            "message_id": inbound.id,
+            "outcome": "completed" if status is MessageStatus.COMPLETED else status.value,
+            "command": command.value,
+            "response_id": response_id,
+            "reason": reason,
+        }
 
     def _phase_follow_ups(self, now: datetime) -> tuple[list[str], list[dict[str, Any]]]:
         sent: list[str] = []

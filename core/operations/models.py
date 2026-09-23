@@ -78,6 +78,15 @@ class MessageStatus(str, Enum):
     # not, because the operator is in observation mode. Kept so a human can
     # review exactly what would have been sent before switching to autonomous.
     WOULD_SEND = "would_send"
+    # Principal-messaging lifecycle (Aster Control): an inbound principal
+    # message moves RECEIVED -> QUEUED -> PROCESSING -> COMPLETED, or lands in
+    # DEFERRED / PERMISSION_REQUIRED / FAILED. Transitions are written only by
+    # actual execution, never manufactured.
+    QUEUED = "queued"
+    PROCESSING = "processing"
+    COMPLETED = "completed"
+    DEFERRED = "deferred"
+    PERMISSION_REQUIRED = "permission_required"
 
 
 class FollowUpStatus(str, Enum):
@@ -99,6 +108,7 @@ class ProvenancePhase(str, Enum):
     FOLLOW_UP = "follow_up"
     ESCALATE = "escalate"
     CONTROL = "control"
+    PRINCIPAL = "principal"
 
 
 # ─────────────────────────────────────────────────────────────────────────────

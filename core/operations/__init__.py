@@ -55,11 +55,35 @@ from .needs import NeedDetector, RequirementRule
 from .observer import ProjectStateObserver
 from .policy import Authority, AuthorityPolicy, AuthorizationDecision
 from .presence import PresenceStatus, PresenceStore
+from .principal import (
+    BUILDER_PURPOSE,
+    CONTROL_CHANNEL,
+    MAX_MESSAGE_CHARS,
+    CommandClass,
+    build_principal_context,
+    classify_command,
+    ensure_builder_relationship,
+    find_builder_relationship,
+    pending_principal_messages,
+    submit_principal_message,
+    thread_messages,
+)
 from .store import OperationsStore
 
 __all__ = [
+    "BUILDER_PURPOSE",
+    "CONTROL_CHANNEL",
+    "MAX_MESSAGE_CHARS",
+    "CommandClass",
     "PresenceStatus",
     "PresenceStore",
+    "build_principal_context",
+    "classify_command",
+    "ensure_builder_relationship",
+    "find_builder_relationship",
+    "pending_principal_messages",
+    "submit_principal_message",
+    "thread_messages",
     "Authority",
     "AuthorityPolicy",
     "AuthorizationDecision",
