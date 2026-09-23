@@ -818,3 +818,49 @@ def test_observer_resolves_nested_project_root(tmp_path):
                for f in state.fact_details)
     assert all(f.statement for f in state.fact_details)
     assert state.metadata.get("resolved_root", "").endswith("IdentityOS")
+
+
+@pytest.mark.parametrize('skill,capability', [('web.search', 'web'), ('email.send', 'email')])
+def test_permission_gap_never_attempts_acquisition(tmp_path, skill, capability):
+    from core.capabilities.registry import CapabilityRegistry
+    from core.operations import CapabilityGapDetector
+
+    storage = InMemoryBackend()
+    registry = CapabilityRegistry(storage)
+    registry.install('requester', capability, {'root': str(tmp_path), 'mailbox': 'requester'})
+    calls = []
+
+    def acquire(requested):
+        calls.append(requested)
+        return True, 'provider claims success'
+
+    detector = CapabilityGapDetector(
+        capability_registry=registry, identity_id='requester', acquisition=acquire,
+    )
+    gap, = detector.check([skill])
+    detector.resolve(gap)
+    assert calls == [], 'Missing authority must not become acquisition or delegation'
+    assert not gap.resolved
+    assert 'PERMISSION_REQUIRED' in gap.resolution
+    assert registry.can('requester', skill)[0] is False
+
+
+def test_missing_implementation_still_attempts_acquisition():
+    from core.capabilities.registry import CapabilityRegistry
+    from core.operations import CapabilityGapDetector
+
+    calls = []
+
+    def acquire(skill):
+        calls.append(skill)
+        return False, 'no usable provider'
+
+    detector = CapabilityGapDetector(
+        capability_registry=CapabilityRegistry(InMemoryBackend()),
+        identity_id='requester', acquisition=acquire,
+    )
+    gap, = detector.check(['unknown.example'])
+    detector.resolve(gap)
+    assert calls == ['unknown.example']
+    assert not gap.resolved
+    assert gap.resolution == 'no usable provider'

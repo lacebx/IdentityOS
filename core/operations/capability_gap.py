@@ -154,6 +154,13 @@ class CapabilityGapDetector:
 
     def resolve(self, gap: CapabilityGap) -> CapabilityGap:
         """Attempt acquisition through the configured resolver."""
+        if gap.status == CapabilityStatus.INSTALLED_PERMISSION_MISSING.value:
+            # Acquiring another implementation cannot authorize a denied action.
+            # Preserve the diagnosis for the existing principal notification path.
+            gap.resolved = False
+            gap.resolution = f"PERMISSION_REQUIRED: {gap.reason}"
+            self._record_gap_need(gap)
+            return gap
         if self._acquisition is None:
             gap.resolution = "no acquisition mechanism configured"
             self._record_gap_need(gap)
