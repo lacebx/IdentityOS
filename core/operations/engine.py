@@ -150,11 +150,20 @@ class OperationsEngine:
             self_address=self.config.sender_email,
         )
         self.follow_ups = FollowUpPlanner(self.store)
+        # Bind only an explicitly initialized service world. No schema writes or
+        # identity creation on ordinary runtime startup.
+        from core.services.integration import runtime_for
+        self.services = runtime_for(storage, capability_registry) if capability_registry else None
+        delegation = None
+        if self.services and storage.load(config.identity_id, 'identity_spec'):
+            session = self.services.bind(config.identity_id)
+            delegation = lambda gap: self.services.escalate_gap(session, gap)
         self.gap_detector = CapabilityGapDetector(
             capability_registry=capability_registry,
             identity_id=config.identity_id,
             acquisition=acquisition,
             store=self.store,
+            delegation=delegation,
         )
 
     def _compute_observation_fingerprint(self, state: Any) -> str:
@@ -306,6 +315,9 @@ class OperationsEngine:
                 PresenceStatus.THINKING,
                 activity="Evaluating project needs and opportunities",
             )
+            if self.services:
+                from core.services.worker import requester_tick
+                requester_tick(self.services, self.config.identity_id)
             self._phase_gaps(report)
             report.needs_created = [n.id for n in self.detector.detect(self.store, self.store.project_state())] if self.store.project_state() else []
             if report.needs_created:

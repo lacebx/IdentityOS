@@ -42,3 +42,4 @@ __all__ = [
     "EvidenceReport",
 ]
 from core.capabilities import notification as _notif_mod  # noqa: F401
+from . import service_artifacts  # noqa: F401

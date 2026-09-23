@@ -1250,6 +1250,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_aster = sub.add_parser("aster", help="Aster autonomous operator commands")
     add_aster_parser(p_aster)
 
+    from cli.service_cmds import add_service_parser
+    add_service_parser(sub.add_parser("services", help="Persistent identity services and internal credits"))
     return parser
 
 
@@ -1318,7 +1320,10 @@ def cmd_isp_wrapper(args: argparse.Namespace) -> int:
 # Entry point
 # ---------------------------------------------------------------------------
 
+from cli.service_cmds import run as cmd_services
+
 COMMAND_MAP = {
+    "services": cmd_services,
     "create": cmd_create,
     "inspect": cmd_inspect,
     "debug": cmd_debug,

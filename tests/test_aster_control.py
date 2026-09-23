@@ -341,7 +341,7 @@ def test_read_polls_invoke_zero_model_calls(tmp_path, monkeypatch):
     server, port = _serve_once(presence)
     try:
         for path in ("/api/presence", "/api/activity", "/api/relationships",
-                     "/api/capabilities", "/api/messages", "/health", "/status"):
+                     "/api/capabilities", "/api/messages", "/api/work", "/health", "/status"):
             with urllib.request.urlopen(f"http://127.0.0.1:{port}{path}", timeout=8) as resp:
                 assert resp.status == 200, path
                 resp.read()

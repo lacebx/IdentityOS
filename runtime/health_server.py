@@ -148,6 +148,7 @@ form.composer button {{ background: #34d17b; color: #06210f; border: 0; border-r
     <button data-tab="activity">Activity</button>
     <button data-tab="relationships">People</button>
     <button data-tab="capabilities">Skills</button>
+    <button data-tab="work">Work</button>
     <button data-tab="messages">Messages</button>
   </nav>
   <section class="tab on" id="sec-overview">
@@ -181,6 +182,7 @@ form.composer button {{ background: #34d17b; color: #06210f; border: 0; border-r
   <section class="tab" id="sec-capabilities">
     <div class="card"><div class="label">Capabilities</div><div id="cap-list"><div class="sub">Loading…</div></div></div>
   </section>
+  <section class="tab" id="sec-work"><div class="card"><div class="label">Delegated work</div><div id="work-list">No delegated work.</div></div></section>
   <section class="tab" id="sec-messages">
     <div class="card"><div class="label">Conversation with Aster</div><div id="msg-list"><div class="sub">Loading…</div></div>
       <form class="composer" id="composer">
@@ -349,9 +351,24 @@ form.composer button {{ background: #34d17b; color: #06210f; border: 0; border-r
           d.appendChild(el("div", "t", fmtTime(ev.at)));
           d.appendChild(el("div", "c", ev.category || ""));
           d.appendChild(el("div", "", ev.description || ""));
+          if (ev.count > 1) d.appendChild(el("div", "sub", "Repeated " + ev.count + " times · first " + fmtTime(ev.first_at) + " · last " + fmtTime(ev.at)));
           if (ev.outcome) d.appendChild(el("div", "sub", ev.outcome));
           tl.appendChild(d);
         }}
+      }} else if (name === "work") {{
+        var ww = await getJSON("/api/work");
+        var wl = $("work-list"); wl.textContent = "";
+        if (!(ww.jobs || []).length) wl.appendChild(el("div", "sub", "No delegated work."));
+        (ww.jobs || []).forEach(function(j) {{
+          var card = el("div", "ev");
+          card.appendChild(el("div", "big", j.provider + " · " + j.skill));
+          card.appendChild(el("div", "", j.state + " · " + (j.price ? j.price + " IDC" : "FREE")));
+          card.appendChild(el("div", "sub", j.pricing_reason || "Not quoted"));
+          card.appendChild(el("div", "sub", "Acceptance: " + j.acceptance));
+          card.appendChild(el("div", "sub", "Job " + j.id));
+          if (j.artifact) card.appendChild(el("div", "sub", "Artifact " + j.artifact));
+          wl.appendChild(card);
+        }});
       }} else if (name === "relationships") {{
         var rr = await getJSON("/api/relationships");
         var rl = $("rel-list"); rl.textContent = "";
@@ -388,7 +405,11 @@ form.composer button {{ background: #34d17b; color: #06210f; border: 0; border-r
           for (var q = 0; q < (cap.skills || []).length; q++) {{
             var sk = cap.skills[q];
             cc0.appendChild(el("div", sk.allowed ? "" : "warn",
-              (sk.allowed ? "✓ " : "✕ ") + sk.name));
+              (sk.allowed ? "✓ " : "Permission required · ") + sk.name));
+            if (sk.provenance) {{
+              cc0.appendChild(el("div", "sub", "Provided by " + sk.provenance.provider + " · acceptance tested by " + sk.provenance.accepted_by));
+              cc0.appendChild(el("div", "sub", "Job " + sk.provenance.job + " · " + sk.provenance.fingerprint));
+            }}
             if (!sk.allowed && sk.limited_explanation) {{
               cc0.appendChild(el("div", "sub", sk.limited_explanation));
             }} else if (!sk.allowed && sk.reason) {{
@@ -427,7 +448,7 @@ form.composer button {{ background: #34d17b; color: #06210f; border: 0; border-r
   setInterval(function () {{ if (!document.hidden && activeTab === "overview") refresh(); }}, {REFRESH_SECONDS} * 1000);
   setInterval(function () {{ if (!document.hidden && activeTab === "messages") pullMessages().catch(function () {{}}); }}, {MESSAGES_POLL_SECONDS} * 1000);
   setInterval(function () {{ if (!document.hidden && activeTab === "activity") pull("activity"); }}, {ACTIVITY_POLL_SECONDS} * 1000);
-  setInterval(function () {{ if (!document.hidden && (activeTab === "relationships" || activeTab === "capabilities")) pull(activeTab); }}, {SLOW_POLL_SECONDS} * 1000);
+  setInterval(function () {{ if (!document.hidden && (activeTab === "relationships" || activeTab === "capabilities" || activeTab === "work")) pull(activeTab); }}, {SLOW_POLL_SECONDS} * 1000);
   refresh();
 }})();
 </script>
@@ -450,7 +471,7 @@ def _timeline(store: Any, *, limit: int = 30) -> list[dict[str, Any]]:
     operational details (addresses, excerpts) that have no place in the UI.
     """
     entries: list[dict[str, Any]] = []
-    for item in store.list_provenance(limit=max(1, limit)):
+    for item in store.list_provenance(limit=1000):
         entries.append({
             "at": item.at,
             "category": item.phase.value if hasattr(item.phase, "value") else str(item.phase),
@@ -464,8 +485,26 @@ def _timeline(store: Any, *, limit: int = 30) -> list[dict[str, Any]]:
             "description": _clip(getattr(note, "summary", ""), 280),
             "outcome": "unread" if not getattr(note, "read", True) else "read",
         })
+    # Group the read model only; underlying provenance remains untouched.
+    from core.services.integration import existing_store
+    from datetime import datetime, timezone
+    services = existing_store(store._storage)
+    if services:
+        identity = store.identity_id
+        for event in services.rows('SELECT kind,job,created FROM events WHERE identity=? ORDER BY seq DESC LIMIT 100', (identity,)):
+            entries.append({'at':datetime.fromtimestamp(event['created'],timezone.utc).isoformat(),
+                'category':'service','description':event['kind'].replace('_',' '),
+                'outcome':event['job'] or ''})
     entries.sort(key=lambda e: e["at"] or "", reverse=True)
-    return entries[: max(1, limit)]
+    groups = {}
+    for entry in entries:
+        key = (entry['category'],entry['description'],entry['outcome'])
+        if key not in groups:
+            groups[key] = dict(entry, count=1, first_at=entry['at'])
+        else:
+            groups[key]['count'] += 1
+            groups[key]['first_at'] = entry['at']
+    return list(groups.values())[:max(1,limit)]
 
 
 def _relationship_cards(store: Any) -> list[dict[str, Any]]:
@@ -527,14 +566,27 @@ def _capability_cards(registry: Any, identity_id: str, store: Any) -> list[dict[
                 allowed, reason = registry.can(identity_id, skill.name)
             except Exception:
                 allowed, reason = False, "permission check failed"
+            provenance = None
+            from core.services.integration import existing_store
+            service_store = existing_store(store._storage)
+            if service_store:
+                matches = [j for j in service_store.jobs(identity_id)
+                           if j['state'] == 'COMPLETED' and j['requester'] == identity_id
+                           and j['contract']['skill'] == skill.name]
+                if matches:
+                    latest = max(matches, key=lambda j: j['updated'])
+                    provenance = {'provider': latest['provider'], 'job': latest['id'],
+                                  'fingerprint': latest['artifact'], 'accepted_by': identity_id}
             skill_cards.append({
+                "provenance": provenance,
                 "name": skill.name,
                 "description": _clip(getattr(skill, "description", ""), 200),
                 "permission": getattr(skill, "permission", "public"),
                 "effect": getattr(skill, "effect", ""),
                 "allowed": bool(allowed),
                 "reason": _clip(reason, 200),
-                "limited_explanation": gap_reasons.get(skill.name, ""),
+                "limited_explanation": ("Installed · permission required: " + reason) if not allowed else "",
+                "classification": "READY" if allowed else "AUTHORITY_GAP",
             })
         cards.append({
             "id": getattr(cap, "id", ""),
@@ -685,7 +737,7 @@ class _HealthHandler(BaseHTTPRequestHandler):
             self._send(200, ICON_SVG.encode("utf-8"), "image/svg+xml")
             return
         if path not in ("/health", "/status", "/api/presence", "/api/activity",
-                        "/api/relationships", "/api/capabilities", "/api/messages"):
+                        "/api/relationships", "/api/capabilities", "/api/messages", "/api/work"):
             self._send(404, b'{"error": "not found"}', "application/json")
             return
 
@@ -722,6 +774,9 @@ class _HealthHandler(BaseHTTPRequestHandler):
         try:
             if path == "/api/activity":
                 payload = {"events": _timeline(store, limit=limit)}
+            elif path == "/api/work":
+                from core.services.integration import work_cards
+                payload = {"jobs": work_cards(storage, identity_id)}
             elif path == "/api/relationships":
                 payload = {"relationships": _relationship_cards(store)}
             elif path == "/api/capabilities":

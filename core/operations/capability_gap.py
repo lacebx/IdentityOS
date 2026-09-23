@@ -46,6 +46,7 @@ class CapabilityGap:
             "resolution": self.resolution,
             "evidence": list(self.evidence),
             "status": self.status,
+            "classification": "AUTHORITY_GAP" if self.status == CapabilityStatus.INSTALLED_PERMISSION_MISSING.value else "CAPABILITY_GAP",
         }
 
 
@@ -59,11 +60,13 @@ class CapabilityGapDetector:
         identity_id: str = "",
         acquisition: Optional[Callable[[str], tuple[bool, str]]] = None,
         store: Optional[OperationsStore] = None,
+        delegation: Optional[Callable[[CapabilityGap], Optional[str]]] = None,
     ) -> None:
         self._registry = capability_registry
         self._identity_id = identity_id
         self._acquisition = acquisition
         self._store = store
+        self._delegation = delegation
 
     def check(self, required_skills: list[str]) -> list[CapabilityGap]:
         gaps: list[CapabilityGap] = []
@@ -174,6 +177,14 @@ class CapabilityGapDetector:
         gap.resolved = bool(ok)
         gap.resolution = detail or ("acquired" if ok else "acquisition declined")
         gap.evidence.append(f"acquisition:{gap.resolution}")
+        if not gap.resolved and self._delegation is not None:
+            try:
+                job = self._delegation(gap)
+                if job:
+                    gap.resolution = f"delegated job {job}; awaiting service outcome"
+                    gap.evidence.append(f"service_job:{job}")
+            except PermissionError:
+                gap.resolution = "PERMISSION_REQUIRED: service delegation denied"
         self._record_gap_need(gap)
         return gap
 
