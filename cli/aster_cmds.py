@@ -264,6 +264,7 @@ def cmd_aster_run(args: argparse.Namespace) -> int:
 
     import signal
     import threading
+    import time
 
     stop_requested = threading.Event()
 
@@ -280,6 +281,28 @@ def cmd_aster_run(args: argparse.Namespace) -> int:
         pidfile.write_text(str(os.getpid()))
 
     engine = _build_engine(args)
+    presence = engine._presence
+
+    if presence is not None:
+        presence.start_run(pid=os.getpid(), next_planned_action="First observation tick")
+
+    heartbeat_stop = threading.Event()
+
+    def _heartbeat_worker():
+        # Liveness only: prove the operator process is alive. Never manufacture
+        # lifecycle state here — status/activity transitions come exclusively
+        # from actual tick execution via engine._presence_update.
+        while not heartbeat_stop.wait(60.0):
+            if stop_requested.is_set():
+                break
+            try:
+                presence.heartbeat()
+            except Exception:
+                pass
+
+    hb_thread = threading.Thread(target=_heartbeat_worker, name="aster-heartbeat", daemon=True)
+    hb_thread.start()
+
     iterations = args.iterations or -1
     interval = max(0.0, args.interval)
     count = 0
@@ -301,6 +324,10 @@ def cmd_aster_run(args: argparse.Namespace) -> int:
                 break
             time.sleep(interval)
     finally:
+        heartbeat_stop.set()
+        hb_thread.join(timeout=2.0)
+        if presence is not None:
+            presence.mark_offline(reason="operator stopped gracefully")
         if is_daemon:
             _pidfile_path(args).unlink(missing_ok=True)
             _lockfile_path(args).unlink(missing_ok=True)
@@ -442,8 +469,7 @@ def cmd_aster_stop(args: argparse.Namespace) -> int:
 
 def cmd_aster_status(args: argparse.Namespace) -> int:
     engine = _build_engine(args)
-    report = engine.status()
-    status = report.to_dict() if hasattr(report, "to_dict") else dict(report)
+    storage = _get_storage(args)
     pidfile = _pidfile_path(args)
     daemon = {"running": False, "pid": None}
     if pidfile.exists():
@@ -453,9 +479,36 @@ def cmd_aster_status(args: argparse.Namespace) -> int:
             daemon = {"running": True, "pid": pid}
         except (OSError, ValueError):
             daemon = {"running": False, "pid": None}
-    if isinstance(status, dict):
-        status["daemon"] = daemon
-    _print_json(status)
+
+    from core.operations.presence import PresenceStore, format_presence_card
+    presence = PresenceStore(storage, "aster")
+    view = presence.public_view()
+    # The pidfile only exists for legacy `aster run --daemon` spawns; the
+    # systemd unit runs the loop directly. Presence (operator pid + fresh
+    # heartbeat) is the authoritative liveness signal — the pidfile may only
+    # confirm activity for the same process, never force "stopped".
+    if daemon["running"] and view.get("operator_pid") in (None, daemon["pid"]):
+        view["operator_pid"] = daemon["pid"]
+        if view.get("service_state") != "active":
+            view["service_state"] = "active"
+
+    report = engine.status()
+    status = report.to_dict() if hasattr(report, "to_dict") else dict(report)
+
+    # Get commons standing from surface if present
+    for surface in engine._surfaces:
+        if getattr(surface, "name", "") == "culture_commons":
+            try:
+                view["commons_standing"] = surface.standing_state()
+            except Exception:
+                pass
+            break
+
+    if getattr(args, "json", False):
+        output = {**status, "daemon": daemon, "presence": view}
+        _print_json(output)
+    else:
+        print(format_presence_card(view))
     return 0
 
 
@@ -702,6 +755,14 @@ def _skill_granted(registry: Any, cap_id: str, skill: Any) -> bool:
     return allowed
 
 
+def cmd_aster_health_serve(args: argparse.Namespace) -> int:
+    from runtime.health_server import serve
+    print(f"Starting presence health endpoint on http://{args.host}:{args.port}/health (GET /health, /status)")
+    print("Press Ctrl+C to stop.")
+    serve(host=args.host, port=args.port, store=args.store, backend=args.backend, identity="aster")
+    return 0
+
+
 def cmd_aster_acquire(args: argparse.Namespace) -> int:
     """Generically acquire a skill by installing its provider capability."""
     from core.operations.skill_acquisition import SkillAcquisitionResolver
@@ -865,6 +926,8 @@ def add_aster_parser(parser: argparse.ArgumentParser) -> None:
             p.add_argument("--with-culture", action="store_true", help="also poll the Culture Commons surface")
             p.add_argument("--candidates", default=None)
             p.add_argument("--search", action="store_true")
+        if name == "status":
+            p.add_argument("--json", action="store_true", help="machine-readable JSON output")
 
     p_run = sub.add_parser("run", help="Run the operator loop continuously", parents=[base])
     p_run.add_argument("--iterations", type=int, default=1, help="Number of ticks (default 1; use -1 for until stopped)")
@@ -930,6 +993,10 @@ def add_aster_parser(parser: argparse.ArgumentParser) -> None:
     p_acq = sub.add_parser("acquire", help="Acquire a skill by installing its provider capability (e.g. mcp.discover)", parents=[base])
     p_acq.add_argument("--skill", default="mcp.discover", help="Skill to acquire")
 
+    p_health = sub.add_parser("health-serve", help="Serve presence health endpoint (localhost only)", parents=[base])
+    p_health.add_argument("--host", default="127.0.0.1", help="Bind address (default: localhost)")
+    p_health.add_argument("--port", type=int, default=8787, help="Port (default: 8787)")
+
     p_cu = sub.add_parser("culture", help="Culture Commons interop commands", parents=[base])
     cu_sub = p_cu.add_subparsers(dest="culture_command", required=True)
     cu_sub.add_parser("discover", help="Show the current room")
@@ -973,6 +1040,7 @@ _ASTER_COMMAND_MAP = {
     "email-check": cmd_aster_email_check,
     "capabilities": cmd_aster_capabilities,
     "acquire": cmd_aster_acquire,
+    "health-serve": cmd_aster_health_serve,
     "culture": cmd_aster_culture,
 }
 

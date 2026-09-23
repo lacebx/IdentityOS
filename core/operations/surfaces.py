@@ -102,6 +102,21 @@ class CultureCommonsSurface:
             "last_summary": raw.get("summary", ""),
         }
 
+    def standing_state(self) -> str:
+        """Return standing state for presence: 'signed' | 'unsigned' | 'unknown' | 'not_installed'."""
+        if not self.installed():
+            return "not_installed"
+        if not self._registry:
+            return "unknown"
+        try:
+            result = self._call("culture_commons.standing.inspect")
+            if not result.success:
+                return "unknown"
+            standing = (result.data or {}).get("standing") or {}
+            return "signed" if standing.get("signed") else "unsigned"
+        except Exception:
+            return "unknown"
+
     def snapshot(self) -> dict[str, Any]:
         return self._load_snapshot()
 

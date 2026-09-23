@@ -174,6 +174,7 @@ def build_aster_engine(
     sender_email: str = "",
     secret_store: Any = None,
     surfaces: Iterable[Any] = (),
+    presence: Any = None,
     register: bool = True,
 ) -> OperationsEngine:
     config = build_aster_config(
@@ -183,6 +184,16 @@ def build_aster_engine(
         required_skills=required_skills,
         search_fn=search_fn,
     )
+    if presence is None:
+        from .presence import PresenceStore
+
+        presence = PresenceStore(
+            storage,
+            config.identity_id,
+            display_name=ASTER_NAME,
+            objective=config.purpose,
+            scrub_fn=(secret_store.scrub if secret_store else None),
+        )
     engine = OperationsEngine(
         storage,
         config,
@@ -194,6 +205,7 @@ def build_aster_engine(
         search_fn=search_fn,
         secret_store=secret_store,
         surfaces=surfaces,
+        presence=presence,
     )
     if register:
         register_engine(engine)

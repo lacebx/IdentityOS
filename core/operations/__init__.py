@@ -54,9 +54,12 @@ from .monitor import (
 from .needs import NeedDetector, RequirementRule
 from .observer import ProjectStateObserver
 from .policy import Authority, AuthorityPolicy, AuthorizationDecision
+from .presence import PresenceStatus, PresenceStore
 from .store import OperationsStore
 
 __all__ = [
+    "PresenceStatus",
+    "PresenceStore",
     "Authority",
     "AuthorityPolicy",
     "AuthorizationDecision",

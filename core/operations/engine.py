@@ -17,8 +17,9 @@ conversations, no in-memory-only progress.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Iterable, Optional, Mapping
 
 from .capability_gap import CapabilityGap, CapabilityGapDetector, CapabilityStatus
@@ -45,7 +46,10 @@ from .monitor import ConversationMonitor, InboundDisposition, InboundResult
 from .needs import NeedDetector
 from .observer import ProjectStateObserver
 from .policy import AuthorityPolicy
+from .presence import PresenceStatus
 from .store import OperationsStore, _norm
+
+logger = logging.getLogger("identityos.operations")
 
 
 @dataclass
@@ -94,6 +98,7 @@ class OperationsEngine:
         search_fn: Any = None,
         secret_store: Any = None,
         surfaces: Iterable[Any] = (),
+        presence: Any = None,
     ) -> None:
         self.config = config
         self.storage = storage
@@ -107,6 +112,7 @@ class OperationsEngine:
         self._search_fn = search_fn
         self._secret_store = secret_store
         self._surfaces = list(surfaces)
+        self._presence = presence
 
         # Adaptive polling state
         self._last_observation_fingerprint: Optional[str] = None
@@ -255,7 +261,19 @@ class OperationsEngine:
         if self.store.controls().paused:
             self._provenance(ProvenancePhase.CONTROL, "tick skipped: operator paused", action="tick")
             report.skipped.append({"reason": "paused"})
+            self._presence_update(
+                "set_status",
+                PresenceStatus.PAUSED,
+                activity="Operator paused by principal",
+            )
             return report
+
+        self._presence_update(
+            "heartbeat",
+            phase=PresenceStatus.OBSERVING.value,
+            activity="Observing project state" + (" and external surfaces" if surfaces else ""),
+            last_tick_at=now.isoformat(),
+        )
 
         if surfaces:
             report.observed = self._phase_surfaces(report) or report.observed
@@ -278,6 +296,11 @@ class OperationsEngine:
         self._update_poll_interval(state_changed)
         
         if detect_needs:
+            self._presence_update(
+                "set_status",
+                PresenceStatus.THINKING,
+                activity="Evaluating project needs and opportunities",
+            )
             self._phase_gaps(report)
             report.needs_created = [n.id for n in self.detector.detect(self.store, self.store.project_state())] if self.store.project_state() else []
             if report.needs_created:
@@ -287,11 +310,20 @@ class OperationsEngine:
                     action="detect_needs",
                     result=", ".join(report.needs_created),
                 )
+                self._presence_update(
+                    "mark_meaningful_action",
+                    f"Detected {len(report.needs_created)} new need(s)",
+                )
         if discover:
             report.opportunities_created = self._phase_discover(report)
         if evaluate:
             report.evaluated, report.qualified = self._phase_evaluate()
         if act:
+            self._presence_update(
+                "set_status",
+                PresenceStatus.ACTING,
+                activity="Evaluating autonomous action opportunities",
+            )
             report.outreach_sent, report.escalations, act_skips = self._phase_act(report)
             report.skipped.extend(act_skips)
         if monitor:
@@ -301,7 +333,68 @@ class OperationsEngine:
             report.follow_ups_sent, follow_skips = self._phase_follow_ups(now)
             report.skipped.extend(follow_skips)
 
+        self._presence_after_tick(report, state_changed, now)
         return report
+
+    # ── presence ──────────────────────────────────────────────────────
+
+    def _presence_update(self, method: str, *args: Any, **kwargs: Any) -> None:
+        """Update presence without ever breaking the operator loop.
+
+        A presence write failure must stay observable (logged) but must never
+        crash a tick; a failed write surfaces honestly as staleness on the
+        next read.
+        """
+        if self._presence is None:
+            return
+        try:
+            getattr(self._presence, method)(*args, **kwargs)
+        except Exception as exc:
+            logger.warning("presence update failed (%s): %s", method, exc)
+
+    def _presence_after_tick(self, report: TickReport, state_changed: bool, now: datetime) -> None:
+        """Derive the resting presence state from what this tick actually did."""
+        if self._presence is None:
+            return
+        budget_wait = any(s.get("reason") == "daily_budget_exhausted" for s in report.skipped)
+        acted = bool(report.outreach_sent or report.replies_sent or report.follow_ups_sent
+                     or report.needs_created or report.opportunities_created)
+        if report.escalations:
+            status = PresenceStatus.WAITING
+            activity = f"Awaiting principal review of {len(report.escalations)} escalation(s)"
+            next_planned = "Check for principal authorization decisions"
+        elif budget_wait:
+            status = PresenceStatus.WAITING
+            activity = "Outreach paused: daily budget exhausted"
+            next_planned = "Resume outreach after budget reset"
+        elif report.errors:
+            # _phase_act already recorded DEGRADED with the send failure.
+            return
+        else:
+            status = PresenceStatus.IDLE
+            if state_changed:
+                activity = "Observed changes to project state"
+            elif acted:
+                activity = "Awaiting next observation"
+            else:
+                activity = "No meaningful environmental changes"
+            next_planned = f"Observe again in {max(1, int(self._current_poll_interval // 60))} minute(s)"
+        self._presence_update(
+            "set_status",
+            status,
+            activity=activity,
+            next_planned_action=next_planned,
+            next_check_at=(now + timedelta(seconds=self._current_poll_interval)).isoformat(),
+            last_tick_at=now.isoformat(),
+        )
+        self._presence_update("set_counts", opportunity_count=len(self.store.list_opportunities()))
+        for surface in self._surfaces:
+            if getattr(surface, "name", "") != "culture_commons":
+                continue
+            try:
+                self._presence_update("set_subsystem", "commons_standing", surface.standing_state())
+            except Exception as exc:
+                logger.warning("presence commons_standing update failed: %s", exc)
 
     # ── phases ────────────────────────────────────────────────────────
 
@@ -356,6 +449,15 @@ class OperationsEngine:
                 refs={"required_skill": gap.required_skill, "resolved": gap.resolved, "status": gap.status},
             )
             self._notify_gap(gap)
+
+        if report.capability_gaps:
+            unresolved = [g for g in report.capability_gaps if not g.get("resolved")]
+            if unresolved:
+                self._presence_update("set_subsystem", "capability_health", "degraded")
+            else:
+                self._presence_update("set_subsystem", "capability_health", "healthy")
+                skill = report.capability_gaps[-1].get("required_skill", "")
+                self._presence_update("mark_meaningful_action", f"Resolved capability gap: {skill}")
 
     def _notify_gap(self, gap: "CapabilityGap") -> None:
         """Notify the principal about gaps that need a human decision, once per
@@ -482,6 +584,11 @@ class OperationsEngine:
 
             if budget.cold_outreach >= controls.max_cold_outreach_per_day:
                 skips.append({"opportunity_id": opportunity.id, "reason": "daily_budget_exhausted"})
+                self._presence_update(
+                    "set_status",
+                    PresenceStatus.WAITING,
+                    activity="Outreach paused: daily budget exhausted",
+                )
                 self._provenance(
                     ProvenancePhase.CONTROL,
                     "daily cold-outreach budget exhausted",
@@ -568,6 +675,12 @@ class OperationsEngine:
                 message.relationship_id = store_rel.id
                 self.store.append_message(message)
                 escalations.append(message.id)
+                self._presence_update("mark_meaningful_action", "Escalated outreach for human authorization")
+                self._presence_update(
+                    "set_status",
+                    PresenceStatus.WAITING,
+                    activity="Escalated outreach: awaiting human authorization",
+                )
                 self._notify(kind="escalation", summary=f"outreach requires human authorization ({auth.reason})",
                              refs={"message_id": message.id, "opportunity_id": opportunity.id})
                 self._provenance(
@@ -600,6 +713,11 @@ class OperationsEngine:
 
             if budget.cold_outreach >= controls.max_cold_outreach_per_day:
                 skips.append({"opportunity_id": opportunity.id, "reason": "daily_budget_exhausted"})
+                self._presence_update(
+                    "set_status",
+                    PresenceStatus.WAITING,
+                    activity="Outreach paused: daily budget exhausted",
+                )
                 self._provenance(
                     ProvenancePhase.CONTROL,
                     "daily cold-outreach budget exhausted",
@@ -620,6 +738,11 @@ class OperationsEngine:
                 message.relationship_id = store_rel.id
                 self.store.append_message(message)
                 report.errors.append({"message_id": message.id, "error": send_result.get("error")})
+                self._presence_update(
+                    "set_status",
+                    PresenceStatus.DEGRADED,
+                    activity=f"Outreach send failed: {send_result.get('error')}",
+                )
                 self._provenance(
                     ProvenancePhase.ACT,
                     "outreach send failed",
@@ -652,6 +775,15 @@ class OperationsEngine:
             self.store.record_usage("cold_outreach")
             budget = self.store.budget()
             sent.append(message.id)
+            self._presence_update(
+                "set_status",
+                PresenceStatus.ACTING,
+                activity=f"Sent individualized outreach to '{relationship.display_name}'",
+            )
+            self._presence_update(
+                "mark_meaningful_action",
+                f"Sent individualized outreach to '{relationship.display_name}'",
+            )
             self._provenance(
                 ProvenancePhase.ACT,
                 f"sent individualized outreach to '{relationship.display_name}'",
@@ -698,6 +830,10 @@ class OperationsEngine:
             results.append(result)
             if result.responded and result.relationship is not None:
                 replies.append(result.relationship.id)
+                self._presence_update(
+                    "mark_meaningful_action",
+                    f"Replied to inbound from '{result.relationship.display_name}'",
+                )
             if result.relationship is not None:
                 relationship_id = result.relationship.id
                 # Name real trusted senders by their relationship, but always
@@ -822,6 +958,11 @@ class OperationsEngine:
                 continue
             if self.store.budget().follow_ups >= controls.max_follow_ups_per_target * max(controls.max_cold_outreach_per_day, 1):
                 skips.append({"follow_up_id": follow_up.id, "reason": "daily_budget_exhausted"})
+                self._presence_update(
+                    "set_status",
+                    PresenceStatus.WAITING,
+                    activity="Follow-ups paused: daily budget exhausted",
+                )
                 break
             result = self._send(
                 to=relationship.email,
@@ -850,6 +991,10 @@ class OperationsEngine:
             self.follow_ups.complete(follow_up, now=now)
             self.store.record_usage("follow_ups")
             sent.append(message.id)
+            self._presence_update(
+                "mark_meaningful_action",
+                f"Sent follow-up to '{relationship.display_name}'",
+            )
             self._provenance(
                 ProvenancePhase.FOLLOW_UP,
                 f"sent follow-up to '{relationship.display_name}'",
