@@ -17,6 +17,7 @@ scrubbed against the secret store before they return to the caller.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -92,10 +93,71 @@ class CultureCommonsCapability(Capability):
     # ── lifecycle ──────────────────────────────────────────────────────
 
     def install(self, identity_id: str, storage: Any) -> None:
-        storage.save(identity_id, "capability.culture_commons", {"installed_at": time.time(), "name": self.name})
+        record = {
+            "installed_at": time.time(),
+            "name": self.name,
+            "server": self._url(),
+        }
+        manifest = self._read_state("manifest.json", None)
+        if isinstance(manifest, dict):
+            record["manifest_verified_at"] = manifest.get("verified_at")
+            record["contract_fingerprint"] = manifest.get("fingerprint")
+        storage.save(identity_id, "capability.culture_commons", record)
 
     def uninstall(self, identity_id: str, storage: Any) -> None:
         storage.delete(identity_id, "capability.culture_commons")
+
+    # ── governed MCP manifest ──────────────────────────────────────────
+
+    MANIFEST_FILE = "manifest.json"
+
+    @staticmethod
+    def _canonical_tool_key(tool: dict[str, Any]) -> str:
+        """Canonicalize a discovered tool for fingerprint comparison."""
+        name = tool.get("name", "")
+        schema = json.dumps(tool.get("inputSchema", {}), sort_keys=True, default=str)
+        annotations = json.dumps(tool.get("annotations", {}), sort_keys=True, default=str)
+        return f"{name}|{schema}|{annotations}"
+
+    @classmethod
+    def fingerprint_contract(cls, server_info: Any, tools: list[dict[str, Any]]) -> str:
+        """Deterministic sha256 over the governed contract (no timestamps)."""
+        payload = {
+            "serverInfo": server_info or {},
+            "tools": sorted(cls._canonical_tool_key(t) for t in tools),
+        }
+        return hashlib.sha256(json.dumps(payload, sort_keys=True, default=str).encode()).hexdigest()
+
+    def refresh_manifest(self) -> dict[str, Any]:
+        """Re-discover the live contract anonymously and persist governed state.
+
+        Always talks to the server: recomputes the contract fingerprint so the
+        caller can detect drift. The server allows anonymous ``initialize`` +
+        ``tools/list``, so this does not require or touch any standing
+        credential.
+        """
+        client = self._mcp_client(authenticated=False)
+        init = client.initialize() or {}
+        result = init.get("result") or (init if isinstance(init, dict) else {})
+        tools = client.list_tools() or []
+        self._tools = dict(_DEFAULT_TOOLS)
+        for tool in tools:
+            name = tool.get("name", "")
+            if name:
+                self._tools[name] = name
+        manifest = {
+            "endpoint": self._url(),
+            "protocol": str(result.get("protocolVersion") or self._config.get("protocol") or ""),
+            "serverInfo": result.get("serverInfo") or {},
+            "tools": tools,
+            "tool_names": sorted(t["name"] for t in tools),
+            "tool_count": len(tools),
+            "fingerprint": self.fingerprint_contract(result.get("serverInfo"), tools),
+            "verified_at": self._now(),
+            "credential_handle": None,
+        }
+        self._write_state(self.MANIFEST_FILE, manifest)
+        return manifest
 
     def prompts(self, identity_id: str) -> list[str]:
         return [
@@ -119,6 +181,7 @@ class CultureCommonsCapability(Capability):
             Skill(name="culture_commons.relationship.inspect", description="Inspect the edge/relationship ledger with a contact", permission="public", input_schema=object_schema({"contact": {"type": "string"}}, required=("contact",))),
             Skill(name="culture_commons.observe", description="One-shot situational read: room + boards + own presence in a single result", permission="public", input_schema=object_schema({}, required=())),
             Skill(name="culture_commons.standing.inspect", description="Report locally-known standing state (never a credential)", permission="public", input_schema=object_schema({}, required=())),
+            Skill(name="culture_commons.manifest.inspect", description="Inspect the governed, persisted Culture Commons MCP contract: serverInfo, protocol, discovered tool contracts, and contract fingerprint", permission="public", input_schema=object_schema({}, required=())),
             Skill(name="culture_commons.standing.sign", description="Sign a new name on the commons and receive standing. The returned secret is stored server-side and NEVER displayed", permission="culture_commons.standing", effect="write", input_schema=object_schema({"name": {"type": "string"}, "confirm": {"type": "boolean"}}, required=())),
             Skill(name="culture_commons.standing.recover", description="Recover standing for an existing name using the stored secret handle", permission="culture_commons.standing", effect="write", input_schema=object_schema({"name": {"type": "string"}}, required=("name",))),
             Skill(name="culture_commons.standing.enter", description="Take a seat in the room (requires standing)", permission="culture_commons.standing", effect="write", input_schema=object_schema({"seat": {"type": "string"}, "confirm": {"type": "boolean"}}, required=())),
@@ -162,6 +225,8 @@ class CultureCommonsCapability(Capability):
             return self._observe(store)
         if skill_name == "culture_commons.standing.inspect":
             return self._standing_inspect(store)
+        if skill_name == "culture_commons.manifest.inspect":
+            return self._manifest_inspect()
         if skill_name == "culture_commons.standing.sign":
             return self._sign(params, store)
         if skill_name == "culture_commons.standing.recover":
@@ -226,6 +291,30 @@ class CultureCommonsCapability(Capability):
         return CapabilityResult.from_data(self.id, "culture_commons.observe", summary, source="culture.sbs")
 
     # ── standing lifecycle ─────────────────────────────────────────────
+
+    def _manifest_inspect(self) -> CapabilityResult:
+        manifest = self._read_state(self.MANIFEST_FILE, None)
+        if not isinstance(manifest, dict):
+            return CapabilityResult.fail(
+                self.id, "culture_commons.manifest.inspect",
+                "manifest_unavailable",
+                "no governed manifest persisted yet; refresh_manifest() has not been called",
+                duration_ms=0.0,
+            )
+        return CapabilityResult.from_data(
+            self.id, "culture_commons.manifest.inspect",
+            {
+                "endpoint": manifest.get("endpoint"),
+                "protocol": manifest.get("protocol"),
+                "serverInfo": manifest.get("serverInfo"),
+                "tool_names": manifest.get("tool_names"),
+                "tool_count": manifest.get("tool_count"),
+                "fingerprint": manifest.get("fingerprint"),
+                "verified_at": manifest.get("verified_at"),
+                "credential_handle": manifest.get("credential_handle"),
+            },
+            source="culture.sbs",
+        )
 
     def _standing_inspect(self, store: Any) -> CapabilityResult:
         state = self._standing_state()
