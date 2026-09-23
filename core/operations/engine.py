@@ -452,12 +452,21 @@ class OperationsEngine:
 
         if report.capability_gaps:
             unresolved = [g for g in report.capability_gaps if not g.get("resolved")]
-            if unresolved:
-                self._presence_update("set_subsystem", "capability_health", "degraded")
-            else:
+            limited = sorted({g.get("required_skill", "") for g in unresolved if g.get("required_skill")})
+            required = list(getattr(self.config, "required_skills", []) or [])
+            healthy = max(0, len(required) - len(limited))
+            # Permission-limited skills are reported, never hidden — but on
+            # their own they do not degrade global health. Only a material
+            # failure (e.g. a failed send, marked "degraded" in _phase_act)
+            # does that. Reconciling the marker every tick also self-heals
+            # stale markers from earlier runs.
+            self._presence_update("set_capability_summary", healthy=healthy, limited=limited)
+            if not unresolved:
                 self._presence_update("set_subsystem", "capability_health", "healthy")
                 skill = report.capability_gaps[-1].get("required_skill", "")
                 self._presence_update("mark_meaningful_action", f"Resolved capability gap: {skill}")
+            else:
+                self._presence_update("set_subsystem", "capability_health", "limited")
 
     def _notify_gap(self, gap: "CapabilityGap") -> None:
         """Notify the principal about gaps that need a human decision, once per
@@ -738,6 +747,7 @@ class OperationsEngine:
                 message.relationship_id = store_rel.id
                 self.store.append_message(message)
                 report.errors.append({"message_id": message.id, "error": send_result.get("error")})
+                self._presence_update("set_subsystem", "capability_health", "degraded")
                 self._presence_update(
                     "set_status",
                     PresenceStatus.DEGRADED,

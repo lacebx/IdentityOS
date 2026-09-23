@@ -264,15 +264,61 @@ def test_send_failure_is_degraded(tmp_path):
     assert view["status"] == "degraded"
 
 
-def test_unresolved_capability_gap_is_degraded(tmp_path):
+def test_permission_limited_gap_stays_online_with_summary(tmp_path):
+    # Spec: Aster must NOT become globally DEGRADED merely because an
+    # optional capability is permission-limited. Limits are reported, never
+    # hidden; global DEGRADED is reserved for material blockers.
     engine, _, presence = _engine(tmp_path, required_skills=["nonexistent.skill.xyz"])
     presence.start_run(pid=os.getpid())
     report = engine.tick()
     assert report.capability_gaps, "the missing skill must be detected as a gap"
     assert not any(g.get("resolved") for g in report.capability_gaps)
     view = presence.public_view()
+    assert view["health"] == "online"
+    assert view["capability_display"] == "limited"
+    assert "nonexistent.skill.xyz" in view["capability_summary"]["limited"]
+    assert view["capability_summary"]["healthy"] == 0
+
+
+def test_material_send_failure_still_degrades_global_health(tmp_path):
+    engine, _, presence = _engine(tmp_path, transport=_FailTransport())
+    presence.start_run(pid=os.getpid())
+    report = engine.tick()
+    assert report.errors, "send failure must surface in the tick report"
+    view = presence.public_view()
     assert view["health"] == "degraded"
-    assert any("capabilit" in r for r in view["health_reasons"])
+    assert view["service_health"] == "online", "process and loop are alive; the failure is material, not liveness"
+    assert view["capability_display"] == "degraded"
+
+
+def test_health_splits_identity_service_capability(tmp_path):
+    storage = InMemoryBackend()
+    presence = PresenceStore(storage, "aster", display_name="Aster")
+    presence.start_run(pid=os.getpid())
+    presence.heartbeat()
+    view = presence.public_view()
+    assert view["service_health"] == "online"
+    assert view["identity_health"] == "unknown", "identity never initialized in this store"
+    assert view["health"] == "online"
+    storage.save("aster", "identity_spec", {"id": "aster"})
+    view = presence.public_view()
+    assert view["identity_health"] == "online"
+
+
+def test_stalled_loop_degrades_service_health(tmp_path):
+    storage = InMemoryBackend()
+    presence = PresenceStore(storage, "aster")
+    presence.start_run(pid=os.getpid())
+    presence.heartbeat()
+    raw = storage.load("aster", "operations.presence")
+    old = (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat()
+    raw["last_tick_at"] = old
+    raw["started_at"] = old
+    storage.save("aster", "operations.presence", raw)
+    view = presence.public_view()
+    assert view["health"] == "degraded"
+    assert view["service_health"] == "degraded"
+    assert any("stalled" in r for r in view["health_reasons"])
 
 
 # ── lifecycle: stale heartbeat / dead process → OFFLINE ────────────────────
@@ -492,16 +538,100 @@ def test_health_endpoint_no_model_calls(tmp_path, monkeypatch):
 
     server, port = _serve_once(presence)
     try:
-        for path in ("/health", "/status"):
-            with urllib.request.urlopen(f"http://127.0.0.1:{port}{path}", timeout=5) as resp:
-                assert resp.status == 200
-                payload = json.loads(resp.read().decode())
-                assert payload["identity_id"] == "aster"
-                assert payload["health"] in ("online", "degraded", "offline")
-                assert "last_heartbeat" in payload
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/health", timeout=5) as resp:
+            assert resp.status == 200
+            payload = json.loads(resp.read().decode())
+            assert payload["identity_id"] == "aster"
+            assert payload["health"] in ("online", "degraded", "offline")
+            assert "last_heartbeat" in payload
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/status", timeout=5) as resp:
+            assert resp.status == 200
+            assert "text/html" in resp.headers.get("Content-Type", "")
+            body = resp.read().decode()
+            assert "Aster" in body
+            assert "fetch(" in body, "dashboard must auto-refresh without frameworks"
     finally:
         server.shutdown()
         server.server_close()
+
+
+def test_dashboard_renders_real_state_without_secrets(tmp_path, monkeypatch):
+    import sys
+
+    storage = InMemoryBackend()
+    presence = PresenceStore(
+        storage, "aster", display_name="Aster", objective="IdentityOS outreach"
+    )
+    presence.start_run(pid=os.getpid())
+    presence.set_status(PresenceStatus.OBSERVING, activity="Observing Culture Commons")
+    presence.set_capability_summary(healthy=4, limited=["web.search", "email.send"])
+
+    monkeypatch.setitem(sys.modules, "adapters.configuration", None)
+
+    server, port = _serve_once(presence)
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/status", timeout=5) as resp:
+            assert resp.status == 200
+            body = resp.read().decode()
+    finally:
+        server.shutdown()
+        server.server_close()
+
+    assert "Aster" in body
+    assert "Observing Culture Commons" in body
+    assert "IdentityOS outreach" in body
+    assert "viewport" in body, "must be mobile-friendly"
+    assert "innerHTML" not in body, "client updates must use textContent only"
+    for forbidden in ("ntfy_topic", "phone_number", "api_key", "password", "credential", "token"):
+        assert forbidden not in body
+    assert "<script" in body and "src=" not in body.split("<script")[1].split(">")[0], "no external JS"
+
+
+def test_dashboard_renders_offline_for_stale_heartbeat(tmp_path):
+    storage = InMemoryBackend()
+    presence = PresenceStore(storage, "aster", display_name="Aster")
+    presence.start_run(pid=os.getpid())
+    raw = storage.load("aster", "operations.presence")
+    raw["last_heartbeat"] = (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat()
+    storage.save("aster", "operations.presence", raw)
+
+    server, port = _serve_once(presence)
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/status", timeout=5) as resp:
+            body = resp.read().decode()
+    finally:
+        server.shutdown()
+        server.server_close()
+    assert "OFFLINE" in body
+
+
+def test_dashboard_agrees_with_cli_status(tmp_path, capsys):
+    from cli import aster_cmds
+    import argparse
+
+    store_dir = str(tmp_path / "store")
+    storage = JSONFileBackend(root_dir=store_dir)
+    presence = PresenceStore(storage, "aster", display_name="Aster")
+    presence.start_run(pid=os.getpid())
+    presence.set_status(PresenceStatus.IDLE, activity="No meaningful environmental changes")
+    presence.set_capability_summary(healthy=3, limited=["web.search"])
+
+    args = argparse.Namespace(
+        store=store_dir, backend="json", project_root=".", mailbox_root=None, json=True,
+    )
+    assert aster_cmds.cmd_aster_status(args) == 0
+    cli_view = json.loads(capsys.readouterr().out)["presence"]
+
+    server, port = _serve_once(PresenceStore(JSONFileBackend(root_dir=store_dir), "aster"))
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/status", timeout=5) as resp:
+            body = resp.read().decode()
+    finally:
+        server.shutdown()
+        server.server_close()
+
+    assert cli_view["status"] in body
+    assert (cli_view["activity"] or "No activity") in body
 
 
 def test_health_endpoint_unknown_path_404(tmp_path):

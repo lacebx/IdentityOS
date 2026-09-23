@@ -312,6 +312,26 @@ class PresenceStore:
 
         return self._update(mutate)
 
+    def set_capability_summary(self, *, healthy: int, limited: list[str]) -> dict[str, Any]:
+        """Record how many required skills are usable vs permission-limited.
+
+        Permission-limited (but installed/available) skills are reported, never
+        hidden — but on their own they do NOT degrade global health. Only a
+        material capability failure (recorded via ``set_subsystem`` with an
+        unhealthy value, or a DEGRADED lifecycle state from actual execution)
+        affects the global classification.
+        """
+
+        def mutate(raw: Optional[dict]) -> dict:
+            record = self._blank(raw)
+            record["capability_summary"] = {
+                "healthy": max(0, int(healthy)),
+                "limited": sorted({str(s) for s in limited if str(s).strip()}),
+            }
+            return record
+
+        return self._update(mutate)
+
     def set_counts(self, *, opportunity_count: Optional[int] = None) -> dict[str, Any]:
         def mutate(raw: Optional[dict]) -> dict:
             record = self._blank(raw)
@@ -373,11 +393,44 @@ class PresenceStore:
                 status = PresenceStatus.DEGRADED.value
 
         health = "offline" if offline else ("degraded" if reasons else "online")
-        return self._view(raw, health=health, health_reasons=reasons, status_override=status, now=now)
+        if offline:
+            service_health = "offline"
+        elif "operator loop stalled" in reasons:
+            service_health = "degraded"
+        else:
+            service_health = "online"
+        identity_health = self._identity_health(raw)
+        return self._view(
+            raw,
+            health=health,
+            health_reasons=reasons,
+            status_override=status,
+            now=now,
+            service_health=service_health,
+            identity_health=identity_health,
+        )
 
     def public_view(self, *, now: Optional[datetime] = None) -> dict[str, Any]:
         """Sanitized machine-readable presence (for /health, /status, CLI)."""
         return self.classify(now=now)
+
+    def _identity_health(self, raw: Optional[dict]) -> str:
+        """Identity continuity: is this the same initialized operator identity?
+
+        The identity outlives any single process run, so this is independent
+        of service liveness: "online" when the persisted identity record is
+        intact, "unknown" when the operator ran but was never initialized,
+        "offline" when nothing is known at all.
+        """
+        if not raw:
+            return "offline"
+        try:
+            spec = self._storage.load(self.identity_id, "identity_spec")
+        except Exception:  # pragma: no cover - defensive
+            spec = None
+        if isinstance(spec, dict) and spec:
+            return "online"
+        return "unknown"
 
     def _view(
         self,
@@ -387,6 +440,8 @@ class PresenceStore:
         health_reasons: list[str],
         status_override: str,
         now: datetime,
+        service_health: str = "unknown",
+        identity_health: str = "unknown",
     ) -> dict[str, Any]:
         """Build the sanitized presence view from the record + classification."""
         raw = raw or {}
@@ -409,11 +464,29 @@ class PresenceStore:
         else:
             service_state = "unknown"
         uptime = start_age if alive else None
+        summary_raw = raw.get("capability_summary") or {}
+        summary = {
+            "healthy": max(0, int(summary_raw.get("healthy", 0) or 0)),
+            "limited": [str(s) for s in (summary_raw.get("limited") or []) if str(s).strip()],
+        }
+        cap_marker = str(raw.get("capability_health") or "unknown").strip().lower()
+        if cap_marker in _UNHEALTHY:
+            capability_display = "degraded"
+        elif summary["limited"]:
+            capability_display = "limited"
+        elif cap_marker == "healthy":
+            capability_display = "healthy"
+        else:
+            capability_display = "unknown"
         return {
             "identity": raw.get("identity") or self.display_name,
             "identity_id": self.identity_id,
             "external_identity": raw.get("external_identity"),
             "health": health,
+            "service_health": service_health,
+            "identity_health": identity_health,
+            "capability_display": capability_display,
+            "capability_summary": summary,
             "status": status_override,
             "activity": raw.get("activity") or "",
             "activity_detail": raw.get("activity_detail") or "",
@@ -467,6 +540,7 @@ class PresenceStore:
         record.setdefault("notification_transport_health", "unknown")
         record.setdefault("model_health", "unknown")
         record.setdefault("capability_health", "unknown")
+        record.setdefault("capability_summary", {"healthy": 0, "limited": []})
         record.setdefault("opportunity_count", 0)
         return record
 
@@ -579,6 +653,15 @@ def format_presence_card(view: dict[str, Any], *, service_unit: str = "aster-ope
     lines.append("")
     lines.append("Notifications:")
     lines.append(f"ntfy · {view.get('notification_transport_health') or 'unknown'}")
+
+    summary = view.get("capability_summary") or {}
+    limited = [str(s) for s in (summary.get("limited") or [])]
+    cap_line = f"{summary.get('healthy', 0)} healthy · {len(limited)} limited ({view.get('capability_display') or 'unknown'})"
+    lines.append("")
+    lines.append("Capabilities:")
+    lines.append(cap_line)
+    if limited:
+        lines.append(f"Limited: {', '.join(limited)}")
 
     lines.append("")
     lines.append("Opportunities:")
