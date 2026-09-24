@@ -6,6 +6,9 @@ from core.executive.engine import ExecutiveRuntime
 
 def tick(runtime, provider):
     session = runtime.bind(provider)
+    negotiated = runtime.negotiation.provider_tick(session)
+    if negotiated:
+        return negotiated
     executive = ExecutiveRuntime(runtime.storage, runtime.registry)
     executive._ctx(provider, runtime=SimpleNamespace(services=runtime))
     executive.recover(provider)
@@ -33,6 +36,10 @@ def tick(runtime, provider):
 
 def requester_tick(runtime, identity):
     session = runtime.bind(identity)
+    for spec in runtime.negotiation.list(session):
+        if spec['requester'] == identity and spec['state'] == 'AGREED' and spec['job'] is None:
+            runtime.negotiation.start_job(session, spec['id'])
+            return 'job_created'
     for job in runtime.store.jobs(identity):
         if job["requester"] != identity:
             continue

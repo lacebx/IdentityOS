@@ -33,6 +33,13 @@ class ServiceStore:
         with self.transaction() as db:
             db.executescript("""
                 CREATE TABLE IF NOT EXISTS services(identity TEXT PRIMARY KEY, document TEXT NOT NULL);
+                CREATE TABLE IF NOT EXISTS negotiations(id TEXT PRIMARY KEY, dedupe TEXT UNIQUE NOT NULL,
+                    requester TEXT NOT NULL, provider TEXT NOT NULL, revision INTEGER NOT NULL,
+                    state TEXT NOT NULL, contract TEXT NOT NULL, initial_hash TEXT NOT NULL,
+                    offered_by TEXT NOT NULL, job TEXT, reason TEXT NOT NULL,
+                    created REAL NOT NULL, updated REAL NOT NULL, authority TEXT NOT NULL);
+                CREATE TRIGGER IF NOT EXISTS negotiation_participants BEFORE UPDATE OF requester,provider,initial_hash,dedupe ON negotiations
+                    BEGIN SELECT RAISE(ABORT,'immutable participants'); END;
                 CREATE TABLE IF NOT EXISTS jobs(id TEXT PRIMARY KEY, dedupe TEXT UNIQUE NOT NULL,
                     requester TEXT NOT NULL, provider TEXT NOT NULL, state TEXT NOT NULL,
                     contract TEXT NOT NULL, price INTEGER NOT NULL DEFAULT 0,

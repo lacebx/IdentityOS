@@ -19,11 +19,12 @@ _EXHAUSTION_MARKERS = [
 # retrying it indefinitely (live-test finding).
 _EXHAUSTION_TOKENS = [
     "rate limit", "429", "quota", "throttl",
-    "connection", "timed out", "timeout",
+    "connection", "timed out", "timeout", "generation deadline reached",
     "service unavailable", "502", "503", "504",
     "api keys exhausted", "invalid api key",
     "authentication failed", "401",
     "402", "payment required", "billing",
+    "json_validate_failed",  # rejected structured generation, before any tool effect
 ]
 
 
@@ -94,10 +95,26 @@ class ChainAdapter(BaseAdapter):
         **kwargs,
     ) -> str:
         errors: list[tuple[str, str]] = []
+        self.last_selection = None
+        budget = kwargs.pop("_generation_budget", None)
+        deadline = _time.monotonic() + float(budget) if budget is not None else None
+        tool_attempted = False
+        execute = kwargs.get("execute_tool")
+        if execute:
+            def tracked(name, args):
+                nonlocal tool_attempted
+                tool_attempted = True  # even an uncertain/failed effect must not replay
+                return execute(name, args)
+            kwargs["execute_tool"] = tracked
 
         for idx, adapter in enumerate(self._adapters):
             name = type(adapter).__name__
             started = _time.monotonic()
+            if deadline is not None:
+                remaining = deadline - started
+                if remaining <= 0:
+                    break
+                kwargs["_generation_budget"] = min(8.0, remaining)
             try:
                 output = adapter.generate(
                     context=context,
@@ -116,7 +133,7 @@ class ChainAdapter(BaseAdapter):
                 return output
             except Exception as exc:
                 errors.append((name, str(exc)))
-                if not self._is_exhaustion(exc):
+                if tool_attempted or not self._is_exhaustion(exc):
                     self.last_selection = {
                         "provider": name,
                         "model": str(getattr(adapter, "model", "") or ""),
@@ -142,7 +159,7 @@ class ChainAdapter(BaseAdapter):
             "error": "all adapters exhausted",
         }
         raise RuntimeError(
-            f"All adapters exhausted ({len(self._adapters)} tried). Errors:\n"
+            f"All adapters exhausted ({len(errors)} tried). Errors:\n"
             + "\n".join(f"  {n}: {e}" for n, e in errors)
         )
 

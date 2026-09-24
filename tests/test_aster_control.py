@@ -208,7 +208,7 @@ def test_operator_processes_to_completed_with_genuine_response(tmp_path):
 
 def test_no_adapter_defers_honestly_without_fake_reply(tmp_path):
     engine, _ = _engine(tmp_path, adapter=None)
-    submitted = submit_principal_message(engine.store, "What is your objective?")
+    submitted = submit_principal_message(engine.store, "Hello, how are you?")
     outcomes = engine._phase_principal(datetime.now(timezone.utc))
     assert outcomes[0]["outcome"] == "deferred"
     assert engine.store.get_message(submitted.id).status is MessageStatus.DEFERRED

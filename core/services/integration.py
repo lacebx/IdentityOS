@@ -46,3 +46,10 @@ def work_cards(storage, identity):
         }
         for j in store.jobs(identity)
     ]
+
+
+def specification_cards(storage, identity):
+    store = existing_store(storage)
+    if not store or not store.rows("SELECT name FROM sqlite_master WHERE type='table' AND name='negotiations'"):
+        return []
+    return store.rows('SELECT id,provider,requester,state,revision,job,updated FROM negotiations WHERE requester=? OR provider=? ORDER BY updated DESC LIMIT 30', (identity, identity))

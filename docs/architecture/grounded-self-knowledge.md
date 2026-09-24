@@ -31,11 +31,13 @@ Operational/status/planning text triggers automatic structured context in both g
 
 Sections contain status, completeness, source, evidence reference, and sanitized data. Snapshots carry observation time, content revision, identity, and a 30-second TTL. Sections are observations over a read window, not a global transactional freeze; the economy projection uses a single read transaction. Grounded responses are checked against a fresh projection. Changes during generation or expired observations cause a refreshed factual fallback. Execution still revalidates independently.
 
-## Structured assertions
+## Evidence-bound expression
 
-Operational generation requests a message, snapshot ID, and claims. FACT claims reference exact JSON Pointer values in verified section data. INFERENCE, PROPOSAL, and UNKNOWN cannot become FACT merely through wording. Unsupported/mismatched claims, missing contracts, and stale snapshots produce an explicitly marked `runtime_grounded_fallback`. There is no second model critic.
+`core/expression.py` supplies runtime-issued fact IDs and natural-language renderings. The model selects IDs in an internal envelope; operative prose is rendered from authoritative values, never from the model's message. Legacy claims are validated but their free prose is discarded. Inferences/proposals remain explicitly unverified commentary, never executable requests. Arbitrary conversation remains outside this supported operative path; routing is heuristic.
 
-This is not perfect natural-language verification: a correct structured claim can accompany unsupported prose, and operational routing is heuristic. The guard validates structured assertions, not the semantic equivalence of every sentence. Do not describe a passed guard as proof of every sentence. Provider conformance needs further live evaluation.
+Adapters declare prompt-only, JSON object or strict schema support. Groq GPT-OSS contract requests use strict schemas without tools, according to [provider documentation](https://console.groq.com/docs/structured-outputs). Other providers conservatively remain prompt-only unless configured otherwise. Operational OpenAI-compatible requests use bounded budgets; rotating providers do not replay contract attempts. Chain fallback stops after any tool attempt. The runtime no longer retries an adapter after an internal TypeError. All-provider failure produces an attributed deterministic runtime response; ordinary greetings remain conversational.
+
+Generation contracts check schema, evidence IDs, snapshot revision and age. Invalid output uses a concise first-person factual renderer. No second critic model is involved. Specifications are also projected as a self-state section. None of these reads expands execution authority.
 
 ## Bounds and privacy
 

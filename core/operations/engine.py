@@ -55,6 +55,7 @@ logger = logging.getLogger("identityos.operations")
 
 @dataclass
 class TickReport:
+    cycle_outcome: dict[str, Any] = field(default_factory=dict)
     observed: bool = False
     capability_gaps: list[dict[str, Any]] = field(default_factory=list)
     needs_created: list[str] = field(default_factory=list)
@@ -72,6 +73,7 @@ class TickReport:
 
     def to_dict(self) -> dict[str, Any]:
         return {
+            "cycle_outcome": dict(self.cycle_outcome),
             "observed": self.observed,
             "capability_gaps": list(self.capability_gaps),
             "needs_created": list(self.needs_created),
@@ -119,8 +121,11 @@ class OperationsEngine:
         self._surfaces = list(surfaces)
         self._presence = presence
 
+        from .progress import Progress
+        self.progress = Progress(self.store, config.purpose)
+
         # Adaptive polling state
-        self._last_observation_fingerprint: Optional[str] = None
+        self._last_observation_fingerprint: Optional[str] = (self._compute_observation_fingerprint(self.store.project_state()) if self.store.project_state() else None)
         self._current_poll_interval = float(config.poll_interval or 300.0)
         self._min_poll_interval = 300.0  # 5 minutes
         self._max_poll_interval = 3600.0  # 1 hour
@@ -175,8 +180,6 @@ class OperationsEngine:
         if hasattr(state, 'metadata') and state.metadata:
             for k, v in sorted(state.metadata.items()):
                 content_parts.append(f"{k}:{v}")
-        if hasattr(state, 'observed_at'):
-            content_parts.append(f"observed_at:{state.observed_at}")
         fingerprint = hashlib.sha256("|".join(content_parts).encode()).hexdigest()[:32]
         return fingerprint
 
@@ -271,6 +274,10 @@ class OperationsEngine:
     ) -> TickReport:
         now = now or datetime.now(timezone.utc)
         report = TickReport()
+        self.store.refresh_controls()
+        self.progress.begin(now)
+        self._cycle_now = now
+        self._surfaces_changed = False
 
         if self.store.controls().paused:
             self._provenance(ProvenancePhase.CONTROL, "tick skipped: operator paused", action="tick")
@@ -303,7 +310,7 @@ class OperationsEngine:
             if current_state:
                 new_fingerprint = self._compute_observation_fingerprint(current_state)
                 self._last_observation_fingerprint = new_fingerprint
-                if prev_fingerprint is not None and new_fingerprint != prev_fingerprint:
+                if new_fingerprint != prev_fingerprint:
                     state_changed = True
         
         # Adaptive polling interval
@@ -317,7 +324,19 @@ class OperationsEngine:
             )
             if self.services:
                 from core.services.worker import requester_tick
-                requester_tick(self.services, self.config.identity_id)
+                service_result = requester_tick(self.services, self.config.identity_id)
+                if service_result != 'idle':
+                    self._provenance(ProvenancePhase.CONTROL, 'Service workflow: '+service_result,
+                        action='service.requester', result=service_result)
+                    if service_result == 'principal_review_required':
+                        report.escalations.append('service contract review')
+                session = self.services.bind(self.config.identity_id)
+                for spec in self.services.negotiation.list(session):
+                    if spec['requester'] != self.config.identity_id or spec['state'] != 'CLARIFICATION_REQUIRED':
+                        continue
+                    key = spec['id'] + ':' + str(spec['revision'])
+                    if not any(n.refs.get('specification_revision') == key for n in self.store.list_notifications()):
+                        self._notify(kind='principal_instruction', summary='A service specification needs acceptance criteria before work can begin.', refs={'specification_revision':key})
             self._phase_gaps(report)
             report.needs_created = [n.id for n in self.detector.detect(self.store, self.store.project_state())] if self.store.project_state() else []
             if report.needs_created:
@@ -354,6 +373,11 @@ class OperationsEngine:
             report.skipped.extend(follow_skips)
 
         self._presence_after_tick(report, state_changed, now)
+        report.cycle_outcome = self.progress.finish(report, project_changed=state_changed, surfaces_changed=self._surfaces_changed)
+        outcome = report.cycle_outcome
+        if not report.errors and not report.escalations and not any(s.get('reason') == 'daily_budget_exhausted' for s in report.skipped):
+            self._presence_update('set_status', PresenceStatus.WAITING if outcome['waiting_conditions'] else PresenceStatus.IDLE,
+                activity='Autonomous cycle: '+outcome['result'], next_planned_action=outcome['next_eligible_actions'][0]['description'])
         return report
 
     # ── presence ──────────────────────────────────────────────────────
@@ -420,14 +444,18 @@ class OperationsEngine:
 
     def _phase_observe(self) -> bool:
         state = self.observer.observe()
+        prior = self.store.project_state()
+        changed = prior is None or self._compute_observation_fingerprint(prior) != self._compute_observation_fingerprint(state)
         self.store.set_project_state(state)
+        if not changed:
+            return True
         self._provenance(
             ProvenancePhase.OBSERVE,
-            f"observed project '{state.name}' with {len(state.facts)} fact(s)",
+            f"Project '{state.name}' changed: {len(set(state.facts)-set(prior.facts if prior else []))} added, {len(set(prior.facts if prior else [])-set(state.facts))} removed facts",
             action="observe_project",
             result=state.summary[:200],
             evidence=state.evidence[:8],
-            refs={"project_id": state.project_id},
+            refs={"project_id": state.project_id, "added_facts": sorted(set(state.facts)-set(prior.facts if prior else [])), "removed_facts": sorted(set(prior.facts if prior else [])-set(state.facts))},
         )
         return True
 
@@ -440,7 +468,9 @@ class OperationsEngine:
         observed_any = False
         for surface in self._surfaces:
             try:
-                observed = bool((surface.observe() or {}).get("observed"))
+                result = surface.observe() or {}
+                observed = bool(result.get("observed"))
+                self._surfaces_changed = self._surfaces_changed or bool(result.get('changed'))
             except Exception as exc:  # pragma: no cover - defensive
                 report.skipped.append({"surface": surface.name, "reason": "observe_failed", "error": str(exc)})
                 self._provenance(
@@ -456,7 +486,16 @@ class OperationsEngine:
         return observed_any
 
     def _phase_gaps(self, report: TickReport) -> None:
-        gaps = self.gap_detector.check(self.config.required_skills)
+        eligible = []
+        for skill in self.config.required_skills:
+            need = self.progress.blocker('skill:'+skill)
+            domain = 'authority' if need and need.metadata['blocker']['classification']=='AUTHORITY_GAP' else 'configuration'
+            condition = self.progress.condition(domain)
+            if self.progress.eligible('skill:'+skill,condition):eligible.append(skill)
+        gaps = self.gap_detector.check(eligible)
+        missing = {g.required_skill for g in gaps}
+        for skill in eligible:
+            if skill not in missing:self.progress.resolve('skill:'+skill,'Registry inspection now permits use')
         for gap in gaps:
             resolved = self.gap_detector.resolve(gap)
             report.capability_gaps.append(resolved.to_dict())
@@ -468,6 +507,15 @@ class OperationsEngine:
                 evidence=gap.evidence,
                 refs={"required_skill": gap.required_skill, "resolved": gap.resolved, "status": gap.status},
             )
+            if resolved.resolved:
+                self.progress.resolve('skill:'+gap.required_skill, resolved.resolution or 'Runtime verified resolution')
+                continue
+            classification=gap.classification
+            condition=self.progress.condition('authority' if classification=='AUTHORITY_GAP' else 'configuration')
+            delay = None if classification in {'AUTHORITY_GAP','CONFIGURATION_ERROR'} else self.progress.now + 300
+            self.progress.wait('skill:'+gap.required_skill,classification,condition,
+                gap.required_skill+' — '+(gap.reason or classification), retry=delay,principal=classification=='AUTHORITY_GAP',
+                reason=('Relevant permission state changes; principal decision only if external discovery is desired' if classification=='AUTHORITY_GAP' else 'Configuration or executable service catalog changes; no repair service is currently assumed'))
             self._notify_gap(gap)
 
         if report.capability_gaps:
@@ -517,7 +565,8 @@ class OperationsEngine:
         from .models import NeedStatus
 
         created: list[str] = []
-        open_needs = self.store.list_needs(status=NeedStatus.OPEN)[: self.config.max_needs_per_tick]
+        open_needs = [n for n in self.store.list_needs(status=NeedStatus.OPEN)
+                      if not n.metadata.get("blocker")] [: self.config.max_needs_per_tick]
         for need in open_needs:
             for opportunity in self.discoverer.discover(self.store, need):
                 created.append(opportunity.id)
@@ -930,6 +979,9 @@ class OperationsEngine:
             activity=f"Processing {len(pending)} principal message(s)",
         )
         for inbound in pending:
+            condition=self.progress.condition('principal',self._adapter)
+            if inbound.status is MessageStatus.DEFERRED and not self.progress.eligible('principal:'+inbound.id,condition,now=now.timestamp()):
+                continue
             outcomes.append(self._process_principal_message(inbound, now))
         return outcomes
 
@@ -951,7 +1003,8 @@ class OperationsEngine:
             if gate is not None:
                 return gate
 
-        if self._adapter is None:
+        from core.self_knowledge import needs_grounding
+        if self._adapter is None and not needs_grounding(inbound.body):
             return self._settle_principal(
                 inbound, MessageStatus.DEFERRED,
                 reason="no model runtime configured; substantive replies require a working model",
@@ -1087,11 +1140,21 @@ class OperationsEngine:
         if snapshot is not None:
             context += grounding_context(snapshot)
         try:
-            text = self._adapter.generate(context, user_input, self._identity)
+            from adapters.contracts import options
+            self.progress.resources["model_calls"] = self.progress.resources.get("model_calls",0)+1
+            text = self._adapter.generate(context, user_input, self._identity,
+                                          **(options(self._adapter, snapshot) if snapshot else {}))
         except Exception as exc:
-            return None, {"mode": "unavailable", "detail": f"model call failed: {exc}"}
+            if snapshot is None:
+                return None, {"mode": "unavailable", "detail": f"model call failed: {type(exc).__name__}"}
+            text, grounding = guard_response("", snapshot, current=reader.snapshot())
+            return text, {"mode": "runtime_grounded_fallback", "adapter": "", "model": "",
+                          "grounding": grounding, "failure": type(exc).__name__,
+                          "attempted": [{"provider": a.get("provider"), "error": "provider unavailable"}
+                                        for a in (getattr(self._adapter, "last_selection", None) or {}).get("attempted", [])]}
+
         text = (text or "").strip()
-        if not text:
+        if not text and snapshot is None:
             return None, {"mode": "unavailable", "detail": "model returned an empty response"}
         metadata = self._generation_metadata()
         if snapshot is not None:
@@ -1144,6 +1207,15 @@ class OperationsEngine:
 
         command = classify_command(inbound.body or "")
         inbound.status = status
+        if status is MessageStatus.DEFERRED:
+            condition=self.progress.condition('principal',self._adapter)
+            executor_missing = 'no safe executor' in reason or 'no model runtime' in reason
+            retry = None if executor_missing else self.progress.now + 900
+            self.progress.wait('principal:'+inbound.id,'WAITING_FOR_EXECUTOR' if executor_missing else 'PROVIDER_UNAVAILABLE',
+                condition,'Principal instruction waiting for executable prerequisites',retry=retry,
+                reason='Capabilities, services, model configuration or principal controls change')
+        elif status is MessageStatus.COMPLETED:
+            self.progress.resolve('principal:'+inbound.id,'Principal message completed with persisted response')
         if response_id:
             inbound.evidence = list(inbound.evidence or []) + [f"response:{response_id}"]
         if reason and status is not MessageStatus.COMPLETED:

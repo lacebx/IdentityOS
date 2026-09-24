@@ -427,6 +427,10 @@ class OperationsStore:
 
     # ── controls ──────────────────────────────────────────────────────
 
+    def refresh_controls(self) -> None:
+        """Observe decisions persisted by the separate Control process."""
+        self._controls = self._load_controls()
+
     def controls(self) -> ControlState:
         return self._controls
 

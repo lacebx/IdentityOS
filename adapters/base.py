@@ -82,6 +82,11 @@ class BaseAdapter(ABC):
         self.model = model
         self.config = kwargs
 
+    @property
+    def structured_output(self) -> str:
+        """prompt_only, json_object or json_schema; never a fact-verification guarantee."""
+        return "prompt_only"
+
     @abstractmethod
     def generate(
         self,

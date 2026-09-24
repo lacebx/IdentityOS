@@ -11,6 +11,7 @@ def add_service_parser(parser):
     sub.add_parser("init-engineer")
     for name in [
         "status",
+        "specifications",
         "directory",
         "jobs",
         "messages",
@@ -29,6 +30,16 @@ def add_service_parser(parser):
     sub.add_parser("requester-tick")
     show = sub.add_parser("show")
     show.add_argument("job")
+    proposal = sub.add_parser("propose")
+    proposal.add_argument("provider")
+    proposal.add_argument("contract", type=Path)
+    respond = sub.add_parser("respond")
+    respond.add_argument("reference")
+    respond.add_argument("revision", type=int)
+    respond.add_argument("decision", choices=["ACCEPT", "COUNTERPROPOSE", "REQUEST_CLARIFICATION", "DECLINE"])
+    respond.add_argument("--contract", type=Path)
+    start = sub.add_parser("start-job")
+    start.add_argument("reference")
     req = sub.add_parser("request")
     req.add_argument("provider")
     req.add_argument("contract", type=Path)
@@ -91,6 +102,15 @@ def run(args):
             result = runtime.store.rows("SELECT hash FROM artifacts")
         elif command == "recover":
             result = {"reconciled_interrupted": runtime.recover(session)}
+        elif command == "specifications":
+            result = runtime.negotiation.list(session)
+        elif command == "propose":
+            result = {"specification": runtime.negotiation.propose(session, args.provider, json.loads(args.contract.read_text()))}
+        elif command == "respond":
+            result = runtime.negotiation.respond(session, args.reference, args.revision, args.decision,
+                       contract=json.loads(args.contract.read_text()) if args.contract else None)
+        elif command == "start-job":
+            result = {"job": runtime.negotiation.start_job(session, args.reference)}
         elif command == "request":
             result = {"job": runtime.request(session, args.provider, json.loads(args.contract.read_text()))}
         elif command == "quote":

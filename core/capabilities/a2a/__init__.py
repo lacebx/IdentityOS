@@ -53,7 +53,9 @@ class A2ACapability(Capability):
     @classmethod
     def inspect_installation(cls, config: dict) -> dict:
         # skills() is declarative: no constructor, installation, or I/O.
-        return {"skills": cls.skills(None), "readiness": "unknown" if config.get("agents") else "misconfigured"}
+        configured = bool(config.get("agents"))
+        return {"skills": cls.skills(None), "readiness": "unknown" if configured else "misconfigured",
+                "reason": "Configured; remote readiness not verified" if configured else "No external agents are configured"}
 
     def skills(self) -> list[Skill]:
         return [

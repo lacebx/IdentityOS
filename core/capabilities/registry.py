@@ -225,7 +225,7 @@ class CapabilityRegistry:
                         "state":state,"classification":"AUTHORITY_GAP" if not allowed else
                             ("READY" if readiness=="ready" else "UNVERIFIED_READINESS"),
                         "reason":"required permission is not granted" if not allowed else
-                            ("local implementation ready; arguments and policy rechecked at execution" if readiness=="ready" else "provider/dependency readiness not proven by this read")}
+                            ("local implementation ready; arguments and policy rechecked at execution" if readiness=="ready" else description.get("reason", "provider/dependency readiness not proven by this read"))}
             except (ImportError, ModuleNotFoundError):
                 complete = False
                 provider["state"] = "INSTALLED_DEPENDENCY_UNAVAILABLE"
@@ -291,7 +291,23 @@ class CapabilityRegistry:
         if isinstance(result, CapabilityResult):
             if not result.params:
                 result.params = dict(normalized_params)
-            return result.reclassify_soft_errors()
+            result = result.reclassify_soft_errors()
+            try:
+                observations = self._storage.load(identity_id, "capability.observations") or {}
+                old = observations.get(skill_name, {})
+                from datetime import datetime, timezone
+                observed = datetime.now(timezone.utc).isoformat()
+                old.update(last_checked=observed, last_success=result.success)
+                if result.success:
+                    old['last_verified_at'] = observed
+                    old['effect'] = ('submission' if skill_name.startswith('notification.') and isinstance(result.data,dict) and result.data.get('ntfy_id') else 'call')
+                observations[skill_name] = old
+                self._storage.save(identity_id, "capability.observations", dict(list(observations.items())[-100:]))
+            except Exception:
+                # The action already ran: evidence persistence must never invite replay.
+                import logging
+                logging.getLogger(__name__).warning("Capability observation persistence failed after execution", exc_info=True)
+            return result
         return CapabilityResult.from_data(
             cap.id,
             skill_name,

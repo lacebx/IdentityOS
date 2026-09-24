@@ -322,7 +322,7 @@ def cmd_aster_run(args: argparse.Namespace) -> int:
                 break
             if interval <= 0:
                 break
-            time.sleep(interval)
+            stop_requested.wait(interval)
     finally:
         heartbeat_stop.set()
         hb_thread.join(timeout=2.0)

@@ -203,6 +203,8 @@ def describe_adapter(adapter: Optional[BaseAdapter]) -> dict[str, Any]:
             {
                 "adapter": type(item).__name__,
                 "model": str(getattr(item, "model", "") or ""),
+                "structured_output": (getattr(item, "structured_output", "prompt_only")
+                    if isinstance(getattr(item, "structured_output", None), str) else "prompt_only"),
             }
             for item in leaves
         ],

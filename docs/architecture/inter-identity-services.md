@@ -62,17 +62,9 @@ are recorded. An existing built-in match returns to normal acquisition rather th
 being shadowed. External provider discovery is not authorized by this local-only
 agreement format.
 
-Broader engineering/code generation and integrations are not implemented by this
-format. Engineer's catalog explicitly advertises the supported artifact format.
-Requests it cannot implement fail honestly. Do not treat the five catalog service
-names as evidence of unrestricted engineering ability.
+Only `capability.develop` is now advertised: it builds and tests bounded local-transform-v1 packages. Repair, testing-as-a-service, integration debugging and runtime diagnosis advertisements were removed because distinct governed workflows were not implemented. General code execution and external delivery remain unsupported.
 
-An operator's unstructured skill gap cannot establish acceptance criteria. The
-current automatic escalation records one blocked request with empty acceptance
-criteria, pending an explicit specification; it does not invent tests or mark the
-gap resolved. Specification negotiation and automatic general build planning remain
-incomplete. A requester can cancel that blocked request and submit a fully specified
-agreement with a new request key.
+Automatic unresolved capability gaps now create deduplicated specification exchanges, not blocked jobs. `core/services/negotiation.py` persists participant-bound, revision-checked proposals, counterproposals, clarification requests, declines and agreements. Unknown acceptance criteria are never invented. Workers accept executable specifications or request clarification; requester workers create idempotent jobs only after agreement. Price remains separately quoted and requester-approved under the existing budget and spending policy. The complete-contract compatibility API invokes the same deterministic provider negotiation workflow and persists agreement before job creation; vague direct requests are rejected. Clarification creates a deduplicated principal notification. CLI propose/respond/start-job and Work specification cards expose this exchange.
 
 ## Credits and concurrency
 
@@ -121,15 +113,6 @@ Live service unit installation is local operator configuration and is not commit
 Use the configured Python interpreter, repository working directory and absolute
 identity-store path when supervising `identity services --identity engineer serve`.
 
-## Remaining work at the usage checkpoint
+## Boundaries
 
-- Broader governed engineering adapters beyond the bounded local format.
-- Negotiating a real specification for an automatically discovered unstructured gap.
-- Built-in/interop acquisition and delivery through specialist agreements, beyond
-  detecting existing providers and reusing local artifact packages.
-- Authenticated service transport between separate runtime hosts.
-- Stronger concurrent projection reconciliation for the existing JSON relationships.
-- Full adversarial review across those broader execution and transport mechanisms.
-
-These limitations are why the milestone is reported PARTIALLY PROVEN, despite the
-working local integration, economy and restart proofs. No live demand is fabricated.
+Cross-host identity authentication, external effect delivery and general-purpose engineering are not implemented. Local session bindings and the bounded artifact interpreter are the enforced execution boundary. They must not be represented as a remote authenticated marketplace or unrestricted engineering service.

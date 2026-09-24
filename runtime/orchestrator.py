@@ -1094,19 +1094,17 @@ class IdentityRuntime:
                 generate_kwargs["execute_tool"] = _execute_tool_call
                 generate_kwargs["tool_choice"] = "auto"
 
+            if _grounding_snapshot is not None:
+                from adapters.contracts import options
+                generate_kwargs.update(options(self.adapter, _grounding_snapshot))
             model_input = user_profile.augment_recall_input(sanitized_input)
+            from adapters.contracts import compatible_kwargs
+            generate_kwargs = compatible_kwargs(self.adapter, generate_kwargs)
             try:
                 raw_output = self.adapter.generate(
                     context=context.render(), user_input=model_input,
                     identity=identity, **generate_kwargs,
                 )
-            except TypeError:
-                try:
-                    raw_output = self.adapter.generate(
-                        context=context.render(), user_input=model_input, identity=identity,
-                    )
-                except Exception as exc:
-                    _generation_error = exc
             except Exception as exc:
                 # A generation failure must terminate cleanly and defer — never
                 # hang the interaction indefinitely and never surface as an
@@ -1177,7 +1175,7 @@ class IdentityRuntime:
                 )
         trace.end_stage("prometheus_post", stage_started)
 
-        if _grounding_snapshot is not None and _generation_error is None and _generation_mode == 'identity_model_generation':
+        if _grounding_snapshot is not None:
             raw_output, _grounding_metadata = guard_response(raw_output, _grounding_snapshot, current=_self_reader.snapshot())
             if _grounding_metadata['guard'] == 'fallback':
                 _generation_mode = 'runtime_grounded_fallback'

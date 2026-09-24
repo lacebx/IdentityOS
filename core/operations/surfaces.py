@@ -11,7 +11,7 @@ source, not a model claim.
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Any, Optional
 
 from .models import ProvenanceEntry, ProvenancePhase, Relationship, RelationshipStatus
@@ -60,8 +60,32 @@ class CultureCommonsSurface:
         """Read room + boards once, persist provenance and an evidence snapshot."""
         if not self.installed():
             return {"observed": False, "reason": "culture_commons capability not installed"}
+        from .progress import meaningful, fingerprint
+        progress = self._engine.progress
+        now = getattr(self._engine, '_cycle_now', datetime.now(timezone.utc))
+        condition = progress.condition('configuration')
+        if not progress.eligible('surface:culture_commons',condition,now=now.timestamp()):
+            return {'observed':False,'reason':'waiting','suppressed':True}
+        cap = self._registry.get(self.identity_id, 'culture_commons')
+        usage = cap.read_budget_state(now) if hasattr(cap,'read_budget_state') else None
+        reset = (now.replace(hour=0,minute=0,second=0,microsecond=0)+timedelta(days=1)).timestamp()
+        if usage and usage['reads'] >= max(1, int(usage['limit']*0.8)):
+            exhausted=usage['reads']>=usage['limit']
+            progress.wait('surface:culture_commons','DAILY_BUDGET_EXHAUSTED' if exhausted else 'BUDGET_RESERVED',
+                condition,'Culture Commons daily read allowance '+('exhausted' if exhausted else 'reserved for meaningful follow-up'),
+                retry=reset,reason='Resume adaptive observation after UTC daily reset',now=now.timestamp())
+            return {'observed':False,'reason':'daily_budget_exhausted' if exhausted else 'budget_reserved','reads':usage['reads']}
+        progress.resources['surface_reads']=progress.resources.get('surface_reads',0)+1
         result = self._call("culture_commons.observe")
         if not result.success:
+            error=(result.error or {}).get('message','failure')
+            budget = 'daily budget exhausted' in error
+            previous=progress.blocker('surface:culture_commons')
+            occurrences=previous.metadata['blocker'].get('occurrence_count',0) if previous else 0
+            retry=reset if budget else now.timestamp()+min(21600,300*2**min(occurrences,6))
+            progress.wait('surface:culture_commons','DAILY_BUDGET_EXHAUSTED' if budget else 'PROVIDER_UNAVAILABLE',condition,
+                'Culture Commons waiting for '+('daily reset' if budget else 'provider recovery'),retry=retry,
+                reason='Daily UTC read reset' if budget else 'Retry external provider after bounded backoff',now=now.timestamp())
             self._provenance(
                 ProvenancePhase.OBSERVE,
                 "culture_commons observe failed",
@@ -76,19 +100,29 @@ class CultureCommonsSurface:
         boards = data.get("boards") or {}
         summary = self._summarize(room, boards)
 
+        prior = self._load_snapshot()
+        digest = fingerprint(meaningful({'room':room,'boards':boards}))
+        previous_digest = prior.get('fingerprint') or fingerprint(meaningful({'room':prior.get('last_room'), 'boards':prior.get('last_boards')}))
+        changed = digest != previous_digest
+        interval = 300 if changed else min(21600, max(600,prior.get('observation_interval',300)*2))
         snapshot = self._snapshot(state=data, summary=summary)
+        snapshot.update(fingerprint=digest, observation_interval=interval)
+        progress.wait('surface:culture_commons','UNCHANGED_OBSERVATION',condition,
+            'Culture Commons waiting for next eligible observation',retry=now.timestamp()+interval,
+            reason='Observe after adaptive interval; unchanged observations back off',now=now.timestamp())
         self._engine.store._storage.save(self.identity_id, SURFACE_NAMESPACE, snapshot)
 
-        self._provenance(
-            ProvenancePhase.OBSERVE,
-            f"culture_commons observed: {summary}",
+        if changed:
+            self._provenance(
+                ProvenancePhase.OBSERVE,
+                f"culture_commons observed: {summary}",
             action="culture_commons.observe",
             result=summary,
             evidence=self._evidence_list(snapshot),
             refs={"surface": self.name, "observed_at": data.get("observed_at", "")},
         )
         self._ensure_relationship(summary)
-        return {"observed": True, "summary": summary, "at": data.get("observed_at", "")}
+        return {"observed": True, "changed":changed, "summary": summary, "at": data.get("observed_at", "")}
 
     def status(self) -> dict[str, Any]:
         raw = self._load_snapshot()

@@ -363,8 +363,10 @@ def test_automatic_gap_escalation_deduplicates_without_inventing_acceptance(tmp_
         detector.resolve(gap)
         assert not gap.resolved
     jobs = runtime.store.jobs("test_requester")
-    assert len(jobs) == 1 and jobs[0]["state"] == "BLOCKED"
-    assert jobs[0]["contract"]["acceptance"] == []
+    assert jobs == []
+    specs = runtime.negotiation.list(requester)
+    assert len(specs) == 1 and specs[0]["state"] == "PROPOSED"
+    assert specs[0]["contract"]["acceptance"] == []
     assert runtime.store.balance("test_requester") == 0
 
 

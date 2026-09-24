@@ -16,7 +16,7 @@ from core.operations.store import OperationsStore
 from core.services.store import ServiceStore, encode, fingerprint, uid
 from core.prometheus import service_artifacts as artifacts
 
-SERVICES = ["capability.develop", "capability.repair", "capability.test", "integration.debug", "runtime.diagnose"]
+SERVICES = ["capability.develop"]  # Only the governed local build workflow is implemented.
 TERMINAL = {"COMPLETED", "FAILED", "CANCELLED", "DECLINED"}
 
 
@@ -34,6 +34,8 @@ class ServiceRuntime:
         self.store = ServiceStore(path)
         self.workspace = workspace or str(Path(path).parent / "workspaces")
         self._sessions = {}
+        from core.services.negotiation import Negotiation
+        self.negotiation = Negotiation(self)
 
     def bind(self, identity):
         """Trusted runtime/CLI entry point; never exposed to model parameters."""
@@ -66,8 +68,12 @@ class ServiceRuntime:
         with self.store.transaction() as db:
             db.execute("INSERT OR IGNORE INTO accounts(identity) VALUES(?)", (identity,))
         session = self.bind(identity)
-        if not self.store.rows("SELECT identity FROM services WHERE identity=?", (identity,)):
+        current = self.store.rows("SELECT document FROM services WHERE identity=?", (identity,))
+        if not current:
             self.advertise(session, SERVICES, price=10)
+        elif json.loads(current[0]['document'])['services'] != SERVICES:
+            previous = json.loads(current[0]['document'])
+            self.advertise(session, SERVICES, price=previous['price'], availability=previous['availability'])
         return session
 
     def advertise(self, session, services, *, price=10, availability="available"):
@@ -82,7 +88,7 @@ class ServiceRuntime:
             "display_name": spec.get("name", actor),
             "services": sorted(set(services)),
             "type": "specialist_identity",
-            "description": "Governed technical services; bounded local transformations supported",
+            "description": "Build and acceptance-test local-transform-v1 capabilities; no general repair, debugging, or host diagnosis",
             "contract": "local-transform-agreement-v1",
             "availability": availability,
             "price": price,
@@ -152,6 +158,30 @@ class ServiceRuntime:
         return json.loads(encode(contract))
 
     def request(self, session, provider, contract):
+        """Compatibility convenience: run the same deterministic negotiation first.
+
+        The provider's existing bounded workflow decides the complete offer;
+        price approval and requester acceptance still occur separately.
+        """
+        actor = self._actor(session)
+        if isinstance(contract, dict) and isinstance(contract.get('skill'), str):
+            self._authorize_effect(actor, contract['skill'])
+        checked = self._contract(contract)
+        if not checked['acceptance'] or checked['constraints']['effect'] != 'local_transform':
+            raise ValueError('negotiate executable acceptance criteria before creating a job')
+        reference = self.negotiation.propose(session, provider, checked)
+        try:
+            self.negotiation.provider_tick(self.bind(provider), reference=reference)
+        except ValueError:
+            # A concurrent identical request may have already accepted this revision.
+            if self.negotiation.get(session, reference)['state'] != 'AGREED':
+                raise
+        return self.negotiation.start_job(session, reference)
+
+    def _create_agreed_job(self, session, provider, contract, reference):
+        agreement = self.negotiation.get(session, reference)
+        if agreement['state'] != 'AGREED' or agreement['requester'] != self._actor(session) or agreement['provider'] != provider or agreement['contract'] != contract:
+            raise PermissionError('matching persisted agreement required before job creation')
         actor = self._actor(session)
         # Check known denied effect before discovery, quoting, relationship, or message.
         if isinstance(contract, dict) and isinstance(contract.get("skill"), str):
@@ -162,6 +192,8 @@ class ServiceRuntime:
         if secrets:
             raise ValueError("credentials are not accepted in service agreements")
         contract = self._contract(contract)
+        if not contract["acceptance"] or contract["constraints"]["effect"] != "local_transform":
+            raise ValueError("negotiate executable acceptance criteria before creating a job")
         if actor == provider:
             raise ValueError("self delegation is not a service exchange")
         if provider not in [c["identity"] for c in self.discover(contract["service"])]:
@@ -338,6 +370,8 @@ class ServiceRuntime:
         actor, job = self._participant(session, job_id, "provider")
         if job["state"] in {"DELIVERED", "COMPLETED"}:
             return job  # safe Executive replay
+        if job["contract"]["service"] not in SERVICES:
+            raise ValueError("service workflow unavailable")
         self._authorize_effect(job["requester"], job["contract"]["skill"])
         self._authorize_effect(actor, job["contract"]["skill"])
         with self.store.transaction() as db:
@@ -627,15 +661,4 @@ class ServiceRuntime:
             "budget": 0,
             "request_key": "gap:" + gap.required_skill,
         }
-        job = self.request(session, candidates[0]["identity"], contract)
-        with self.store.transaction() as db:
-            if db.execute("SELECT state FROM jobs WHERE id=?", (job,)).fetchone()[0] == "REQUESTED":
-                db.execute("UPDATE jobs SET state='BLOCKED' WHERE id=?", (job,))
-                self.store.event(
-                    db,
-                    actor,
-                    "specification_required",
-                    {"reason": "runtime gap lacks executable acceptance criteria; no execution authorized"},
-                    job,
-                )
-        return job
+        return self.negotiation.propose(session, candidates[0]["identity"], contract)

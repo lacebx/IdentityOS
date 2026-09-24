@@ -350,6 +350,41 @@ form.composer button {{ background: #34d17b; color: #06210f; border: 0; border-r
       if (name === "activity") {{
         var a = await getJSON("/api/activity?limit=30");
         var tl = $("timeline"); tl.textContent = "";
+        var progress = a.autonomy || {{}};
+        var cycle = progress.latest || {{}};
+        var overview = el("div", "card");
+        overview.appendChild(el("div", "big", "Autonomous cycle · " + (cycle.result || "No cycle recorded")));
+        overview.appendChild(el("div", "sub", fmtTime(cycle.completed_at)));
+        overview.appendChild(el("div", "label", "Objective"));
+        overview.appendChild(el("div", "", cycle.objective || "Not recorded"));
+        overview.appendChild(el("div", "label", "Last meaningful progress"));
+        var lastProgress = progress.last_meaningful_progress;
+        overview.appendChild(el("div", "", lastProgress ? lastProgress.summary + " · " + ago(lastProgress.at) : "No meaningful progress recorded in cycle evidence yet."));
+        overview.appendChild(el("div", "label", "This cycle"));
+        overview.appendChild(el("div", "", (cycle.new_information || []).join("; ") || ((cycle.actions_completed || []).length ? cycle.actions_completed.length + " objective action(s) completed." : "No new information or completed objective work recorded.")));
+        overview.appendChild(el("div", "label", "Waiting for"));
+        (progress.waiting || []).forEach(function(b) {{
+          overview.appendChild(el("div", "", (b.principal_action_required ? "Principal decision if needed: " : "System waiting: ") + b.description));
+          overview.appendChild(el("div", "sub", b.retry_condition + (b.next_eligible_retry ? " · eligible " + fmtTime(new Date(b.next_eligible_retry * 1000).toISOString()) : " · no timed retry")));
+        }});
+        overview.appendChild(el("div", "label", "Next eligible action"));
+        (cycle.next_eligible_actions || []).forEach(function(n) {{ overview.appendChild(el("div", "", n.description)); }});
+        var resources = cycle.resources || {{}};
+        overview.appendChild(el("div", "sub", "Suppressed operations: " + (resources.suppressed_operations || 0) + " · principal model requests: " + (resources.model_calls || 0) + " · Commons observation calls: " + (resources.surface_reads || 0)));
+        overview.appendChild(el("div", "sub", resources.measurement_scope || ""));
+        overview.appendChild(el("div", "sub", "Liveness is separate from progress. " + (cycle.safety || "")));
+        tl.appendChild(overview);
+        var recent = (progress.cycles || []).filter(function(c) {{ return c.cycle_id !== cycle.cycle_id && c.result === "PROGRESS"; }});
+        if (recent.length) {{
+          var history = el("div", "card");
+          history.appendChild(el("div", "label", "Recent meaningful outcomes"));
+          recent.slice(0, 3).forEach(function(c) {{ history.appendChild(el("div", "", fmtTime(c.completed_at) + " · " + (c.last_meaningful_progress || {{}}).summary)); }});
+          tl.appendChild(history);
+        }}
+        var details = el("details", "card");
+        details.appendChild(el("summary", "", "Detailed provenance and repeated observations"));
+        tl.appendChild(details);
+        tl = details;
         var evs = a.events || [];
         if (!evs.length) tl.appendChild(el("div", "sub", "No activity recorded yet."));
         for (var i = 0; i < evs.length; i++) {{
@@ -366,6 +401,13 @@ form.composer button {{ background: #34d17b; color: #06210f; border: 0; border-r
         var ww = await getJSON("/api/work");
         var wl = $("work-list"); wl.textContent = "";
         if (!(ww.jobs || []).length) wl.appendChild(el("div", "sub", "No delegated work."));
+        (ww.specifications || []).forEach(function(s) {{
+          var card = el("div", "ev");
+          card.appendChild(el("div", "big", "Specification · " + s.provider));
+          card.appendChild(el("div", "", s.state + " · revision " + s.revision));
+          card.appendChild(el("div", "sub", s.job ? "Job " + s.job : "No job or payment authorized by this exchange."));
+          wl.appendChild(card);
+        }});
         (ww.jobs || []).forEach(function(j) {{
           var card = el("div", "ev");
           card.appendChild(el("div", "big", j.provider + " · " + j.skill));
@@ -413,7 +455,8 @@ form.composer button {{ background: #34d17b; color: #06210f; border: 0; border-r
           for (var q = 0; q < (cap.skills || []).length; q++) {{
             var sk = cap.skills[q];
             cc0.appendChild(el("div", sk.allowed ? "" : "warn",
-              (sk.executable === true ? "✓ " : (!sk.allowed ? "Permission required · " : (sk.state === "INSTALLED_PROVIDER_UNAVAILABLE" ? "Provider unavailable · " : sk.state === "INSTALLED_DEPENDENCY_UNAVAILABLE" ? "Dependency unavailable · " : sk.state === "INSTALLED_MISCONFIGURED" ? "Configuration required · " : "Readiness unverified · "))) + sk.name));
+              (sk.executable === true ? "✓ " : (!sk.allowed ? "Permission required · " : (sk.state === "INSTALLED_PROVIDER_UNAVAILABLE" ? "Provider unavailable · " : sk.state === "INSTALLED_DEPENDENCY_UNAVAILABLE" ? "Dependency unavailable · " : sk.state === "INSTALLED_MISCONFIGURED" ? "Configuration required · " : (sk.last_verified_at ? "Not recently verified · " : "Readiness unknown · ")))) + sk.name));
+            if (sk.last_verified_at) cc0.appendChild(el("div", "sub", "Last verified " + (sk.verified_effect || "call") + " · " + fmtTime(sk.last_verified_at) + "; not a guarantee of present readiness."));
             if (sk.provenance) {{
               cc0.appendChild(el("div", "sub", "Provided by " + sk.provenance.provider + " · acceptance tested by " + sk.provenance.accepted_by));
               cc0.appendChild(el("div", "sub", "Job " + sk.provenance.job + " · " + sk.provenance.fingerprint));
@@ -563,10 +606,10 @@ def _capability_cards(registry: Any, identity_id: str, store: Any) -> list[dict[
                 match = next((j for j in accepted if j['artifact']==digest), None)
                 if match: provenance = {'provider':match['provider'],'job':match['id'],'fingerprint':digest,'accepted_by':identity_id}
             skills.append({'name':name,'allowed':skill['authority'],'executable':skill['executable'],
-                'state':skill['state'],'classification':skill['classification'],
+                'state':skill['state'],'classification':skill['classification'],'readiness':skill.get('readiness','UNKNOWN'),
                 'permission':', '.join(skill['required_permissions']),'reason':skill['reason'],
                 'limited_explanation':skill['reason'] if not skill['authority'] else '',
-                'provenance':provenance})
+                'provenance':provenance,'last_verified_at':skill.get('last_verified_at'), 'verified_effect':skill.get('verified_effect')})
         cards.append({'id':cap_id,'name':cap_id,'version':provider.get('version'),'installed':True,
                       'state':provider['state'],'description':'','skills':skills,'last_used':'unknown'})
     return cards
@@ -754,10 +797,11 @@ class _HealthHandler(BaseHTTPRequestHandler):
         limit = max(1, min(100, limit))
         try:
             if path == "/api/activity":
-                payload = {"events": _timeline(store, limit=limit)}
+                from core.operations.progress import projection
+                payload = {"events": _timeline(store, limit=limit), "autonomy": projection(store)}
             elif path == "/api/work":
-                from core.services.integration import work_cards
-                payload = {"jobs": work_cards(storage, identity_id)}
+                from core.services.integration import work_cards, specification_cards
+                payload = {"jobs": work_cards(storage, identity_id), "specifications": specification_cards(storage, identity_id)}
             elif path == "/api/relationships":
                 payload = {"relationships": _relationship_cards(store)}
             elif path == "/api/capabilities":

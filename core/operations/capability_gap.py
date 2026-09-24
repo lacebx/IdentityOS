@@ -25,6 +25,12 @@ class CapabilityStatus(str, Enum):
     CAPABILITY_MISSING = "capability_missing"
     AVAILABLE_NOT_INSTALLED = "available_not_installed"
     INSTALLED_PERMISSION_MISSING = "installed_permission_missing"
+    PROVIDER_UNAVAILABLE = "provider_unavailable"
+    DEPENDENCY_UNAVAILABLE = "dependency_unavailable"
+    CONFIGURATION_ERROR = "configuration_error"
+    BUG = "bug"
+    EXTERNAL_LIMITATION = "external_limitation"
+    UNKNOWN = "unknown"
 
 
 @dataclass
@@ -37,6 +43,14 @@ class CapabilityGap:
     evidence: list[str] = field(default_factory=list)
     status: str = CapabilityStatus.CAPABILITY_MISSING.value
 
+    @property
+    def classification(self):
+        return {
+            "installed_permission_missing": "AUTHORITY_GAP",
+            "capability_missing": "CAPABILITY_GAP",
+            "available_not_installed": "CAPABILITY_GAP",
+        }.get(self.status, self.status.upper() if self.status != "ready" else "UNKNOWN")
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "required_skill": self.required_skill,
@@ -46,7 +60,7 @@ class CapabilityGap:
             "resolution": self.resolution,
             "evidence": list(self.evidence),
             "status": self.status,
-            "classification": "AUTHORITY_GAP" if self.status == CapabilityStatus.INSTALLED_PERMISSION_MISSING.value else "CAPABILITY_GAP",
+            "classification": self.classification,
         }
 
 
@@ -78,16 +92,26 @@ class CapabilityGapDetector:
                     required_skill=skill,
                     reason="no capability registry wired",
                     evidence=["registry=absent"],
-                    status=CapabilityStatus.CAPABILITY_MISSING.value,
+                    status=CapabilityStatus.UNKNOWN.value,
                 ))
                 continue
             try:
+                if hasattr(self._registry, "inspect_state"):
+                    view = self._registry.inspect_state(self._identity_id)
+                    entry = view['skills'].get(skill)
+                    if entry and entry['state'] in {'INSTALLED_MISCONFIGURED', 'INSTALLED_DEPENDENCY_UNAVAILABLE', 'INSTALLED_PROVIDER_UNAVAILABLE'}:
+                        status = {'INSTALLED_MISCONFIGURED':'configuration_error', 'INSTALLED_DEPENDENCY_UNAVAILABLE':'dependency_unavailable', 'INSTALLED_PROVIDER_UNAVAILABLE':'provider_unavailable'}[entry['state']]
+                        gaps.append(CapabilityGap(skill, reason=entry['reason'], status=status, evidence=[entry['state']]))
+                        continue
+                    if not entry and not view['complete']:
+                        gaps.append(CapabilityGap(skill, reason="incomplete provider inspection", status='unknown', evidence=['inspection=incomplete']))
+                        continue
                 allowed, reason = self._registry.can(self._identity_id, skill)
             except Exception as exc:  # pragma: no cover - defensive
                 gaps.append(CapabilityGap(
-                    required_skill=skill, reason=f"registry error: {exc}",
+                    required_skill=skill, reason=f"registry error: {type(exc).__name__}",
                     evidence=["registry=error"],
-                    status=CapabilityStatus.CAPABILITY_MISSING.value,
+                    status=CapabilityStatus.UNKNOWN.value,
                 ))
                 continue
             if not allowed:
@@ -146,8 +170,8 @@ class CapabilityGapDetector:
 
             for cap_id in available():
                 try:
-                    instance = lookup(cap_id)(config={})
-                    if any(s.name == skill for s in instance.skills()):
+                    description = lookup(cap_id).inspect_installation({})
+                    if any(s.name == skill for s in description.get("skills", [])):
                         return cap_id
                 except Exception:
                     continue
@@ -164,6 +188,18 @@ class CapabilityGapDetector:
             gap.resolution = f"PERMISSION_REQUIRED: {gap.reason}"
             self._record_gap_need(gap)
             return gap
+        if gap.classification != "CAPABILITY_GAP":
+            gap.resolution = "DEFERRED: " + gap.classification + "; gather evidence or repair configuration before acquisition"
+            self._record_gap_need(gap)
+            return gap
+        if self._store is not None:
+            import time
+            cached = self._store._storage.load(self._identity_id, "operations.gap_attempts") or {}
+            previous = cached.get(gap.required_skill, {})
+            if previous.get('status') == gap.status and time.time() - previous.get('at', 0) < 300:
+                gap.resolution = previous['resolution']
+                self._record_gap_need(gap)
+                return gap
         if self._acquisition is None:
             gap.resolution = "no acquisition mechanism configured"
             self._record_gap_need(gap)
@@ -181,10 +217,15 @@ class CapabilityGapDetector:
             try:
                 job = self._delegation(gap)
                 if job:
-                    gap.resolution = f"delegated job {job}; awaiting service outcome"
-                    gap.evidence.append(f"service_job:{job}")
+                    gap.resolution = f"specification exchange {job}; awaiting agreement, not resolved"
+                    gap.evidence.append(f"service_specification:{job}")
             except PermissionError:
                 gap.resolution = "PERMISSION_REQUIRED: service delegation denied"
+        if self._store is not None and not gap.resolved:
+            import time
+            cached = self._store._storage.load(self._identity_id, "operations.gap_attempts") or {}
+            cached[gap.required_skill] = {'at':time.time(), 'status':gap.status, 'resolution':gap.resolution}
+            self._store._storage.save(self._identity_id, "operations.gap_attempts", dict(list(cached.items())[-100:]))
         self._record_gap_need(gap)
         return gap
 
@@ -196,7 +237,7 @@ class CapabilityGapDetector:
         NeedDetector.ensure_need(
             self._store,
             category=gap.category,
-            description=f"Missing required capability for skill '{gap.required_skill}'",
+            description=f"Unresolved {gap.classification} for skill '{gap.required_skill}'",
             evidence=list(gap.evidence),
             urgency=0.6,
             impact=0.7,

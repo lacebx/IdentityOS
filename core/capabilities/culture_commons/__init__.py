@@ -497,6 +497,14 @@ class CultureCommonsCapability(Capability):
         history.append(value)
         self._write_state("observations.json", history)
 
+    def read_budget_state(self, now=None):
+        """Local deterministic projection; no network request or counter increment."""
+        current = now or datetime.now(timezone.utc)
+        day = current.strftime("%Y-%m-%d")
+        counters = self._read_state("counters.json", {})
+        return {"day": day, "reads": int(counters.get("reads",0)) if counters.get("day")==day else 0,
+                "limit": int(self._config.get("max_reads_per_day",120))}
+
     def _bump_counter(self, kind: str) -> None:
         day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         counters = self._read_state("counters.json", {"day": day, "posts": 0, "reads": 0})

@@ -114,6 +114,9 @@ class CerebrasAdapter(OpenAIAdapter):
         max_tokens: Optional[int] = None,
         **kwargs
     ) -> str:
+        if "_generation_budget" in kwargs:
+            return super().generate(context, user_input, identity, temperature=temperature,
+                                    max_tokens=max_tokens, retries=1, **kwargs)
         last_error = None
         now = time.time()
         deadline = now + 45  # Give up after 45s so chain can fall through

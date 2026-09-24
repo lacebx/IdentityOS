@@ -80,7 +80,9 @@ class MCPCapability(Capability):
     @classmethod
     def inspect_installation(cls, config: dict) -> dict:
         # skills() is declarative: no constructor, installation, or I/O.
-        return {"skills": cls.skills(None), "readiness": "unknown" if (config.get("servers") or config.get("url") or os.environ.get("IDENTITY_MCP_URL")) else "misconfigured"}
+        configured = bool(config.get("servers") or config.get("url") or os.environ.get("IDENTITY_MCP_URL"))
+        return {"skills": cls.skills(None), "readiness": "unknown" if configured else "misconfigured",
+                "reason": "Configured; remote readiness not verified" if configured else "No MCP server or URL is configured"}
 
     def skills(self) -> list[Skill]:
         return [

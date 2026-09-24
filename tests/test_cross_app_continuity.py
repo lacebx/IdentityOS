@@ -33,10 +33,10 @@ from pathlib import Path
 
 import pytest
 
-pytestmark = pytest.mark.skipif(
+pytestmark = [pytest.mark.network, pytest.mark.skipif(
     not os.environ.get("GROQ_API_KEY") and not os.environ.get("OPENROUTER_API_KEY"),
     reason="Requires GROQ_API_KEY or OPENROUTER_API_KEY for LLM access",
-)
+)]
 
 API_BASE = "http://localhost:8000"
 SERVER_WAIT = 5

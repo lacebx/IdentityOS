@@ -433,6 +433,11 @@ class OpenAIAdapter(BaseAdapter):
                 raise ImportError("openai package not found. Install with: pip install openai")
         return self._client
 
+    @property
+    def structured_output(self):
+        value = self.config.get("structured_output", "prompt_only")
+        return value if value in {"prompt_only", "json_object", "json_schema"} else "prompt_only"
+
     def generate(
         self,
         context: str,
@@ -445,6 +450,17 @@ class OpenAIAdapter(BaseAdapter):
     ) -> str:
         # Extract execute_tool from kwargs so it doesn't crash the OpenAI client API
         execute_tool = kwargs.pop("execute_tool", None)
+        schema = kwargs.pop("_response_schema", None)
+        budget = kwargs.pop("_generation_budget", None)
+        deadline = _time.monotonic() + max(0.1, float(budget)) if budget is not None else None
+        if deadline is not None:
+            retries = 1
+        if schema and not kwargs.get("tools"):
+            if self.structured_output == "json_schema":
+                kwargs["response_format"] = {"type": "json_schema", "json_schema": {
+                    "name": "identity_expression", "strict": True, "schema": schema}}
+            elif self.structured_output == "json_object":
+                kwargs["response_format"] = {"type": "json_object"}
         
         client = self._get_client()
         messages = [
@@ -482,8 +498,14 @@ class OpenAIAdapter(BaseAdapter):
             shrinks = 0
             while attempt < retries + shrinks:
                 attempt += 1
+                tools_enabled_for_request = bool(kwargs.get("tools")) and kwargs.get("tool_choice") != "none"
                 try:
                     request_kwargs = dict(kwargs)
+                    if deadline is not None:
+                        remaining = deadline - _time.monotonic()
+                        if remaining <= 0:
+                            raise TimeoutError("generation deadline reached")
+                        request_kwargs["timeout"] = min(remaining, float(request_kwargs.get("timeout", self.timeout)))
                     if tool_rounds >= self.max_tool_rounds or plain_text_recovery_used:
                         request_kwargs.pop("tools", None)
                         request_kwargs.pop("tool_choice", None)
@@ -854,7 +876,11 @@ class AnthropicAdapter(BaseAdapter):
         kwargs.pop("execute_tool", None)
         kwargs.pop("tools", None)
         kwargs.pop("tool_choice", None)
+        kwargs.pop("_response_schema", None)
+        budget = kwargs.pop("_generation_budget", None)
         client = self._get_client()
+        if budget is not None:
+            client = client.with_options(timeout=max(0.1, float(budget)), max_retries=0)
         model = self.model or "claude-3-5-sonnet-20241022"
         try:
             response = client.messages.create(
