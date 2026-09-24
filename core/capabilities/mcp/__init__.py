@@ -77,6 +77,11 @@ class MCPCapability(Capability):
 
     # ── skills ────────────────────────────────────────────────────────
 
+    @classmethod
+    def inspect_installation(cls, config: dict) -> dict:
+        # skills() is declarative: no constructor, installation, or I/O.
+        return {"skills": cls.skills(None), "readiness": "unknown" if (config.get("servers") or config.get("url") or os.environ.get("IDENTITY_MCP_URL")) else "misconfigured"}
+
     def skills(self) -> list[Skill]:
         return [
             Skill(

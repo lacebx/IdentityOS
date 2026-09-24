@@ -13,6 +13,11 @@ class ServiceArtifacts(Capability):
     description = "Fingerprint-verified, bounded local transformation artifacts"
     default_grants = []
 
+    @classmethod
+    def inspect_installation(cls, config):
+        # Constructor only retains configuration; skills validates fingerprints.
+        return {"skills": cls(config).skills(), "readiness": "ready"}
+
     def install(self, identity_id, storage):
         self.skills()  # Configuration is persisted by CapabilityRegistry.
 

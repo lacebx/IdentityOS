@@ -1252,6 +1252,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     from cli.service_cmds import add_service_parser
     add_service_parser(sub.add_parser("services", help="Persistent identity services and internal credits"))
+    p_self = sub.add_parser("self", help="Read sanitized authoritative identity state")
+    p_self.add_argument("id")
+    p_self.add_argument("--store", default=DEFAULT_STORE)
+    p_self.add_argument("--backend", default=DEFAULT_BACKEND, choices=["json", "sqlite", "memory"])
+    p_self.add_argument("--section", action="append")
     return parser
 
 
@@ -1322,7 +1327,14 @@ def cmd_isp_wrapper(args: argparse.Namespace) -> int:
 
 from cli.service_cmds import run as cmd_services
 
+def cmd_self(args):
+    from core.self_knowledge import SelfKnowledge
+    print(json.dumps(SelfKnowledge(_get_storage(args), args.id).snapshot(args.section), indent=2, ensure_ascii=False))
+    return 0
+
+
 COMMAND_MAP = {
+    "self": cmd_self,
     "services": cmd_services,
     "create": cmd_create,
     "inspect": cmd_inspect,

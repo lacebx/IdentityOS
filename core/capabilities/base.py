@@ -67,6 +67,17 @@ class Capability(ABC):
     def __init__(self, config: Optional[dict] = None) -> None:
         self._config = config or {}
 
+    @classmethod
+    def inspect_installation(cls, config: dict) -> dict:
+        """Pure declaration for read-only introspection; never instantiate/install.
+
+        Dynamic capabilities may override this with a bounded, local descriptor.
+        UNKNOWN means no readiness evidence, not a failed invocation.
+        """
+        return {"skills": list(getattr(cls, "_SKILLS", [])),
+                "readiness": getattr(cls, "inspection_readiness", "unknown"),
+                "complete": hasattr(cls, "_SKILLS")}
+
     # ── Lifecycle ──────────────────────────────────────────────────────
 
     @abstractmethod

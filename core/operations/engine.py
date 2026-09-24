@@ -1080,6 +1080,12 @@ class OperationsEngine:
             command=command,
             presence_summary=presence_summary,
         )
+        from core.self_knowledge import SelfKnowledge, needs_grounding, grounding_context, guard_response
+        reader = SelfKnowledge(self.storage, self.config.identity_id,
+                               scrub=self._secret_store.scrub if self._secret_store else None)
+        snapshot = reader.snapshot() if needs_grounding(inbound.body) else None
+        if snapshot is not None:
+            context += grounding_context(snapshot)
         try:
             text = self._adapter.generate(context, user_input, self._identity)
         except Exception as exc:
@@ -1087,7 +1093,13 @@ class OperationsEngine:
         text = (text or "").strip()
         if not text:
             return None, {"mode": "unavailable", "detail": "model returned an empty response"}
-        return text, self._generation_metadata()
+        metadata = self._generation_metadata()
+        if snapshot is not None:
+            text, grounding = guard_response(text, snapshot, current=reader.snapshot())
+            metadata['grounding'] = grounding
+            if grounding['guard'] == 'fallback':
+                metadata['mode'] = 'runtime_grounded_fallback'
+        return text, metadata
 
     def _generation_metadata(self) -> dict[str, Any]:
         # Attribute the provider that ACTUALLY generated. A ChainAdapter

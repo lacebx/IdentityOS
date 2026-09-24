@@ -106,6 +106,11 @@ class CultureCommonsCapability(Capability):
 
     # ── skills ─────────────────────────────────────────────────────────
 
+    @classmethod
+    def inspect_installation(cls, config: dict) -> dict:
+        # skills() is declarative: no constructor, installation, or I/O.
+        return {"skills": cls.skills(None), "readiness": "unknown"}
+
     def skills(self) -> list[Skill]:
         read_schema = object_schema({"server_name": {"type": "string"}}, required=())
         return [

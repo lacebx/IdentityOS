@@ -45,7 +45,13 @@ class _ReplyAdapter:
     def generate(self, context: str, user_input: str, identity, **kwargs) -> str:
         self.calls += 1
         assert "Arsène" in context or "principal" in context.lower()
-        return f"[{self.model}] Understood. Objective noted; nothing executed without authorization."
+        message = f"[{self.model}] Understood. Objective noted; nothing executed without authorization."
+        if "## Authoritative IdentityOS self-state" in context:
+            snapshot = json.loads(context.splitlines()[-1])
+            return json.dumps({"message": message, "snapshot_id": snapshot["snapshot_id"],
+                "claims": [{"kind":"FACT", "path":"/sections/permissions/data/default",
+                            "value":snapshot["sections"]["permissions"]["data"]["default"]}]})
+        return message
 
 
 def _project(tmp_path: Path) -> Path:
@@ -341,7 +347,8 @@ def test_read_polls_invoke_zero_model_calls(tmp_path, monkeypatch):
     server, port = _serve_once(presence)
     try:
         for path in ("/api/presence", "/api/activity", "/api/relationships",
-                     "/api/capabilities", "/api/messages", "/api/work", "/health", "/status"):
+                     "/api/capabilities", "/api/messages", "/api/work", "/api/self",
+                     "/api/self/capabilities", "/api/self/services", "/api/self/economy", "/health", "/status"):
             with urllib.request.urlopen(f"http://127.0.0.1:{port}{path}", timeout=8) as resp:
                 assert resp.status == 200, path
                 resp.read()

@@ -183,6 +183,59 @@ class CapabilityRegistry:
         mapping = {item[1]: item[2] for item in catalog}
         return definitions, mapping
 
+    def inspect_state(self, identity_id: str) -> dict:
+        """Read persisted ability and authority without load/install hooks or probes.
+
+        Readiness is a capability-owned declaration. Remote availability is UNKNOWN
+        unless independently checked; permission to attempt is not proven success.
+        """
+        raw = self._storage.load(identity_id, self.CAP_NAMESPACE)
+        grants_raw = self._storage.load(identity_id, "capability.permissions")
+        grants = (grants_raw or {}).get("grants", [])
+        providers, skills = {}, {}
+        complete = True
+        for entry in (raw or {}).get("installed", [])[:100]:
+            cap_id = entry.get("id", "")
+            provider = {"installed": True, "version": entry.get("version"), "state": "UNKNOWN"}
+            providers[cap_id] = provider
+            try:
+                cls = lookup(cap_id)
+            except ValueError:
+                provider["state"] = "INSTALLED_PROVIDER_UNAVAILABLE"
+                complete = False
+                continue
+            try:
+                description = cls.inspect_installation(entry.get("config", {}))
+                complete = complete and description.get("complete", True) and len(description.get("skills", [])) <= 100
+                declared = description.get("skills", [])[:100]
+                readiness = description.get("readiness", "unknown")
+                if readiness not in {"ready", "unknown", "misconfigured", "dependency_unavailable", "provider_unavailable"}:
+                    readiness = "unknown"
+                provider["state"] = {"ready":"INSTALLED_EXECUTABLE", "misconfigured":"INSTALLED_MISCONFIGURED",
+                    "dependency_unavailable":"INSTALLED_DEPENDENCY_UNAVAILABLE",
+                    "provider_unavailable":"INSTALLED_PROVIDER_UNAVAILABLE"}.get(readiness,"UNKNOWN")
+                for skill in declared:
+                    allowed = skill.permission in ("", "public", "local") or any(
+                        g.get("capability") in (cap_id, "*") and _scope_matches(skill.permission, str(g.get("permission", "")))
+                        for g in grants)
+                    state = provider["state"] if allowed else "INSTALLED_PERMISSION_REQUIRED"
+                    skills[skill.name] = {"installed":True,"provider":cap_id,"ability":True,
+                        "authority":allowed,"required_permissions":[skill.permission],
+                        "executable": (True if readiness=="ready" else (None if readiness=="unknown" else False)) if allowed else False,
+                        "state":state,"classification":"AUTHORITY_GAP" if not allowed else
+                            ("READY" if readiness=="ready" else "UNVERIFIED_READINESS"),
+                        "reason":"required permission is not granted" if not allowed else
+                            ("local implementation ready; arguments and policy rechecked at execution" if readiness=="ready" else "provider/dependency readiness not proven by this read")}
+            except (ImportError, ModuleNotFoundError):
+                complete = False
+                provider["state"] = "INSTALLED_DEPENDENCY_UNAVAILABLE"
+            except Exception:
+                complete = False
+                # Do not emit arbitrary exception text; config can contain secrets.
+                provider["state"] = "INSTALLED_MISCONFIGURED"
+        return {"providers":providers,"skills":skills,"complete":complete and len((raw or {}).get("installed", []))<=100,
+                "storage_present":raw is not None}
+
     def can(self, identity_id: str, skill_name: str) -> tuple[bool, str]:
         for cap in self.list(identity_id):
             skill = next((s for s in cap.skills() if s.name == skill_name), None)

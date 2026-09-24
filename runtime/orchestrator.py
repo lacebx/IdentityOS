@@ -938,8 +938,18 @@ class IdentityRuntime:
             limit=self.max_tools_per_request,
         )
         _evidence_results: List[Dict[str, Any]] = []
+        from core.self_knowledge import SelfKnowledge, needs_grounding, grounding_context, guard_response, SECTIONS
+        _self_reader = SelfKnowledge(self._storage, identity.id) if self._storage else None
+        _grounding_snapshot = _self_reader.snapshot() if _self_reader and needs_grounding(sanitized_input) else None
+        _grounding_metadata = None
+        if _grounding_snapshot is not None:
+            _tool_defs.append({"type":"function", "function":{
+                "name":"identity__self__inspect", "description":"Read sanitized authoritative self-state; no model or side effects",
+                "parameters":{"type":"object","properties":{"sections":{"type":"array","items":{"type":"string","enum":list(SECTIONS)}}},"additionalProperties":False}}})
+
 
         def _execute_tool_call(func_name: str, args: Any) -> str:
+            nonlocal _grounding_snapshot
             t0 = _time_mod.monotonic()
             if isinstance(args, str):
                 try:
@@ -948,6 +958,21 @@ class IdentityRuntime:
                     args = {}
             if not isinstance(args, dict):
                 args = {}
+
+            if func_name in ("identity__self__inspect", "identity.self.inspect") and _grounding_snapshot is not None:
+                if set(args) - {"sections"}:
+                    return json.dumps({"error":"self inspection cannot select another identity"})
+                try:
+                    requested = args.get("sections")
+                    if requested is not None and (not isinstance(requested, list) or any(x not in SECTIONS for x in requested)):
+                        raise ValueError('invalid sections')
+                    _grounding_snapshot = _self_reader.snapshot()
+                    view = dict(_grounding_snapshot)
+                    if requested is not None:
+                        view['sections'] = {name:view['sections'][name] for name in requested}
+                    return json.dumps(view)
+                except (ValueError, TypeError):
+                    return json.dumps({"error":"invalid self-state sections"})
 
             # Some models reproduce the canonical dotted skill name even
             # though providers require the offered ``__``-safe name. Resolve
@@ -1037,6 +1062,9 @@ class IdentityRuntime:
 
         if _executive_state_block:
             context.custom_blocks["executive_state"] = _executive_state_block
+
+        if _grounding_snapshot is not None:
+            context.custom_blocks["self_knowledge"] = grounding_context(_grounding_snapshot)
 
         profile_recall = user_profile.try_recall_answer(sanitized_input)
         if profile_recall is None:
@@ -1148,6 +1176,11 @@ class IdentityRuntime:
                     session_id=session_id,
                 )
         trace.end_stage("prometheus_post", stage_started)
+
+        if _grounding_snapshot is not None and _generation_error is None and _generation_mode == 'identity_model_generation':
+            raw_output, _grounding_metadata = guard_response(raw_output, _grounding_snapshot, current=_self_reader.snapshot())
+            if _grounding_metadata['guard'] == 'fallback':
+                _generation_mode = 'runtime_grounded_fallback'
 
         if _has_evidence:
             _fails = sum(1 for r in _evidence_results if not r["success"])
@@ -1337,6 +1370,7 @@ class IdentityRuntime:
 
         generation_provenance = {
             "generation_mode": _generation_mode,
+            "self_knowledge": _grounding_metadata,
             "provider": str(_generation_selection.get("provider", "")),
             "model": str(_generation_selection.get("model", "")),
             "latency_ms": round(_latency * 1000) if _latency is not None else None,

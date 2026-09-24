@@ -50,6 +50,11 @@ class A2ACapability(Capability):
             "to read an agent's public card; use a2a.exchange to hold a conversation only when authorized.",
         ]
 
+    @classmethod
+    def inspect_installation(cls, config: dict) -> dict:
+        # skills() is declarative: no constructor, installation, or I/O.
+        return {"skills": cls.skills(None), "readiness": "unknown" if config.get("agents") else "misconfigured"}
+
     def skills(self) -> list[Skill]:
         return [
             Skill(name="a2a.discover", description="Fetch an external agent's public card (agent=name)", permission="public",

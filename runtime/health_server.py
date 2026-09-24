@@ -329,6 +329,13 @@ form.composer button {{ background: #34d17b; color: #06210f; border: 0; border-r
       if (!mine && msg.via && msg.via.model) meta.push("via " + msg.via.model);
       else if (!mine && msg.via && msg.via.adapter) meta.push("via " + msg.via.adapter);
       bubble.appendChild(el("div", "meta", meta.join(" · ")));
+      if (msg.runtime_evidence) {{
+        var details = el("details", "sub");
+        details.appendChild(el("summary", "", "Runtime evidence"));
+        details.appendChild(el("div", "", "Observed " + fmtTime(msg.runtime_evidence.observed_at)));
+        details.appendChild(el("div", "", msg.runtime_evidence.guard === "fallback" ? "Runtime report substituted for an unsupported model response." : "Structured claims checked against runtime state."));
+        bubble.appendChild(details);
+      }}
       if (mine) {{
         var st = el("div", "st st-" + msg.status,
           statusLabel(msg.status) + (msg.detail ? " — " + msg.detail : ""));
@@ -395,17 +402,18 @@ form.composer button {{ background: #34d17b; color: #06210f; border: 0; border-r
         var cc = await getJSON("/api/capabilities");
         var cl = $("cap-list"); cl.textContent = "";
         var caps = cc.capabilities || [];
-        if (!caps.length) cl.appendChild(el("div", "sub", "No capabilities installed."));
+        if (!caps.length) cl.appendChild(el("div", "sub", "No verified installed capabilities in this view."));
         for (var p = 0; p < caps.length; p++) {{
           var cap = caps[p];
           var cc0 = el("div", "ev");
           cc0.appendChild(el("div", "c", cap.installed ? "installed" : "not installed"));
           cc0.appendChild(el("div", "big", cap.name || cap.id));
+          if (cap.state && cap.state !== "INSTALLED_EXECUTABLE") cc0.appendChild(el("div", "sub", cap.state.replaceAll("_", " ").toLowerCase()));
           if (cap.description) cc0.appendChild(el("div", "sub", cap.description));
           for (var q = 0; q < (cap.skills || []).length; q++) {{
             var sk = cap.skills[q];
             cc0.appendChild(el("div", sk.allowed ? "" : "warn",
-              (sk.allowed ? "✓ " : "Permission required · ") + sk.name));
+              (sk.executable === true ? "✓ " : (!sk.allowed ? "Permission required · " : (sk.state === "INSTALLED_PROVIDER_UNAVAILABLE" ? "Provider unavailable · " : sk.state === "INSTALLED_DEPENDENCY_UNAVAILABLE" ? "Dependency unavailable · " : sk.state === "INSTALLED_MISCONFIGURED" ? "Configuration required · " : "Readiness unverified · "))) + sk.name));
             if (sk.provenance) {{
               cc0.appendChild(el("div", "sub", "Provided by " + sk.provenance.provider + " · acceptance tested by " + sk.provenance.accepted_by));
               cc0.appendChild(el("div", "sub", "Job " + sk.provenance.job + " · " + sk.provenance.fingerprint));
@@ -535,69 +543,32 @@ def _relationship_cards(store: Any) -> list[dict[str, Any]]:
 
 
 def _capability_cards(registry: Any, identity_id: str, store: Any) -> list[dict[str, Any]]:
-    """Installed capabilities with per-skill permission state.
-
-    Capability configs are NEVER exposed (they may hold topics/secrets).
-    Human-readable degradation reasons come from the latest gap records.
-    """
-    gap_reasons: dict[str, str] = {}
-    try:
-        for item in store.list_provenance(limit=200):
-            summary = item.summary or ""
-            if summary.startswith("capability gap:"):
-                skill = (summary.split(":", 1)[1] or "").split("[")[0].strip()
-                if skill and skill not in gap_reasons:
-                    gap_reasons[skill] = _clip(item.result, 200)
-    except Exception:
-        pass
-    cards: list[dict[str, Any]] = []
-    try:
-        installed = registry.list(identity_id)
-    except Exception:
-        installed = []
-    for cap in installed:
-        try:
-            skills = cap.skills()
-        except Exception:
-            skills = []
-        skill_cards = []
-        for skill in skills:
-            try:
-                allowed, reason = registry.can(identity_id, skill.name)
-            except Exception:
-                allowed, reason = False, "permission check failed"
+    """Thin UI adapter over canonical read-only self-state; never reload/install."""
+    from core.self_knowledge import SelfKnowledge
+    snapshot = SelfKnowledge(registry._storage, identity_id).snapshot(['capabilities','jobs'])
+    data = snapshot['sections']['capabilities'].get('data') or {}
+    jobs = (snapshot['sections']['jobs'].get('data') or {}).get('items', [])
+    cards = []
+    for cap_id, provider in data.get('providers', {}).items():
+        skills = []
+        for name, skill in data.get('skills', {}).items():
+            if skill['provider'] != cap_id: continue
+            accepted = [j for j in jobs if j['verified_completed'] and j['requester'] == identity_id]
             provenance = None
-            from core.services.integration import existing_store
-            service_store = existing_store(store._storage)
-            if service_store:
-                matches = [j for j in service_store.jobs(identity_id)
-                           if j['state'] == 'COMPLETED' and j['requester'] == identity_id
-                           and j['contract']['skill'] == skill.name]
-                if matches:
-                    latest = max(matches, key=lambda j: j['updated'])
-                    provenance = {'provider': latest['provider'], 'job': latest['id'],
-                                  'fingerprint': latest['artifact'], 'accepted_by': identity_id}
-            skill_cards.append({
-                "provenance": provenance,
-                "name": skill.name,
-                "description": _clip(getattr(skill, "description", ""), 200),
-                "permission": getattr(skill, "permission", "public"),
-                "effect": getattr(skill, "effect", ""),
-                "allowed": bool(allowed),
-                "reason": _clip(reason, 200),
-                "limited_explanation": ("Installed · permission required: " + reason) if not allowed else "",
-                "classification": "READY" if allowed else "AUTHORITY_GAP",
-            })
-        cards.append({
-            "id": getattr(cap, "id", ""),
-            "name": _clip(getattr(cap, "name", "") or getattr(cap, "id", ""), 120),
-            "version": _clip(getattr(cap, "version", ""), 40),
-            "description": _clip(getattr(cap, "description", ""), 300),
-            "installed": True,
-            "skills": skill_cards,
-            "last_used": "unknown",
-        })
-    cards.sort(key=lambda c: c["id"])
+            # Artifact config stays private. Match fingerprint through stored safe bundle metadata.
+            if cap_id == 'service_artifacts':
+                installed = registry._storage.load(identity_id, 'capabilities') or {}
+                entry = next((e for e in installed.get('installed',[]) if e['id']==cap_id), {})
+                digest = entry.get('config',{}).get('bundles',{}).get(name,{}).get('fingerprint')
+                match = next((j for j in accepted if j['artifact']==digest), None)
+                if match: provenance = {'provider':match['provider'],'job':match['id'],'fingerprint':digest,'accepted_by':identity_id}
+            skills.append({'name':name,'allowed':skill['authority'],'executable':skill['executable'],
+                'state':skill['state'],'classification':skill['classification'],
+                'permission':', '.join(skill['required_permissions']),'reason':skill['reason'],
+                'limited_explanation':skill['reason'] if not skill['authority'] else '',
+                'provenance':provenance})
+        cards.append({'id':cap_id,'name':cap_id,'version':provider.get('version'),'installed':True,
+                      'state':provider['state'],'description':'','skills':skills,'last_used':'unknown'})
     return cards
 
 
@@ -630,6 +601,7 @@ def _message_cards(store: Any, *, limit: int = 50) -> list[dict[str, Any]]:
             "thread_id": message.thread_id or "",
             "response_id": response_id,
             "detail": detail,
+            "runtime_evidence": generation.get("grounding"),
             "via": {
                 "mode": generation.get("mode", ""),
                 "adapter": generation.get("adapter", ""),
@@ -736,7 +708,7 @@ class _HealthHandler(BaseHTTPRequestHandler):
         if path == "/icon.svg":
             self._send(200, ICON_SVG.encode("utf-8"), "image/svg+xml")
             return
-        if path not in ("/health", "/status", "/api/presence", "/api/activity",
+        if not path.startswith("/api/self") and path not in ("/health", "/status", "/api/presence", "/api/activity",
                         "/api/relationships", "/api/capabilities", "/api/messages", "/api/work"):
             self._send(404, b'{"error": "not found"}', "application/json")
             return
@@ -764,6 +736,15 @@ class _HealthHandler(BaseHTTPRequestHandler):
         storage, identity_id = self._backend()
         if storage is None:
             self._send(503, b'{"error": "storage not initialized"}', "application/json")
+            return
+        if path == '/api/self' or path.startswith('/api/self/'):
+            from core.self_knowledge import SelfKnowledge, SECTIONS
+            section = path[len('/api/self/'): ] if path.startswith('/api/self/') else None
+            if section and section not in SECTIONS:
+                self._send(404, b'{"error":"unknown self-state section"}', "application/json")
+                return
+            payload = SelfKnowledge(storage, identity_id).snapshot([section] if section else None)
+            self._send(200, json.dumps(payload).encode('utf-8'), "application/json; charset=utf-8")
             return
         store = OperationsStore(storage, identity_id)
         try:

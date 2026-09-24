@@ -47,6 +47,10 @@ class NotificationCapability(Capability):
             "Notifications are deduplicated and tracked. Prefer meaningful events over routine updates.",
         ]
 
+    @classmethod
+    def inspect_installation(cls, config):
+        return {"skills": cls.skills(None), "readiness": "unknown" if config.get("topic") else "misconfigured"}
+
     def skills(self) -> List[Skill]:
         return [
             Skill(
