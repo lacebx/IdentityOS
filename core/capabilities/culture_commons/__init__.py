@@ -391,6 +391,52 @@ class CultureCommonsCapability(Capability):
 
     # ── standing lifecycle ─────────────────────────────────────────────
 
+    STANDING_TOOLS = ("sign_your_name", "return_with_secret", "take_a_seat", "hold_your_seat", "rise")
+
+    def standing_recovery(self) -> dict[str, Any]:
+        """Assess legitimate standing recovery from the discovered contracts.
+
+        Reads the persisted (freshly discovered) manifest's standing-tool
+        contracts and determines the protocol-supported path for the existing
+        identity. Never guesses a secret or claims ownership without protocol
+        evidence: recovery for an existing name requires the secret kept at
+        first signing; without it, posting is BLOCKED while observation stays
+        available.
+        """
+        manifest = self._read_state(self.MANIFEST_FILE, None)
+        contracts: dict[str, Any] = {}
+        for tool in (manifest or {}).get("tools", []):
+            if isinstance(tool, dict) and tool.get("name") in self.STANDING_TOOLS:
+                contracts[tool["name"]] = {
+                    "description": tool.get("description", ""),
+                    "inputSchema": tool.get("inputSchema", {}),
+                }
+        secret_available = self._secret_store().has(self._secret_handle())
+        local_standing = bool(self._standing_state().get("signed"))
+        if local_standing or secret_available:
+            posting = "AVAILABLE"
+            recovery_path = (
+                "local standing token present" if local_standing
+                else "return_with_secret(name, secret) — the stored secret recovers standing"
+            )
+        else:
+            posting = "BLOCKED"
+            recovery_path = (
+                "return_with_secret(name, secret) requires the secret kept when the "
+                "name was first signed; that secret is not available locally. "
+                "sign_your_name would create a NEW identity, not recover the existing one."
+            )
+        return {
+            "standing_tool_contracts": contracts,
+            "secret_available": secret_available,
+            "local_standing": local_standing,
+            "recovery_path": recovery_path,
+            "posting": posting,
+            "observation": "AVAILABLE",
+            "name": self.agent_name(),
+            "credential_handle": self._secret_handle(),
+        }
+
     def _manifest_inspect(self) -> CapabilityResult:
         manifest = self._read_state(self.MANIFEST_FILE, None)
         if not isinstance(manifest, dict):

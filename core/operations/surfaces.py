@@ -14,7 +14,13 @@ import json
 from datetime import datetime, timezone
 from typing import Any, Optional
 
-from .models import ProvenanceEntry, ProvenancePhase, Relationship, RelationshipStatus
+from .models import (
+    NotificationEntry,
+    ProvenanceEntry,
+    ProvenancePhase,
+    Relationship,
+    RelationshipStatus,
+)
 
 SURFACE_NAMESPACE = "operations.cc_surface"
 
@@ -88,7 +94,52 @@ class CultureCommonsSurface:
             refs={"surface": self.name, "observed_at": data.get("observed_at", "")},
         )
         self._ensure_relationship(summary)
+        self.ensure_standing_blocker()
         return {"observed": True, "summary": summary, "at": data.get("observed_at", "")}
+
+    def ensure_standing_blocker(self) -> Optional[dict[str, Any]]:
+        """Inspect the live standing contracts and record the posting blocker once.
+
+        The blocker is recorded at most once (notification-deduped): repeated
+        ticks never re-record it and never re-retry standing recovery.
+        """
+        if self.has_standing():
+            return None
+        for entry in self._engine.store.list_notifications():
+            if entry.kind == "standing_blocked":
+                return None  # already recorded — do not retry every loop
+        cap = self._registry.get(self.identity_id, "culture_commons") if self._registry else None
+        if cap is None:
+            return None
+        # Anonymous live discovery of the standing-tool contracts, then the
+        # protocol-based recovery assessment.
+        try:
+            cap.refresh_manifest()
+        except Exception:
+            pass
+        assessment = cap.standing_recovery()
+        if assessment.get("posting") != "BLOCKED":
+            return None
+        entry = NotificationEntry(
+            kind="standing_blocked",
+            summary=f"Culture Commons posting blocked: {assessment.get('recovery_path')}",
+            refs={
+                "surface": self.name,
+                "recovery_path": assessment.get("recovery_path"),
+                "standing_tools": sorted((assessment.get("standing_tool_contracts") or {}).keys()),
+                "observation": assessment.get("observation"),
+            },
+        )
+        self._engine.store.append_notification(entry)
+        self._provenance(
+            ProvenancePhase.ESCALATE,
+            "Culture Commons standing recovery blocked (recorded once)",
+            action="standing_blocker",
+            result=assessment.get("recovery_path", ""),
+            evidence=[f"{name}: {(c.get('description') or '')[:120]}" for name, c in (assessment.get("standing_tool_contracts") or {}).items()],
+            refs={"surface": self.name, "notification_id": entry.id},
+        )
+        return assessment
 
     def status(self) -> dict[str, Any]:
         raw = self._load_snapshot()

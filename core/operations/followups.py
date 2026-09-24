@@ -55,6 +55,11 @@ class FollowUpPlanner:
             if rel.status not in (RelationshipStatus.OUTREACH_SENT, RelationshipStatus.ENGAGED):
                 continue
             if rel.follow_up_count >= controls.max_follow_ups_per_target:
+                # Exhausted reasonable attempts: stop pursuing unless new
+                # context (a reply) appears — the relationship goes dormant.
+                if rel.status is RelationshipStatus.OUTREACH_SENT:
+                    rel.status = RelationshipStatus.DORMANT
+                    self._store.update_relationship(rel)
                 continue
             if self._has_scheduled(rel.id):
                 continue

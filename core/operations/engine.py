@@ -900,9 +900,12 @@ class OperationsEngine:
         opportunities = self.store.list_opportunities()
         relationships = self.store.list_relationships()
         messages = self.store.list_messages()
+        from .ambassador import ambassador_status
+
         return {
             "identity_id": self.config.identity_id,
             "mode": self.mode,
+            "ambassador": ambassador_status(self),
             "project": state.to_dict() if state else None,
             "needs": {
                 "total": len(needs),
