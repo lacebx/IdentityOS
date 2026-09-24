@@ -850,6 +850,8 @@ def add_aster_parser(parser: argparse.ArgumentParser) -> None:
         ("relationships", "List persistent relationships"),
     ):
         p = sub.add_parser(name, help=help_text, parents=[base])
+        if name in ("status",):
+            p.add_argument("--with-culture", action="store_true", help="include Culture Commons presence in the ambassador view")
         if name in ("tick",):
             p.add_argument("--no-discover", action="store_true")
             p.add_argument("--no-evaluate", action="store_true")

@@ -12,6 +12,7 @@ target that is already known or already contacted.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import Any, Callable, Iterable, Optional
 
@@ -91,6 +92,26 @@ class CallableCandidateSource(CandidateSource):
         return [c if isinstance(c, Candidate) else Candidate.from_dict(c) for c in raw]
 
 
+_STOPWORDS = frozenset({
+    "a", "an", "the", "to", "and", "or", "of", "for", "in", "on", "with", "by",
+    "at", "from", "secure", "obtain", "find", "increase", "maintain",
+    "attract", "accelerate", "validate", "evaluate", "sustain", "grow",
+})
+
+
+def _keywords(text: str, limit: int = 6) -> str:
+    """Compact keyword query from a need description.
+
+    Search backdrops handle keyword queries far better than verbose natural
+    language, so discovery queries are reduced to the need's key terms.
+    """
+    words = [
+        w for w in re.findall(r"[a-z0-9]+", (text or "").lower())
+        if w not in _STOPWORDS and len(w) > 2
+    ]
+    return " ".join(words[:limit])
+
+
 class SearchCandidateSource(CandidateSource):
     """Builds candidates from web search results using a search callable.
 
@@ -113,7 +134,8 @@ class SearchCandidateSource(CandidateSource):
         self.required_skill = required_skill
 
     def search(self, need: Need) -> list[Candidate]:
-        query = self._query_template.format(category=need.category, need=need.description)
+        keywords = _keywords(need.description)
+        query = self._query_template.format(category=need.category, need=keywords or need.description)
         results = self._search_fn(query) or []
         candidates: list[Candidate] = []
         for result in results:

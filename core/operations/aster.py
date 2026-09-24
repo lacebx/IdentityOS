@@ -134,7 +134,9 @@ def build_aster_config(
         sources.append(
             SearchCandidateSource(
                 search_fn,
-                query_template="{category} program or organization related to: {need}",
+                # Keyword queries: search backdrops handle compact term lists
+                # far better than verbose natural language.
+                query_template="{category} {need}",
             )
         )
     if required_skills is None:
