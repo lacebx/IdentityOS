@@ -12,6 +12,7 @@ from datetime import datetime, timedelta, timezone
 
 from core.capabilities.result import CapabilityResult
 from core.operations import (
+    Candidate,
     ControlState,
     FollowUpPlanner,
     OperationsEngine,
@@ -278,3 +279,187 @@ def test_qualified_opportunities_drive_bounded_outreach(tmp_path):
     assert contacted
     # Budget respected: at most max_cold_outreach_per_day cold sends.
     assert engine.store.budget().cold_outreach <= engine.store.controls().max_cold_outreach_per_day
+
+# ── live-outreach contract (deterministic) ────────────────────────────────────
+
+def test_transport_invocation_boundary_denies_unauthorized(tmp_path):
+    from core.capabilities.email import CapabilityTransport
+    from core.capabilities.result import CapabilityResult
+
+    class _DeniedRegistry:
+        def call(self, identity_id, skill_name, **params):
+            return CapabilityResult.fail("email", skill_name, "permission_denied", "not granted")
+
+    transport = CapabilityTransport(_DeniedRegistry(), "aster")
+    result = transport.send(to="x@example.org", subject="s", body="b")
+    assert result.get("ok") is False
+
+
+def test_transport_invocation_goes_through_permission_gate(tmp_path):
+    from core.capabilities.email import CapabilityTransport
+    from core.capabilities.result import CapabilityResult
+
+    invoked = []
+
+    class _AllowedRegistry:
+        def call(self, identity_id, skill_name, **params):
+            invoked.append((identity_id, skill_name))
+            return CapabilityResult.from_data("email", skill_name, {
+                "ok": True, "external_id": "<x@identityos>", "thread_id": "<x@identityos>",
+            })
+
+    transport = CapabilityTransport(_AllowedRegistry(), "aster")
+    result = transport.send(to="x@example.org", subject="s", body="b")
+    assert result.get("ok") is True
+    assert invoked == [("aster", "email.send")]
+
+
+def test_sent_message_persists_across_restart(tmp_path):
+    from core.operations.models import Message, MessageDirection, MessageStatus
+
+    storage = InMemoryBackend()
+    store = OperationsStore(storage, "aster")
+    message = Message(
+        relationship_id="rel_x", direction=MessageDirection.OUTBOUND,
+        channel="email", subject="Agent identity persistence — question",
+        body="Hello", status=MessageStatus.SENT,
+        sent_at="2026-09-24T12:00:00+00:00", external_id="<abc@identityos>",
+    )
+    store.append_message(message)
+
+    fresh = OperationsStore(storage, "aster")
+    retained = next(m for m in fresh.list_messages() if m.external_id == "<abc@identityos>")
+    assert retained.status.value == "sent"
+    assert retained.subject.startswith("Agent identity persistence")
+    assert retained.sent_at == "2026-09-24T12:00:00+00:00"
+
+
+def test_message_id_deduplication(tmp_path):
+    from core.operations.models import Message
+
+    storage = InMemoryBackend()
+    store = OperationsStore(storage, "aster")
+    store.append_message(Message(external_id="<dup@identityos>"))
+    assert store.list_messages()[0].external_id == "<dup@identityos>"
+    # The engine's exactly-once gate: the same external_id is already processed.
+    engine, _ = _engine(tmp_path, storage=storage)
+    assert engine._already_processed("<dup@identityos>") is True
+    assert engine._already_processed("<other@identityos>") is False
+
+
+def test_response_threading_and_relationship_update_from_reply(tmp_path):
+    from core.operations.monitor import ConversationMonitor
+
+    class _ReplyAdapter:
+        model = "stub"
+        def generate(self, context, user_input, identity, **kwargs):
+            return "Subject: Re: question\nThanks for reaching out — happy to look at the runtime."
+
+    from core.capabilities.email.backends import FileMailboxBackend, MailboxTransport
+
+    storage = InMemoryBackend()
+    store = OperationsStore(storage, "aster")
+    # The outbound relationship + thread must exist before the reply arrives
+    # (realistic: the reply references a thread Aster's send created).
+    from core.operations.models import (
+        Message, MessageDirection, MessageStatus, Relationship, RelationshipStatus,
+    )
+    outbound_rel = Relationship(
+        display_name="Dr. Aditi Singh", email="a.singh22@csuohio.edu",
+        organization="Cleveland State University", status=RelationshipStatus.OUTREACH_SENT,
+    )
+    store.add_relationship(outbound_rel)
+    store.append_message(Message(
+        relationship_id=outbound_rel.id, direction=MessageDirection.OUTBOUND,
+        subject="Agent identity persistence — question", body="Hello",
+        status=MessageStatus.SENT, external_id="<abc@identityos>",
+    ))
+    outbound_rel.thread_ids = ["<thread@identityos>"]
+    store.update_relationship(outbound_rel)
+    # Ordinary low-consequence replies are sent in autonomous mode.
+    store.set_controls(ControlState(outbound_mode="autonomous"))
+
+    monitor = ConversationMonitor(
+        __import__("core.operations.composition", fromlist=["OutreachComposer"]).OutreachComposer(
+            sender_name="Aster", project_name="IdentityOS", signature="— Aster", transparency="AI operator",
+        ),
+        transport=MailboxTransport(FileMailboxBackend(tmp_path / "mailbox", mailbox="aster")),
+        adapter=_ReplyAdapter(),
+        self_address="aster@identityos.local",
+    )
+    # A reply from Dr. Aditi Singh referencing our outbound thread
+    result = monitor.ingest(
+        store,
+        sender_email="a.singh22@csuohio.edu",
+        body="Thanks for reaching out — happy to look at the runtime.",
+        subject="Re: Agent identity persistence — question",
+        thread_id="<thread@identityos>",
+        external_id="<reply-1@csuohio>",
+        in_reply_to="<abc@identityos>",
+    )
+    assert result.responded is True
+    rel = result.relationship
+    assert rel is not None
+    assert rel.email == "a.singh22@csuohio.edu"
+    assert "<thread@identityos>" in rel.thread_ids
+    assert rel.last_inbound_at is not None
+    assert any(m.direction.value == "inbound" for m in store.list_messages())
+
+
+def test_awaiting_response_state_persists(tmp_path):
+    from core.operations.models import Relationship, RelationshipStatus
+
+    storage = InMemoryBackend()
+    store = OperationsStore(storage, "aster")
+    rel = Relationship(
+        display_name="Dr. Aditi Singh", email="a.singh22@csuohio.edu",
+        organization="Cleveland State University",
+        status=RelationshipStatus.OUTREACH_SENT,
+        next_action="await reply", follow_up_due_at="2026-09-27T17:00:00+00:00",
+    )
+    store.add_relationship(rel)
+
+    fresh = OperationsStore(storage, "aster")
+    retained = next(r for r in fresh.list_relationships() if r.email == "a.singh22@csuohio.edu")
+    assert retained.status.value == "outreach_sent"
+    assert retained.next_action == "await reply"
+    assert retained.follow_up_due_at == "2026-09-27T17:00:00+00:00"
+
+
+def test_qualified_versus_research_lead_distinction(tmp_path):
+    engine, _ = _engine(tmp_path)
+    actionable = _candidate(contact_email="a.singh22@csuohio.edu")
+    directory = _candidate(target_name="Funding at NSF", organization="NSF", contact_email="",
+                           relevant_work=["funding programs listing"], evidence=["search:funding"])
+    assert engine._is_actionable(actionable) is True
+    assert engine._is_actionable(directory) is False
+
+
+def test_pursue_without_route_becomes_research_lead(tmp_path):
+    from core.operations.models import Need
+
+    storage = InMemoryBackend()
+    store = OperationsStore(storage, "aster")
+    need = store.add_need(Need(category="funding", description="Secure funding for the project"))
+    from core.operations.discovery import OpportunityDiscoverer, CandidateSource
+
+    class _DirectorySource(CandidateSource):
+        name = "directory"
+        def search(self, n):
+            return [Candidate(target_name="Funding at NSF", organization="NSF",
+                              contact_email="", category="funding",
+                              relevant_work=["a funding programs listing"],
+                              evidence=["search:funding"], fit_reason="a general directory",
+                              confidence=0.3)]
+
+    discoverer = OpportunityDiscoverer([_DirectorySource()])
+    created = discoverer.discover(store, need)
+    assert len(created) == 1
+    # Evaluate: pursue-worthy but no contact route → research lead, not qualified.
+    engine, _ = _engine(tmp_path, storage=storage)
+    report = engine.tick(observe=False, detect_needs=True, discover=False, act=True)
+    # Fresh store: the engine's tick updates through its own store instance.
+    reloaded = OperationsStore(storage, "aster")
+    opp = reloaded.get_opportunity(created[0].id)
+    assert opp.status.value == "research_lead"
+    assert opp.status.value != "qualified"

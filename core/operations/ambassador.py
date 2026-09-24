@@ -169,6 +169,22 @@ def ambassador_status(engine: Any) -> dict[str, Any]:
         focus = (opportunity.category or "other").split(".")[0]
         by_focus[focus] = by_focus.get(focus, 0) + 1
 
+    by_status: dict[str, int] = {}
+    for opportunity in opportunities:
+        by_status[opportunity.status.value] = by_status.get(opportunity.status.value, 0) + 1
+    # Top actionable items only: qualified/contacted records with a route.
+    top_opportunities = [
+        {
+            "id": o.id,
+            "name": (o.target_name or o.organization)[:80],
+            "category": o.category,
+            "status": o.status.value,
+            "url": (o.contact_url or o.metadata.get("source_urls", [""])[0] if o.metadata else (o.contact_url or "")),
+        }
+        for o in opportunities
+        if o.status.value in ("qualified", "contacted", "engaged")
+    ][:6]
+
     conversations = [
         {
             "relationship_id": r.id,
@@ -199,6 +215,12 @@ def ambassador_status(engine: Any) -> dict[str, Any]:
         "opportunities": {
             "total": len(opportunities),
             "by_focus": by_focus,
+            "by_status": by_status,
+            "top": top_opportunities,
+        },
+        "outreach_today": {
+            "cold_contacts": store.budget().cold_outreach,
+            "follow_ups": store.budget().follow_ups,
         },
         "awaiting": {
             "aster": len(awaiting_aster),

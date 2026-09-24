@@ -47,6 +47,11 @@ class OpportunityStatus(str, Enum):
     DISCOVERED = "discovered"
     EVALUATING = "evaluating"
     QUALIFIED = "qualified"
+    # A pursue-worthy lead that is not yet actionable: only a general
+    # directory/homepage exists (no specific program, contact route, or
+    # eligibility). Distinct from QUALIFIED so status never overstates
+    # readiness.
+    RESEARCH_LEAD = "research_lead"
     REJECTED = "rejected"
     CONTACTED = "contacted"
     ENGAGED = "engaged"

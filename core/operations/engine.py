@@ -359,8 +359,14 @@ class OperationsEngine:
             self.store.save_evaluation(evaluation)
             evaluated.append(opportunity.id)
             if evaluation.recommendation == "pursue":
-                opportunity.status = OpportunityStatus.QUALIFIED
-                qualified.append(opportunity.id)
+                if self._is_actionable(opportunity):
+                    opportunity.status = OpportunityStatus.QUALIFIED
+                    qualified.append(opportunity.id)
+                else:
+                    # Pursue-worthy but not yet actionable: only a general
+                    # directory/homepage exists. Keep researching; never
+                    # present it as a qualified opportunity.
+                    opportunity.status = OpportunityStatus.RESEARCH_LEAD
             elif evaluation.recommendation == "reject":
                 opportunity.status = OpportunityStatus.REJECTED
             else:
@@ -375,6 +381,24 @@ class OperationsEngine:
                 refs={"opportunity_id": opportunity.id, "score": evaluation.score},
             )
         return evaluated, qualified
+
+    @staticmethod
+    def _is_actionable(opportunity) -> bool:
+        """Whether an opportunity is actionable, not just a research lead.
+
+        Actionable requires a contact route (a specific person/agent to engage)
+        or a specific program record with evidence beyond a generic directory.
+        """
+        if opportunity.contact_email:
+            return True
+        # A specific program page: evidence must name something more concrete
+        # than a directory/homepage listing.
+        relevant = [w for w in (opportunity.relevant_work or []) if w]
+        specific_evidence = [
+            e for e in (opportunity.evidence or [])
+            if e.startswith(("result:", "url:", "search:")) and "directory" not in e.lower()
+        ]
+        return bool(relevant and specific_evidence and (getattr(opportunity, "metadata", None) or {}).get("source_urls"))
 
     def _phase_act(self, report: TickReport) -> tuple[list[str], list[str], list[dict[str, Any]]]:
         sent: list[str] = []
