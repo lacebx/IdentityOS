@@ -243,13 +243,106 @@ class CultureCommonsCapability(Capability):
 
     # ── read surface ───────────────────────────────────────────────────
 
+    def _is_authenticated(self) -> bool:
+        """Whether a standing secret is actually provisioned locally.
+
+        The auth header is only attached when the secret exists, so public
+        reads are anonymous until standing is provisioned.
+        """
+        return bool(self._secret_store().has(self._secret_handle()))
+
     def _read_tool(self, key: str, args: Mapping[str, Any], store: Any) -> CapabilityResult:
         self._bump_counter("reads")
         client = self._mcp_client(authenticated=True)
         tool = self._tool(key)
         response = client.call_tool(tool, {k: v for k, v in args.items() if v not in (None, "")})
         scrubbed = store.scrub_mapping(response)
-        return CapabilityResult.from_data(self.id, f"culture_commons.{key}.read", {"tool": tool, "data": scrubbed}, source="culture.sbs")
+        data: dict[str, Any] = {"tool": tool, "data": scrubbed}
+        if key == "room":
+            data["encounters"] = self._encounters(scrubbed)
+        result = CapabilityResult.from_data(
+            self.id, f"culture_commons.{key}.read", data, source="culture.sbs",
+        )
+        result.metadata = {"authenticated": self._is_authenticated()}
+        return result
+
+    @staticmethod
+    def _encounters_from_present(present: list) -> list[dict[str, Any]]:
+        encounters: list[dict[str, Any]] = []
+        for entry in present:
+            if isinstance(entry, dict):
+                name = str(entry.get("name") or "").strip()
+                if not name:
+                    continue
+                encounters.append({
+                    "kind": str(entry.get("kind") or entry.get("type") or "agent"),
+                    "ref": f"culture_commons:agent:{name}",
+                    "name": name,
+                    "surface": "culture_commons",
+                })
+            else:
+                text = str(entry).strip().lstrip("·-").strip()
+                parts = [p.strip() for p in text.split("—", 1)] if "—" in text else [text]
+                name = parts[0].strip()
+                if not name:
+                    continue
+                encounters.append({
+                    "kind": parts[1].strip() if len(parts) > 1 else "agent",
+                    "ref": f"culture_commons:agent:{name}",
+                    "name": name,
+                    "surface": "culture_commons",
+                })
+        return encounters
+
+    @staticmethod
+    def _encounters_from_text(text: str) -> list[dict[str, Any]]:
+        """Parse the 'Present now:' section of a textual room rendering."""
+        encounters: list[dict[str, Any]] = []
+        in_present = False
+        for line in text.splitlines():
+            stripped = line.strip()
+            if stripped.lower().startswith("present now"):
+                in_present = True
+                continue
+            if not stripped:
+                continue
+            if in_present and (stripped.startswith("·") or stripped.startswith("-")):
+                entry = stripped.lstrip("·-").strip()
+                parts = [p.strip() for p in entry.split("—", 1)] if "—" in entry else [entry]
+                name = parts[0].strip()
+                if name:
+                    encounters.append({
+                        "kind": parts[1].strip() if len(parts) > 1 else "agent",
+                        "ref": f"culture_commons:agent:{name}",
+                        "name": name,
+                        "surface": "culture_commons",
+                    })
+            elif in_present:
+                in_present = False
+        return encounters
+
+    @classmethod
+    def _encounters(cls, response: Any) -> list[dict[str, Any]]:
+        """Extract identifiable external entities present in a room response.
+
+        Handles structured room objects (``{"room": {"present": [...]}}``),
+        call_tool's wrapped dict (``{"content": {"room": ...}}``), and MCP text
+        content (``{"content": [{"type": "text", "text": ...}]}``).
+        """
+        if isinstance(response, dict):
+            room = response.get("room")
+            if isinstance(room, dict) and isinstance(room.get("present"), list):
+                return cls._encounters_from_present(room["present"])
+            content = response.get("content")
+            if isinstance(content, dict):
+                room = content.get("room")
+                if isinstance(room, dict) and isinstance(room.get("present"), list):
+                    return cls._encounters_from_present(room["present"])
+            if isinstance(content, list):
+                texts = [c.get("text") for c in content if isinstance(c, dict) and c.get("type") == "text"]
+                if texts:
+                    return cls._encounters_from_text("\n".join(texts))
+        return []
 
     def _search(self, params: Mapping[str, Any], store: Any) -> CapabilityResult:
         self._bump_counter("reads")
@@ -285,10 +378,16 @@ class CultureCommonsCapability(Capability):
         summary = {
             "room": room_data,
             "boards": boards_data,
+            "encounters": self._encounters(room_data),
             "observed_at": self._now(),
             "standing_local": self._standing_state(),
         }
-        return CapabilityResult.from_data(self.id, "culture_commons.observe", summary, source="culture.sbs")
+        result = CapabilityResult.from_data(
+            self.id, "culture_commons.observe", summary,
+            source="culture.sbs",
+        )
+        result.metadata = {"authenticated": self._is_authenticated()}
+        return result
 
     # ── standing lifecycle ─────────────────────────────────────────────
 

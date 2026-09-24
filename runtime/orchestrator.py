@@ -27,7 +27,7 @@ from core.evaluation import (
 from core.goals import GoalEngine
 from core.intentions import IntentionEngine
 from core.identity import IdentitySpec, IdentityStore, MutabilityLevel
-from core.identity_facts import FactStore
+from core.identity_facts import FactDomain, FactSource, FactStore
 from core.identity_mutation import (
     IdentityMutationEngine,
     MutationProposal,
@@ -479,11 +479,29 @@ class IdentityRuntime:
             if not data:
                 return
             for ed in data.get("edges", []):
+                # Restore the full relationship-evolution state: first_seen,
+                # last_seen, encounter_count, context, and provenance metadata
+                # must survive restarts or recognition cannot work across them.
+                kwargs: dict[str, Any] = {
+                    "strength": ed.get("strength", 1.0),
+                    "context": ed.get("context"),
+                    "permissions": ed.get("permissions") or {},
+                    "labels": ed.get("labels") or [],
+                    "interaction_count": ed.get("interaction_count", 1),
+                    "metadata": ed.get("metadata") or {},
+                }
+                if ed.get("established_at"):
+                    kwargs["established_at"] = datetime.fromisoformat(ed["established_at"])
+                if ed.get("last_interaction"):
+                    kwargs["last_interaction"] = datetime.fromisoformat(ed["last_interaction"])
+                if ed.get("id"):
+                    kwargs["id"] = ed["id"]
                 self.identity_graph.connect(
                     source_id=ed["source_id"], target_id=ed["target_id"],
                     edge_type=EdgeType(ed["edge_type"]),
                     trust_level=TrustLevel(ed["trust_level"]),
                     bidirectional=ed.get("bidirectional", False),
+                    **kwargs,
                 )
         except Exception:
             pass
@@ -678,6 +696,130 @@ class IdentityRuntime:
         self.memory_store.add(semantic)
         self._persist_memory(semantic)
         return semantic
+
+    @staticmethod
+    def _compact_external_value(data: Any, authenticated: bool) -> dict[str, Any]:
+        """Compact, semantic summary of an external observation for identity facts.
+
+        Facts must stay small enough to survive context trimming: the full raw
+        observation lives in the provenance-linked semantic memory instead.
+        """
+        value: dict[str, Any] = {"authenticated": authenticated}
+        if isinstance(data, dict):
+            if data.get("tool"):
+                value["tool"] = data["tool"]
+            encounters = data.get("encounters")
+            if isinstance(encounters, list):
+                names = [str(e.get("name")) for e in encounters if isinstance(e, dict) and e.get("name")]
+                if names:
+                    value["present"] = names
+            if "present" not in value:
+                value["observation"] = _serialize_tool_result(data, 160)
+        return value
+
+    def _persist_external_experiences(
+        self,
+        identity,
+        user_id,
+        session_id=None,
+        results: Optional[List[Dict[str, Any]]] = None,
+    ) -> List[str]:
+        """Record runtime-observed external experience as provenance-backed
+        semantic state.
+
+        For each successful capability result: an identity fact (domain
+        ``experience``) with the capability result as evidence, provenance-linked
+        semantic memory, and — when the result reports structured external
+        entities (``data["encounters"]``) — an identity-graph relationship.
+        Generic for any capability: nothing here is capability-specific.
+
+        Returns the provenance refs that were recorded.
+        """
+        if not results:
+            return []
+        fact_store = self._fact_stores.get(identity.id)
+        resolved_user = self._resolved_user_id(identity_id=identity.id, user_id=user_id)
+        recorded: List[str] = []
+        for entry in results:
+            cap_id = entry["capability"]
+            action = entry["action"]
+            result = entry["result"]
+            data = entry["data"]
+            ref = entry["ref"]
+            recorded.append(ref)
+            result_metadata = getattr(result, "metadata", None) or {}
+            if fact_store is not None:
+                fact_store.merge_or_reinforce(
+                    field=f"external.{cap_id}.{action}",
+                    value=self._compact_external_value(
+                        data, bool(result_metadata.get("authenticated")),
+                    ),
+                    confidence=1.0,
+                    reasons=[f"observed via {ref}" + (f" in session {session_id}" if session_id else "")],
+                    source=FactSource.RUNTIME_INFERRED,
+                    evidence_id=ref,
+                    domain=FactDomain.EXPERIENCE,
+                    source_capability=cap_id,
+                )
+            encounters = data.get("encounters") if isinstance(data, dict) else None
+            if isinstance(encounters, list):
+                for enc in encounters:
+                    if not isinstance(enc, dict):
+                        continue
+                    target = str(enc.get("ref") or "").strip()
+                    if not target:
+                        continue
+                    self.identity_graph.interact_or_connect(
+                        source_id=identity.id, target_id=target,
+                        edge_type=EdgeType.OBSERVER, trust_level=TrustLevel.NONE,
+                        bidirectional=False,
+                        context=enc.get("surface") or cap_id,
+                        metadata={
+                            "surface": enc.get("surface") or cap_id,
+                            "capability": cap_id, "action": action,
+                            "provenance_ref": ref,
+                            "external_name": enc.get("name"),
+                        },
+                    )
+            provenance = {
+                "ref": ref,
+                "capability": cap_id,
+                "action": action,
+                "source": getattr(result, "source", ""),
+                "captured_at": str(getattr(result, "timestamp", "")),
+                "authenticated": bool(result_metadata.get("authenticated")),
+                "external_refs": [
+                    str(enc.get("ref")) for enc in (encounters or [])
+                    if isinstance(enc, dict) and enc.get("ref")
+                ],
+            }
+            content = _serialize_tool_result(data, 800)
+            existing = None
+            for frag in self.memory_store.by_user(identity.id, resolved_user, include_shared=False):
+                if frag.memory_type != MemoryType.SEMANTIC:
+                    continue
+                if action not in frag.tags or "external" not in frag.tags:
+                    continue
+                if frag.content == content:
+                    existing = frag
+                    break
+            if existing is not None:
+                existing.last_accessed = datetime.now(timezone.utc).replace(tzinfo=None)
+                existing.access_count += 1
+                self._persist_memory(existing)
+            else:
+                mem = MemoryFragment(
+                    identity_id=identity.id, user_id=resolved_user,
+                    content=content, memory_type=MemoryType.SEMANTIC,
+                    source=f"capability:{cap_id}", session_id=session_id,
+                    importance=0.8, tags=["external", cap_id, action],
+                    extra={"provenance": provenance},
+                )
+                self.memory_store.add(mem)
+                self._persist_memory(mem)
+        if fact_store is not None:
+            self._save_fact_store(identity.id)
+        return recorded
 
     def _find_semantic_match(
         self,
@@ -938,6 +1080,7 @@ class IdentityRuntime:
             limit=self.max_tools_per_request,
         )
         _evidence_results: List[Dict[str, Any]] = []
+        _external_results: List[Dict[str, Any]] = []
 
         def _execute_tool_call(func_name: str, args: Any) -> str:
             t0 = _time_mod.monotonic()
@@ -991,6 +1134,12 @@ class IdentityRuntime:
                     "duration_ms": duration_ms,
                     "error": {"message": err_msg} if err_msg else None,
                 })
+                if success and hasattr(result, "timestamp"):
+                    _external_results.append({
+                        "capability": cap_id, "action": skill_name,
+                        "result": result, "data": data,
+                        "ref": f"{cap_id}.{skill_name}@{result.timestamp}",
+                    })
                 if success:
                     # Consume used secret references from session store
                     session_key = f"{identity.id}:{user_id}"
@@ -1230,6 +1379,9 @@ class IdentityRuntime:
         target = user_id
         self.identity_graph.interact_or_connect(
             source_id=identity.id, target_id=target, edge_type=EdgeType.PEER, bidirectional=False,
+        )
+        external_refs = self._persist_external_experiences(
+            identity, user_id, session_id=session_id, results=_external_results,
         )
         self._persist_relationships(identity.id)
         self._persist_goals(identity.id)

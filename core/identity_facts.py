@@ -281,6 +281,7 @@ class FactStore:
                 source=source,
                 source_capability=source_capability,
                 evidence_ids=[evidence_id] if evidence_id else [],
+                status=FactStatus.ACTIVE,
             )
             existing.supersede(new_fact.fact_id)
             self.log_event("superseded", existing,
