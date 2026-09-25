@@ -268,6 +268,33 @@ class NotificationManager:
                 return True
         return False
 
+    def mark_viewed(self) -> dict[str, int]:
+        """Clear notifications once viewed (principal opened the center).
+
+        Every unread event becomes read. TEST-kind events additionally
+        resolve: their entire purpose is being seen, so a viewed test is a
+        completed test. All other kinds stay unresolved until their
+        underlying matter is genuinely handled — viewing is not handling.
+        Returns counts for observability.
+        """
+        events = self._load_events()
+        read = resolved = 0
+        dirty = False
+        for event in events:
+            if not event.read:
+                event.read = True
+                event.read_at = utcnow().isoformat()
+                read += 1
+                dirty = True
+            if event.kind == NotifyKind.TEST.value and not event.resolved:
+                event.resolved = True
+                event.resolved_at = utcnow().isoformat()
+                resolved += 1
+                dirty = True
+        if dirty:
+            self._save_events(events)
+        return {"read": read, "resolved": resolved}
+
     def resolve(self, event_id: str, resolution: str = "") -> bool:
         events = self._load_events()
         for event in events:
@@ -305,11 +332,17 @@ class NotificationManager:
     # ── attention + badge (derived from real state, restart-safe) ─────
 
     def attention_count(self, store: Any = None) -> int:
-        """Items genuinely requiring the principal's attention."""
-        return len(self.attention_items(store))
+        """Items genuinely requiring the principal's attention right now.
 
-    def attention_items(self, store: Any = None) -> list[dict[str, Any]]:
-        """Derived attention list: unresolved attention events + live blockers.
+        Only UNREAD, unresolved attention events count: once Arsène has
+        viewed the notification center, seen items stop badging. Derived
+        live blockers (authorizations, approvals) clear only when their
+        underlying state clears — viewing cannot wish away a real blocker.
+        """
+        return len(self.attention_items(store, unread_only=True))
+
+    def attention_items(self, store: Any = None, *, unread_only: bool = False) -> list[dict[str, Any]]:
+        """Attention list: unresolved attention events + live blockers.
 
         Live blockers (pending authorizations, permission-required principal
         messages) clear automatically when the underlying state clears — the
@@ -318,6 +351,8 @@ class NotificationManager:
         items: list[dict[str, Any]] = []
         for event in self._load_events():
             if event.requires_attention and not event.resolved:
+                if unread_only and event.read:
+                    continue
                 items.append({
                     "id": event.id,
                     "kind": event.kind,

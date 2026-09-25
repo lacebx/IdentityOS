@@ -622,6 +622,16 @@ form.composer {{ padding-bottom: calc(10px + env(safe-area-inset-bottom)); }}
     }}
     var nl = $("notify-list"); nl.textContent = "";
     var items = data.notifications || [];
+    var hasUnread = items.some(function (n) {{ return !n.read; }});
+    if (hasUnread) {{
+      fetch("/api/notify/viewed", {{
+        method: "POST",
+        headers: {{"Content-Type": "application/json", "X-Requested-With": "AsterControl"}},
+        body: "{{}}"
+      }}).then(function (r) {{ return r.ok ? r.json() : null; }}).then(function (v) {{
+        if (v && typeof v.badge === "number") setBadge(v.badge);
+      }}).catch(function () {{}});
+    }}
     if (!items.length) nl.appendChild(el("div", "sub", "No notifications yet."));
     for (var m = 0; m < items.length; m++) {{
       (function (n) {{
@@ -1387,6 +1397,8 @@ class _HealthHandler(BaseHTTPRequestHandler):
             self._post_notify_test()
         elif path == "/api/notify/read":
             self._post_notify_read()
+        elif path == "/api/notify/viewed":
+            self._post_notify_viewed()
         elif path == "/api/notify/confirm":
             self._post_notify_confirm()
         else:
@@ -1538,6 +1550,24 @@ class _HealthHandler(BaseHTTPRequestHandler):
         manager.mark_read(event_id)
         manager.resolve(event_id, "read by principal")
         self._send(200, b'{"ok": true}', "application/json")
+
+    def _post_notify_viewed(self) -> None:
+        """Clear-on-viewed: the principal opened the notification center."""
+        if not self._require_principal():
+            return
+        payload = self._read_json_body()
+        if payload is None:
+            return
+        manager = self._notify_manager()
+        if manager is None:
+            self._send(503, b'{"error": "storage not initialized"}', "application/json")
+            return
+        from core.operations.store import OperationsStore
+
+        storage, identity_id = self._backend()
+        result = manager.mark_viewed()
+        result["badge"] = manager.attention_count(OperationsStore(storage, identity_id))
+        self._send(200, json.dumps(result).encode("utf-8"), "application/json")
 
     def _post_notify_confirm(self) -> None:
         """Record the principal's own visibility confirmation (their word)."""

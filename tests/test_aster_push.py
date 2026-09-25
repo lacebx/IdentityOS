@@ -254,10 +254,61 @@ def test_badge_counts_attention_and_clears(tmp_path):
     event = manager.create_event(NotifyKind.SECURITY_ALERT, title="Alert",
                                  requires_attention=True, dedup_key="s1")
     assert manager.attention_count(store) == 1
+    # Principal-ordered semantics: viewing (read) clears the badge; the
+    # underlying matter still needs handling (resolve) to complete it.
     manager.mark_read(event.id)
-    assert manager.attention_count(store) == 1, "read is not resolved"
+    assert manager.attention_count(store) == 0
+    full = [i for i in manager.attention_items(store, unread_only=True)
+            if i["source"] == "event"]
+    assert full == [], "read items leave the badge set"
+    still = [i for i in manager.attention_items(store) if i["source"] == "event"]
+    assert len(still) == 1, "unresolved matters stay listed until handled"
     manager.resolve(event.id, "handled")
     assert manager.attention_count(store) == 0
+
+
+def test_viewed_clears_center_and_completes_test(tmp_path):
+    storage = InMemoryBackend()
+    manager = NotificationManager(storage, "aster")
+    test_event = manager.create_event(NotifyKind.TEST, title="Aster", body="t",
+                                      requires_attention=True, dedup_key="v-test")
+    alert = manager.create_event(NotifyKind.SECURITY_ALERT, title="Alert",
+                                 requires_attention=True, dedup_key="v-alert")
+    from core.operations.store import OperationsStore
+
+    store = OperationsStore(storage, "aster")
+    assert manager.attention_count(store) == 2
+    result = manager.mark_viewed()
+    assert result == {"read": 2, "resolved": 1}
+    assert manager.attention_count(store) == 0
+    assert manager.get_event(test_event.id).resolved is True
+    assert manager.get_event(alert.id).resolved is False, "viewing is not handling"
+    assert manager.get_event(alert.id).read is True
+    # Idempotent: second view changes nothing.
+    assert manager.mark_viewed() == {"read": 0, "resolved": 0}
+
+
+def test_viewed_endpoint_requires_auth_and_updates_badge(tmp_path, monkeypatch):
+    storage = InMemoryBackend()
+    presence = PresenceStore(storage, "aster", display_name="Aster")
+    presence.start_run(pid=os.getpid())
+    _authed_env(monkeypatch)
+    manager = NotificationManager(storage, "aster")
+    manager.create_event(NotifyKind.TEST, title="Aster", body="t",
+                         requires_attention=True, dedup_key="w-test")
+    server, port = _serve_once(presence)
+    try:
+        code, _, _ = _request(port, "POST", "/api/notify/viewed", {},
+                              headers=_authed_headers(login="mallory@evil.ts.net"))
+        assert code == 403
+        code, payload, _ = _request(port, "POST", "/api/notify/viewed", {},
+                                    headers=_authed_headers())
+        assert code == 200, payload
+        assert payload["read"] == 1 and payload["resolved"] == 1
+        assert payload["badge"] == 0
+    finally:
+        server.shutdown()
+        server.server_close()
 
 
 def test_deep_links_safe_and_stable(tmp_path):
