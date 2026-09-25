@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import enum
 import logging
+import os
 import time
 from dataclasses import dataclass, field
 from typing import Any, Callable, Optional
@@ -40,7 +41,15 @@ SUBS_NAMESPACE = "operations.push_subscriptions"
 RECONCILE_NAMESPACE = "operations.notify_reconcile"
 
 VAPID_SECRET_HANDLE = "webpush/vapid-private"
-VAPID_SUBJECT = "mailto:aster@identityos.local"
+# VAPID contact claim sent to the push service with every request (transport
+# metadata, never notification content). Apple rejected the .local mailto
+# form (BadJwtToken with an otherwise valid signature); the Tailnet HTTPS
+# origin identifies the operator without exposing any secret. The push
+# service already sees request timing and the device endpoint; this adds
+# only the operator's private hostname. Overridable per deployment.
+VAPID_SUBJECT = os.environ.get(
+    "ASTER_VAPID_SUBJECT", "https://idos.taile6cf93.ts.net"
+)
 
 
 class NotifyKind(str, enum.Enum):
