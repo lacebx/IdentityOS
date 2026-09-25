@@ -108,6 +108,7 @@ class OperationsEngine:
         secret_store: Any = None,
         surfaces: Iterable[Any] = (),
         presence: Any = None,
+        communication_identity: Any = None,
     ) -> None:
         self.config = config
         self.storage = storage
@@ -122,6 +123,7 @@ class OperationsEngine:
         self._secret_store = secret_store
         self._surfaces = list(surfaces)
         self._presence = presence
+        self._communication_identity = communication_identity
 
         from .progress import Progress
         self.progress = Progress(self.store, config.purpose)
@@ -706,7 +708,7 @@ class OperationsEngine:
                 opportunity, need,
                 sender_name=self.config.sender_name,
                 transparency=self.config.transparency,
-                signature=self.config.signature,
+                signature=self._signature_for(first_contact=True),
             )
             subject, body = self.composer.compose(brief, adapter=self._adapter, identity=self._identity)
 
@@ -815,10 +817,20 @@ class OperationsEngine:
                 )
                 break
 
+            html_body, signature_variant = "", "unsigned"
+            if self._communication_identity is not None:
+                try:
+                    from .voice import render_html_body
+
+                    html_body, signature_variant = render_html_body(
+                        body, self._communication_identity)
+                except Exception:
+                    html_body, signature_variant = "", "unsigned"
             send_result = self._send(
                 to=opportunity.contact_email,
                 subject=subject,
                 body=body,
+                html_body=html_body,
             )
             if not send_result.get("ok"):
                 message.status = MessageStatus.FAILED
@@ -874,13 +886,20 @@ class OperationsEngine:
                 "mark_meaningful_action",
                 f"Sent individualized outreach to '{relationship.display_name}'",
             )
+            from .voice import count_em_dashes
+
             self._provenance(
                 ProvenancePhase.ACT,
                 f"sent individualized outreach to '{relationship.display_name}'",
                 action="send",
                 result=message.external_id or "sent",
                 evidence=message.evidence[:5],
-                refs={"message_id": message.id, "opportunity_id": opportunity.id, "relationship_id": store_rel.id},
+                refs={"message_id": message.id, "opportunity_id": opportunity.id, "relationship_id": store_rel.id,
+                      "sender": self._sender_email(),
+                      "sender_display_name": self._sender_display_name(),
+                      "signature": signature_variant,
+                      "style_validation": "passed",
+                      "em_dash_count": count_em_dashes(subject) + count_em_dashes(body)},
             )
         return sent, escalations, skips
 
@@ -1150,29 +1169,55 @@ class OperationsEngine:
         snapshot = reader.snapshot() if needs_grounding(inbound.body) else None
         if snapshot is not None:
             context += grounding_context(snapshot)
-        try:
-            from adapters.contracts import options
-            self.progress.resources["model_calls"] = self.progress.resources.get("model_calls",0)+1
-            text = self._adapter.generate(context, user_input, self._identity,
-                                          **(options(self._adapter, snapshot) if snapshot else {}))
-        except Exception as exc:
-            if snapshot is None:
-                return None, {"mode": "unavailable", "detail": f"model call failed: {type(exc).__name__}"}
-            text, grounding = guard_response("", snapshot, current=reader.snapshot())
-            return text, {"mode": "runtime_grounded_fallback", "adapter": "", "model": "",
-                          "grounding": grounding, "failure": type(exc).__name__,
-                          "attempted": [{"provider": a.get("provider"), "error": "provider unavailable"}
-                                        for a in (getattr(self._adapter, "last_selection", None) or {}).get("attempted", [])]}
+        from .voice import repair_outbound, style_constraint_prompt, validate_outbound
 
-        text = (text or "").strip()
-        if not text and snapshot is None:
-            return None, {"mode": "unavailable", "detail": "model returned an empty response"}
-        metadata = self._generation_metadata()
-        if snapshot is not None:
-            text, grounding = guard_response(text, snapshot, current=reader.snapshot())
-            metadata['grounding'] = grounding
-            if grounding['guard'] == 'fallback':
-                metadata['mode'] = 'runtime_grounded_fallback'
+        def _attempt(extra_constraint: str = "") -> tuple[str, dict[str, Any], bool]:
+            """One generation attempt. Returns (text, metadata, snapshot_used)."""
+            try:
+                from adapters.contracts import options
+                self.progress.resources["model_calls"] = self.progress.resources.get("model_calls",0)+1
+                attempt_text = self._adapter.generate(
+                    context, user_input + extra_constraint, self._identity,
+                    **(options(self._adapter, snapshot) if snapshot else {}))
+            except Exception as exc:
+                if snapshot is None:
+                    return "", {"mode": "unavailable",
+                                "detail": f"model call failed: {type(exc).__name__}"}, False
+                fallback_text, grounding = guard_response("", snapshot, current=reader.snapshot())
+                return fallback_text, {"mode": "runtime_grounded_fallback", "adapter": "", "model": "",
+                              "grounding": grounding, "failure": type(exc).__name__,
+                              "attempted": [{"provider": a.get("provider"), "error": "provider unavailable"}
+                                            for a in (getattr(self._adapter, "last_selection", None) or {}).get("attempted", [])]}, True
+            attempt_text = (attempt_text or "").strip()
+            if not attempt_text and snapshot is None:
+                return "", {"mode": "unavailable", "detail": "model returned an empty response"}, False
+            attempt_metadata = self._generation_metadata()
+            if snapshot is not None:
+                attempt_text, grounding = guard_response(attempt_text, snapshot, current=reader.snapshot())
+                attempt_metadata['grounding'] = grounding
+                if grounding['guard'] == 'fallback':
+                    attempt_metadata['mode'] = 'runtime_grounded_fallback'
+            return attempt_text, attempt_metadata, snapshot is not None
+
+        text, metadata, _ = _attempt()
+        if text and not validate_outbound(text).ok:
+            repaired, clean = repair_outbound(text)
+            if clean:
+                return repaired, metadata
+            # Bounded single regeneration with the identity constraint made
+            # explicit. If still dirty, defer rather than ship U+2014.
+            retry_text, retry_metadata, _ = _attempt(
+                "\n\nReminder of a hard identity rule for this reply: "
+                + style_constraint_prompt())
+            if retry_text and validate_outbound(retry_text).ok:
+                return retry_text, retry_metadata
+            repaired_retry, retry_clean = repair_outbound(retry_text)
+            if retry_text and retry_clean:
+                return repaired_retry, retry_metadata
+            return None, {"mode": "unavailable",
+                          "detail": "response violated the no-em-dash invariant after repair and one regeneration"}
+        if not text:
+            return None, metadata
         return text, metadata
 
     def _generation_metadata(self) -> dict[str, Any]:
@@ -1566,14 +1611,49 @@ class OperationsEngine:
                     return True
         return False
 
+    def _sender_email(self) -> str:
+        return self.config.sender_email or ""
+
+    def _sender_display_name(self) -> str:
+        voice = self._communication_identity
+        if voice is not None:
+            try:
+                return voice.display_sender()
+            except Exception:
+                pass
+        return self.config.sender_name or ""
+
+    def _signature_for(self, *, first_contact: bool, formal: bool = False) -> str:
+        voice = self._communication_identity
+        if voice is not None:
+            try:
+                return voice.signature_for(first_contact=first_contact, formal=formal)
+            except Exception:
+                pass
+        return self.config.signature
+
     def _send(self, *, to: str, subject: str, body: str, thread_id: str = "",
-              in_reply_to: str = "", references=None) -> dict[str, Any]:
+              in_reply_to: str = "", references=None, sender: str = "",
+              sender_display_name: str = "", reply_to: str = "",
+              html_body: str = "") -> dict[str, Any]:
         if self._transport is None:
             return {"ok": False, "error": "no transport configured"}
+        # Final voice gate: the transport artifact must contain zero U+2014.
+        # Composer-level handling repairs safe cases; anything still dirty
+        # fails closed here rather than shipping a violation.
+        try:
+            from .voice import assert_clean
+
+            assert_clean(subject, body, context="email.send")
+        except Exception as exc:
+            return {"ok": False, "error": f"style_violation: {exc}"}
         try:
             result = self._transport.send(
                 to=to, subject=subject, body=body, thread_id=thread_id,
                 in_reply_to=in_reply_to, references=list(references or []),
+                sender=sender or self._sender_email(),
+                sender_display_name=sender_display_name or self._sender_display_name(),
+                reply_to=reply_to, html_body=html_body,
             )
         except Exception as exc:
             return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}

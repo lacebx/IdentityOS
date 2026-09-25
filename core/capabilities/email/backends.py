@@ -242,6 +242,10 @@ class FileMailboxBackend:
         in_reply_to: str = "",
         references: Optional[Iterable[str]] = None,
         message_id: str = "",
+        sender: str = "",
+        sender_display_name: str = "",
+        reply_to: str = "",
+        html_body: str = "",
     ) -> dict[str, Any]:
         if not to:
             raise MailboxError("recipient address is required")
@@ -252,9 +256,12 @@ class FileMailboxBackend:
             "in_reply_to": in_reply_to,
             "references": list(references or []),
             "to": to,
-            "from": "",
+            "from": sender,
+            "from_display_name": sender_display_name,
+            "reply_to": reply_to,
             "subject": subject,
             "body": body,
+            "html_body": html_body,
             "sent_at": time.time(),
         }
         items = self._read(self._outbox)
@@ -324,15 +331,24 @@ class SMTPBackend:
         in_reply_to: str = "",
         references: Optional[Iterable[str]] = None,
         message_id: str = "",
+        sender: str = "",
+        sender_display_name: str = "",
+        reply_to: str = "",
+        html_body: str = "",
     ) -> dict[str, Any]:
         if not self.host or not self.sender:
             return {"ok": False, "error": "SMTP host and sender are required"}
         import smtplib
         from email.message import EmailMessage
+        from email.utils import formataddr
 
         message_id = message_id or generate_message_id("identityos")
+        envelope_from = sender or self.sender
         msg = EmailMessage()
-        msg["From"] = self.sender
+        display = sender_display_name or ""
+        msg["From"] = formataddr((display, envelope_from)) if display else envelope_from
+        if reply_to:
+            msg["Reply-To"] = reply_to
         msg["To"] = to
         msg["Subject"] = subject
         msg["Message-ID"] = message_id
@@ -344,6 +360,8 @@ class SMTPBackend:
         if refs:
             msg["References"] = " ".join(refs)
         msg.set_content(body)
+        if html_body:
+            msg.add_alternative(html_body, subtype="html")
 
         try:
             with smtplib.SMTP(self.host, self.port, timeout=20) as smtp:
@@ -614,11 +632,14 @@ class MailboxTransport:
     def send(
         self, *, to: str, subject: str, body: str, thread_id: str = "",
         in_reply_to: str = "", references: Optional[Iterable[str]] = None,
-        message_id: str = "",
+        message_id: str = "", sender: str = "", sender_display_name: str = "",
+        reply_to: str = "", html_body: str = "",
     ) -> dict[str, Any]:
         return self.backend.send(
             to=to, subject=subject, body=body, thread_id=thread_id,
             in_reply_to=in_reply_to, references=references, message_id=message_id,
+            sender=sender, sender_display_name=sender_display_name,
+            reply_to=reply_to, html_body=html_body,
         )
 
     def fetch_inbox_with_cursor(self, *, cursor: Optional[dict[str, Any]] = None) -> dict[str, Any]:

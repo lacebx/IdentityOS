@@ -556,6 +556,24 @@ class NotificationManager:
         "credential", "private key", "ntfy.sh/",
     )
 
+    def _voice_checked_payload(self, event: NotifyEvent, *, badge: int = 0) -> Optional[dict[str, Any]]:
+        """Build the push payload, refusing (recorded) rather than sending
+        anything containing U+2014. Never raises: notification delivery must
+        not crash the operator tick."""
+        from .voice import repair_outbound, validate_outbound
+
+        payload = self.push_payload(event, badge=badge)
+        if validate_outbound(payload["title"], payload["body"]).ok:
+            return payload
+        repaired_title, title_clean = repair_outbound(payload["title"])
+        repaired_body, body_clean = repair_outbound(payload["body"])
+        if title_clean and body_clean:
+            payload["title"], payload["body"] = repaired_title, repaired_body
+            return payload
+        self.record_channel(event.id, "webpush", "rejected",
+                            detail="style_violation: no-em-dash invariant")
+        return None
+
     def push_payload(self, event: NotifyEvent, *, badge: int = 0) -> dict[str, Any]:
         """Minimal push payload: title, short body, deep link, badge.
 
@@ -603,7 +621,11 @@ class NotificationManager:
         vapid = _vapid_from_pem(private_pem)
         import json as _json
 
-        payload = _json.dumps(self.push_payload(event, badge=badge))
+        payload = self._voice_checked_payload(event, badge=badge)
+        if payload is None:
+            return {"channel": "webpush", "result": "rejected",
+                    "detail": "style_violation: no-em-dash invariant"}
+        payload = _json.dumps(payload)
         accepted = rejected = expired = 0
         last_detail = ""
         for sub in subs:
@@ -651,9 +673,23 @@ class NotificationManager:
         The topic stays inside the capability: only success/failure and the
         returned message id are observed here — never the topic itself.
         """
+        from .voice import repair_outbound, validate_outbound
+
+        title = event.title[:120] or "Aster"
+        message = (event.body or "")[:500]
+        if not validate_outbound(title, message).ok:
+            repaired_title, title_clean = repair_outbound(title)
+            repaired_message, message_clean = repair_outbound(message)
+            if title_clean and message_clean:
+                title, message = repaired_title, repaired_message
+            else:
+                self.record_channel(event.id, "ntfy", "rejected",
+                                    detail="style_violation: no-em-dash invariant")
+                return {"channel": "ntfy", "result": "rejected",
+                        "detail": "style_violation: no-em-dash invariant"}
         params = {
-            "title": event.title[:120] or "Aster",
-            "message": (event.body or "")[:500],
+            "title": title,
+            "message": message,
             "priority": 5 if event.importance == NotifyImportance.HIGH.value else 4,
             "tags": ["identityos", "aster", event.kind],
         }

@@ -82,12 +82,35 @@ class OutreachComposer:
         adapter: Any = None,
         identity: Any = None,
     ) -> tuple[str, str]:
-        """Return ``(subject, body)`` for an individualized introduction."""
+        """Return ``(subject, body)`` for an individualized introduction.
+
+        Model-generated text passes through the voice invariant: safe repairs
+        apply, and anything still containing U+2014 falls back to the clean
+        deterministic renderer rather than shipping a violation.
+        """
+        from .voice import repair_outbound, validate_outbound
+
         if adapter is not None:
             generated = self._via_adapter(brief, adapter, identity)
             if generated:
-                return generated
-        return self._structured(brief)
+                subject, body = generated
+                if validate_outbound(subject, body).ok:
+                    return subject, body
+                repaired_subject, subject_clean = repair_outbound(subject)
+                repaired_body, body_clean = repair_outbound(body)
+                if subject_clean and body_clean:
+                    return repaired_subject, repaired_body
+        subject, body = self._structured(brief)
+        if validate_outbound(subject, body).ok:
+            return subject, body
+        # Evidence-derived fields can carry dashes (e.g. a name). Repair safe
+        # cases; anything still dirty is returned for the transport gate to
+        # fail closed with a clear reason rather than shipping a violation.
+        repaired_subject, subject_clean = repair_outbound(subject)
+        repaired_body, body_clean = repair_outbound(body)
+        if subject_clean and body_clean:
+            return repaired_subject, repaired_body
+        return subject, body
 
     def _structured(self, brief: OutreachBrief) -> tuple[str, str]:
         first_name = (brief.recipient_name or "there").split()[0]
@@ -156,13 +179,22 @@ class OutreachComposer:
           * ``template_fallback`` — a scripted close for status-only intents
             (decline / thanks / scheduling);
           * ``unavailable`` — a substantive intent but no working model
-            runtime.  The monitor must *defer* (never send a canned answer
-            masquerading as a model one).
+            runtime, or model output that still violates the voice invariant
+            after safe repair.  The monitor must *defer* (never send a canned
+            answer masquerading as a model one, and never ship U+2014).
         """
+        from .voice import repair_outbound, validate_outbound
+
         if adapter is not None:
             generated = self._reply_via_adapter(relationship, inbound_body, intent, facts or [], adapter, identity)
             if generated:
-                return (*generated, "identity_model_generation")
+                subject, body = generated
+                if validate_outbound(subject, body).ok:
+                    return subject, body, "identity_model_generation"
+                repaired_subject, subject_clean = repair_outbound(subject)
+                repaired_body, body_clean = repair_outbound(body)
+                if subject_clean and body_clean:
+                    return repaired_subject, repaired_body, "identity_model_generation"
         if intent in ("question", "documentation_request", "intro_request", "interest"):
             return "", "", "unavailable"
         return (*self._structured_reply(relationship, inbound_body, intent, facts or []), "template_fallback")
@@ -179,7 +211,7 @@ class OutreachComposer:
         lines: list[str] = [f"Hi {first_name},", ""]
 
         if intent == "thanks":
-            lines.append("Glad this was useful — no action needed on your side.")
+            lines.append("Glad this was useful. No action needed on your side.")
         elif intent == "scheduling":
             lines.append(
                 "Happy to find a time. I can do a short call in the next week; "
@@ -200,12 +232,9 @@ class OutreachComposer:
             )
 
         lines.extend(["", "Best,"])
-        if self.signature and self.sender_name and f"— {self.sender_name}" in self.signature:
+        lines.append(self.sender_name or "Aster")
+        if self.signature:
             lines.append(self.signature)
-        else:
-            lines.append(self.sender_name or "Aster")
-            if self.signature:
-                lines.append(self.signature)
         return subject, "\n".join(lines)
 
     def compose_follow_up(
@@ -216,6 +245,8 @@ class OutreachComposer:
         identity: Any = None,
     ) -> tuple[str, str]:
         """A short, polite nudge when a first message went unanswered."""
+        from .voice import repair_outbound, validate_outbound
+
         if adapter is not None:
             brief = OutreachBrief(
                 recipient_name=relationship.display_name,
@@ -226,7 +257,13 @@ class OutreachComposer:
             )
             generated = self._via_adapter(brief, adapter, identity)
             if generated:
-                return generated
+                subject, body = generated
+                if validate_outbound(subject, body).ok:
+                    return subject, body
+                repaired_subject, subject_clean = repair_outbound(subject)
+                repaired_body, body_clean = repair_outbound(body)
+                if subject_clean and body_clean:
+                    return repaired_subject, repaired_body
         first_name = (relationship.display_name or "there").split()[0]
         subject = f"Re: {relationship.purpose or 'my earlier note'}"
         body_lines = [
@@ -237,12 +274,9 @@ class OutreachComposer:
             "",
             "Best,",
         ]
-        if self.signature and self.sender_name and f"— {self.sender_name}" in self.signature:
+        body_lines.append(self.sender_name or "Aster")
+        if self.signature:
             body_lines.append(self.signature)
-        else:
-            body_lines.append(self.sender_name or "Aster")
-            if self.signature:
-                body_lines.append(self.signature)
         body = "\n".join(body_lines)
         return subject, body
 
@@ -318,4 +352,4 @@ class OutreachComposer:
         return subject or f"Regarding {self.project_name or 'our project'}", body
 
     def signature_line(self) -> str:
-        return self.signature or (f"— {self.sender_name}" if self.sender_name else "")
+        return self.signature or (self.sender_name or "Aster")

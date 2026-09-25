@@ -54,11 +54,15 @@ class CapabilityTransport:
         self._identity_id = identity_id
 
     def send(self, *, to: str, subject: str, body: str, thread_id: str = "",
-             in_reply_to: str = "", references=None) -> dict[str, Any]:
+              in_reply_to: str = "", references=None, sender: str = "",
+              sender_display_name: str = "", reply_to: str = "",
+              html_body: str = "") -> dict[str, Any]:
         result = self._registry.call(
             self._identity_id, "email.send",
             to=to, subject=subject, body=body, thread_id=thread_id,
-            in_reply_to=in_reply_to, references=references,
+            in_reply_to=in_reply_to, references=references, sender=sender,
+            sender_display_name=sender_display_name, reply_to=reply_to,
+            html_body=html_body,
         )
         if not result.success:
             message = (result.error or {}).get("message", "email.send denied")
@@ -155,13 +159,34 @@ class EmailCapability(Capability):
         _t0 = _time.monotonic()
         try:
             if skill_name == "email.send":
+                # Voice invariant gate: no Aster-authored text crosses the
+                # transport with U+2014. Safe repairs apply; anything still
+                # dirty fails closed here so no caller can bypass it.
+                from core.operations.voice import repair_outbound, validate_outbound
+
+                subject = str(params.get("subject", ""))
+                body = str(params.get("body", ""))
+                if not validate_outbound(subject, body).ok:
+                    repaired_subject, subject_clean = repair_outbound(subject)
+                    repaired_body, body_clean = repair_outbound(body)
+                    if subject_clean and body_clean:
+                        subject, body = repaired_subject, repaired_body
+                    else:
+                        return CapabilityResult.fail(
+                            "email", skill_name, "style_violation",
+                            "outbound text violates the no-em-dash invariant",
+                            duration_ms=(_time.monotonic() - _t0) * 1000, params=params)
                 result = self._transport.send(
                     to=str(params.get("to", "")),
-                    subject=str(params.get("subject", "")),
-                    body=str(params.get("body", "")),
+                    subject=subject,
+                    body=body,
                     thread_id=str(params.get("thread_id", "")),
                     in_reply_to=str(params.get("in_reply_to", "")),
                     references=list(params.get("references") or []),
+                    sender=str(params.get("sender", "")),
+                    sender_display_name=str(params.get("sender_display_name", "")),
+                    reply_to=str(params.get("reply_to", "")),
+                    html_body=str(params.get("html_body", "")),
                 )
                 return CapabilityResult.from_data(
                     "email", skill_name, result, source="email",

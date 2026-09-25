@@ -73,7 +73,7 @@ def _engine(tmp_path, storage=None, *, adapter=_UNSET, controls=None, required_s
         project_name="IdentityOS",
         sender_name="Aster",
         sender_email="aster@identityos.local",
-        signature="— Aster",
+        signature="Aster",
         transparency="I am an AI operator.",
         purpose="IdentityOS outreach",
         need_rules=[],

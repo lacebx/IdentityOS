@@ -38,7 +38,7 @@ class _StubAdapter:
 
     def generate(self, context: str, user_input: str, identity: Any, **kwargs: Any) -> str:
         if '"inbound"' in user_input or '"intent"' in user_input:
-            return "Subject: Re: your note\nThanks for the note — model-drafted answer from the verified facts."
+            return "Subject: Re: your note\nThanks for the note. This model-drafted answer comes from the verified facts."
         return (
             "Subject: Connecting IdentityOS with your research\n"
             "Dear Alice,\n\nI'm Aster reaching out on behalf of IdentityOS because your "
@@ -86,7 +86,7 @@ def _engine(tmp_path, storage=None, *, controls=None, candidate=None, capability
         project_name="IdentityOS",
         sender_name="Aster",
         sender_email="aster@identityos.local",
-        signature="— Aster",
+        signature="Aster",
         transparency="I am an AI operator.",
         purpose="IdentityOS outreach",
         need_rules=[
@@ -675,7 +675,7 @@ def _empty_project_engine(tmp_path):
         project_name="P",
         sender_name="Aster",
         sender_email="aster@identityos.local",
-        signature="— Aster",
+        signature="Aster",
         purpose="outreach",
         need_rules=[],
         candidate_sources=[],

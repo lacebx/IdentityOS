@@ -189,6 +189,7 @@ form.composer {{ padding-bottom: calc(10px + env(safe-area-inset-bottom)); }}
     <div class="card"><div class="label">Opportunities</div><div class="value" id="opportunities">—</div></div>
   </div>
   <div class="card"><div class="label">Capabilities</div><div class="value" id="capabilities">—</div><div class="sub" id="capabilities-sub"></div></div>
+  <div class="card"><div class="label">Identity</div><div class="value" id="profile-name">Aster · AI Identity · IdentityOS</div><div class="sub" id="profile-detail">Loading…</div></div>
   </section>
   <section class="tab" id="sec-activity">
     <div class="card"><div class="label">Recent activity</div><div id="timeline"><div class="sub">Loading…</div></div></div>
@@ -270,6 +271,14 @@ form.composer {{ padding-bottom: calc(10px + env(safe-area-inset-bottom)); }}
     $("commons").textContent = v.commons_standing || "unknown";
     $("notifications").textContent = "ntfy · " + (v.notification_transport_health || "unknown");
     $("opportunities").textContent = String(v.opportunity_count == null ? 0 : v.opportunity_count);
+    getJSON("/api/profile").then(function (p) {{
+      var pr = p.profile || {{}};
+      if (pr.display_name) $("profile-name").textContent = pr.display_name + " · " + (pr.identity_type || "") + " · " + (pr.system || "");
+      var bits = [];
+      if (pr.email) bits.push(pr.email);
+      if (pr.disclosure) bits.push(pr.disclosure);
+      if (bits.length) $("profile-detail").textContent = bits.join(" · ");
+    }}).catch(function () {{}});
     var sum = v.capability_summary || {{}};
     var limited = sum.limited || [];
     var disp = v.capability_display || "unknown";
@@ -965,6 +974,28 @@ def _message_cards(store: Any, *, limit: int = 50) -> list[dict[str, Any]]:
     return cards
 
 
+def _communication_profile() -> dict[str, Any]:
+    """Public communication identity. Contains no secrets by construction."""
+    try:
+        from core.operations.aster import aster_communication_identity
+
+        identity = aster_communication_identity()
+        return {
+            "identity": identity.identity_name,
+            "identity_type": identity.identity_type,
+            "system": identity.system,
+            "email": identity.email,
+            "display_name": identity.display_sender(),
+            "principal": identity.principal,
+            "description": identity.short_description,
+            "disclosure": identity.disclosure_first_contact,
+            "writing_profile": "active",
+            "style_invariant": "no U+2014 in Aster-authored outbound text",
+        }
+    except Exception:
+        return {"identity": "Aster", "writing_profile": "unknown"}
+
+
 # ── control API: principal verification ───────────────────────────────────
 
 def _expected_login() -> str:
@@ -1169,7 +1200,8 @@ class _HealthHandler(BaseHTTPRequestHandler):
             return
         if not path.startswith("/api/self") and path not in ("/health", "/status", "/api/presence", "/api/activity",
                         "/api/relationships", "/api/capabilities", "/api/messages", "/api/work",
-                        "/api/push/status", "/api/push/public-key", "/api/notify"):
+                        "/api/push/status", "/api/push/public-key", "/api/notify",
+                        "/api/profile"):
             self._send(404, b'{"error": "not found"}', "application/json")
             return
 
@@ -1228,6 +1260,8 @@ class _HealthHandler(BaseHTTPRequestHandler):
                     CapabilityRegistry(storage), identity_id, store)}
             elif path == "/api/messages":
                 payload = {"messages": _message_cards(store, limit=limit)}
+            elif path == "/api/profile":
+                payload = {"profile": _communication_profile()}
             elif path == "/api/push/status":
                 payload = self._push_status_payload()
             elif path == "/api/push/public-key":
