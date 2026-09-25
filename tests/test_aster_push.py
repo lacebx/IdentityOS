@@ -299,8 +299,16 @@ def test_push_submitted_mocked_and_recorded(tmp_path, monkeypatch):
     calls = []
 
     def fake_sender(subscription_info, data, **kwargs):
+        from py_vapid import Vapid01
+
         calls.append((subscription_info["endpoint"], json.loads(data)["title"]))
         assert "vapid_private_key" in kwargs and "vapid_claims" in kwargs
+        # Live Apple BadJwtToken finding, corrected: pywebpush honors
+        # Vapid01 subclasses (py_vapid.Vapid subclasses Vapid01) directly.
+        # The actual bug was client-side: applicationServerKey must be a
+        # BufferSource, never a base64 string. The sender must ALWAYS receive
+        # the live Vapid instance so signing uses the stored key.
+        assert isinstance(kwargs["vapid_private_key"], Vapid01)
         return True
 
     manager.register_subscription(_sub(), principal_login="x")
@@ -472,6 +480,21 @@ def test_sw_resubscribe_uses_application_key():
     assert "pushsubscriptionchange" in health_server.SERVICE_WORKER
     handler = health_server.SERVICE_WORKER.split("pushsubscriptionchange")[1]
     assert "applicationServerKey" in handler, "resubscribe must bind the current VAPID key"
+
+
+def test_subscribe_uses_buffersource_key(tmp_path):
+    """Live Apple BadJwtToken finding: a base64 string applicationServerKey
+    silently binds the subscription to the wrong VAPID identity. Every
+    subscribe call site must convert to Uint8Array (dashboard helper and
+    service worker alike)."""
+    import re
+    from runtime import health_server
+    import inspect
+
+    source = inspect.getsource(health_server)
+    bare = re.findall(r"applicationServerKey:\s*(keyResp\.key|k\.key)\b", source)
+    assert bare == [], f"bare string key at subscribe site(s): {bare}"
+    assert "urlBase64ToUint8Array(keyResp.key)" in source
 
 
 def test_reconnect_button_rendered(tmp_path):

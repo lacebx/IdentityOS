@@ -362,6 +362,18 @@ form.composer {{ padding-bottom: calc(10px + env(safe-area-inset-bottom)); }}
     if (!r.ok) throw new Error("http " + r.status);
     return r.json();
   }}
+  function urlBase64ToUint8Array(base64String) {{
+    // PushManager.subscribe requires the application key as a BufferSource,
+    // never a base64 string: a string key silently binds the subscription to
+    // the wrong (or no) VAPID identity and the push service rejects every
+    // send (live Apple BadJwtToken finding).
+    var padding = "=".repeat((4 - base64String.length % 4) % 4);
+    var base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+    var raw = window.atob(base64);
+    var out = new Uint8Array(raw.length);
+    for (var i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+    return out;
+  }}
   function statusLabel(s) {{
     var m = {{"received": "Received", "queued": "Queued for Aster",
       "processing": "Aster is working on it…", "completed": "Completed",
@@ -636,7 +648,7 @@ form.composer {{ padding-bottom: calc(10px + env(safe-area-inset-bottom)); }}
       var keyResp = await getJSON("/api/push/public-key");
       var sub = await reg.pushManager.subscribe({{
         userVisibleOnly: true,
-        applicationServerKey: keyResp.key
+        applicationServerKey: urlBase64ToUint8Array(keyResp.key)
       }});
       var r = await fetch("/api/push/subscribe", {{
         method: "POST",
@@ -699,7 +711,7 @@ form.composer {{ padding-bottom: calc(10px + env(safe-area-inset-bottom)); }}
       var keyResp = await getJSON("/api/push/public-key");
       var sub = await reg.pushManager.subscribe({{
         userVisibleOnly: true,
-        applicationServerKey: keyResp.key
+        applicationServerKey: urlBase64ToUint8Array(keyResp.key)
       }});
       var r = await fetch("/api/push/subscribe", {{
         method: "POST",
@@ -1046,7 +1058,7 @@ self.addEventListener('pushsubscriptionchange', function (event) {
       .then(function (r) { if (!r.ok) throw new Error('key'); return r.json(); })
       .then(function (k) {
         return self.registration.pushManager.subscribe({
-          userVisibleOnly: true, applicationServerKey: k.key
+          userVisibleOnly: true, applicationServerKey: (function (k) { var p = '='.repeat((4 - k.length % 4) % 4); var b = (k + p).replace(/-/g, '+').replace(/_/g, '/'); var r = atob(b); var o = new Uint8Array(r.length); for (var i = 0; i < r.length; i++) o[i] = r.charCodeAt(i); return o; })(k.key)
         });
       })
       .then(function (sub) {

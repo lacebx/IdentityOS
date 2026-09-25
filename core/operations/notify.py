@@ -553,10 +553,10 @@ class NotificationManager:
         if not subs:
             return {"channel": "webpush", "result": "no_subscription", "attempted": 0}
         _, private_pem = self.ensure_vapid(secret_store)
-        try:
-            vapid = _vapid_from_pem(private_pem)
-        except Exception as exc:
-            return {"channel": "webpush", "result": "misconfigured", "detail": str(exc)[:200]}
+        # Pass a Vapid instance: pywebpush honors Vapid01 subclasses directly
+        # (py_vapid.Vapid subclasses Vapid01). Passing the PEM string instead
+        # routes through from_string, which cannot parse PEM-with-headers.
+        vapid = _vapid_from_pem(private_pem)
         import json as _json
 
         payload = _json.dumps(self.push_payload(event, badge=badge))
