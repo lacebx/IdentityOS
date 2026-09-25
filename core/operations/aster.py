@@ -78,6 +78,15 @@ def default_need_rules() -> list[RequirementRule]:
             rationale="No funding, grant, or sponsorship signal found in project state.",
         ),
         RequirementRule(
+            category="ecosystem",
+            description="Find researchers and builders working on agent memory, agent interoperability, and persistent agents",
+            probe=r"\b(agent memory|agent interoperability|persistent agent|agent provenance)\b",
+            expect="absent",
+            urgency=0.6,
+            impact=0.8,
+            rationale="No agent-memory/interoperability research signal found in project state.",
+        ),
+        RequirementRule(
             category="collaborators",
             description="Attract collaborators and maintainers to accelerate development",
             probe=r"\b(contributor|collaborator|maintainer|maintainers|team|community)\b",

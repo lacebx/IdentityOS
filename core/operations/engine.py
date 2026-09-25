@@ -528,6 +528,8 @@ class OperationsEngine:
                 store_rel.status = RelationshipStatus.AWAITING_AUTHORIZATION
                 store_rel.next_action = "human authorization required"
                 self.store.update_relationship(store_rel)
+                opportunity.relationship_id = store_rel.id
+                self.store.update_opportunity(opportunity)
                 message.relationship_id = store_rel.id
                 self.store.append_message(message)
                 escalations.append(message.id)
@@ -611,6 +613,7 @@ class OperationsEngine:
             self.store.append_message(message)
 
             opportunity.status = OpportunityStatus.CONTACTED
+            opportunity.relationship_id = store_rel.id
             self.store.update_opportunity(opportunity)
             self.store.record_usage("cold_outreach")
             budget = self.store.budget()

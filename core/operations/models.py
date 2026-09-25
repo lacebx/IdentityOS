@@ -172,6 +172,10 @@ class Opportunity:
     contact_url: str = ""
     channel: str = "email"
     category: str = ""
+    # The canonical social entity for this opportunity, once a relationship
+    # exists: the opportunity and the relationship are one narrative, never
+    # two conflicting independent ones.
+    relationship_id: str = ""
     relevant_work: list[str] = field(default_factory=list)
     evidence: list[str] = field(default_factory=list)
     fit_reason: str = ""
@@ -198,6 +202,7 @@ class Opportunity:
             "contact_url": self.contact_url,
             "channel": self.channel,
             "category": self.category,
+            "relationship_id": self.relationship_id,
             "relevant_work": list(self.relevant_work),
             "evidence": list(self.evidence),
             "fit_reason": self.fit_reason,
@@ -223,6 +228,7 @@ class Opportunity:
             contact_url=data.get("contact_url", ""),
             channel=data.get("channel", "email"),
             category=data.get("category", ""),
+            relationship_id=data.get("relationship_id", ""),
             relevant_work=list(data.get("relevant_work", [])),
             evidence=list(data.get("evidence", [])),
             fit_reason=data.get("fit_reason", ""),
