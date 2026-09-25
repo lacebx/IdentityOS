@@ -1284,8 +1284,11 @@ class _HealthHandler(BaseHTTPRequestHandler):
         manager = NotificationManager(store._storage, store.identity_id)
         events = manager.list_events(limit=limit)
         attention = manager.attention_items(store)
+        # Badge MUST equal attention_count (unread-only): the SSE stream and
+        # the notify poll are two writers of the same UI badge, and any
+        # divergence between them flickers on the phone.
         return {
-            "badge": len(attention),
+            "badge": manager.attention_count(store),
             "attention": attention,
             "notifications": [e.to_dict() for e in events],
         }

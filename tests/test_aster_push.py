@@ -657,6 +657,42 @@ def test_poll_responses_sequenced_against_reorder(tmp_path):
     assert "if (my !== refreshSeq) return" in body
 
 
+def test_badge_sources_agree_between_poll_and_count(tmp_path):
+    """The /api/notify badge, attention_count, and the SSE badge field must
+    all use the same unread-only formula. Two writers disagreeing is exactly
+    what made the phone badge flicker 3/0/3 after viewing."""
+    from core.operations.store import OperationsStore
+
+    storage = InMemoryBackend()
+    store = OperationsStore(storage, "aster")
+    manager = NotificationManager(storage, "aster")
+    manager.create_event(NotifyKind.SECURITY_ALERT, title="Alert",
+                         requires_attention=True, dedup_key="agree-1")
+    assert manager.attention_count(store) == 1
+    presence = PresenceStore(storage, "aster", display_name="Aster")
+    presence.start_run(pid=os.getpid())
+    server, port = _serve_once(presence)
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/notify?limit=30",
+                                    timeout=8) as resp:
+            center = json.loads(resp.read().decode())
+    finally:
+        server.shutdown()
+        server.server_close()
+    assert center["badge"] == 1 == manager.attention_count(store)
+    manager.mark_viewed()
+    assert manager.attention_count(store) == 0
+    server, port = _serve_once(presence)
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/notify?limit=30",
+                                    timeout=8) as resp:
+            center = json.loads(resp.read().decode())
+    finally:
+        server.shutdown()
+        server.server_close()
+    assert center["badge"] == 0, "center badge must clear together with the count"
+
+
 def test_offline_shell_markers(tmp_path):
     storage = InMemoryBackend()
     presence = PresenceStore(storage, "aster", display_name="Aster")
