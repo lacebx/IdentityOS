@@ -290,10 +290,13 @@ form.composer {{ padding-bottom: calc(10px + env(safe-area-inset-bottom)); }}
     $("next-in").textContent = ni;
   }}
   async function refresh() {{
+    var my = ++refreshSeq;
     try {{
       var r = await fetch("/health", {{ cache: "no-store" }});
       if (!r.ok) throw new Error("http " + r.status);
-      apply(await r.json());
+      var v = await r.json();
+      if (my !== refreshSeq) return;
+      apply(v);
       $("updated").textContent = "Last updated " + new Date().toLocaleTimeString();
       $("updated").className = "";
       setConn("live");
@@ -386,7 +389,9 @@ form.composer {{ padding-bottom: calc(10px + env(safe-area-inset-bottom)); }}
     return m[s] || s || "";
   }}
   async function pullMessages() {{
+    var my = ++messagesSeq;
     var mm = await getJSON("/api/messages?limit=50");
+    if (my !== messagesSeq) return;
     var ml = $("msg-list"); ml.textContent = "";
     var msgs = mm.messages || [];
     if (!msgs.length) ml.appendChild(el("div", "sub", "No messages yet. Say hello."));
@@ -600,8 +605,14 @@ form.composer {{ padding-bottom: calc(10px + env(safe-area-inset-bottom)); }}
       }}
     }} catch (e) {{}}
   }}
+  // Request sequencing: overlapping polls (tab switches, timer bursts on
+  // mobile) may resolve out of order. A stale response must never overwrite
+  // fresher state — that is what made the badge flicker.
+  var notifySeq = 0, messagesSeq = 0, refreshSeq = 0;
   async function pullNotifications() {{
+    var my = ++notifySeq;
     var data = await getJSON("/api/notify?limit=30");
+    if (my !== notifySeq) return;
     setBadge(data.badge || 0);
     var al = $("attention-list"); al.textContent = "";
     var att = data.attention || [];

@@ -638,6 +638,25 @@ def test_new_endpoints_zero_model_calls_and_clean(tmp_path, monkeypatch):
     assert "BEGIN PRIVATE KEY" not in blob, "VAPID private must never be served"
 
 
+def test_poll_responses_sequenced_against_reorder(tmp_path):
+    """Overlapping polls resolving out of order must not overwrite fresher
+    state (the badge flicker: a stale badge=3 response arriving after a
+    fresh badge=0 one)."""
+    storage = InMemoryBackend()
+    presence = PresenceStore(storage, "aster", display_name="Aster")
+    server, port = _serve_once(presence)
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/status", timeout=8) as resp:
+            body = resp.read().decode()
+    finally:
+        server.shutdown()
+        server.server_close()
+    assert "notifySeq" in body and "messagesSeq" in body and "refreshSeq" in body
+    assert "if (my !== notifySeq) return" in body
+    assert "if (my !== messagesSeq) return" in body
+    assert "if (my !== refreshSeq) return" in body
+
+
 def test_offline_shell_markers(tmp_path):
     storage = InMemoryBackend()
     presence = PresenceStore(storage, "aster", display_name="Aster")
