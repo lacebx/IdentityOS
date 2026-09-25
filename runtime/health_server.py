@@ -132,6 +132,17 @@ form.composer textarea {{ flex: 1; background: #131a24; color: #e8eef4; border: 
 form.composer button {{ background: #34d17b; color: #06210f; border: 0; border-radius: 12px;
   padding: 0 18px; font-size: 16px; font-weight: 700; }}
 .err {{ color: #ff6b4a; font-size: 13px; margin-top: 8px; }}
+.connline {{ display: flex; align-items: center; justify-content: space-between; margin-top: 10px; }}
+.conn {{ font-size: 11px; font-weight: 700; letter-spacing: 1.2px; padding: 3px 10px; border-radius: 999px; background: #1a2230; color: #93a1b3; }}
+.conn.live {{ color: #34d17b; }} .conn.reconnecting {{ color: #ffb02e; }} .conn.offline {{ color: #ff6b4a; }}
+#needs-you {{ font-size: 12px; color: #ffb02e; font-weight: 700; }}
+.navbadge {{ display: inline-block; min-width: 20px; text-align: center; background: #ff6b4a; color: #fff;
+  font-size: 12px; font-weight: 700; border-radius: 999px; padding: 1px 6px; margin-left: 6px; }}
+.btn {{ background: #34d17b; color: #06210f; border: 0; border-radius: 12px; padding: 12px 18px;
+  font-size: 16px; font-weight: 700; margin-top: 10px; min-height: 44px; }}
+body {{ padding-bottom: calc(32px + env(safe-area-inset-bottom)); }}
+form.composer {{ padding-bottom: calc(10px + env(safe-area-inset-bottom)); }}
+@media (prefers-reduced-motion: reduce) {{ * {{ transition: none !important; animation: none !important; }} }}
 </style>
 </head>
 <body>
@@ -143,15 +154,17 @@ form.composer button {{ background: #34d17b; color: #06210f; border: 0; border-r
     </div>
     <div class="pill st-{status} h-{health}" id="pill"><span class="dot"></span><span id="status">{status.upper()}</span></div>
   </div>
+  <div class="connline"><span id="conn" class="conn unknown">CONNECTING…</span><span id="needs-you"></span></div>
   <nav class="tabs">
-    <button data-tab="overview" class="on">Overview</button>
+    <button data-tab="home" class="on">Home</button>
     <button data-tab="activity">Activity</button>
     <button data-tab="relationships">People</button>
     <button data-tab="capabilities">Skills</button>
     <button data-tab="work">Work</button>
     <button data-tab="messages">Messages</button>
+    <button data-tab="notifications">Alerts<span id="nav-badge" class="navbadge" style="display:none"></span></button>
   </nav>
-  <section class="tab on" id="sec-overview">
+  <section class="tab on" id="sec-home">
   <div class="card"><div class="label">Activity</div><div class="value big" id="activity">{_esc(view.get("activity") or "—")}</div></div>
   <div class="card"><div class="label">Current objective</div><div class="value" id="objective">{_esc(view.get("current_objective") or "—")}</div></div>
 
@@ -191,6 +204,15 @@ form.composer button {{ background: #34d17b; color: #06210f; border: 0; border-r
       </form>
       <div class="err" id="composer-err"></div>
     </div>
+  </section>
+  <section class="tab" id="sec-notifications">
+    <div class="card"><div class="label">Notifications</div>
+      <div class="value" id="push-state">Checking…</div>
+      <div class="sub" id="push-detail"></div>
+      <div id="push-actions"><button class="btn" id="enable-push" style="display:none">Enable Notifications</button></div>
+    </div>
+    <div class="card"><div class="label">Needs you</div><div id="attention-list"><div class="sub">Loading…</div></div></div>
+    <div class="card"><div class="label">Notification center</div><div id="notify-list"><div class="sub">Loading…</div></div></div>
   </section>
 
   <div class="foot"><span id="updated">Loading…</span> · auto-refreshes</div>
@@ -270,12 +292,42 @@ form.composer button {{ background: #34d17b; color: #06210f; border: 0; border-r
       apply(await r.json());
       $("updated").textContent = "Last updated " + new Date().toLocaleTimeString();
       $("updated").className = "";
+      setConn("live");
+      try {{
+        var snap = JSON.stringify({{h: last ? last.last_heartbeat : null, s: last ? last.status : null}});
+        localStorage.setItem("aster-last", snap + "|" + Date.now());
+      }} catch (e) {{}}
     }} catch (e) {{
-      $("updated").textContent = "Refresh failed — showing last known state";
+      var cached = null;
+      try {{ cached = localStorage.getItem("aster-last"); }} catch (ex) {{}}
+      if (cached) {{
+        $("updated").textContent = "Aster Control cannot currently reach IdentityOS. Last update " +
+          new Date(parseInt(cached.split("|")[1], 10)).toLocaleTimeString();
+      }} else {{
+        $("updated").textContent = "Aster Control cannot currently reach IdentityOS.";
+      }}
       $("updated").className = "warn";
+      setConn("offline");
     }}
   }}
-  var activeTab = "overview";
+  var activeTab = "home";
+  var ROUTES = {{"home": "home", "activity": "activity", "people": "relationships",
+    "relationships": "relationships", "skills": "capabilities", "capabilities": "capabilities",
+    "work": "work", "messages": "messages", "notifications": "notifications", "alerts": "notifications"}};
+  function route() {{
+    var h = (location.hash || "").replace(/^#[\\/]?/, "");
+    var parts = h.split("?");
+    var tab = ROUTES[(parts[0] || "").toLowerCase()] || "home";
+    var params = {{}};
+    if (parts[1]) {{
+      parts[1].split("&").forEach(function (kv) {{
+        var pair = kv.split("=");
+        params[decodeURIComponent(pair[0] || "")] = decodeURIComponent(pair[1] || "");
+      }});
+    }}
+    if (tab !== activeTab) showTab(tab);
+    if (params.opened) confirmOpened(params.opened);
+  }}
   function showTab(name) {{
     activeTab = name;
     var btns = document.querySelectorAll("nav.tabs button");
@@ -471,6 +523,9 @@ form.composer button {{ background: #34d17b; color: #06210f; border: 0; border-r
         }}
       }} else if (name === "messages") {{
         await pullMessages();
+      }} else if (name === "notifications") {{
+        await pullNotifications();
+        await refreshPushStatus();
       }}
     }} catch (e) {{}}
   }}
@@ -495,11 +550,177 @@ form.composer button {{ background: #34d17b; color: #06210f; border: 0; border-r
       err.textContent = "Send failed: " + ex.message;
     }}
   }});
+  async function confirmOpened(id) {{
+    try {{
+      await fetch("/api/notify/confirm", {{
+        method: "POST",
+        headers: {{"Content-Type": "application/json", "X-Requested-With": "AsterControl"}},
+        body: JSON.stringify({{id: id}})
+      }});
+      await pull("notifications", true);
+    }} catch (e) {{}}
+  }}
+  async function markNotifyRead(id, link) {{
+    try {{
+      await fetch("/api/notify/read", {{
+        method: "POST",
+        headers: {{"Content-Type": "application/json", "X-Requested-With": "AsterControl"}},
+        body: JSON.stringify({{id: id}})
+      }});
+    }} catch (e) {{}}
+    if (link) location.hash = link.replace("/status", "");
+    await pull("notifications", true);
+  }}
+  function setBadge(n) {{
+    var nb = $("nav-badge");
+    if (n > 0) {{ nb.style.display = "inline-block"; nb.textContent = n > 9 ? "9+" : String(n); }}
+    else nb.style.display = "none";
+    var ny = $("needs-you");
+    ny.textContent = n > 0 ? (n === 1 ? "1 thing needs you" : n + " things need you") : "";
+    try {{
+      if ("setAppBadge" in navigator) {{
+        if (n > 0) navigator.setAppBadge(n); else navigator.clearAppBadge();
+      }}
+    }} catch (e) {{}}
+  }}
+  async function pullNotifications() {{
+    var data = await getJSON("/api/notify?limit=30");
+    setBadge(data.badge || 0);
+    var al = $("attention-list"); al.textContent = "";
+    var att = data.attention || [];
+    if (!att.length) al.appendChild(el("div", "sub", "Nothing needs you right now. Aster is handling herself."));
+    for (var i = 0; i < att.length; i++) {{
+      (function (a) {{
+        var d = el("div", "ev");
+        d.appendChild(el("div", "c", (a.kind || "").replace(/_/g, " ")));
+        d.appendChild(el("div", "big", a.title || ""));
+        var go = el("div", "warn", "Open →");
+        go.style.cursor = "pointer";
+        go.addEventListener("click", function () {{
+          if (a.deep_link) location.hash = a.deep_link.replace("/status", "");
+        }});
+        d.appendChild(go);
+        al.appendChild(d);
+      }})(att[i]);
+    }}
+    var nl = $("notify-list"); nl.textContent = "";
+    var items = data.notifications || [];
+    if (!items.length) nl.appendChild(el("div", "sub", "No notifications yet."));
+    for (var m = 0; m < items.length; m++) {{
+      (function (n) {{
+        var d = el("div", "ev");
+        d.appendChild(el("div", "t", fmtTime(n.created_at)));
+        d.appendChild(el("div", "c", (n.kind || "").replace(/_/g, " ")));
+        d.appendChild(el("div", "", n.title || ""));
+        if (n.body) d.appendChild(el("div", "sub", n.body));
+        var meta = [];
+        if (!n.read) meta.push("unread");
+        if (n.principal_confirmed_visible) meta.push("confirmed seen");
+        var ch = (n.channels || []).filter(function (c) {{ return c.channel !== "resolution"; }}).pop();
+        if (ch) meta.push(ch.channel + ": " + ch.result);
+        if (meta.length) d.appendChild(el("div", "sub", meta.join(" · ")));
+        d.style.cursor = "pointer";
+        d.addEventListener("click", function () {{ markNotifyRead(n.id, n.deep_link); }});
+        nl.appendChild(d);
+      }})(items[m]);
+    }}
+  }}
+  async function refreshPushStatus() {{
+    var st = $("push-state"), det = $("push-detail"), btn = $("enable-push");
+    try {{
+      var s = await getJSON("/api/push/status");
+      if (s.available) {{
+        st.textContent = "First-party push: Enabled";
+        det.textContent = (s.subscriptions || 0) + " device(s) · last verified " +
+          (s.last_verified ? ago(s.last_verified) : "unknown");
+        btn.style.display = "none";
+      }} else {{
+        st.textContent = "First-party push: Not enabled";
+        det.textContent = "Tap below to enable notifications on this device.";
+        if ("Notification" in window && Notification.permission === "default") btn.style.display = "";
+        else if ("Notification" in window && Notification.permission === "denied") {{
+          det.textContent = "Notifications are blocked. Enable them in iPhone Settings → Aster.";
+        }}
+      }}
+    }} catch (e) {{
+      st.textContent = "First-party push: Unknown (offline?)";
+    }}
+    if ("Notification" in window && Notification.permission === "granted") {{
+      try {{
+        var reg = await navigator.serviceWorker.getRegistration();
+        if (reg && reg.pushManager) {{
+          var sub = await reg.pushManager.getSubscription();
+          if (!sub) {{
+            det.textContent += " (subscription missing — tap Enable Notifications)";
+            btn.style.display = "";
+          }}
+        }}
+      }} catch (e) {{}}
+    }}
+  }}
+  var SW_VERSION = "aster-sw-v1";
+  $("enable-push").addEventListener("click", async function () {{
+    var st = $("push-state"), det = $("push-detail"), err = null;
+    try {{
+      if (!("Notification" in window)) throw new Error("notifications unsupported here");
+      var perm = await Notification.requestPermission();
+      if (perm !== "granted") throw new Error("permission not granted");
+      var reg = await navigator.serviceWorker.register("/sw.js");
+      var keyResp = await getJSON("/api/push/public-key");
+      var sub = await reg.pushManager.subscribe({{
+        userVisibleOnly: true,
+        applicationServerKey: keyResp.key
+      }});
+      var r = await fetch("/api/push/subscribe", {{
+        method: "POST",
+        headers: {{"Content-Type": "application/json", "X-Requested-With": "AsterControl"}},
+        body: JSON.stringify({{subscription: sub.toJSON(), device_label: "iPhone Home Screen"}})
+      }});
+      if (!r.ok) throw new Error("registration rejected (http " + r.status + ")");
+      await refreshPushStatus();
+      det.textContent = "Enabled. IdentityOS will push here when something needs you.";
+    }} catch (e) {{
+      st.textContent = "First-party push: Error";
+      det.textContent = String((e && e.message) || e);
+    }}
+  }});
+  function setConn(state) {{
+    var c = $("conn");
+    c.className = "conn " + state;
+    c.textContent = state === "live" ? "LIVE" : (state === "reconnecting" ? "RECONNECTING…" : "OFFLINE");
+    var box = $("composer-text");
+    if (box) {{
+      box.disabled = (state === "offline");
+      if (state === "offline") box.placeholder = "Offline — reconnect to message Aster…";
+      else box.placeholder = "Message Aster…";
+    }}
+  }}
+  var sseOK = false;
+  function startSSE() {{
+    if (!("EventSource" in window)) return;
+    try {{
+      var es = new EventSource("/api/events");
+      es.onopen = function () {{ sseOK = true; setConn("live"); }};
+      es.onerror = function () {{ sseOK = false; setConn("reconnecting"); }};
+      es.addEventListener("state", function (ev) {{
+        try {{
+          var f = JSON.parse(ev.data);
+          setBadge(f.badge || 0);
+          refresh();
+          if (activeTab === "messages") pullMessages().catch(function () {{}});
+        }} catch (e) {{}}
+      }});
+    }} catch (e) {{}}
+  }}
   setInterval(tick, 1000);
-  setInterval(function () {{ if (!document.hidden && activeTab === "overview") refresh(); }}, {REFRESH_SECONDS} * 1000);
+  setInterval(function () {{ if (!document.hidden && activeTab === "home") refresh(); }}, {REFRESH_SECONDS} * 1000);
   setInterval(function () {{ if (!document.hidden && activeTab === "messages") pullMessages().catch(function () {{}}); }}, {MESSAGES_POLL_SECONDS} * 1000);
   setInterval(function () {{ if (!document.hidden && activeTab === "activity") pull("activity"); }}, {ACTIVITY_POLL_SECONDS} * 1000);
   setInterval(function () {{ if (!document.hidden && (activeTab === "relationships" || activeTab === "capabilities" || activeTab === "work")) pull(activeTab); }}, {SLOW_POLL_SECONDS} * 1000);
+  setInterval(function () {{ if (!document.hidden && activeTab === "notifications") pull("notifications"); }}, {REFRESH_SECONDS} * 1000);
+  window.addEventListener("hashchange", route);
+  route();
+  startSSE();
   refresh();
 }})();
 </script>
@@ -726,6 +947,81 @@ ICON_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
 </svg>
 """
 
+SW_VERSION = "aster-sw-v1"
+
+SERVICE_WORKER = """/* Aster Control service worker (conservative update behavior).
+ * Installed only from a user gesture (Enable Notifications). Never force
+ * reloads the page, never wipes subscriptions: a waiting worker only takes
+ * over on explicit user update action surfaced by the UI.
+ */
+var SW_VERSION = 'aster-sw-v1';
+var DEEP_LINK_BASE = '/status#';
+
+self.addEventListener('install', function (event) {
+  // Do NOT skipWaiting: the active worker keeps serving until the user
+  // explicitly updates, so a bad deploy can never strand the Home Screen app.
+});
+
+self.addEventListener('activate', function (event) {
+  event.waitUntil(self.clients.claim());
+});
+
+self.addEventListener('push', function (event) {
+  var data = {};
+  try { data = event.data ? event.data.json() : {}; } catch (e) { data = {}; }
+  var title = data.title || 'Aster';
+  var options = {
+    body: data.body || 'Aster needs your attention.',
+    tag: data.tag || 'aster-general',
+    data: { deep_link: data.deep_link || '/status#/notifications' },
+    badge: '/icon.svg',
+    icon: '/icon.svg',
+    renotify: false
+  };
+  var show = self.registration.showNotification(title, options);
+  var badging = Promise.resolve();
+  if (typeof data.badge === 'number' && data.badge >= 0 && 'setAppBadge' in self.navigator) {
+    try { badging = self.navigator.setAppBadge(data.badge); } catch (e) {}
+  }
+  event.waitUntil(Promise.all([show, badging]));
+});
+
+self.addEventListener('notificationclick', function (event) {
+  event.notification.close();
+  var target = (event.notification.data && event.notification.data.deep_link) || '/status#/notifications';
+  var url = new URL(target, self.location.origin).href;
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (list) {
+      for (var i = 0; i < list.length; i++) {
+        try {
+          var existing = new URL(list[i].url);
+          if (existing.origin === self.location.origin) {
+            list[i].navigate(url);
+            return list[i].focus();
+          }
+        } catch (e) {}
+      }
+      return self.clients.openWindow(url);
+    })
+  );
+});
+
+self.addEventListener('pushsubscriptionchange', function (event) {
+  // Best effort: re-subscribe and report. Auth headers ride the same-origin
+  // request through Tailscale Serve identity injection.
+  event.waitUntil(
+    self.registration.pushManager.subscribe({ userVisibleOnly: true })
+      .then(function (sub) {
+        return fetch('/api/push/subscribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'AsterControl' },
+          body: JSON.stringify(sub.toJSON())
+        });
+      }).catch(function () {})
+  );
+});
+"""
+
 
 class _HealthHandler(BaseHTTPRequestHandler):
     presence_store: Optional[PresenceStore] = None
@@ -741,6 +1037,22 @@ class _HealthHandler(BaseHTTPRequestHandler):
         identity_id = presence.identity_id if presence is not None else "aster"
         return storage, identity_id
 
+    def _notify_manager(self):
+        from core.operations.notify import NotificationManager
+
+        storage, identity_id = self._backend()
+        if storage is None:
+            return None
+        return NotificationManager(storage, identity_id)
+
+    def _secret_store(self):
+        from core.secrets.store import SecretStore, default_secret_store_dir
+
+        try:
+            return SecretStore(default_secret_store_dir())
+        except Exception:
+            return None
+
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
         path = parsed.path
@@ -751,8 +1063,15 @@ class _HealthHandler(BaseHTTPRequestHandler):
         if path == "/icon.svg":
             self._send(200, ICON_SVG.encode("utf-8"), "image/svg+xml")
             return
+        if path == "/sw.js":
+            self._send(200, SERVICE_WORKER.encode("utf-8"), "application/javascript")
+            return
+        if path == "/api/events":
+            self._serve_events()
+            return
         if not path.startswith("/api/self") and path not in ("/health", "/status", "/api/presence", "/api/activity",
-                        "/api/relationships", "/api/capabilities", "/api/messages", "/api/work"):
+                        "/api/relationships", "/api/capabilities", "/api/messages", "/api/work",
+                        "/api/push/status", "/api/push/public-key", "/api/notify"):
             self._send(404, b'{"error": "not found"}', "application/json")
             return
 
@@ -811,6 +1130,15 @@ class _HealthHandler(BaseHTTPRequestHandler):
                     CapabilityRegistry(storage), identity_id, store)}
             elif path == "/api/messages":
                 payload = {"messages": _message_cards(store, limit=limit)}
+            elif path == "/api/push/status":
+                payload = self._push_status_payload()
+            elif path == "/api/push/public-key":
+                payload = self._push_public_key_payload()
+                if payload is None:
+                    self._send(503, b'{"error": "push not configured"}', "application/json")
+                    return
+            elif path == "/api/notify":
+                payload = self._notify_center_payload(store, limit=limit)
             else:
                 self._send(404, b'{"error": "not found"}', "application/json")
                 return
@@ -820,35 +1148,180 @@ class _HealthHandler(BaseHTTPRequestHandler):
             return
         self._send(200, json.dumps(payload).encode("utf-8"), "application/json; charset=utf-8")
 
-    def do_POST(self) -> None:
-        parsed = urlparse(self.path)
-        if parsed.path != "/api/messages":
-            self._send(404, b'{"error": "not found"}', "application/json")
-            return
+    def _push_status_payload(self) -> dict[str, Any]:
+        from core.operations.notify import NotificationManager
+
+        manager = self._notify_manager()
+        if manager is None:
+            return {"available": False, "reason": "storage not initialized"}
+        subs = manager.valid_subscriptions()
+        last_result = ""
+        last_verified = ""
+        for sub in subs:
+            if (sub.get("last_verified") or "") > last_verified:
+                last_verified = sub.get("last_verified") or ""
+            if sub.get("last_result"):
+                last_result = sub.get("last_result") or last_result
+        return {
+            "available": bool(subs),
+            "subscriptions": len(subs),
+            "last_verified": last_verified,
+            "last_result": last_result,
+        }
+
+    def _push_public_key_payload(self) -> Optional[dict[str, Any]]:
+        manager = self._notify_manager()
+        secrets = self._secret_store()
+        if manager is None or secrets is None:
+            return None
+        try:
+            public_key, _ = manager.ensure_vapid(secrets)
+        except Exception:
+            return None
+        return {"key": public_key}
+
+    def _notify_center_payload(self, store: Any, *, limit: int = 30) -> dict[str, Any]:
+        from core.operations.notify import NotificationManager
+
+        manager = NotificationManager(store._storage, store.identity_id)
+        events = manager.list_events(limit=limit)
+        attention = manager.attention_items(store)
+        return {
+            "badge": len(attention),
+            "attention": attention,
+            "notifications": [e.to_dict() for e in events],
+        }
+
+    def _serve_events(self) -> None:
+        """Server-Sent Events: presence, messages, notifications, badge.
+
+        Change-triggered snapshots only (no raw provenance firehose). The
+        browser reconnects automatically; existing polling remains as the
+        fallback when the stream drops.
+        """
         if self.presence_store is None:
             self._send(503, b'{"error": "presence store not initialized"}', "application/json")
             return
-        ok, reason = _principal_verified(self)
-        if not ok:
-            self._send(403, json.dumps({"error": reason}).encode("utf-8"),
-                       "application/json")
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("Connection", "keep-alive")
+        self.send_header("X-Accel-Buffering", "no")
+        self.end_headers()
+
+        from core.operations.notify import NotificationManager
+        from core.operations.store import OperationsStore
+
+        storage, identity_id = self._backend()
+        manager = NotificationManager(storage, identity_id)
+        last_heartbeat = ""
+        last_message = ""
+        last_badge = -1
+        last_presence_status = ""
+        ticks = 0
+        try:
+            while True:
+                try:
+                    view = self.presence_store.public_view()
+                    store = OperationsStore(storage, identity_id)
+                    thread = store.list_messages()
+                    newest = thread[-1].id if thread else ""
+                    badge = manager.attention_count(store)
+                    changed = (
+                        view.get("last_heartbeat") != last_heartbeat
+                        or newest != last_message
+                        or badge != last_badge
+                        or view.get("status") != last_presence_status
+                        or ticks % 5 == 0
+                    )
+                    if changed:
+                        last_heartbeat = view.get("last_heartbeat") or ""
+                        last_message = newest
+                        last_badge = badge
+                        last_presence_status = view.get("status") or ""
+                        frame = {
+                            "presence": {
+                                "health": view.get("health"),
+                                "status": view.get("status"),
+                                "activity": view.get("activity"),
+                                "heartbeat_age_seconds": view.get("heartbeat_age_seconds"),
+                                "service_state": view.get("service_state"),
+                            },
+                            "messages": {"newest": newest, "count": len(thread)},
+                            "badge": badge,
+                        }
+                        self.wfile.write(
+                            ("event: state\ndata: " + json.dumps(frame) + "\n\n").encode()
+                        )
+                        self.wfile.flush()
+                    else:
+                        self.wfile.write(b": keep-alive\n\n")
+                        self.wfile.flush()
+                except (BrokenPipeError, ConnectionResetError):
+                    return
+                ticks += 1
+                time.sleep(3)
+        except (BrokenPipeError, ConnectionResetError):
             return
+
+    def _read_json_body(self) -> Optional[dict[str, Any]]:
+        """Read a JSON POST body, or send the error and return None."""
         if not _post_rate_ok():
             self._send(429, b'{"error": "rate limit: slow down"}', "application/json")
-            return
+            return None
         try:
             length = int(self.headers.get("Content-Length", "0") or "0")
         except ValueError:
             length = 0
         if length <= 0 or length > MAX_POST_BYTES:
             self._send(400, b'{"error": "invalid request size"}', "application/json")
-            return
+            return None
         try:
             payload = json.loads(self.rfile.read(length).decode("utf-8"))
         except (ValueError, UnicodeDecodeError):
             self._send(400, b'{"error": "invalid JSON"}', "application/json")
+            return None
+        if not isinstance(payload, dict):
+            self._send(400, b'{"error": "invalid parameters"}', "application/json")
+            return None
+        return payload
+
+    def _require_principal(self) -> bool:
+        if self.presence_store is None:
+            self._send(503, b'{"error": "presence store not initialized"}', "application/json")
+            return False
+        ok, reason = _principal_verified(self)
+        if not ok:
+            self._send(403, json.dumps({"error": reason}).encode("utf-8"),
+                       "application/json")
+            return False
+        return True
+
+    def do_POST(self) -> None:
+        parsed = urlparse(self.path)
+        path = parsed.path
+        if path == "/api/messages":
+            self._post_message()
+        elif path == "/api/push/subscribe":
+            self._post_push_subscribe()
+        elif path == "/api/push/unsubscribe":
+            self._post_push_unsubscribe()
+        elif path == "/api/notify/test":
+            self._post_notify_test()
+        elif path == "/api/notify/read":
+            self._post_notify_read()
+        elif path == "/api/notify/confirm":
+            self._post_notify_confirm()
+        else:
+            self._send(404, b'{"error": "not found"}', "application/json")
+
+    def _post_message(self) -> None:
+        if not self._require_principal():
             return
-        text = payload.get("text", "") if isinstance(payload, dict) else ""
+        payload = self._read_json_body()
+        if payload is None:
+            return
+        text = payload.get("text", "")
         thread_id = payload.get("thread_id", "") if isinstance(payload, dict) else ""
         if not isinstance(text, str) or not isinstance(thread_id, str):
             self._send(400, b'{"error": "invalid parameters"}', "application/json")
@@ -874,6 +1347,139 @@ class _HealthHandler(BaseHTTPRequestHandler):
             "status": message.status.value,
             "created_at": message.created_at,
         }).encode("utf-8"), "application/json; charset=utf-8")
+
+    def _post_push_subscribe(self) -> None:
+        if not self._require_principal():
+            return
+        payload = self._read_json_body()
+        if payload is None:
+            return
+        subscription = payload.get("subscription")
+        device_label = payload.get("device_label", "")
+        if not isinstance(subscription, dict) or not isinstance(device_label, str):
+            self._send(400, b'{"error": "invalid parameters"}', "application/json")
+            return
+        manager = self._notify_manager()
+        if manager is None:
+            self._send(503, b'{"error": "storage not initialized"}', "application/json")
+            return
+        login = (self.headers.get("Tailscale-User-Login", "") or "").strip()
+        try:
+            result = manager.register_subscription(
+                subscription, principal_login=login, device_label=device_label)
+        except ValueError as exc:
+            self._send(400, json.dumps({"error": str(exc)}).encode("utf-8"),
+                       "application/json")
+            return
+        self._send(201, json.dumps(result).encode("utf-8"), "application/json; charset=utf-8")
+
+    def _post_push_unsubscribe(self) -> None:
+        if not self._require_principal():
+            return
+        payload = self._read_json_body()
+        if payload is None:
+            return
+        endpoint = payload.get("endpoint", "")
+        if not isinstance(endpoint, str) or not endpoint:
+            self._send(400, b'{"error": "invalid parameters"}', "application/json")
+            return
+        manager = self._notify_manager()
+        if manager is None:
+            self._send(503, b'{"error": "storage not initialized"}', "application/json")
+            return
+        removed = manager.remove_subscription(endpoint)
+        self._send(200, json.dumps({"removed": removed}).encode("utf-8"),
+                   "application/json; charset=utf-8")
+
+    def _post_notify_test(self) -> None:
+        """Send exactly one intentional first-party TEST push.
+
+        Single-flight: an unresolved TEST event is returned instead of
+        sending another, so repeated taps never spam the phone. ntfy is NOT
+        used here unless explicitly requested for fallback diagnosis.
+        """
+        from core.operations.notify import NotificationManager, NotifyImportance, NotifyKind
+
+        if not self._require_principal():
+            return
+        payload = self._read_json_body()
+        if payload is None:
+            return
+        allow_fallback = bool(payload.get("fallback", False))
+        manager = self._notify_manager()
+        secrets = self._secret_store()
+        if manager is None or secrets is None:
+            self._send(503, b'{"error": "push not configured"}', "application/json")
+            return
+        event = manager.create_event(
+            NotifyKind.TEST,
+            title="Aster",
+            body="First-party IdentityOS notifications are working.",
+            importance=NotifyImportance.NORMAL,
+            object_type="notification_center",
+            deep_link="/status#/notifications",
+            requires_attention=True,
+            dedup_key="acceptance:test-push",
+            evidence_ref="operator:acceptance-test",
+        )
+        if any(c.get("channel") == "webpush" and c.get("result") == "submitted"
+               for c in event.channels):
+            self._send(200, json.dumps({
+                "id": event.id, "status": "already_submitted",
+            }).encode("utf-8"), "application/json; charset=utf-8")
+            return
+        storage, identity_id = self._backend()
+        from core.operations.store import OperationsStore
+
+        outcome = manager.send_first_party(
+            event, secret_store=secrets, badge=manager.attention_count(
+                OperationsStore(storage, identity_id)))
+        response: dict[str, Any] = {"id": event.id, **outcome}
+        if outcome["result"] != "submitted" and allow_fallback:
+            from core.capabilities.registry import CapabilityRegistry
+
+            fallback = manager.send_ntfy_fallback(
+                event, CapabilityRegistry(storage))
+            response["fallback"] = fallback
+        code = 200 if outcome["result"] == "submitted" else 502
+        self._send(code, json.dumps(response).encode("utf-8"), "application/json; charset=utf-8")
+
+    def _post_notify_read(self) -> None:
+        if not self._require_principal():
+            return
+        payload = self._read_json_body()
+        if payload is None:
+            return
+        event_id = payload.get("id", "")
+        if not isinstance(event_id, str) or not event_id:
+            self._send(400, b'{"error": "invalid parameters"}', "application/json")
+            return
+        manager = self._notify_manager()
+        if manager is None:
+            self._send(503, b'{"error": "storage not initialized"}', "application/json")
+            return
+        manager.mark_read(event_id)
+        manager.resolve(event_id, "read by principal")
+        self._send(200, b'{"ok": true}', "application/json")
+
+    def _post_notify_confirm(self) -> None:
+        """Record the principal's own visibility confirmation (their word)."""
+        if not self._require_principal():
+            return
+        payload = self._read_json_body()
+        if payload is None:
+            return
+        event_id = payload.get("id", "")
+        if not isinstance(event_id, str) or not event_id:
+            self._send(400, b'{"error": "invalid parameters"}', "application/json")
+            return
+        manager = self._notify_manager()
+        if manager is None:
+            self._send(503, b'{"error": "storage not initialized"}', "application/json")
+            return
+        ok = manager.confirm_visible(event_id)
+        self._send(200 if ok else 404, json.dumps({"confirmed": ok}).encode("utf-8"),
+                   "application/json")
 
     def _send(self, code: int, body: bytes, content_type: str) -> None:
         self.send_response(code)

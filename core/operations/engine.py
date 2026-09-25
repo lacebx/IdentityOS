@@ -68,6 +68,7 @@ class TickReport:
     follow_ups_sent: list[str] = field(default_factory=list)
     principal_processed: list[str] = field(default_factory=list)
     principal_deferred: list[str] = field(default_factory=list)
+    notifications_created: list[str] = field(default_factory=list)
     skipped: list[dict[str, Any]] = field(default_factory=list)
     errors: list[dict[str, Any]] = field(default_factory=list)
 
@@ -86,6 +87,7 @@ class TickReport:
             "follow_ups_sent": list(self.follow_ups_sent),
             "principal_processed": list(self.principal_processed),
             "principal_deferred": list(self.principal_deferred),
+            "notifications_created": list(self.notifications_created),
             "skipped": list(self.skipped),
             "errors": list(self.errors),
         }
@@ -371,6 +373,15 @@ class OperationsEngine:
         if follow_ups:
             report.follow_ups_sent, follow_skips = self._phase_follow_ups(now)
             report.skipped.extend(follow_skips)
+
+        if self._secret_store is not None:
+            try:
+                from .notify import reconcile as _reconcile_notifications
+
+                notified = _reconcile_notifications(self)
+                report.notifications_created = list(notified.get("created", []))
+            except Exception as exc:
+                logger.warning("notification reconcile failed: %s", exc)
 
         self._presence_after_tick(report, state_changed, now)
         report.cycle_outcome = self.progress.finish(report, project_changed=state_changed, surfaces_changed=self._surfaces_changed)

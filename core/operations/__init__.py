@@ -53,6 +53,12 @@ from .monitor import (
 )
 from .needs import NeedDetector, RequirementRule
 from .observer import ProjectStateObserver
+from .notify import (
+    NotifyEvent,
+    NotifyImportance,
+    NotifyKind,
+    NotificationManager,
+)
 from .policy import Authority, AuthorityPolicy, AuthorizationDecision
 from .presence import PresenceStatus, PresenceStore
 from .principal import (
@@ -110,6 +116,10 @@ __all__ = [
     "Need",
     "NeedDetector",
     "NeedStatus",
+    "NotificationManager",
+    "NotifyEvent",
+    "NotifyImportance",
+    "NotifyKind",
     "OperationsEngine",
     "OperationsStore",
     "OperatorConfig",
