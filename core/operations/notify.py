@@ -458,18 +458,51 @@ class NotificationManager:
 
         The private key lives ONLY in the secret store (gitignored private
         state). The public key is protocol-required browser material.
+        Generation is file-lock guarded: two concurrent first calls must not
+        produce two keypairs (the loser would orphan whichever subscription
+        was created under its key).
         """
-        existing = secret_store.get(VAPID_SECRET_HANDLE)
-        if existing:
-            pem = existing
-        else:
-            from py_vapid import Vapid
+        import fcntl
 
-            vapid = Vapid()
-            vapid.generate_keys()
-            pem = vapid.private_pem() if isinstance(vapid.private_pem(), str) else vapid.private_pem().decode()
-            secret_store.put(VAPID_SECRET_HANDLE, pem)
-        return _public_app_key(pem), pem
+        lock_path = None
+        lock_fd = None
+        try:
+            root = getattr(secret_store, "root", None)
+            lock_path = (root() if callable(root) else root)
+        except Exception:
+            lock_path = None
+        if lock_path is not None:
+            try:
+                from pathlib import Path
+
+                lock_dir = Path(str(lock_path))
+                lock_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+                lock_fd = open(lock_dir / ".webpush.lock", "w")
+                fcntl.flock(lock_fd, fcntl.LOCK_EX)
+            except Exception:
+                lock_fd = None
+        try:
+            existing = secret_store.get(VAPID_SECRET_HANDLE)
+            if existing:
+                pem = existing
+            else:
+                from py_vapid import Vapid
+
+                vapid = Vapid()
+                vapid.generate_keys()
+                pem = vapid.private_pem() if isinstance(vapid.private_pem(), str) else vapid.private_pem().decode()
+                secret_store.put(VAPID_SECRET_HANDLE, pem)
+                # Re-read: a concurrent generator may have won the race; the
+                # stored key is authoritative, never our in-memory copy.
+                pem = secret_store.get(VAPID_SECRET_HANDLE) or pem
+            return _public_app_key(pem), pem
+        finally:
+            try:
+                if lock_fd is not None:
+                    fcntl.flock(lock_fd, fcntl.LOCK_UN)
+                    lock_fd.close()
+            except Exception:
+                pass
 
     # ── sending ───────────────────────────────────────────────────────
 

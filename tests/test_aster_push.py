@@ -441,6 +441,53 @@ def test_reconcile_skips_test_autosend(tmp_path):
     assert result["sent"] == []
 
 
+def test_vapid_concurrent_ensure_converges(tmp_path, monkeypatch):
+    """Two concurrent first calls must converge on one stored keypair."""
+    import threading
+    from core.secrets.store import SecretStore
+
+    _vapid_env(tmp_path, monkeypatch)
+    from core.secrets.store import default_secret_store_dir
+
+    manager = NotificationManager(InMemoryBackend(), "aster")
+    results = []
+
+    def worker():
+        ss = SecretStore(default_secret_store_dir())
+        results.append(manager.ensure_vapid(ss)[0])
+
+    threads = [threading.Thread(target=worker) for _ in range(4)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert len(results) == 4
+    assert len(set(results)) == 1, "concurrent generation must converge on the stored key"
+
+
+def test_sw_resubscribe_uses_application_key():
+    import inspect
+    from runtime import health_server
+
+    assert "pushsubscriptionchange" in health_server.SERVICE_WORKER
+    handler = health_server.SERVICE_WORKER.split("pushsubscriptionchange")[1]
+    assert "applicationServerKey" in handler, "resubscribe must bind the current VAPID key"
+
+
+def test_reconnect_button_rendered(tmp_path):
+    storage = InMemoryBackend()
+    presence = PresenceStore(storage, "aster", display_name="Aster")
+    server, port = _serve_once(presence)
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/status", timeout=8) as resp:
+            body = resp.read().decode()
+    finally:
+        server.shutdown()
+        server.server_close()
+    assert "push-refresh" in body
+    assert "Refresh push registration" in body
+
+
 # ── restart persistence ───────────────────────────────────────────────────
 
 

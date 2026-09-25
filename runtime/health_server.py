@@ -140,6 +140,7 @@ form.composer button {{ background: #34d17b; color: #06210f; border: 0; border-r
   font-size: 12px; font-weight: 700; border-radius: 999px; padding: 1px 6px; margin-left: 6px; }}
 .btn {{ background: #34d17b; color: #06210f; border: 0; border-radius: 12px; padding: 12px 18px;
   font-size: 16px; font-weight: 700; margin-top: 10px; min-height: 44px; }}
+.btn.secondary {{ background: #1a2230; color: #e8eef4; border: 1px solid #2b3a55; }}
 body {{ padding-bottom: calc(32px + env(safe-area-inset-bottom)); }}
 form.composer {{ padding-bottom: calc(10px + env(safe-area-inset-bottom)); }}
 @media (prefers-reduced-motion: reduce) {{ * {{ transition: none !important; animation: none !important; }} }}
@@ -209,7 +210,7 @@ form.composer {{ padding-bottom: calc(10px + env(safe-area-inset-bottom)); }}
     <div class="card"><div class="label">Notifications</div>
       <div class="value" id="push-state">Checking…</div>
       <div class="sub" id="push-detail"></div>
-      <div id="push-actions"><button class="btn" id="enable-push" style="display:none">Enable Notifications</button></div>
+      <div id="push-actions"><button class="btn" id="enable-push" style="display:none">Enable Notifications</button><button class="btn secondary" id="push-refresh" style="display:none">Refresh push registration</button></div>
     </div>
     <div class="card"><div class="label">Needs you</div><div id="attention-list"><div class="sub">Loading…</div></div></div>
     <div class="card"><div class="label">Notification center</div><div id="notify-list"><div class="sub">Loading…</div></div></div>
@@ -625,8 +626,34 @@ form.composer {{ padding-bottom: calc(10px + env(safe-area-inset-bottom)); }}
       }})(items[m]);
     }}
   }}
+  async function refreshPushRegistration() {{
+    var det = $("push-detail");
+    try {{
+      var reg = await navigator.serviceWorker.getRegistration();
+      if (!reg || !reg.pushManager) throw new Error("no push manager");
+      var old = await reg.pushManager.getSubscription();
+      if (old) await old.unsubscribe();
+      var keyResp = await getJSON("/api/push/public-key");
+      var sub = await reg.pushManager.subscribe({{
+        userVisibleOnly: true,
+        applicationServerKey: keyResp.key
+      }});
+      var r = await fetch("/api/push/subscribe", {{
+        method: "POST",
+        headers: {{"Content-Type": "application/json", "X-Requested-With": "AsterControl"}},
+        body: JSON.stringify({{subscription: sub.toJSON(), device_label: "iPhone Home Screen"}})
+      }});
+      if (!r.ok) throw new Error("registration rejected (http " + r.status + ")");
+      await refreshPushStatus();
+      det.textContent = "Registration refreshed. IdentityOS recognizes this device.";
+    }} catch (e) {{
+      det.textContent = "Refresh failed: " + String((e && e.message) || e);
+    }}
+  }}
+  $("push-refresh").addEventListener("click", refreshPushRegistration);
   async function refreshPushStatus() {{
-    var st = $("push-state"), det = $("push-detail"), btn = $("enable-push");
+    var st = $("push-state"), det = $("push-detail"), btn = $("enable-push"),
+        rfb = $("push-refresh");
     try {{
       var s = await getJSON("/api/push/status");
       if (s.available) {{
@@ -646,6 +673,7 @@ form.composer {{ padding-bottom: calc(10px + env(safe-area-inset-bottom)); }}
       st.textContent = "First-party push: Unknown (offline?)";
     }}
     if ("Notification" in window && Notification.permission === "granted") {{
+      rfb.style.display = "";
       try {{
         var reg = await navigator.serviceWorker.getRegistration();
         if (reg && reg.pushManager) {{
@@ -656,6 +684,8 @@ form.composer {{ padding-bottom: calc(10px + env(safe-area-inset-bottom)); }}
           }}
         }}
       }} catch (e) {{}}
+    }} else {{
+      rfb.style.display = "none";
     }}
   }}
   var SW_VERSION = "aster-sw-v1";
@@ -1007,10 +1037,18 @@ self.addEventListener('notificationclick', function (event) {
 });
 
 self.addEventListener('pushsubscriptionchange', function (event) {
-  // Best effort: re-subscribe and report. Auth headers ride the same-origin
-  // request through Tailscale Serve identity injection.
+  // Best effort: re-subscribe WITH the current application key (a keyless
+  // re-subscribe would orphan the endpoint against our VAPID identity) and
+  // report. Auth headers ride the same-origin request through Tailscale
+  // Serve identity injection.
   event.waitUntil(
-    self.registration.pushManager.subscribe({ userVisibleOnly: true })
+    fetch('/api/push/public-key', { cache: 'no-store' })
+      .then(function (r) { if (!r.ok) throw new Error('key'); return r.json(); })
+      .then(function (k) {
+        return self.registration.pushManager.subscribe({
+          userVisibleOnly: true, applicationServerKey: k.key
+        });
+      })
       .then(function (sub) {
         return fetch('/api/push/subscribe', {
           method: 'POST',
