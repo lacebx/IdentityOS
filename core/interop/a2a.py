@@ -265,3 +265,125 @@ class A2ATestAgent:
 def a2a_local_transport(agent: A2ATestAgent) -> Transport:
     """In-process transport that routes HTTP to the given local A2A agent."""
     return agent.transport()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Local peer registry — every identity can reach every other identity.
+# ─────────────────────────────────────────────────────────────────────────────
+
+_LOCAL_PEERS: dict[str, "A2ATestAgent"] = {}
+
+
+def register_local_peer(agent: A2ATestAgent) -> A2ATestAgent:
+    """Register an in-process A2A peer.
+
+    Registration is name-keyed and idempotent: once registered, any identity's
+    ``a2a`` capability can address this peer by name (or its identity id)
+    without network access.
+    """
+    _LOCAL_PEERS[agent.name] = agent
+    return agent
+
+
+def get_local_peer(name: str) -> Optional[A2ATestAgent]:
+    """Resolve a local peer by agent name or identity id (case-insensitive)."""
+    candidate = (name or "").strip().lower()
+    if not candidate:
+        return None
+    for key, peer in _LOCAL_PEERS.items():
+        if key.lower() == candidate:
+            return peer
+    for peer in _LOCAL_PEERS.values():
+        identity_id = str(getattr(peer, "_identity_id", "") or "")
+        if identity_id.lower() == candidate:
+            return peer
+    return None
+
+
+def local_peer_names() -> list[str]:
+    return sorted(_LOCAL_PEERS)
+
+
+class A2ARuntimeAgent(A2ATestAgent):
+    """An in-process A2A peer backed by a live identity runtime.
+
+    Messages sent to this peer are handled by the receiving identity's *real*
+    runtime (policy → context → model → memory), so the reply comes from that
+    identity's own persistent state — never a template echo.
+    """
+
+    def __init__(
+        self,
+        *,
+        runtime: Any,
+        identity_id: str,
+        description: str = "",
+        url: str = "",
+    ) -> None:
+        self._runtime = runtime
+        self._identity_id = identity_id
+        spec = None
+        loader = getattr(runtime, "load", None)
+        if loader is not None:
+            spec = loader(identity_id)
+        name = str(getattr(spec, "name", "") or identity_id)
+        super().__init__(
+            name=name,
+            description=description or f"{name} — an IdentityOS agent reachable over A2A.",
+            url=url or f"a2a://identityos/{identity_id}",
+            handler=None,
+        )
+
+    def card(self) -> dict[str, Any]:
+        return {
+            "name": self.name,
+            "title": self.name,
+            "description": self.description,
+            "url": self.url,
+            "version": "1.0.0",
+            "capabilities": [
+                {
+                    "name": "converse",
+                    "description": "Discuss and collaborate with this identity over A2A; replies come from the identity's own persistent runtime state.",
+                    "inputModes": ["text/plain"],
+                }
+            ],
+        }
+
+    def _handle_send(self, body: Any) -> dict[str, Any]:
+        if not isinstance(body, dict):
+            body = {}
+        message = str(body.get("message") or "")
+        if not message.strip():
+            raise A2AError("empty message")
+        session_id = _clean_handle(str(body.get("sessionId") or ""))
+        from runtime.orchestrator import InteractionRequest
+
+        # An inbound A2A conversation is a *discussion* turn: the receiving
+        # identity answers from its own persistent state. Offering tool
+        # catalogs here makes the model fabricate tool calls (observed: a2a
+        # calls with invented task ids) instead of conversing, so the tool
+        # loop is disabled for the duration of this synchronous handler.
+        prior_limit = getattr(self._runtime, "max_tools_per_request", None)
+        try:
+            self._runtime.max_tools_per_request = 0
+            reply = self._runtime.process(
+                InteractionRequest(
+                    identity_id=self._identity_id, user_input=message,
+                    session_id=session_id or None,
+                ),
+                top_k_memories=4,
+            )
+        finally:
+            if prior_limit is not None:
+                self._runtime.max_tools_per_request = prior_limit
+        output = str(getattr(reply, "output", "") or "")
+        task_id = _clean_handle(str(uuid.uuid4()))
+        self._tasks[task_id] = {
+            "id": task_id,
+            "status": "completed",
+            "result": output,
+            "message": message,
+            "sessionId": session_id,
+        }
+        return self._tasks[task_id]

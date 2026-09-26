@@ -77,15 +77,29 @@ class A2ACapability(Capability):
                                          duration_ms=(self._TIME.monotonic() - t0) * 1000, params=params)
 
     def _dispatch(self, skill_name: str, params: Mapping[str, Any]) -> CapabilityResult:
+        from core.interop.a2a import get_local_peer, local_peer_names
+        from core.interop.http import HttpClient
+
         agent_name = str(params.get("agent") or self._config.get("primary") or self._first_agent_name())
-        agent_cfg = self._agents.get(agent_name)
-        if agent_cfg is None:
-            return CapabilityResult.fail(
-                self.id, skill_name, "unknown_agent",
-                f"No A2A agent named '{agent_name}'. Configured: {', '.join(self._agents) or 'none'}",
-                params=params,
+        # Registered local peers are reached in-process (no network): the peer
+        # is backed by the target identity's own live runtime, so replies come
+        # from that identity's real state.
+        local = get_local_peer(agent_name)
+        if local is not None:
+            client = A2AClient(
+                local.url,
+                http=HttpClient(timeout=30.0, transport=local.transport()),
+                agent_card=local.card(),
             )
-        client = A2AClient(str(agent_cfg.get("base_url") or ""), agent_card=agent_cfg.get("card"))
+        else:
+            agent_cfg = self._agents.get(agent_name)
+            if agent_cfg is None:
+                return CapabilityResult.fail(
+                    self.id, skill_name, "unknown_agent",
+                    f"No A2A agent named '{agent_name}'. Configured: {', '.join(self._agents) or 'none'}; local peers: {', '.join(local_peer_names()) or 'none'}",
+                    params=params,
+                )
+            client = A2AClient(str(agent_cfg.get("base_url") or ""), agent_card=agent_cfg.get("card"))
 
         if skill_name == "a2a.discover":
             card = client.card()
