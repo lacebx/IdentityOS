@@ -539,18 +539,59 @@ class ConversationMonitor:
     ):
         """Decide whether an unsolicited message is valid, work-related mail.
 
-        Anything unassessable (no rules, no facts, no domains configured)
-        stays quarantined: relevance is opt-in evidence, never a default.
+        Deterministic signals first (need domains, project vocabulary,
+        principal terms). When those miss and a model runtime exists, Aster
+        reasons about it herself under a strict verdict protocol; anything
+        ambiguous, failing, or model-less stays quarantined. Relevance is
+        opt-in evidence, never a default.
         """
         from .relevance import assess_inbound_relevance, project_vocabulary
 
         terms = project_vocabulary(project_facts or [])
-        return assess_inbound_relevance(
+        verdict = assess_inbound_relevance(
             subject, body,
             need_rules=need_rules or [],
             project_terms=terms,
             principal_domains=principal_domains or [],
         )
+        if verdict.relevant or self._adapter is None:
+            return verdict
+        return self._model_relevance_verdict(subject, body, need_rules or [], terms)
+
+    def _model_relevance_verdict(
+        self, subject: str, body: str, need_rules: list, terms: list
+    ):
+        """Ask the model whether strange mail concerns the principal's work.
+
+        Strict protocol: the first line must be exactly RELEVANT or
+        NOT_RELEVANT, followed by a short reason quoting evidence. Anything
+        else — including any failure — means quarantine.
+        """
+        from .relevance import Relevance
+        from .voice import repair_outbound
+
+        domains = sorted({str(getattr(rule, "category", "")) for rule in need_rules if getattr(rule, "category", "")})
+        context = (
+            "You triage inbound mail for Aster, an AI operator. Her principal's work spans: "
+            f"{', '.join(domains) or 'general collaboration'}. "
+            "Project vocabulary includes: " + (", ".join(terms[:15]) or "none observed") + ". "
+            "Reply with EXACTLY this shape and nothing else on the first line: "
+            "RELEVANT: <reason under 15 words quoting one short phrase from the mail> "
+            "or NOT_RELEVANT: <reason under 15 words>."
+        )
+        user_input = f"Subject: {(subject or '')[:200]}\nBody:\n{(body or '')[:1500]}"
+        try:
+            raw = (self._adapter.generate(context, user_input, self._identity) or "").strip()
+        except Exception:
+            return Relevance(False, [], ["model verdict unavailable"])
+        first, _, rest = raw.partition("\n")
+        label = first.strip().upper()
+        reason = (rest.strip().split("\n")[0] if rest.strip() else first[len(label):].strip(" :"))[:200]
+        if label.startswith("RELEVANT") and not label.startswith("NOT_"):
+            repaired, clean = repair_outbound(reason)
+            return Relevance(True, ["model:work-related"],
+                             [repaired if clean else "model judged work-related"])
+        return Relevance(False, [], ["model judged not work-related"])
 
     def _classify(
         self, store: OperationsStore, *, sender_email: str, thread_id: str,

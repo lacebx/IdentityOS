@@ -7,6 +7,7 @@ recorded evidence — never a silent auto-reply.
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from core.capabilities.email.backends import FileMailboxBackend, MailboxTransport
@@ -189,6 +190,170 @@ def test_bulk_sender_gets_no_relationship_or_reply(tmp_path):
     engine.tick()
     assert engine.store.list_relationships() == []
     assert len(backend.outbox()) == 0
+
+
+class _VerdictAdapter:
+    def __init__(self, verdict: str, model: str = "judge"):
+        self.model = model
+        self._verdict = verdict
+        self.calls = 0
+
+    def generate(self, context: str, user_input: str, identity, **kwargs):
+        self.calls += 1
+        return self._verdict
+
+
+def test_model_verdict_relevant_admits_stranger(tmp_path):
+    engine, backend = _engine(tmp_path, adapter=_VerdictAdapter(
+        "RELEVANT: discusses agent persistence\nEvidence: quotes continuity work."))
+    _deliver(backend, "stranger@example.org", "Question about fleet coordination",
+             "Hello. I run a studio building warehouse robotics. We coordinate "
+             "fleets of machines and wondered about your approach to fleet "
+             "coordination. Keen to compare notes.",
+             thread="thread-model", external="ext-model")
+    engine.tick()
+    rels = [r for r in engine.store.list_relationships()
+            if r.purpose == "unsolicited_first_contact"]
+    assert len(rels) == 1
+    assert "model:work-related" in rels[0].notes[0]
+
+
+def test_model_verdict_not_relevant_quarantines(tmp_path):
+    engine, backend = _engine(tmp_path, adapter=_VerdictAdapter("NOT_RELEVANT: sales pitch"))
+    _deliver(backend, "sales@example.org", "Amazing offer",
+             "Buy our premium leads database today, limited time offer, act now.",
+             thread="thread-sales", external="ext-sales")
+    engine.tick()
+    assert [r for r in engine.store.list_relationships()
+            if r.purpose == "unsolicited_first_contact"] == []
+    assert len(backend.outbox()) == 0
+
+
+def test_model_garbage_or_failure_quarantines(tmp_path):
+    for verdict in ("Maybe relevant, hard to say...", ""):
+        engine, backend = _engine(tmp_path, adapter=_VerdictAdapter(verdict))
+        _deliver(backend, "vague@example.org", "Hi",
+                 "Hello there, just reaching out about some things and stuff.",
+                 thread="thread-vague", external="ext-vague")
+        engine.tick()
+        assert [r for r in engine.store.list_relationships()
+                if r.purpose == "unsolicited_first_contact"] == []
+
+    class Boom:
+        model = "boom"
+
+        def generate(self, *args, **kwargs):
+            raise RuntimeError("model down")
+
+    engine, backend = _engine(tmp_path, adapter=Boom())
+    _deliver(backend, "vague2@example.org", "Hi",
+             "Hello there, just reaching out about some things and stuff.",
+             thread="thread-vague2", external="ext-vague2")
+    engine.tick()
+    assert [r for r in engine.store.list_relationships()
+            if r.purpose == "unsolicited_first_contact"] == []
+
+
+# ── follow-up autonomy ────────────────────────────────────────────────────
+
+
+def test_builder_and_commons_excluded_from_nudges(tmp_path):
+    from core.operations import OperationsStore
+    from core.operations.followups import FollowUpPlanner
+    from core.operations.models import Relationship, RelationshipStatus
+    from datetime import timedelta
+
+    storage = InMemoryBackend()
+    store = OperationsStore(storage, "aster")
+    long_ago = (datetime.now(timezone.utc) - timedelta(hours=500)).isoformat()
+    builder = Relationship(display_name="Arsène Manzi", purpose="principal:builder",
+                           status=RelationshipStatus.ENGAGED, last_outbound_at=long_ago)
+    commons = Relationship(display_name="The Culture Commons", organization="The Culture Commons",
+                           purpose="culture_commons interop environment",
+                           status=RelationshipStatus.ENGAGED, last_outbound_at=long_ago)
+    store.add_relationship(builder)
+    store.add_relationship(commons)
+    planner = FollowUpPlanner(store)
+    assert planner.plan() == []
+
+
+def test_quiet_relationship_retires_to_dormant(tmp_path):
+    from core.operations import OperationsStore
+    from core.operations.followups import FollowUpPlanner
+    from core.operations.models import Relationship, RelationshipStatus
+    from datetime import timedelta
+
+    storage = InMemoryBackend()
+    store = OperationsStore(storage, "aster")
+    long_ago = (datetime.now(timezone.utc) - timedelta(hours=500)).isoformat()
+    rel = Relationship(display_name="Quiet", email="quiet@example.org",
+                       status=RelationshipStatus.OUTREACH_SENT, last_outbound_at=long_ago)
+    store.add_relationship(rel)
+    rel.follow_up_count = 5
+    store.update_relationship(rel)
+    planner = FollowUpPlanner(store)
+    assert planner.plan() == []
+    assert store.get_relationship(rel.id).status is RelationshipStatus.DORMANT
+    prov = [p for p in store.list_provenance() if p.action == "follow_up_exhausted"]
+    assert len(prov) == 1
+
+
+def test_effective_cap_deterministic_and_engagement_aware(tmp_path):
+    from core.operations import OperationsStore, ControlState
+    from core.operations.followups import FollowUpPlanner
+    from core.operations.models import Relationship, RelationshipStatus
+
+    storage = InMemoryBackend()
+    store = OperationsStore(storage, "aster")
+    planner = FollowUpPlanner(store)
+    controls = ControlState(outbound_mode="autonomous")
+    controls.max_follow_ups_per_target = 2
+    rel = Relationship(display_name="A", status=RelationshipStatus.OUTREACH_SENT)
+    store.add_relationship(rel)
+    first = planner.effective_cap(rel, controls)
+    assert planner.effective_cap(rel, controls) == first
+    assert 2 <= first <= 3
+    rel.last_inbound_at = datetime.now(
+        timezone.utc).isoformat()
+    store.update_relationship(rel)
+    assert planner.effective_cap(rel, controls) >= first
+    assert planner.effective_cap(rel, controls) <= 3
+
+
+def test_analyze_quiet_stores_angle_or_fallback(tmp_path):
+    from core.operations import OperationsStore
+    from core.operations.followups import FollowUpPlanner
+    from core.operations.models import Relationship, RelationshipStatus
+    from datetime import timedelta
+
+    storage = InMemoryBackend()
+    store = OperationsStore(storage, "aster")
+    planner = FollowUpPlanner(store)
+    long_ago = (datetime.now(timezone.utc) - timedelta(hours=200)).isoformat()
+    rel = Relationship(display_name="Pat", organization="Example Org",
+                       status=RelationshipStatus.OUTREACH_SENT, last_outbound_at=long_ago)
+    store.add_relationship(rel)
+    angle = planner.analyze_quiet(
+        rel, adapter=_VerdictAdapter("Share the new benchmark numbers as a hook."),
+        project_name="IdentityOS", objective="outreach")
+    assert angle and "\u2014" not in angle
+    # No adapter: honest deterministic fallback, no model claims.
+    rel2 = Relationship(display_name="Sam", status=RelationshipStatus.OUTREACH_SENT,
+                        last_outbound_at=long_ago)
+    fallback = planner.analyze_quiet(rel2, adapter=None)
+    assert fallback and "\u2014" not in fallback
+
+
+def test_follow_up_uses_angle_when_present(tmp_path):
+    from core.operations.composition import OutreachComposer
+    from core.operations.models import Relationship
+
+    composer = OutreachComposer(sender_name="Aster", signature="Aster")
+    rel = Relationship(display_name="Pat", organization="Example Org",
+                       notes=["re-engagement angle: share the new benchmark numbers."])
+    subject, body = composer.compose_follow_up(rel, adapter=None, identity=None)
+    assert "benchmark numbers" in body
+    assert "\u2014" not in subject + body
 
 
 # ── monitor integration ───────────────────────────────────────────────────

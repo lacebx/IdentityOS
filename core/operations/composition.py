@@ -247,6 +247,11 @@ class OutreachComposer:
         """A short, polite nudge when a first message went unanswered."""
         from .voice import repair_outbound, validate_outbound
 
+        angle = ""
+        for note in reversed(relationship.notes or []):
+            if note.startswith("re-engagement angle:"):
+                angle = note.split(":", 1)[1].strip()
+                break
         if adapter is not None:
             brief = OutreachBrief(
                 recipient_name=relationship.display_name,
@@ -254,6 +259,7 @@ class OutreachComposer:
                 need_description="a brief follow-up on my earlier note",
                 potential_ask="a quick yes/no on whether this is relevant",
                 signature=self.signature,
+                fit_reason=f"Re-engagement angle: {angle}" if angle else "",
             )
             generated = self._via_adapter(brief, adapter, identity)
             if generated:
@@ -271,6 +277,10 @@ class OutreachComposer:
             "",
             "Following up once on my earlier note in case it landed at a busy time.",
             "If it isn't relevant, a one-line reply is all I need and I'll leave it there.",
+        ]
+        if angle:
+            body_lines += ["", f"One concrete thought: {angle}"]
+        body_lines += [
             "",
             "Best,",
         ]

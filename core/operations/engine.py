@@ -1323,6 +1323,18 @@ class OperationsEngine:
             ):
                 self.follow_ups.cancel(relationship, "relationship closed") if relationship else None
                 continue
+            try:
+                angle = self.follow_ups.analyze_quiet(
+                    relationship, adapter=self._adapter, identity=self._identity,
+                    project_name=self.config.project_name, objective=self.config.purpose,
+                )
+                if angle and not any(n.startswith("re-engagement angle:") and angle in n
+                                     for n in (relationship.notes or [])):
+                    relationship.notes = (list(relationship.notes or []) + [
+                        f"re-engagement angle: {angle}"])[-10:]
+                    self.store.update_relationship(relationship)
+            except Exception as exc:
+                logger.warning("quiet-relationship analysis failed: %s", exc)
             subject, body = self.composer.compose_follow_up(
                 relationship, adapter=self._adapter, identity=self._identity
             )
