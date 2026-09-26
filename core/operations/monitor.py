@@ -86,6 +86,27 @@ _AUTOMATED_SENDER_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Automation tokens matched ANYWHERE in the local part (with separator
+# boundaries so human addresses like bouncer@ or bouncehouse@ never match):
+# payments-noreply@, noreply-accounts@, transactional@, newsletter-team@.
+_LOCAL_AUTOMATED_RE = re.compile(
+    r"(?:^|[-_.])(?:no[-_.]?reply|donotreply|do[-_.]?not[-_.]?reply|"
+    r"mailer[-_.]?daemon|postmaster|auto[-_.]?reply|bounce|"
+    r"transactional|newsletter|listserv)(?:[-_.]|$)",
+    re.IGNORECASE,
+)
+
+
+def _is_automated_sender(sender_email: str) -> bool:
+    """True when the sender address itself marks automation."""
+    address = (sender_email or "").strip()
+    if not address:
+        return False
+    if _AUTOMATED_SENDER_RE.search(address):
+        return True
+    local = address.split("@")[0] if "@" in address else address
+    return bool(_LOCAL_AUTOMATED_RE.search(local))
+
 _BOUNCE_SUBJECT_RE = (
     r"delivery status notification", r"undelivered(?: mail)?", r"undeliverable",
     r"mail delivery (?:failed|failure)", r"returned mail", r"returned to sender",
@@ -202,12 +223,19 @@ class ConversationMonitor:
         in_reply_to: str = "",
         references: Optional[list[str]] = None,
         raw_body: str = "",
+        need_rules: Optional[list] = None,
+        project_facts: Optional[list] = None,
+        principal_domains: Optional[list] = None,
     ) -> InboundResult:
         message_ids = [i for i in [*list(references or []), in_reply_to] if i]
         disposition, relationship = self._classify(
             store, sender_email=sender_email, thread_id=thread_id,
             message_ids=message_ids, subject=subject, body=body,
         )
+        # Set when the unsolicited branch below already recorded the inbound
+        # message (relevant first contact); the trusted block must not record
+        # it a second time.
+        recorded_message = None
 
         if disposition in (
             InboundDisposition.SELF_COPY, InboundDisposition.BOUNCE,
@@ -231,11 +259,60 @@ class ConversationMonitor:
                 subject=subject, thread_id=thread_id, external_id=external_id,
                 in_reply_to=in_reply_to, references=references, raw_body=raw_body,
             )
-            return InboundResult(
-                None, message, "unsolicited", "quarantined",
-                disposition=disposition,
-                reason="unsolicited unknown sender: quarantined, no autonomous reply",
+            text = f"{subject or ''}\n{body or ''}"
+            if _matches_any(_OPT_OUT_PATTERNS, text):
+                return InboundResult(
+                    None, message, "opt_out", "opt_out",
+                    disposition=disposition,
+                    reason="unsolicited sender opted out: honored, no relationship, no reply",
+                )
+            if _matches_any(_DECLINE_PATTERNS, text):
+                return InboundResult(
+                    None, message, "decline", "declined",
+                    disposition=disposition,
+                    reason="unsolicited sender declined: closed, no relationship, no reply",
+                )
+            relevance = self._assess_relevance(
+                subject, body, need_rules=need_rules,
+                project_facts=project_facts, principal_domains=principal_domains,
             )
+            if not relevance.relevant:
+                return InboundResult(
+                    None, message, "unsolicited", "quarantined",
+                    disposition=disposition,
+                    reason="unsolicited unknown sender: quarantined, no autonomous reply",
+                )
+            # Relevant first contact: create the relationship and rejoin the
+            # trusted flow below. Intent classification, authority policy,
+            # budgets, and outbound mode still govern everything downstream —
+            # relevance only opens the door, never sends.
+            relationship = Relationship(
+                display_name=(sender_email or "").split("@")[0] if sender_email else "unknown",
+                email=sender_email,
+                purpose="unsolicited_first_contact",
+                status=RelationshipStatus.ENGAGED,
+                notes=[f"first contact; relevance: {', '.join(relevance.matched_terms)}"],
+                first_contacted_at=message.received_at,
+                last_inbound_at=message.received_at,
+                next_action="evaluate inbound normally",
+            )
+            store.add_relationship(relationship)
+            message.relationship_id = relationship.id
+            store.update_message(message)
+            relationship.message_ids.append(message.id)
+            if thread_id and thread_id not in relationship.thread_ids:
+                relationship.thread_ids.append(thread_id)
+            relationship.last_inbound_at = message.received_at
+            store.update_relationship(relationship)
+            store.append_provenance(ProvenanceEntry(
+                phase=ProvenancePhase.MONITOR,
+                summary=f"relevant first contact from '{sender_email}': joining normal evaluation",
+                action="relevance_accept",
+                result="; ".join(relevance.reasons) or "work-related",
+                evidence=[f"matched:{term}" for term in relevance.matched_terms[:6]],
+                refs={"relationship_id": relationship.id, "message_id": message.id},
+            ))
+            recorded_message = message
 
         # Trusted scope from here on.
         if relationship is None:
@@ -245,17 +322,20 @@ class ConversationMonitor:
                 status=RelationshipStatus.ENGAGED,
             )
             store.add_relationship(relationship)
-
-        message = self._record_inbound(
-            store, relationship_id=relationship.id, sender_email=sender_email,
-            body=body, subject=subject, thread_id=thread_id, external_id=external_id,
-            in_reply_to=in_reply_to, references=references, raw_body=raw_body,
-        )
-        relationship.message_ids.append(message.id)
-        if thread_id and thread_id not in relationship.thread_ids:
-            relationship.thread_ids.append(thread_id)
-        relationship.last_inbound_at = message.received_at
-        relationship.touch()
+        if recorded_message is None:
+            message = self._record_inbound(
+                store, relationship_id=relationship.id, sender_email=sender_email,
+                body=body, subject=subject, thread_id=thread_id, external_id=external_id,
+                in_reply_to=in_reply_to, references=list(references or []), raw_body=raw_body,
+            )
+            relationship.message_ids.append(message.id)
+            if thread_id and thread_id not in relationship.thread_ids:
+                relationship.thread_ids.append(thread_id)
+            relationship.last_inbound_at = message.received_at
+            relationship.touch()
+            store.update_relationship(relationship)
+        else:
+            message = recorded_message
 
         # A message inside a trusted thread but written by a *different* sender is
         # still not autonomous scope: we record it for context but never reply to
@@ -448,6 +528,30 @@ class ConversationMonitor:
         store.append_message(message)
         return message
 
+    def _assess_relevance(
+        self,
+        subject: str,
+        body: str,
+        *,
+        need_rules: Optional[list] = None,
+        project_facts: Optional[list] = None,
+        principal_domains: Optional[list] = None,
+    ):
+        """Decide whether an unsolicited message is valid, work-related mail.
+
+        Anything unassessable (no rules, no facts, no domains configured)
+        stays quarantined: relevance is opt-in evidence, never a default.
+        """
+        from .relevance import assess_inbound_relevance, project_vocabulary
+
+        terms = project_vocabulary(project_facts or [])
+        return assess_inbound_relevance(
+            subject, body,
+            need_rules=need_rules or [],
+            project_terms=terms,
+            principal_domains=principal_domains or [],
+        )
+
     def _classify(
         self, store: OperationsStore, *, sender_email: str, thread_id: str,
         message_ids: list[str], subject: str, body: str,
@@ -456,7 +560,7 @@ class ConversationMonitor:
         self_addr = _norm(self._self_address)
         if self_addr and sender and sender == self_addr:
             return InboundDisposition.SELF_COPY, None
-        if sender and _AUTOMATED_SENDER_RE.search(sender_email):
+        if sender and _is_automated_sender(sender_email):
             return InboundDisposition.AUTOMATED, None
         if _matches_any(_BOUNCE_SUBJECT_RE, subject) or _matches_any(_BOUNCE_BODY_RE, body):
             return InboundDisposition.BOUNCE, None

@@ -521,6 +521,16 @@ class SMTPBackend:
                         },
                     }
 
+                def _advance(uid_value: Any) -> None:
+                    # Only successfully retrieved mail advances the cursor:
+                    # failed fetches stay pending for the next tick instead
+                    # of being silently skipped forever.
+                    nonlocal new_last_uid
+                    try:
+                        new_last_uid = max(new_last_uid, int(uid_value))
+                    except (TypeError, ValueError):
+                        pass
+
                 status, data = imap.uid("search", None, f"UID {last_uid + 1}:{top_uid}")
                 if status == "OK" and data and data[0]:
                     for num in data[0].split():
@@ -530,6 +540,7 @@ class SMTPBackend:
                         raw = _extract_raw(fetched)
                         parsed = email.message_from_bytes(raw, policy=email.policy.default)
                         if self._ignored(parsed):
+                            _advance(num)
                             continue
                         full_text = extract_message_text(parsed)
                         in_reply_to = str(parsed.get("In-Reply-To", "") or "").strip()
@@ -545,7 +556,7 @@ class SMTPBackend:
                             "body": strip_quoted_reply(full_text),
                             "raw_body": full_text,
                         })
-                new_last_uid = top_uid
+                        _advance(num)
         except Exception as exc:
             raise MailboxError(f"IMAP fetch failed: {exc}") from exc
         return {

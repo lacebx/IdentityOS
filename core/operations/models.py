@@ -546,6 +546,10 @@ class ControlState:
     # match this allowlist (exact address or an "@domain" suffix). Replies and
     # follow-ups to established relationships are not bound by the allowlist.
     allowed_external_recipients: list[str] = field(default_factory=list)
+    # Principal work domains for inbound relevance: free-text terms Arsène
+    # maintains for work outside the declared need rules (matched
+    # case-insensitively against unsolicited mail before Aster engages).
+    principal_domains: list[str] = field(default_factory=list)
     paused: bool = False
     never_contact: list[str] = field(default_factory=list)
     require_approval_categories: list[str] = field(default_factory=list)
@@ -560,6 +564,7 @@ class ControlState:
         return {
             "outbound_mode": self.outbound_mode,
             "allowed_external_recipients": list(self.allowed_external_recipients),
+            "principal_domains": list(self.principal_domains),
             "paused": self.paused,
             "never_contact": list(self.never_contact),
             "require_approval_categories": list(self.require_approval_categories),
@@ -576,6 +581,7 @@ class ControlState:
         return cls(
             outbound_mode=normalize_outbound_mode(data.get("outbound_mode", "observe")),
             allowed_external_recipients=list(data.get("allowed_external_recipients", [])),
+            principal_domains=list(data.get("principal_domains", [])),
             paused=bool(data.get("paused", False)),
             never_contact=list(data.get("never_contact", [])),
             require_approval_categories=list(data.get("require_approval_categories", [])),

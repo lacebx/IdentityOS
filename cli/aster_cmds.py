@@ -636,7 +636,8 @@ def cmd_aster_override(args: argparse.Namespace) -> int:
                 return 1
         elif key == "paused":
             parsed = value.lower() in ("true", "1", "yes")
-        elif key in ("never_contact", "require_approval_categories", "allowed_external_recipients"):
+        elif key in ("never_contact", "require_approval_categories", "allowed_external_recipients",
+                       "principal_domains"):
             parsed = [part.strip() for part in value.split(",") if part.strip()]
         try:
             engine.override(**{key: parsed})
@@ -662,7 +663,9 @@ def cmd_aster_email_check(args: argparse.Namespace) -> int:
     storage = _get_storage(args)
     registry = _registry(storage)
     cap = registry.get("aster", "email")
-    cap_config = cap._config if cap is not None else {}
+    raw_config = dict(cap._config) if cap is not None else {}
+    cap_config = {key: ("[set]" if value else value) if "password" in key.lower() or "secret" in key.lower() or "token" in key.lower() else value
+                  for key, value in raw_config.items()}
     report: dict[str, Any] = {
         "capability": {"installed": cap is not None, "config": cap_config, "backend": cap_config.get("backend", "file")},
         "env": {
