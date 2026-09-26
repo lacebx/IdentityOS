@@ -925,6 +925,7 @@ class OperationsEngine:
             raw_sender = str(item.get("from", item.get("sender_email", "")) or "unknown")
             display = raw_sender
             body_text = str(item.get("body", item.get("text", "")))
+            project_state = self.store.project_state()
             result = self.monitor.ingest(
                 self.store,
                 sender_email=raw_sender,
@@ -935,6 +936,9 @@ class OperationsEngine:
                 external_id=external_id,
                 in_reply_to=str(item.get("in_reply_to", "")),
                 references=list(item.get("references") or []),
+                need_rules=list(getattr(self.detector, "rules", []) or []),
+                project_facts=list(project_state.facts) if project_state else [],
+                principal_domains=list(self.store.controls().principal_domains or []),
             )
             results.append(result)
             if result.responded and result.relationship is not None:

@@ -575,6 +575,130 @@ def test_identity_and_invariant_survive_restart(tmp_path):
         pass
 
 
+def test_cursor_advances_only_past_retrieved_mail():
+    from core.capabilities.email.backends import SMTPBackend
+
+    class FakeIMAP:
+        def __init__(self):
+            self.logins = 0
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def login(self, user, password):
+            self.logins += 1
+
+        def select(self, box):
+            return ("OK", [b""])
+
+        def status(self, box, query):
+            return ("OK", [b'INBOX (UIDVALIDITY 1 UIDNEXT 5)'])
+
+        def uid(self, command, *args):
+            if command == "search":
+                return ("OK", [b"1 2 3 4"])
+            if command == "fetch":
+                raw_num = args[0]
+                num = raw_num.decode() if isinstance(raw_num, bytes) else str(raw_num)
+                if num == "3":
+                    return ("NO", [None])  # transient failure: must stay pending
+                body = (f"From: human@example.org\r\nSubject: hi\r\n"
+                        f"Message-ID: <m{num}@x>\r\n\r\nHello there friend.").encode()
+                return ("OK", [(f"{num} (RFC822 {{{len(body)}}}".encode(), body, b")")])
+
+    backend = SMTPBackend(host="imap.example.org", username="u", password="p",
+                          sender="aster.identityos@gmail.com",
+                          imap_host="imap.example.org",
+                          imap_factory=FakeIMAP)
+    result = backend.fetch_inbox_with_cursor(
+        cursor={"uid_validity": 1, "last_uid": 0, "seeded": True})
+
+    def _text(value):
+        if isinstance(value, bytes):
+            return value.decode("utf-8", errors="replace")
+        return str(value)
+
+    assert [_text(m["external_id"]) for m in result["messages"]] == [
+        "<m1@x>", "<m2@x>", "<m4@x>"]
+    # Retrieved mail advances (max), matching prior semantics for successes.
+    assert result["cursor"]["last_uid"] == 4
+
+
+def test_cursor_stalls_on_total_fetch_failure():
+    from core.capabilities.email.backends import SMTPBackend
+
+    class DeadIMAP:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def login(self, user, password):
+            pass
+
+        def select(self, box):
+            return ("OK", [b""])
+
+        def status(self, box, query):
+            return ("OK", [b"INBOX (UIDVALIDITY 1 UIDNEXT 5)"])
+
+        def uid(self, command, *args):
+            if command == "search":
+                return ("OK", [b"1 2 3 4"])
+            return ("NO", [None])
+
+    backend = SMTPBackend(host="imap.example.org", username="u", password="p",
+                          sender="aster.identityos@gmail.com",
+                          imap_host="imap.example.org",
+                          imap_factory=DeadIMAP)
+    before = {"uid_validity": 1, "last_uid": 0, "seeded": True}
+    result = backend.fetch_inbox_with_cursor(cursor=before)
+    assert result["messages"] == []
+    assert result["cursor"]["last_uid"] == 0, "total failure must not advance the cursor"
+
+
+def test_cursor_skips_only_on_success(tmp_path):
+    from core.capabilities.email.backends import SMTPBackend
+
+    seen = {"calls": 0}
+
+    class FlakyIMAP:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def login(self, user, password):
+            pass
+
+        def select(self, box):
+            return ("OK", [b""])
+
+        def status(self, box, query):
+            return ("OK", [b"INBOX (UIDVALIDITY 1 UIDNEXT 3)"])
+
+        def uid(self, command, *args):
+            if command == "search":
+                return ("OK", [b"1 2"])
+            body = (b"From: human@example.org\r\nSubject: hi\r\n"
+                    b"Message-ID: <mx@y>\r\n\r\nHello there friend.")
+            return ("OK", [(b"1 (RFC822 {100}", body, b")")])
+
+    backend = SMTPBackend(host="imap.example.org", username="u", password="p",
+                          sender="aster.identityos@gmail.com",
+                          imap_host="imap.example.org",
+                          imap_factory=FlakyIMAP)
+    result = backend.fetch_inbox_with_cursor(
+        cursor={"uid_validity": 1, "last_uid": 0, "seeded": True})
+    assert len(result["messages"]) == 2
+    assert result["cursor"]["last_uid"] == 2
+
+
 # ── no credentials committed ────────────────────────────────────────────
 
 
