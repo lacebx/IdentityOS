@@ -279,6 +279,7 @@ def build_principal_context(
     history: list[Message],
     command: CommandClass,
     presence_summary: str = "",
+    principal_lines: Optional[list[str]] = None,
 ) -> tuple[str, str]:
     """Build (system_context, user_input) for a genuine model response.
 
@@ -299,6 +300,11 @@ def build_principal_context(
     ]
     if presence_summary:
         lines.append(f"Live operational facts (verified runtime state, not claims): {presence_summary}")
+    verified = [str(line) for line in (principal_lines or []) if str(line).strip()][:8]
+    if verified:
+        lines.append("Verified public facts about Arsène Manzi (cite only what is written here; "
+                     "never invent achievements; one warm sentence of genuine appreciation is welcome):")
+        lines.extend(f"- {line}" for line in verified)
     history_lines: list[str] = []
     for item in history[-8:]:
         who = "Arsène" if item.direction is MessageDirection.INBOUND else identity_name

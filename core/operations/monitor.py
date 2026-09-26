@@ -452,6 +452,12 @@ class ConversationMonitor:
             )
 
         facts = self._verified_facts(store)
+        principal_lines, is_principal = self._principal_lines_for(store, relationship)
+        if is_principal and principal_lines:
+            # The principal's own thread gets broad reasoning from verified
+            # public facts about him — every substantive reply, not just
+            # founder questions. Never sent to anyone else.
+            facts = list(principal_lines) + list(facts)
         knowledge_intents = ("question", "documentation_request", "intro_request")
         if intent in knowledge_intents:
             # Enrich with bounded technical context (identity spec, north star,
@@ -483,6 +489,7 @@ class ConversationMonitor:
         subject_out, reply_body, reply_mode = self._composer.compose_reply(
             relationship, text, intent=intent, facts=facts,
             adapter=self._adapter, identity=self._identity,
+            principal=is_principal,
         )
         if reply_mode == "unavailable":
             # Substantive reply requires a working model runtime. Never send a
@@ -620,6 +627,28 @@ class ConversationMonitor:
             return Relevance(True, ["model:work-related"],
                              [repaired if clean else "model judged work-related"])
         return Relevance(False, [], ["model judged not work-related"])
+
+    def _principal_lines_for(self, store: OperationsStore, relationship: Any) -> tuple[list[str], bool]:
+        """Cached public principal facts for principal threads.
+
+        Only the builder relationship ever receives them: principal facts
+        must never leak into replies to anyone else. Reads the durable
+        cache (refreshed weekly by the operator tick), so both fresh ingest
+        and deferred retries see the same verified facts.
+        """
+        try:
+            from .principal import BUILDER_PURPOSE
+            from .principal_knowledge import load_profile, principal_context_lines
+
+            if getattr(relationship, "purpose", "") != BUILDER_PURPOSE:
+                return [], False
+            storage = getattr(store, "_storage", None)
+            identity_id = getattr(store, "identity_id", "")
+            if storage is None or not identity_id:
+                return [], True
+            return principal_context_lines(load_profile(storage, identity_id)), True
+        except Exception:
+            return [], False
 
     def _classify(
         self, store: OperationsStore, *, sender_email: str, thread_id: str,

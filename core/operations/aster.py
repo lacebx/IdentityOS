@@ -28,6 +28,9 @@ ASTER_NAME = "Aster"
 #: personal-mailbox sender remains historically accurate for past mail only).
 ASTER_EMAIL = "aster.identityos@gmail.com"
 ASTER_DISPLAY_NAME = "Aster | IdentityOS"
+#: Project repo URL. The principal's GitHub username is derived from this
+#: (public project metadata, not a secret) for principal-knowledge gathering.
+ASTER_GITHUB_URL = "https://github.com/lacebx/IdentityOS"
 
 #: Canonical professional signature. Contains no em dash by construction.
 ASTER_SIGNATURE = (

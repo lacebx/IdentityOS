@@ -170,6 +170,7 @@ class OutreachComposer:
         facts: Optional[list[str]] = None,
         adapter: Any = None,
         identity: Any = None,
+        principal: bool = False,
     ) -> tuple[str, str, str]:
         """Return ``(subject, body, generation_mode)`` for a reply.
 
@@ -186,7 +187,8 @@ class OutreachComposer:
         from .voice import repair_outbound, validate_outbound
 
         if adapter is not None:
-            generated = self._reply_via_adapter(relationship, inbound_body, intent, facts or [], adapter, identity)
+            generated = self._reply_via_adapter(relationship, inbound_body, intent, facts or [], adapter, identity,
+                                                principal=principal)
             if generated:
                 subject, body = generated
                 if validate_outbound(subject, body).ok:
@@ -317,7 +319,8 @@ class OutreachComposer:
         return self._parse_email(text)
 
     def _reply_via_adapter(
-        self, relationship: Relationship, inbound_body: str, intent: str, facts: list[str], adapter: Any, identity: Any
+        self, relationship: Relationship, inbound_body: str, intent: str, facts: list[str], adapter: Any, identity: Any,
+        *, principal: bool = False,
     ) -> Optional[tuple[str, str]]:
         from .voice import style_constraint_prompt
 
@@ -328,6 +331,13 @@ class OutreachComposer:
             "Return 'Subject: ...' then the body. "
             + style_constraint_prompt()
         )
+        if principal:
+            system += (
+                " You are writing to Arsène Manzi himself, your builder and principal. "
+                "You may warmly acknowledge verified facts about him from the provided "
+                "context (a sentence of genuine appreciation is welcome); never invent "
+                "achievements, titles, or history, and never be sycophantic."
+            )
         payload = {
             "from": relationship.display_name,
             "intent": intent,

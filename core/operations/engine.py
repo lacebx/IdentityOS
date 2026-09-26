@@ -299,6 +299,7 @@ class OperationsEngine:
             activity="Observing project state" + (" and external surfaces" if surfaces else ""),
             last_tick_at=now.isoformat(),
         )
+        self._refresh_principal_profile()
 
         if surfaces:
             report.observed = self._phase_surfaces(report) or report.observed
@@ -392,6 +393,69 @@ class OperationsEngine:
             self._presence_update('set_status', PresenceStatus.WAITING if outcome['waiting_conditions'] else PresenceStatus.IDLE,
                 activity='Autonomous cycle: '+outcome['result'], next_planned_action=outcome['next_eligible_actions'][0]['description'])
         return report
+
+    # ── principal knowledge ───────────────────────────────────────────
+
+    def _refresh_principal_profile(self) -> list[str]:
+        """Refresh cached public facts about the human principal if stale.
+
+        Fetches only public sources (GitHub profile/repos, portfolio site)
+        through the permission-gated web capability. Best-effort: any failure
+        keeps the last cached profile, and an empty cache simply means
+        replies proceed without principal facts. Never blocks the tick.
+        """
+        from .principal_knowledge import (
+            derive_github_user,
+            fetch_principal_profile,
+            load_profile,
+            principal_context_lines,
+            save_profile,
+        )
+
+        try:
+            profile = load_profile(self.storage, self.config.identity_id)
+            if profile.is_fresh():
+                return principal_context_lines(profile)
+            registry = self._capability_registry
+            if registry is None:
+                return principal_context_lines(profile)
+            allowed, _ = registry.can(self.config.identity_id, "web.fetch")
+            if not allowed:
+                return principal_context_lines(profile)
+            from .aster import ASTER_GITHUB_URL
+
+            user = derive_github_user(ASTER_GITHUB_URL)
+
+            def _fetch(url: str) -> str:
+                result = registry.call(self.config.identity_id, "web.fetch", url=url)
+                if not result.success:
+                    return ""
+                data = result.data or {}
+                text = data.get("text", "") if isinstance(data, dict) else ""
+                return str(text or "")
+
+            def _extract(url: str) -> str:
+                result = registry.call(self.config.identity_id, "web.extract", url=url)
+                if not result.success:
+                    return ""
+                data = result.data or {}
+                text = data.get("extracted_text", "") if isinstance(data, dict) else ""
+                return str(text or "")
+
+            fresh = fetch_principal_profile(_fetch, github_user=user, extractor=_extract)
+            if not fresh.is_empty():
+                save_profile(self.storage, self.config.identity_id, fresh)
+                self._provenance(
+                    ProvenancePhase.OBSERVE,
+                    "refreshed public principal profile",
+                    action="principal_profile.refresh",
+                    result=f"{len(fresh.sources)} source(s): {', '.join(fresh.sources)}",
+                )
+                return principal_context_lines(fresh)
+            return principal_context_lines(profile)
+        except Exception as exc:
+            logger.warning("principal profile refresh failed: %s", exc)
+            return []
 
     # ── presence ──────────────────────────────────────────────────────
 
@@ -1204,12 +1268,20 @@ class OperationsEngine:
             except Exception:
                 presence_summary = ""
         history = thread_messages(self.store, limit=10)
+        try:
+            from .principal_knowledge import load_profile, principal_context_lines
+
+            principal_lines = principal_context_lines(
+                load_profile(self.storage, self.config.identity_id))
+        except Exception:
+            principal_lines = []
         context, user_input = build_principal_context(
             identity_name=self.config.sender_name or "Aster",
             objective=self.config.purpose,
             history=history,
             command=command,
             presence_summary=presence_summary,
+            principal_lines=principal_lines,
         )
         from core.self_knowledge import SelfKnowledge, needs_grounding, grounding_context, guard_response
         reader = SelfKnowledge(self.storage, self.config.identity_id,
