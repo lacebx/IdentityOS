@@ -93,6 +93,36 @@ def test_signature_selection_first_contact_vs_thread():
     assert identity.signature_for(first_contact=False) == identity.signature_compact
 
 
+def test_html_plain_equivalence():
+    from core.operations.voice import render_html_body, split_signature
+
+    identity = aster_communication_identity()
+    body = "Hello Arsène.\n\nTesting identity.\n\n" + identity.signature_full
+    content, variant = split_signature(body, identity)
+    assert variant == "full"
+    html, out_variant = render_html_body(body, identity)
+    assert out_variant == "full"
+    assert "Hello Arsène." in html and "Testing identity." in html
+    assert "Aster" in html and "https://github.com/lacebx/IdentityOS" in html
+    assert count_em_dashes(html) == 0
+    # Unsigned bodies convert completely without duplicating a sign-off.
+    plain, variant2 = split_signature("Just a note.\n\nBest, Aster", identity)
+    assert variant2 == ""
+    html2, _ = render_html_body("Just a note.\n\nBest, Aster", identity)
+    assert html2.count("Best, Aster") == 1
+
+
+def test_email_send_schema_accepts_identity_params():
+    from core.capabilities.email import EmailCapability
+
+    cap = EmailCapability(config={})
+    names = {skill.name: skill for skill in cap.skills()}
+    schema = names["email.send"].input_schema
+    props = schema.get("properties", {}) if isinstance(schema, dict) else {}
+    for field in ("sender", "sender_display_name", "reply_to", "html_body"):
+        assert field in props, f"email.send schema must accept {field}"
+
+
 def test_plain_text_signature_complete():
     identity = aster_communication_identity()
     assert "GitHub" in identity.signature_full
@@ -249,6 +279,31 @@ def test_multiple_occurrences_handled():
         raise AssertionError("must raise")
     except OutboundStyleError:
         pass
+
+
+def test_generation_prompts_carry_style_constraint():
+    from core.operations.composition import OutreachBrief, OutreachComposer
+    from core.operations.principal import build_principal_context
+    from core.operations import CommandClass
+
+    seen = {}
+
+    class SpyAdapter:
+        model = "spy"
+
+        def generate(self, context, user_input, identity, **kwargs):
+            seen["context"] = context
+            seen["user_input"] = user_input
+            return None
+
+    composer = _composer()
+    brief = OutreachBrief(recipient_name="X", need_description="Y")
+    composer.compose(brief, adapter=SpyAdapter(), identity=None)
+    assert "U+2014" in seen["context"]
+    context, _ = build_principal_context(
+        identity_name="Aster", objective="o", history=[],
+        command=CommandClass.CONVERSE)
+    assert "U+2014" in context
 
 
 # ── boundary: email capability ──────────────────────────────────────────

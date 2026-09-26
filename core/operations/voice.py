@@ -169,7 +169,12 @@ def render_html_body(body: str, identity: CommunicationIdentity) -> tuple[str, s
     content, variant = split_signature(body, identity)
     paragraphs = [f"<p>{_html.escape(block).replace(chr(10), '<br>')}</p>"
                   for block in content.split("\n\n") if block.strip()]
-    html_signature = identity.signature_html or render_html_signature(identity)
+    # Append the linked signature block only when a matching plain signature
+    # was actually stripped; otherwise the converted body is already complete
+    # and appending would duplicate the sign-off.
+    html_signature = ""
+    if variant:
+        html_signature = identity.signature_html or render_html_signature(identity)
     return "".join(paragraphs) + html_signature, variant or "unsigned"
 
 

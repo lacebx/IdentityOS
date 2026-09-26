@@ -283,11 +283,14 @@ class OutreachComposer:
     # ── adapters ──────────────────────────────────────────────────────
 
     def _via_adapter(self, brief: OutreachBrief, adapter: Any, identity: Any) -> Optional[tuple[str, str]]:
+        from .voice import style_constraint_prompt
+
         system = (
             "You write a single, respectful, specific cold outreach email. "
             "Use ONLY the facts in the brief. Never invent credentials, funding, or claims. "
             "Keep it under 180 words. Include the transparency note and signature exactly. "
-            "Return the email as 'Subject: <subject>' on the first line then the body."
+            "Return the email as 'Subject: <subject>' on the first line then the body. "
+            + style_constraint_prompt()
         )
         payload = {
             "recipient": brief.recipient_name,
@@ -306,11 +309,14 @@ class OutreachComposer:
     def _reply_via_adapter(
         self, relationship: Relationship, inbound_body: str, intent: str, facts: list[str], adapter: Any, identity: Any
     ) -> Optional[tuple[str, str]]:
+        from .voice import style_constraint_prompt
+
         system = (
             "You draft a short, polite reply. Use ONLY the verified facts provided. "
             "If the message asks for anything binding (money, contracts, legal, access, "
             "employment, ownership), say you will check with the principal instead of answering. "
-            "Return 'Subject: ...' then the body."
+            "Return 'Subject: ...' then the body. "
+            + style_constraint_prompt()
         )
         payload = {
             "from": relationship.display_name,

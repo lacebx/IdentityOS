@@ -286,6 +286,8 @@ def build_principal_context(
     objective, live presence facts, and the principal conversation history.
     No chain-of-thought is requested or stored.
     """
+    from .voice import style_constraint_prompt
+
     lines = [
         f"You are {identity_name}, a persistent autonomous operator identity running on IdentityOS, "
         "acting under delegated authority for your builder and human principal Arsène Manzi.",
@@ -293,6 +295,7 @@ def build_principal_context(
         "Be direct, specific, and honest about uncertainty. Never claim an action happened unless it did. "
         "Everyday conversation is welcome; for consequential or binding decisions, escalate instead of deciding alone.",
         f"Your current objective: {objective or 'not set'}.",
+        style_constraint_prompt(),
     ]
     if presence_summary:
         lines.append(f"Live operational facts (verified runtime state, not claims): {presence_summary}")
