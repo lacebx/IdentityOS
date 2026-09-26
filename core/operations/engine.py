@@ -903,6 +903,50 @@ class OperationsEngine:
             )
         return sent, escalations, skips
 
+    def retry_deferred_reply(self, message_id: str) -> dict[str, Any]:
+        """Re-run reply processing for a deferred inbound email message.
+
+        Deferred monitor replies (e.g. model outage at tick time) are skipped
+        forever by the duplicate guard, which would strand them. This explicit
+        recovery reuses the exact same respond path — policy, budgets, mode —
+        without recording a second copy. Refuses when the message is not a
+        retryable inbound email or the relationship is closed.
+        """
+        message = self.store.get_message(message_id)
+        if message is None:
+            return {"ok": False, "error": f"unknown message: {message_id}"}
+        if message.direction is not MessageDirection.INBOUND or message.channel != "email":
+            return {"ok": False, "error": "only inbound email messages can be retried"}
+        if message.status is not MessageStatus.RECEIVED:
+            return {"ok": False, "error": f"message is not pending: {message.status.value}"}
+        relationship = self.store.get_relationship(message.relationship_id)
+        if relationship is None:
+            return {"ok": False, "error": "message has no relationship"}
+        if relationship.opted_out or relationship.status in (
+            RelationshipStatus.DECLINED, RelationshipStatus.OPTED_OUT
+        ):
+            return {"ok": False, "error": "relationship is closed"}
+        sender_email = relationship.email or ""
+        result = self.monitor.respond_to_recorded(
+            self.store, relationship, message,
+            sender_email=sender_email, body=message.body, subject=message.subject,
+            disposition=None,
+        )
+        self._provenance(
+            ProvenancePhase.MONITOR,
+            f"retried deferred reply to '{relationship.display_name or sender_email}'",
+            action="retry_deferred_reply",
+            result=f"{result.treated_as}: {result.reason}",
+            refs={"message_id": message.id, "relationship_id": relationship.id},
+        )
+        if result.responded:
+            self._presence_update(
+                "mark_meaningful_action",
+                f"Replied to inbound from '{relationship.display_name}' on retry",
+            )
+        return {"ok": True, "treated_as": result.treated_as, "reason": result.reason,
+                "responded": result.responded, "escalated": result.escalated}
+
     def _phase_monitor(self) -> tuple[list[InboundResult], list[str], list[dict[str, Any]]]:
         results: list[InboundResult] = []
         replies: list[str] = []
