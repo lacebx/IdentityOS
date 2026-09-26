@@ -254,6 +254,97 @@ def test_model_garbage_or_failure_quarantines(tmp_path):
             if r.purpose == "unsolicited_first_contact"] == []
 
 
+def test_retry_deferred_reply_sends_without_duplicate_record(tmp_path):
+    from core.operations.models import MessageStatus
+
+    class Talkative:
+        model = "talkative"
+
+        def generate(self, context, user_input, identity, **kwargs):
+            return "Subject: Re: hi\nThanks for writing back."
+
+    engine, backend = _engine(tmp_path, controls=ControlState(outbound_mode="autonomous"),
+                               adapter=Talkative())
+    _deliver(backend, "dev@example.org", "Contributing as a collaborator",
+             "Hello Aster. I am a distributed systems collaborator. How do I start?",
+             thread="thread-retry", external="ext-retry")
+    engine.tick()
+    inbound = [m for m in engine.store.list_messages() if m.direction.value == "inbound"]
+    assert len(inbound) == 1
+    before = len(engine.store.list_messages())
+    result = engine.retry_deferred_reply("no-such-id")
+    assert result["ok"] is False
+    # Force the deferred state to exercise the retry path deterministically.
+    inbound[0].status = MessageStatus.RECEIVED
+    engine.store.update_message(inbound[0])
+    outcome = engine.retry_deferred_reply(inbound[0].id)
+    assert outcome["ok"] is True
+    assert outcome["responded"] is True
+    after = [m for m in engine.store.list_messages() if m.direction.value == "inbound"]
+    assert len(after) == 1, "retry must never record a second inbound copy"
+    assert len(engine.store.list_messages()) == before + 1  # only the response
+
+
+def test_failed_send_labeled_failed_not_drafted(tmp_path):
+    from core.operations.models import MessageStatus
+
+    class Talkative:
+        model = "talkative"
+
+        def generate(self, context, user_input, identity, **kwargs):
+            return "Subject: Re: hi\nThanks for writing back."
+
+    class FailTransport:
+        def send(self, **kwargs):
+            return {"ok": False, "error": "simulated SMTP outage"}
+
+        def fetch_inbox(self):
+            return []
+
+    storage = InMemoryBackend()
+    engine, _ = _engine(tmp_path, storage=storage,
+                        controls=ControlState(outbound_mode="autonomous"),
+                        adapter=Talkative())
+    engine.monitor._transport = FailTransport()
+    engine.tick()  # observe the project so verified facts exist
+    from core.operations import OperationsStore
+
+    store = OperationsStore(storage, "aster")
+    from core.operations.models import Relationship, RelationshipStatus
+
+    rel = Relationship(display_name="Pat", email="pat@example.org",
+                       status=RelationshipStatus.ENGAGED)
+    store.add_relationship(rel)
+    result = engine.monitor.ingest(
+        store, sender_email="pat@example.org",
+        body="Hello Aster. I am a collaborator. How do I start?",
+        subject="Contributing", thread_id="t-fail", external_id="ext-fail",
+        need_rules=[], project_facts=[], principal_domains=[])
+    assert result.treated_as == "failed", result.reason
+    assert "simulated SMTP outage" in result.reason
+    failed = [m for m in store.list_messages() if m.status is MessageStatus.FAILED]
+    assert len(failed) == 1
+
+
+def test_retry_refuses_closed_or_settled(tmp_path):
+    from core.operations.models import MessageStatus, RelationshipStatus
+
+    engine, backend = _engine(tmp_path)
+    _deliver(backend, "dev@example.org", "Contributing as a collaborator",
+             "Hello Aster. I am a distributed systems collaborator. How do I start?",
+             thread="thread-closed", external="ext-closed")
+    engine.tick()
+    inbound = [m for m in engine.store.list_messages() if m.direction.value == "inbound"][0]
+    rel = engine.store.get_relationship(inbound.relationship_id)
+    rel.status = RelationshipStatus.OPTED_OUT
+    rel.opted_out = True
+    engine.store.update_relationship(rel)
+    assert engine.retry_deferred_reply(inbound.id)["ok"] is False
+    inbound.status = MessageStatus.SENT
+    engine.store.update_message(inbound)
+    assert engine.retry_deferred_reply(inbound.id)["ok"] is False
+
+
 # ── follow-up autonomy ────────────────────────────────────────────────────
 
 

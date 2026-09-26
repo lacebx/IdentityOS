@@ -54,15 +54,15 @@ class CapabilityTransport:
         self._identity_id = identity_id
 
     def send(self, *, to: str, subject: str, body: str, thread_id: str = "",
-              in_reply_to: str = "", references=None, sender: str = "",
-              sender_display_name: str = "", reply_to: str = "",
+              in_reply_to: str = "", references=None, message_id: str = "",
+              sender: str = "", sender_display_name: str = "", reply_to: str = "",
               html_body: str = "") -> dict[str, Any]:
         result = self._registry.call(
             self._identity_id, "email.send",
             to=to, subject=subject, body=body, thread_id=thread_id,
-            in_reply_to=in_reply_to, references=references, sender=sender,
-            sender_display_name=sender_display_name, reply_to=reply_to,
-            html_body=html_body,
+            in_reply_to=in_reply_to, references=references, message_id=message_id,
+            sender=sender, sender_display_name=sender_display_name,
+            reply_to=reply_to, html_body=html_body,
         )
         if not result.success:
             message = (result.error or {}).get("message", "email.send denied")
@@ -130,6 +130,7 @@ class EmailCapability(Capability):
                     "thread_id": {"type": "string"},
                     "in_reply_to": {"type": "string"},
                     "references": {"type": "array", "items": {"type": "string"}},
+                    "message_id": {"type": "string"},
                     "sender": {"type": "string"},
                     "sender_display_name": {"type": "string"},
                     "reply_to": {"type": "string"},
@@ -187,6 +188,7 @@ class EmailCapability(Capability):
                     thread_id=str(params.get("thread_id", "")),
                     in_reply_to=str(params.get("in_reply_to", "")),
                     references=list(params.get("references") or []),
+                    message_id=str(params.get("message_id", "")),
                     sender=str(params.get("sender", "")),
                     sender_display_name=str(params.get("sender_display_name", "")),
                     reply_to=str(params.get("reply_to", "")),

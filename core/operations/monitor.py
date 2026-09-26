@@ -337,6 +337,21 @@ class ConversationMonitor:
         else:
             message = recorded_message
 
+        return self.respond_to_recorded(
+            store, relationship, message, sender_email=sender_email,
+            body=body, subject=subject, disposition=disposition,
+        )
+
+    def respond_to_recorded(
+        self, store: OperationsStore, relationship: Relationship, message: Message,
+        *, sender_email: str, body: str, subject: str = "",
+        disposition: Any = None,
+    ) -> InboundResult:
+        """Run intent, policy, composition, and dispatch for an already-recorded
+        inbound message. Used by ingest() after classification/recording and by
+        explicit deferred-reply retries. Never records a second copy.
+        """
+
         # A message inside a trusted thread but written by a *different* sender is
         # still not autonomous scope: we record it for context but never reply to
         # the intruder on the principal's behalf.
@@ -398,17 +413,22 @@ class ConversationMonitor:
                 facts=self._verified_facts(store),
                 adapter=self._adapter, identity=self._identity,
             )
-            _, transmitted, escalated = self._dispatch_reply(
+            dispatch_record, transmitted, escalated = self._dispatch_reply(
                 store, relationship, subject_out, reply_body, kind="decline", source=message,
                 mode=reply_mode,
             )
             relationship.status = RelationshipStatus.DECLINED
             store.update_relationship(relationship)
-            reason = (
-                "respectful close sent; no further outreach" if transmitted else
-                "respectful close drafted (observe mode); no further outreach" if not escalated else
-                "respectful close requires human approval"
-            )
+            if transmitted:
+                reason = "respectful close sent; no further outreach"
+            elif (dispatch_record is not None
+                    and dispatch_record.status is MessageStatus.FAILED):
+                error = (dispatch_record.generation or {}).get("error", "send failed")
+                reason = f"respectful close send failed: {error}"
+            elif not escalated:
+                reason = "respectful close drafted (observe mode); no further outreach"
+            else:
+                reason = "respectful close requires human approval"
             return InboundResult(
                 relationship, message, intent, "decline", responded=transmitted,
                 escalated=escalated, reason=reason, disposition=disposition,
@@ -484,7 +504,7 @@ class ConversationMonitor:
                 reason="reply_generation_unavailable: no model runtime for substantive reply",
                 disposition=disposition,
             )
-        _, transmitted, escalated = self._dispatch_reply(
+        dispatch_record, transmitted, escalated = self._dispatch_reply(
             store, relationship, subject_out, reply_body, kind="reply", source=message,
             mode=reply_mode, policy_reason=decision.reason,
         )
@@ -494,6 +514,13 @@ class ConversationMonitor:
                 reason="outbound mode requires human approval", disposition=disposition,
             )
         if not transmitted:
+            if (dispatch_record is not None
+                    and dispatch_record.status is MessageStatus.FAILED):
+                error = (dispatch_record.generation or {}).get("error", "send failed")
+                return InboundResult(
+                    relationship, message, intent, "failed", responded=False,
+                    reason=f"reply send failed: {error}", disposition=disposition,
+                )
             return InboundResult(
                 relationship, message, intent, "reply", responded=False,
                 reason="observe mode: reply drafted, not sent", disposition=disposition,
@@ -502,6 +529,7 @@ class ConversationMonitor:
             relationship, message, intent, "reply", responded=True,
             reason=decision.reason, disposition=disposition,
         )
+
 
     # ── helpers ───────────────────────────────────────────────────────
 
@@ -768,12 +796,14 @@ class ConversationMonitor:
             )
             return record, False, False
 
-        reply = self._send_reply(
+        record, transmitted = self._send_reply(
             store, relationship, subject, body,
             thread=thread, in_reply_to=in_reply_to, references=list(references),
             generation=generation,
         )
-        return reply, reply is not None, False
+        if not transmitted and record is not None and record.status is MessageStatus.FAILED:
+            return record, False, False
+        return record, transmitted, False
 
     def _generation_meta(
         self, store: OperationsStore, reply_mode: str, source: Optional[Message],
@@ -833,12 +863,13 @@ class ConversationMonitor:
         self, store: OperationsStore, relationship: Relationship, subject: str, body: str,
         *, thread: str = "", in_reply_to: str = "", references: Optional[list[str]] = None,
         generation: Optional[dict[str, Any]] = None,
-    ) -> Optional[Message]:
+    ) -> tuple[Optional[Message], bool]:
         """Transmit a reply through the transport, so 'sent' is runtime-verified.
 
-        Returns the recorded message on success, or None when nothing was
-        transmitted (no transport or send failed); in that case a FAILED record
-        is persisted so the failure is observable, never silently 'sent'.
+        Returns ``(record, transmitted)``. The record is persisted on every
+        path — SENT on success, FAILED with the real error otherwise — so a
+        failure is observable and distinguishable from a drafted-but-unsent
+        reply, never silently 'sent' and never mislabeled.
 
         A standards-compliant RFC 5322 ``Message-ID`` is generated *before*
         transmission and persisted verbatim in ``Message.external_id`` (falling
@@ -850,7 +881,7 @@ class ConversationMonitor:
             thread = relationship.thread_ids[-1] if relationship.thread_ids else ""
         generation = dict(generation or {})
 
-        def _record_failure(reason: str) -> None:
+        def _record_failure(reason: str) -> Message:
             record = Message(
                 relationship_id=relationship.id,
                 direction=MessageDirection.OUTBOUND,
@@ -866,10 +897,10 @@ class ConversationMonitor:
             store.append_message(record)
             relationship.message_ids.append(record.id)
             store.update_relationship(relationship)
+            return record
 
         if self._transport is None:
-            _record_failure("dry_run_no_transport")
-            return None
+            return _record_failure("dry_run_no_transport"), False
 
         from core.capabilities.email.backends import generate_message_id
 
@@ -882,12 +913,10 @@ class ConversationMonitor:
             )
         except Exception as exc:
             generation["error"] = f"{type(exc).__name__}: {exc}"
-            _record_failure("conversational_autonomous")
-            return None
+            return _record_failure("conversational_autonomous"), False
         if isinstance(result, dict) and not result.get("ok"):
             generation["error"] = str(result.get("error", "send_not_ok"))
-            _record_failure("conversational_autonomous")
-            return None
+            return _record_failure("conversational_autonomous"), False
 
         external_id = str(result.get("external_id") or message_id)
         generation["mode"] = generation.get("mode") or "identity_model_generation"
@@ -914,4 +943,4 @@ class ConversationMonitor:
         relationship.last_outbound_at = message.sent_at
         store.update_relationship(relationship)
         store.record_usage("replies")
-        return message
+        return message, True
